@@ -1,0 +1,15 @@
+{
+  "name": "moonbit-community/moongrep",
+  "version": "0.1.0",
+  "deps": {
+    "moonbitlang/parser": {
+      "path": "./parser"
+    }
+  },
+  "readme": "README.mbt.md",
+  "repository": "",
+  "source": "src",
+  "license": "Apache-2.0",
+  "keywords": [],
+  "description": ""
+}
