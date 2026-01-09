@@ -454,17 +454,17 @@ fn LabelledTree::from_func(func : @syntax.Func) -> LabelledTree {
   }
 
   match func {
-    Lambda(
-      parameters~,
-      params_loc~,
-      body~,
-      return_type~,
-      error_type~,
-      kind~,
-      has_error~,
-      is_async~,
-      loc~
-    ) => {
+    {
+      parameters,
+      params_loc,
+      body,
+      return_type,
+      error_type,
+      kind,
+      has_error,
+      is_async,
+      loc
+    } => {
       let childs = []
       parameters.each(param => childs.push(from_parameter(param)))
       childs.push(LabelledTree::from_expr(body))
@@ -475,7 +475,6 @@ fn LabelledTree::from_func(func : @syntax.Func) -> LabelledTree {
       childs.push(from_error_type(error_type, loc))
       let kind_label = match kind {
         Lambda => "FnKind::Lambda"
-        Matrix => "FnKind::Matrix"
         Arrow => "FnKind::Arrow"
       }
       childs.push(LabelledTree::node(loc, kind_label, []))
@@ -486,31 +485,6 @@ fn LabelledTree::from_func(func : @syntax.Func) -> LabelledTree {
       }
       childs.push(LabelledTree::node(loc, "IsAsync(\{is_async})", []))
       LabelledTree::node(loc, "Func::Lambda", childs)
-    }
-    Match(cases~, has_error~, is_async~, fn_loc~, loc~) => {
-      let childs = []
-      cases.each(case => {
-        let case_childs = []
-        case.patterns.each(pat => case_childs.push(
-          LabelledTree::from_pattern(pat),
-        ))
-        match case.guard_ {
-          Some(guard_expr) =>
-            case_childs.push(LabelledTree::from_expr(guard_expr))
-          None => ()
-        }
-        case_childs.push(LabelledTree::from_expr(case.body))
-        childs.push(
-          LabelledTree::node(case.body.loc(), "MultiArgCase", case_childs),
-        )
-      })
-      match has_error {
-        Some(error_loc) =>
-          childs.push(LabelledTree::node(error_loc, "HasError", []))
-        None => ()
-      }
-      childs.push(LabelledTree::node(loc, "IsAsync(\{is_async})", []))
-      LabelledTree::node(loc, "Func::Match", childs)
     }
   }
 }
