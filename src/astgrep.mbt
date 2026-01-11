@@ -10,7 +10,7 @@ type EntryStack[T] = Array[Entry[T]]
 
 ///|
 struct AstGrepEnv {
-  locations : Array[Location]
+  locations : Array[Json]
 }
 
 ///|
@@ -23,7 +23,7 @@ pub fn AstGrepEnv::grep(
   self : AstGrepEnv,
   pattern : TreePattern,
   subject : LabelledTree,
-) -> ArrayView[Location] {
+) -> ArrayView[Json] {
   let trie = Trie::new()
   pattern.each(rtlpath => trie.add(rtlpath))
   trie.compute()
@@ -34,7 +34,7 @@ pub fn AstGrepEnv::grep(
   fn tabulate(state : TrieNode[Symbol]) -> Unit {
     let outs = state.outputs()
     outs.each(out => {
-      let len = out.iterator().filter(symbol => symbol is Label(_)).count()
+      let len = out.iter().filter(symbol => symbol is Label(_)).count()
       let entry = stack[stack.length() - len]
       entry.node.hits += 1
       if entry.node.hits == pattern.length() {

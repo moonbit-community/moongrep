@@ -1,18 +1,15 @@
 ///|
-pub struct LabelledTree {
+struct LabelledTree {
   node : LabelledTreeNode
-  loc : Location
+  loc : Json
   mut hits : Int
 }
 
 ///|
-let dummy_loc : Location = Location::{
-  start: { fname: "", lnum: -1, bol: -1, cnum: -1 },
-  end: { fname: "", lnum: -1, bol: -1, cnum: -1 },
-}
+let dummy_loc : Json = Json::null()
 
 ///|
-pub enum LabelledTreeNode {
+priv enum LabelledTreeNode {
   Node(label~ : String, childs~ : ArrayView[LabelledTree])
   WildCard
 }
@@ -34,14 +31,14 @@ pub impl ToJson for LabelledTree with to_json(self) -> Json {
 test {
   let tree = LabelledTree::node(dummy_loc, "f", [
     LabelledTree::node(dummy_loc, "g", [LabelledTree::node(dummy_loc, "x", [])]),
-    LabelledTree::wildcard(dummy_loc),
+    LabelledTree::wildcard(),
   ])
   @json.inspect(tree, content=["f", [["g", ["x"]], "$_"]])
 }
 
 ///|
 fn LabelledTree::node(
-  loc : Location,
+  loc : Json,
   label : String,
   childs : ArrayView[LabelledTree],
 ) -> LabelledTree {
@@ -49,8 +46,8 @@ fn LabelledTree::node(
 }
 
 ///|
-fn LabelledTree::wildcard(loc : Location) -> LabelledTree {
-  LabelledTree::{ node: WildCard, loc, hits: 0 }
+fn LabelledTree::wildcard() -> LabelledTree {
+  LabelledTree::{ node: WildCard, loc: Json::null(), hits: 0 }
 }
 
 ///|

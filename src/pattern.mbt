@@ -5,14 +5,6 @@ enum Symbol {
 } derive(Eq, Hash, Show)
 
 ///|
-impl ToJson for Symbol with to_json(self) {
-  match self {
-    Label(l) => Json::string(l)
-    Child(n) => Json::number(n.to_double())
-  }
-}
-
-///|
 type RTLPath = ImmutArray[Symbol] // Root to Leaf Path
 
 ///|
