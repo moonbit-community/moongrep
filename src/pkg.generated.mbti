@@ -1,0 +1,33 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep"
+
+import(
+  "moonbitlang/core/immut/array"
+)
+
+// Values
+pub fn build_pattern_from_labelled_tree(LabelledTree) -> ArrayView[@array.T[Symbol]]
+
+// Errors
+pub suberror AstGrepError {
+  AstConvertError(Json, message~ : String)
+}
+
+// Types and methods
+type AstGrepEnv
+pub fn AstGrepEnv::grep(Self, ArrayView[@array.T[Symbol]], LabelledTree) -> ArrayView[Json]
+pub fn AstGrepEnv::new() -> Self
+
+type LabelledTree
+pub fn LabelledTree::from_json_repr(Json) -> Self raise AstGrepError
+pub impl ToJson for LabelledTree
+
+type Symbol
+pub impl Eq for Symbol
+pub impl Hash for Symbol
+pub impl Show for Symbol
+
+// Type aliases
+
+// Traits
+
