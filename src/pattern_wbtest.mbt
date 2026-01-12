@@ -6,52 +6,52 @@ test "build infix expr pattern" {
   ignore(pattern)
   let pattern : Json = {
     "kind": "Expr::Infix",
-    "loc": null,
+    "loc": "",
     "childs": {
       "op": {
         "kind": "Var",
-        "loc": null,
+        "loc": "",
         "childs": {
           "name": {
             "kind": "LongIdent::Ident",
-            "loc": null,
+            "loc": "",
             "childs": { "0": "+" },
           },
         },
       },
       "lhs": {
         "kind": "Expr::Constant",
-        "loc": null,
+        "loc": "",
         "childs": {
           "constant": {
             "kind": "Constant::Int",
-            "loc": null,
+            "loc": "",
             "childs": { "0": "1" },
           },
         },
       },
       "rhs": {
         "kind": "Expr::Infix",
-        "loc": null,
+        "loc": "",
         "childs": {
           "op": {
             "kind": "Var",
-            "loc": null,
+            "loc": "",
             "childs": {
               "name": {
                 "kind": "LongIdent::Ident",
-                "loc": null,
+                "loc": "",
                 "childs": { "0": "*" },
               },
             },
           },
           "lhs": {
             "kind": "Expr::Constant",
-            "loc": null,
+            "loc": "",
             "childs": {
               "constant": {
                 "kind": "Constant::Int",
-                "loc": null,
+                "loc": "",
                 "childs": { "0": "3" },
               },
             },
@@ -71,7 +71,7 @@ test "build infix expr pattern" {
         [
           ["Var()", ["LongIdent::Ident(0=\"*\",)"]],
           ["Expr::Constant()", ["Constant::Int(0=\"3\",)"]],
-          "$_",
+          "$___",
         ],
       ],
     ],

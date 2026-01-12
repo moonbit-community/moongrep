@@ -1,23 +1,23 @@
 ///|
 struct LabelledTree {
   node : LabelledTreeNode
-  loc : Json
+  loc : String
   mut hits : Int
 }
 
 ///|
-let dummy_loc : Json = Json::null()
+let dummy_loc : String = ""
 
 ///|
 priv enum LabelledTreeNode {
   Node(label~ : String, childs~ : ArrayView[LabelledTree])
-  WildCard
+  MetaVar(String)
 }
 
 ///|
 pub impl ToJson for LabelledTree with to_json(self) -> Json {
   match self.node {
-    WildCard => Json::string("$_")
+    MetaVar(name) => Json::string("$\{name}")
     Node(label~, childs~) =>
       if childs.length() == 0 {
         Json::string(label)
@@ -31,14 +31,14 @@ pub impl ToJson for LabelledTree with to_json(self) -> Json {
 test {
   let tree = LabelledTree::node(dummy_loc, "f", [
     LabelledTree::node(dummy_loc, "g", [LabelledTree::node(dummy_loc, "x", [])]),
-    LabelledTree::wildcard(),
+    LabelledTree::metavar("_"),
   ])
   @json.inspect(tree, content=["f", [["g", ["x"]], "$_"]])
 }
 
 ///|
 fn LabelledTree::node(
-  loc : Json,
+  loc : String,
   label : String,
   childs : ArrayView[LabelledTree],
 ) -> LabelledTree {
@@ -46,15 +46,19 @@ fn LabelledTree::node(
 }
 
 ///|
-fn LabelledTree::wildcard() -> LabelledTree {
-  LabelledTree::{ node: WildCard, loc: Json::null(), hits: 0 }
+fn LabelledTree::metavar(name : String) -> LabelledTree {
+  LabelledTree::{
+    node: MetaVar(name),
+    loc: "meta variable no location",
+    hits: 0,
+  }
 }
 
 ///|
 fn LabelledTree::arity(self : LabelledTree) -> Int {
   match self.node {
     Node(childs~, ..) => childs.length()
-    WildCard => 0
+    MetaVar(_) => 0
   }
 }
 
@@ -62,7 +66,7 @@ fn LabelledTree::arity(self : LabelledTree) -> Int {
 fn LabelledTree::child(self : LabelledTree, index : Int) -> LabelledTree {
   match self.node {
     Node(childs~, ..) => childs[index]
-    WildCard => abort("impossible")
+    MetaVar(_) => abort("impossible")
   }
 }
 
@@ -70,6 +74,6 @@ fn LabelledTree::child(self : LabelledTree, index : Int) -> LabelledTree {
 fn LabelledTree::label(self : LabelledTree) -> Symbol {
   match self.node {
     Node(label~, childs~) => Label(label + childs.length().to_string())
-    WildCard => abort("impossible")
+    MetaVar(_) => abort("impossible")
   }
 }

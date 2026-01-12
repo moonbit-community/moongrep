@@ -3,11 +3,11 @@ pub fn LabelledTree::from_json_repr(
   ast : Json,
 ) -> LabelledTree raise AstGrepError {
   match ast {
-    Object({ "kind": String("MetaVariable"), "name": metavar_name, .. }) => {
-      ignore(metavar_name)
-      LabelledTree::wildcard()
-    }
-    Object({ "kind": String(kind), "loc": loc, "childs": childs, .. } as node) =>
+    Object({ "kind": String("MetaVariable"), "name": String(metavar_name), .. }) =>
+      LabelledTree::metavar(metavar_name)
+    Object(
+      { "kind": String(kind), "loc": String(loc), "childs": childs, .. } as node
+    ) =>
       if node.length() == 3 {
         let original_childs = match childs {
           Object(childs) => childs.iter().collect()
@@ -25,6 +25,7 @@ pub fn LabelledTree::from_json_repr(
         prefix_buf.write_char('(')
         for pair in original_childs {
           match pair.1 {
+            // TODO: remove String(_) && Number(_), give them location!
             Null | True | False | String(_) | Number(_) as json => {
               prefix_buf.write_string(pair.0)
               prefix_buf.write_char('=')

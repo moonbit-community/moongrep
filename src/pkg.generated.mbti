@@ -6,7 +6,7 @@ import(
 )
 
 // Values
-pub fn build_pattern_from_labelled_tree(LabelledTree) -> ArrayView[@array.T[Symbol]]
+pub fn build_pattern_from_labelled_tree(LabelledTree) -> ArrayView[(@array.T[Symbol], String?)]
 
 // Errors
 pub suberror AstGrepError {
@@ -15,7 +15,7 @@ pub suberror AstGrepError {
 
 // Types and methods
 type AstGrepEnv
-pub fn AstGrepEnv::grep(Self, ArrayView[@array.T[Symbol]], LabelledTree) -> ArrayView[Json]
+pub fn AstGrepEnv::grep(Self, ArrayView[(@array.T[Symbol], String?)], LabelledTree) -> Map[String, Map[String, Array[String]]]
 pub fn AstGrepEnv::new() -> Self
 
 type LabelledTree
