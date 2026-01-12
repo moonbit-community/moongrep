@@ -6,6 +6,7 @@ priv struct TrieNode[T] {
   mut suffix : TrieNode[T]?
   mut output : TrieNode[T]?
   mut pattern : ImmutArray[T]
+  mut metavar : String?
 }
 
 ///|
@@ -26,6 +27,7 @@ fn[T] TrieNode::new(parent : TrieNode[T]?) -> TrieNode[T] {
     suffix: None,
     output: None,
     pattern: @immut/array.new(),
+    metavar: None,
   }
 }
 
@@ -93,7 +95,11 @@ fn[T] Trie::new() -> Trie[T] {
 
 ///|
 /// Add a pattern to the trie
-fn[T : Eq + Hash] Trie::add(trie : Trie[T], pattern : ImmutArray[T]) -> Unit {
+fn[T : Eq + Hash] Trie::add(
+  trie : Trie[T],
+  pattern : ImmutArray[T],
+  metavar? : String,
+) -> Unit {
   let mut current_node = trie.root
   for x in pattern {
     match current_node.goto.get(x) {
@@ -106,6 +112,7 @@ fn[T : Eq + Hash] Trie::add(trie : Trie[T], pattern : ImmutArray[T]) -> Unit {
     }
   }
   current_node.pattern = pattern
+  current_node.metavar = metavar
 }
 
 ///|
