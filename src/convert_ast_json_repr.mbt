@@ -25,7 +25,7 @@ pub fn LabelledTree::from_json_repr(
         prefix_buf.write_char('(')
         for pair in original_childs {
           match pair.1 {
-            // TODO: remove String(_) && Number(_), give them location!
+            // TODO: remove String(_) && Number(_), only allow childs: { "0": (String(_) | Number(_)) }
             Null | True | False | String(_) | Number(_) as json => {
               prefix_buf.write_string(pair.0)
               prefix_buf.write_char('=')
