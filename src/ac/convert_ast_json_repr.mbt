@@ -1,7 +1,7 @@
 ///|
 pub fn LabelledTree::from_json_repr(
   ast : Json,
-) -> LabelledTree raise AstGrepError {
+) -> LabelledTree raise MoonGrepError {
   match ast {
     Object({ "kind": String("MetaVariable"), "name": String(metavar_name), .. }) =>
       LabelledTree::metavar(metavar_name)

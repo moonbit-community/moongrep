@@ -1,4 +1,4 @@
 ///|
-pub suberror AstGrepError {
+pub suberror MoonGrepError {
   AstConvertError(Json, message~ : String)
 }
