@@ -17,7 +17,7 @@ fn test_search(
   let program = LabelledTree::from_json_repr(program.json_repr())
   let pattern = LabelledTree::from_json_repr(pattern)
     |> build_pattern_from_labelled_tree
-  AstGrepEnv::new().grep(pattern, program)
+  MbtAstGrepEnv::new().grep(pattern, program)
 }
 
 ///|

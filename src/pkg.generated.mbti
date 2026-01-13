@@ -14,13 +14,13 @@ pub suberror AstGrepError {
 }
 
 // Types and methods
-type AstGrepEnv
-pub fn AstGrepEnv::grep(Self, ArrayView[(@array.T[Symbol], String?)], LabelledTree) -> Map[String, Map[String, Array[String]]]
-pub fn AstGrepEnv::new() -> Self
-
 type LabelledTree
 pub fn LabelledTree::from_json_repr(Json) -> Self raise AstGrepError
 pub impl ToJson for LabelledTree
+
+type MbtAstGrepEnv
+pub fn MbtAstGrepEnv::grep(Self, ArrayView[(@array.T[Symbol], String?)], LabelledTree) -> Map[String, Map[String, Array[String]]]
+pub fn MbtAstGrepEnv::new() -> Self
 
 type Symbol
 pub impl Eq for Symbol

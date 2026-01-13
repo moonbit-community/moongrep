@@ -9,18 +9,18 @@ priv struct Entry[T] {
 type EntryStack[T] = Array[Entry[T]]
 
 ///|
-struct AstGrepEnv {
+struct MbtAstGrepEnv {
   locations : Map[String, Map[String, Array[String]]]
 }
 
 ///|
-pub fn AstGrepEnv::new() -> AstGrepEnv {
-  AstGrepEnv::{ locations: Map::new() }
+pub fn MbtAstGrepEnv::new() -> MbtAstGrepEnv {
+  MbtAstGrepEnv::{ locations: Map::new() }
 }
 
 ///|
-pub fn AstGrepEnv::grep(
-  self : AstGrepEnv,
+pub fn MbtAstGrepEnv::grep(
+  self : MbtAstGrepEnv,
   pattern : TreePattern,
   subject : LabelledTree,
 ) -> Map[String, Map[String, Array[String]]] {
