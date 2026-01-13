@@ -4,12 +4,14 @@
   "deps": {
     "moonbitlang/parser": {
       "path": "./parser"
-    }
+    },
+    "Yoorkin/ArgParser": "0.2.0",
+    "moonbitlang/x": "0.4.38"
   },
   "readme": "README.mbt.md",
   "repository": "",
-  "source": "src",
   "license": "Apache-2.0",
   "keywords": [],
-  "description": ""
+  "description": "",
+  "source": "src"
 }

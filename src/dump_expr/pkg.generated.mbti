@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbit-community/moongrep/cli"
+package "moonbit-community/moongrep/dump_expr"
 
 // Values
 

@@ -1,0 +1,3 @@
+for _COUNT = 0; _COUNT < n; _COUNT = _COUNT + 1 {
+  _BODY
+}
