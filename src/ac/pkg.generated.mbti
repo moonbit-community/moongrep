@@ -9,13 +9,13 @@ import(
 pub fn build_pattern_from_labelled_tree(LabelledTree) -> ArrayView[(@array.T[Symbol], String?)]
 
 // Errors
-pub suberror AstGrepError {
+pub suberror MoonGrepError {
   AstConvertError(Json, message~ : String)
 }
 
 // Types and methods
 type LabelledTree
-pub fn LabelledTree::from_json_repr(Json) -> Self raise AstGrepError
+pub fn LabelledTree::from_json_repr(Json) -> Self raise MoonGrepError
 pub impl ToJson for LabelledTree
 
 type MbtAstGrepEnv
