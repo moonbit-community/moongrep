@@ -21,6 +21,18 @@ fn test_search(
 }
 
 ///|
+fn compile_pattern(pattern : String) -> Json {
+  @basic.show_loc.val = String
+  let (pattern, _) = @lexer.tokens_from_string(
+      pattern,
+      comment=true,
+      name="pattern",
+    ).tokens
+    |> @handrolled_parser.parse_expr
+  pattern.json_repr()
+}
+
+///|
 test "searching $A + $B * $C" {
   let program =
     #|fn foo() -> Int {
@@ -80,12 +92,6 @@ test "C99 style forloop" {
   //   #|for _COUNT = 0; _COUNT < n; _COUNT = _COUNT + 1 {
   //   #|  _BODY
   //   #|}
-  // let (pattern, _) = @lexer.tokens_from_string(
-  //     pattern,
-  //     comment=true,
-  //     name="",
-  //   ).tokens
-  //   |> @handrolled_parser.parse_expr
   let program =
     #|fn foo(n : Int) -> Unit {
     #| for i in 0..<n {
