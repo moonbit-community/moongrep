@@ -7,52 +7,52 @@ test "build infix expr pattern" {
   let pattern : Json = {
     "kind": "Expr::Infix",
     "loc": "",
-    "childs": {
+    "children": {
       "op": {
         "kind": "Var",
         "loc": "",
-        "childs": {
+        "children": {
           "name": {
             "kind": "LongIdent::Ident",
             "loc": "",
-            "childs": { "0": "+" },
+            "children": { "value": "+" },
           },
         },
       },
       "lhs": {
         "kind": "Expr::Constant",
         "loc": "",
-        "childs": {
+        "children": {
           "constant": {
             "kind": "Constant::Int",
             "loc": "",
-            "childs": { "0": "1" },
+            "children": { "value": "1" },
           },
         },
       },
       "rhs": {
         "kind": "Expr::Infix",
         "loc": "",
-        "childs": {
+        "children": {
           "op": {
             "kind": "Var",
             "loc": "",
-            "childs": {
+            "children": {
               "name": {
                 "kind": "LongIdent::Ident",
                 "loc": "",
-                "childs": { "0": "*" },
+                "children": { "value": "*" },
               },
             },
           },
           "lhs": {
             "kind": "Expr::Constant",
             "loc": "",
-            "childs": {
+            "children": {
               "constant": {
                 "kind": "Constant::Int",
                 "loc": "",
-                "childs": { "0": "3" },
+                "children": { "value": "3" },
               },
             },
           },
@@ -64,13 +64,13 @@ test "build infix expr pattern" {
   @json.inspect(LabelledTree::from_json_repr(pattern), content=[
     "Expr::Infix()",
     [
-      ["Var()", ["LongIdent::Ident(0=\"+\",)"]],
-      ["Expr::Constant()", ["Constant::Int(0=\"1\",)"]],
+      ["Var()", ["LongIdent::Ident(value=\"+\",)"]],
+      ["Expr::Constant()", ["Constant::Int(value=\"1\",)"]],
       [
         "Expr::Infix()",
         [
-          ["Var()", ["LongIdent::Ident(0=\"*\",)"]],
-          ["Expr::Constant()", ["Constant::Int(0=\"3\",)"]],
+          ["Var()", ["LongIdent::Ident(value=\"*\",)"]],
+          ["Expr::Constant()", ["Constant::Int(value=\"3\",)"]],
           "$___",
         ],
       ],
