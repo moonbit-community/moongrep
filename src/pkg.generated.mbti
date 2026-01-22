@@ -2,6 +2,8 @@
 package "moonbit-community/moongrep"
 
 // Values
+pub fn dump_expr_json_repr(String) -> Json raise
+
 pub fn traverse_ast_json_repr(Json, (Json) -> Bool raise) -> Unit raise
 
 pub fn traverse_top_impls(name~ : String, String, (Json) -> Bool raise) -> Unit raise
