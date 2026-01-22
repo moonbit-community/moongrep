@@ -1,0 +1,14 @@
+{
+  "name": "moonbit-community/moongrep-skill",
+  "version": "0.1.1",
+  "deps": {
+    "moonbit-community/moongrep": {
+      "path": ".."
+    }
+  },
+  "readme": "",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": [],
+  "description": ""
+}
