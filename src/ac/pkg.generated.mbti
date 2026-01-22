@@ -1,9 +1,9 @@
 // Generated using `moon info`, DON'T EDIT IT
 package "moonbit-community/moongrep/ac"
 
-import(
-  "moonbitlang/core/immut/array"
-)
+import {
+  "moonbitlang/core/immut/array",
+}
 
 // Values
 pub fn build_pattern_from_labelled_tree(LabelledTree) -> ArrayView[(@array.T[Symbol], String?)]

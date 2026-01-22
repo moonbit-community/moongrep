@@ -10,7 +10,7 @@ let dummy_loc : String = ""
 
 ///|
 priv enum LabelledTreeNode {
-  Node(label~ : String, childs~ : ArrayView[LabelledTree])
+  Node(label~ : String, children~ : ArrayView[LabelledTree])
   MetaVar(String)
 }
 
@@ -18,11 +18,11 @@ priv enum LabelledTreeNode {
 pub impl ToJson for LabelledTree with to_json(self) -> Json {
   match self.node {
     MetaVar(name) => Json::string("$\{name}")
-    Node(label~, childs~) =>
-      if childs.length() == 0 {
+    Node(label~, children~) =>
+      if children.length() == 0 {
         Json::string(label)
       } else {
-        [label, childs]
+        [label, children]
       }
   }
 }
@@ -40,9 +40,9 @@ test {
 fn LabelledTree::node(
   loc : String,
   label : String,
-  childs : ArrayView[LabelledTree],
+  children : ArrayView[LabelledTree],
 ) -> LabelledTree {
-  LabelledTree::{ node: Node(label~, childs~), loc, hits: 0 }
+  LabelledTree::{ node: Node(label~, children~), loc, hits: 0 }
 }
 
 ///|
@@ -57,7 +57,7 @@ fn LabelledTree::metavar(name : String) -> LabelledTree {
 ///|
 fn LabelledTree::arity(self : LabelledTree) -> Int {
   match self.node {
-    Node(childs~, ..) => childs.length()
+    Node(children~, ..) => children.length()
     MetaVar(_) => 0
   }
 }
@@ -65,7 +65,7 @@ fn LabelledTree::arity(self : LabelledTree) -> Int {
 ///|
 fn LabelledTree::child(self : LabelledTree, index : Int) -> LabelledTree {
   match self.node {
-    Node(childs~, ..) => childs[index]
+    Node(children~, ..) => children[index]
     MetaVar(_) => abort("impossible")
   }
 }
@@ -73,7 +73,7 @@ fn LabelledTree::child(self : LabelledTree, index : Int) -> LabelledTree {
 ///|
 fn LabelledTree::label(self : LabelledTree) -> Symbol {
   match self.node {
-    Node(label~, childs~) => Label(label + childs.length().to_string())
+    Node(label~, children~) => Label(label + children.length().to_string())
     MetaVar(_) => abort("impossible")
   }
 }
