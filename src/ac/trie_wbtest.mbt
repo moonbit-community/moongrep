@@ -1,8 +1,8 @@
 ///|
 test {
   let trie = Trie::new()
-  trie.add(@immut/array.from_array(["a", "b", "c", "d"]))
-  trie.add(@immut/array.from_array(["b", "c", "d"]))
+  trie.add(@immutarray.from_array(["a", "b", "c", "d"]))
+  trie.add(@immutarray.from_array(["b", "c", "d"]))
   trie.compute()
   json_inspect(trie.root, content={
     "a": { "b": { "c": { "d": ["a", "b", "c", "d"] } } },
