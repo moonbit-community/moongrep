@@ -1,20 +1,20 @@
 ///|
 test {
   let trie = Trie::new()
-  trie.add(@immut/array.from_array(["a", "b", "c", "d"]))
-  trie.add(@immut/array.from_array(["b", "c", "d"]))
+  trie.add(@immutarray.from_array(["a", "b", "c", "d"]))
+  trie.add(@immutarray.from_array(["b", "c", "d"]))
   trie.compute()
-  @json.inspect(trie.root, content={
+  json_inspect(trie.root, content={
     "a": { "b": { "c": { "d": ["a", "b", "c", "d"] } } },
     "b": { "c": { "d": ["b", "c", "d"] } },
   })
-  @json.inspect(trie.root.follow("a"), content={
+  json_inspect(trie.root.follow("a"), content={
     "b": { "c": { "d": ["a", "b", "c", "d"] } },
   })
-  @json.inspect(trie.root.follow("a").follow("b").suffix, content=[
+  json_inspect(trie.root.follow("a").follow("b").suffix, content=[
     { "c": { "d": ["b", "c", "d"] } },
   ])
-  @json.inspect(
+  json_inspect(
     trie.root
     .follow("a")
     .follow("b")
