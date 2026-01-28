@@ -1,0 +1,6 @@
+{
+    "import":[
+        "moonbit-community/moongrep"
+    ],
+    "warn-list": "-unused_package"
+}

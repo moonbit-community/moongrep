@@ -26,7 +26,7 @@ fn[T] TrieNode::new(parent : TrieNode[T]?) -> TrieNode[T] {
     goto: Map::new(),
     suffix: None,
     output: None,
-    pattern: @immut/array.new(),
+    pattern: @immutarray.new(),
     metavar: None,
   }
 }

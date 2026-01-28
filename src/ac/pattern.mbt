@@ -26,6 +26,6 @@ pub fn build_pattern_from_labelled_tree(t : LabelledTree) -> TreePattern {
     }
   }
 
-  go(@immut/array.new(), t)
+  go(@immutarray.new(), t)
   return paths
 }

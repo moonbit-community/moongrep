@@ -33,7 +33,7 @@ test {
     LabelledTree::node(dummy_loc, "g", [LabelledTree::node(dummy_loc, "x", [])]),
     LabelledTree::metavar("_"),
   ])
-  @json.inspect(tree, content=["f", [["g", ["x"]], "$_"]])
+  json_inspect(tree, content=["f", [["g", ["x"]], "$_"]])
 }
 
 ///|
