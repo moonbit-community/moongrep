@@ -61,7 +61,7 @@ test "build infix expr pattern" {
       },
     },
   }
-  @json.inspect(LabelledTree::from_json_repr(pattern), content=[
+  json_inspect(LabelledTree::from_json_repr(pattern), content=[
     "Expr::Infix()",
     [
       ["Var()", ["LongIdent::Ident(value=\"+\",)"]],
