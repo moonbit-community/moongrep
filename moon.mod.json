@@ -6,7 +6,7 @@
     "moonbitlang/parser": "0.1.14"
   },
   "readme": "README.mbt.md",
-  "repository": "",
+  "repository": "https://github.com/moonbit-community/moongrep",
   "license": "Apache-2.0",
   "keywords": [],
   "description": "",
