@@ -3,7 +3,12 @@
   "version": "0.1.2",
   "deps": {
     "moonbitlang/x": "0.4.38",
-    "moonbitlang/parser": "0.1.14"
+    "moonbitlang/parser": "0.1.15",
+    "moonbitlang/ulex-runtime": "0.4.3",
+    "Yoorkin/trie": {
+      "path": "third_party/trie",
+      "version": "0.2.9"
+    }
   },
   "readme": "README.mbt.md",
   "repository": "https://github.com/moonbit-community/moongrep",

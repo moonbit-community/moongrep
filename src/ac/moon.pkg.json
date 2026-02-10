@@ -4,8 +4,6 @@
     "moonbitlang/core/queue"
   ],
   "wbtest-import": [
-    "moonbitlang/parser/basic",
-    "moonbitlang/parser/syntax",
     "moonbitlang/parser/lexer",
     "moonbitlang/parser/handrolled_parser"
   ]
