@@ -44,7 +44,9 @@ pub fn MbtAstGrepEnv::grep(
       // if current state has metavar, registering it to global table
       if state.metavar is Some(name) &&
         stack.last() is Some({ node, state: _, visited }) {
-        let metavar_env = metavar_registry.get_or_init(entry.node.loc, () => Map::new())
+        let metavar_env = metavar_registry.get_or_init(entry.node.loc, () => {
+          Map::new()
+        })
         match metavar_env.get(name) {
           None => metavar_env[name] = [node.child(visited).loc]
           Some(locs) => locs.push(node.child(visited).loc)
