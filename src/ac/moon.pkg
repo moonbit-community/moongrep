@@ -1,0 +1,11 @@
+import {
+  "moonbitlang/core/immut/array" @immutarray,
+  "moonbitlang/core/queue",
+}
+
+import {
+  // "moonbitlang/parser/basic",
+  // "moonbitlang/parser/syntax",
+  "moonbitlang/parser/lexer",
+  "moonbitlang/parser/handrolled_parser",
+} for "wbtest"
