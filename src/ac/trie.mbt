@@ -37,14 +37,13 @@ fn[T] TrieNode::outputs(node : TrieNode[T]) -> Array[ImmutArray[T]] {
   let out = []
   let mut current = Some(node)
   while true {
-    match current {
-      Some(n) => {
-        if n.pattern.length() > 0 {
-          out.push(n.pattern)
-        }
-        current = n.output
+    if current is Some(n) {
+      if n.pattern.length() > 0 {
+        out.push(n.pattern)
       }
-      None => break
+      current = n.output
+    } else {
+      break
     }
   }
   out
@@ -53,31 +52,27 @@ fn[T] TrieNode::outputs(node : TrieNode[T]) -> Array[ImmutArray[T]] {
 ///|
 /// Follow goto or suffix links to find next node
 fn[T : Eq + Hash] TrieNode::follow(node : TrieNode[T], x : T) -> TrieNode[T] {
-  match node.goto.get(x) {
-    Some(target) => target
-    None => {
-      // direct move failed, follow suffix links
-      fn fail(link : TrieNode[T], x : T) -> TrieNode[T] {
-        match link.parent {
-          None =>
-            // Root case
-            match link.goto.get(x) {
-              Some(actual) => actual
-              None => link
-            }
-          Some(_) =>
-            match link.goto.get(x) {
-              Some(actual) => actual
-              None => {
-                let suffix = link.suffix.unwrap()
-                fail(suffix, x)
-              }
-            }
+  if node.goto.get(x) is Some(target) {
+    target
+  } else {
+    // direct move failed, follow suffix links
+    fn fail(link : TrieNode[T], x : T) -> TrieNode[T] {
+      if link.parent is None {
+        // Root case
+        if link.goto.get(x) is Some(actual) {
+          actual
+        } else {
+          link
         }
+      } else if link.goto.get(x) is Some(actual) {
+        actual
+      } else {
+        let suffix = link.suffix.unwrap()
+        fail(suffix, x)
       }
-
-      fail(node.suffix.unwrap(), x)
     }
+
+    fail(node.suffix.unwrap(), x)
   }
 }
 
@@ -102,13 +97,12 @@ fn[T : Eq + Hash] Trie::add(
 ) -> Unit {
   let mut current_node = trie.root
   for x in pattern {
-    match current_node.goto.get(x) {
-      Some(next_node) => current_node = next_node
-      None => {
-        let new_node = TrieNode::new(Some(current_node))
-        current_node.goto[x] = new_node
-        current_node = new_node
-      }
+    if current_node.goto.get(x) is Some(next_node) {
+      current_node = next_node
+    } else {
+      let new_node = TrieNode::new(Some(current_node))
+      current_node.goto[x] = new_node
+      current_node = new_node
     }
   }
   current_node.pattern = pattern
@@ -144,9 +138,10 @@ fn[T : Eq + Hash] Trie::compute(trie : Trie[T]) -> Unit {
     ) -> TrieNode[T] {
       if s.parent is None {
         // s is root
-        match s.goto.get(x) {
-          Some(actual) => actual
-          None => root
+        if s.goto.get(x) is Some(actual) {
+          actual
+        } else {
+          root
         }
       } else if s.goto.get(x) is Some(node) {
         node
