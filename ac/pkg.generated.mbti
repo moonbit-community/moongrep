@@ -15,7 +15,6 @@ pub suberror MoonGrepError {
 
 // Types and methods
 type LabelledTree
-pub fn LabelledTree::from_json_repr(Json) -> Self raise MoonGrepError
 pub impl ToJson for LabelledTree
 
 type MbtAstGrepEnv
