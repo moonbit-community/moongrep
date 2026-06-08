@@ -15,7 +15,7 @@ priv enum LabelledTreeNode {
 }
 
 ///|
-pub impl ToJson for LabelledTree with to_json(self) -> Json {
+pub impl ToJson for LabelledTree with fn to_json(self) -> Json {
   match self.node {
     MetaVar(name) => Json::string("$\{name}")
     Node(label~, children~) =>
@@ -37,7 +37,7 @@ test {
 }
 
 ///|
-fn LabelledTree::node(
+pub fn LabelledTree::node(
   loc : String,
   label : String,
   children : ArrayView[LabelledTree],
@@ -46,7 +46,7 @@ fn LabelledTree::node(
 }
 
 ///|
-fn LabelledTree::metavar(name : String) -> LabelledTree {
+pub fn LabelledTree::metavar(name : String) -> LabelledTree {
   LabelledTree::{
     node: MetaVar(name),
     loc: "meta variable no location",

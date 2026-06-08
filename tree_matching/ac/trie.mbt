@@ -10,7 +10,7 @@ priv struct TrieNode[T] {
 }
 
 ///|
-impl[T : ToJson + Show] ToJson for TrieNode[T] with to_json(self) {
+impl[T : ToJson + Show] ToJson for TrieNode[T] with fn to_json(self) {
   if self.goto.is_empty() {
     Json::array(self.pattern.map(c => c.to_json()).to_array())
   } else {
@@ -20,13 +20,13 @@ impl[T : ToJson + Show] ToJson for TrieNode[T] with to_json(self) {
 
 ///|
 /// Create a new node with parent reference
-fn[T] TrieNode::new(parent : TrieNode[T]?) -> TrieNode[T] {
+fn[T : Hash + Eq] TrieNode::new(parent : TrieNode[T]?) -> TrieNode[T] {
   {
     parent,
-    goto: Map::new(),
+    goto: Map([]),
     suffix: None,
     output: None,
-    pattern: @immutarray.new(),
+    pattern: @immutvector.new(),
     metavar: None,
   }
 }
@@ -84,7 +84,7 @@ priv struct Trie[T] {
 
 ///|
 /// Create an empty trie
-fn[T] Trie::new() -> Trie[T] {
+fn[T : Hash + Eq] Trie::new() -> Trie[T] {
   Trie::{ root: TrieNode::new(None) }
 }
 
@@ -114,7 +114,7 @@ fn[T : Eq + Hash] Trie::add(
 fn[T : Eq + Hash] Trie::compute(trie : Trie[T]) -> Unit {
   let root = trie.root
   root.suffix = Some(root)
-  let q : @queue.Queue[(T, TrieNode[T])] = @queue.new()
+  let q : @queue.Queue[(T, TrieNode[T])] = @queue.Queue([])
 
   // Root and its children have root as their suffix
   // Queue root's grandchildren for BFS suffix computation

@@ -1,0 +1,5 @@
+import {
+  "moonbitlang/core/immut/vector" @immutvector,
+  "moonbitlang/core/set",
+  "moonbitlang/core/queue",
+}

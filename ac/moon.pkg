@@ -1,4 +1,0 @@
-import {
-  "moonbitlang/core/immut/array" @immutarray,
-  "moonbitlang/core/queue",
-}

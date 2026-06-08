@@ -2,7 +2,7 @@
 enum Symbol {
   Label(String)
   Child(Int)
-} derive(Eq, Hash, Show)
+} derive(Eq, Hash, Debug)
 
 ///|
 type RTLPath = ImmutArray[Symbol] // Root to Leaf Path
@@ -30,6 +30,6 @@ pub fn build_pattern_from_labelled_tree(t : LabelledTree) -> TreePattern {
     }
   }
 
-  go(@immutarray.new(), t)
+  go(@immutvector.new(), t)
   return paths
 }

@@ -15,7 +15,7 @@ struct MbtAstGrepEnv {
 
 ///|
 pub fn MbtAstGrepEnv::new() -> MbtAstGrepEnv {
-  MbtAstGrepEnv::{ locations: Map::new() }
+  MbtAstGrepEnv::{ locations: Map([]) }
 }
 
 ///|
@@ -45,7 +45,7 @@ pub fn MbtAstGrepEnv::grep(
       if state.metavar is Some(name) &&
         stack.last() is Some({ node, state: _, visited }) {
         let metavar_env = metavar_registry.get_or_init(entry.node.loc, () => {
-          Map::new()
+          Map([])
         })
         match metavar_env.get(name) {
           None => metavar_env[name] = [node.child(visited).loc]
@@ -56,7 +56,7 @@ pub fn MbtAstGrepEnv::grep(
         // matches!
         self.locations.set(
           entry.node.loc,
-          metavar_registry.get_or_default(entry.node.loc, Map::new()),
+          metavar_registry.get_or_default(entry.node.loc, Map([])),
         )
       }
     })

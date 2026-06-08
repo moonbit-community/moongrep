@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbit-community/moongrep/ac"
+package "moonbit-community/moongrep/tree_matching/ac"
 
 import {
   "moonbitlang/core/immut/array",
@@ -18,10 +18,7 @@ type MbtAstGrepEnv
 pub fn MbtAstGrepEnv::grep(Self, ArrayView[(@array.T[Symbol], String?)], LabelledTree) -> Map[String, Map[String, Array[String]]]
 pub fn MbtAstGrepEnv::new() -> Self
 
-type Symbol
-pub impl Eq for Symbol
-pub impl Hash for Symbol
-pub impl Show for Symbol
+type Symbol derive(Eq, Hash, Show)
 
 // Type aliases
 

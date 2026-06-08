@@ -1,0 +1,18 @@
+name = "moonbit-community/moongrep"
+
+version = "0.1.3"
+
+import {
+  "moonbitlang/x@0.4.38",
+  "moonbitlang/parser@0.2.3",
+}
+
+readme = "README.mbt.md"
+
+repository = "https://github.com/moonbit-community/moongrep"
+
+license = "Apache-2.0"
+
+keywords = [ ]
+
+description = ""
