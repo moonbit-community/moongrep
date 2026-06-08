@@ -1,29 +1,29 @@
 ///|
-priv struct Entry[T] {
-  node : LabelledTree
+priv struct Entry[T, Loc] {
+  node : LabelledTree[Loc]
   state : TrieNode[T]
   mut visited : Int
 }
 
 ///|
-type EntryStack[T] = Array[Entry[T]]
+type EntryStack[T, Loc] = Array[Entry[T, Loc]]
 
 ///|
-struct MbtAstGrepEnv {
-  locations : Map[String, Map[String, Array[String]]]
+struct MbtAstGrepEnv[Loc] {
+  locations : Map[Loc, Map[String, Array[Loc]]]
 }
 
 ///|
-pub fn MbtAstGrepEnv::new() -> MbtAstGrepEnv {
+pub fn[Loc : Hash + Eq] MbtAstGrepEnv::new() -> MbtAstGrepEnv[Loc] {
   MbtAstGrepEnv::{ locations: Map([]) }
 }
 
 ///|
-pub fn MbtAstGrepEnv::grep(
-  self : MbtAstGrepEnv,
+pub fn[Loc : Eq + Hash] MbtAstGrepEnv::grep(
+  self : MbtAstGrepEnv[Loc],
   pattern : TreePattern,
-  subject : LabelledTree,
-) -> Map[String, Map[String, Array[String]]] {
+  subject : LabelledTree[Loc],
+) -> Map[Loc, Map[String, Array[Loc]]] {
   let trie = Trie::new()
   pattern.each(pair => {
     let (rtlpath, metavar) = pair
@@ -32,7 +32,7 @@ pub fn MbtAstGrepEnv::grep(
   trie.compute()
   // move on root label of subject tree
   let first = trie.root.follow(subject.label())
-  let stack : EntryStack[Symbol] = Array::new()
+  let stack : EntryStack[Symbol, Loc] = Array::new()
   stack.push(Entry::{ node: subject, state: first, visited: -1 })
   let metavar_registry = {}
   fn tabulate(state : TrieNode[Symbol]) -> Unit {
@@ -44,19 +44,44 @@ pub fn MbtAstGrepEnv::grep(
       // if current state has metavar, registering it to global table
       if state.metavar is Some(name) &&
         stack.last() is Some({ node, state: _, visited }) {
-        let metavar_env = metavar_registry.get_or_init(entry.node.loc, () => {
-          Map([])
-        })
+        let metavar_env = metavar_registry.get_or_init(
+          entry.node.loc.unwrap_or_else(() => {
+            println("internal bug: ac matching got an empty location")
+            panic()
+          }),
+          () => Map([]),
+        )
         match metavar_env.get(name) {
-          None => metavar_env[name] = [node.child(visited).loc]
-          Some(locs) => locs.push(node.child(visited).loc)
+          None =>
+            metavar_env[name] = [
+              node.child(visited).loc.unwrap_or_else(() => {
+                println("internal bug: ac matching got an empty location")
+                panic()
+              }),
+            ]
+          Some(locs) =>
+            locs.push(
+              node.child(visited).loc.unwrap_or_else(() => {
+                println("internal bug: ac matching got an empty location")
+                panic()
+              }),
+            )
         }
       }
       if entry.node.hits == pattern.length() {
         // matches!
         self.locations.set(
-          entry.node.loc,
-          metavar_registry.get_or_default(entry.node.loc, Map([])),
+          entry.node.loc.unwrap_or_else(() => {
+            println("internal bug: ac matching got an empty location")
+            panic()
+          }),
+          metavar_registry.get_or_default(
+            entry.node.loc.unwrap_or_else(() => {
+              println("internal bug: ac matching got an empty location")
+              panic()
+            }),
+            Map([]),
+          ),
         )
       }
     })

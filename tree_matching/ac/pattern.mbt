@@ -11,9 +11,11 @@ type RTLPath = ImmutArray[Symbol] // Root to Leaf Path
 type TreePattern = ArrayView[(RTLPath, String?)]
 
 ///|
-pub fn build_pattern_from_labelled_tree(t : LabelledTree) -> TreePattern {
+pub fn[Loc] build_pattern_from_labelled_tree(
+  t : LabelledTree[Loc],
+) -> TreePattern {
   let paths = Array::new()
-  fn go(acc : RTLPath, t : LabelledTree) -> Unit {
+  fn go(acc : RTLPath, t : LabelledTree[Loc]) -> Unit {
     match t.node {
       Node(label~, children=[]) =>
         paths.push((acc.push(Label(label + "0")), None))

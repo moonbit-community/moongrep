@@ -1,7 +1,7 @@
 ///|
-struct LabelledTree {
-  node : LabelledTreeNode
-  loc : String
+struct LabelledTree[Loc] {
+  node : LabelledTreeNode[Loc]
+  loc : Loc?
   mut hits : Int
 }
 
@@ -9,13 +9,13 @@ struct LabelledTree {
 let dummy_loc : String = ""
 
 ///|
-priv enum LabelledTreeNode {
-  Node(label~ : String, children~ : ArrayView[LabelledTree])
+priv enum LabelledTreeNode[Loc] {
+  Node(label~ : String, children~ : ArrayView[LabelledTree[Loc]])
   MetaVar(String)
 }
 
 ///|
-pub impl ToJson for LabelledTree with fn to_json(self) -> Json {
+pub impl[Loc] ToJson for LabelledTree[Loc] with fn to_json(self) -> Json {
   match self.node {
     MetaVar(name) => Json::string("$\{name}")
     Node(label~, children~) =>
@@ -37,25 +37,21 @@ test {
 }
 
 ///|
-pub fn LabelledTree::node(
-  loc : String,
+pub fn[Loc] LabelledTree::node(
+  loc : Loc,
   label : String,
-  children : ArrayView[LabelledTree],
-) -> LabelledTree {
-  LabelledTree::{ node: Node(label~, children~), loc, hits: 0 }
+  children : ArrayView[LabelledTree[Loc]],
+) -> LabelledTree[Loc] {
+  LabelledTree::{ node: Node(label~, children~), loc: Some(loc), hits: 0 }
 }
 
 ///|
-pub fn LabelledTree::metavar(name : String) -> LabelledTree {
-  LabelledTree::{
-    node: MetaVar(name),
-    loc: "meta variable no location",
-    hits: 0,
-  }
+pub fn[Loc] LabelledTree::metavar(name : String) -> LabelledTree[Loc] {
+  LabelledTree::{ node: MetaVar(name), loc: None, hits: 0 }
 }
 
 ///|
-fn LabelledTree::arity(self : LabelledTree) -> Int {
+fn[Loc] LabelledTree::arity(self : LabelledTree[Loc]) -> Int {
   match self.node {
     Node(children~, ..) => children.length()
     MetaVar(_) => 0
@@ -63,7 +59,10 @@ fn LabelledTree::arity(self : LabelledTree) -> Int {
 }
 
 ///|
-fn LabelledTree::child(self : LabelledTree, index : Int) -> LabelledTree {
+fn[Loc] LabelledTree::child(
+  self : LabelledTree[Loc],
+  index : Int,
+) -> LabelledTree[Loc] {
   match self.node {
     Node(children~, ..) => children[index]
     MetaVar(_) => abort("impossible")
@@ -71,7 +70,7 @@ fn LabelledTree::child(self : LabelledTree, index : Int) -> LabelledTree {
 }
 
 ///|
-fn LabelledTree::label(self : LabelledTree) -> Symbol {
+fn[Loc] LabelledTree::label(self : LabelledTree[Loc]) -> Symbol {
   match self.node {
     Node(label~, children~) => Label(label + children.length().to_string())
     MetaVar(_) => abort("impossible")
