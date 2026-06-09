@@ -5,7 +5,7 @@ enum Symbol {
 } derive(Eq, Hash, Debug)
 
 ///|
-type RTLPath = ImmutArray[Symbol] // Root to Leaf Path
+type RTLPath = ImmutArray[Symbol] // Automaton path from the pattern root to a labelled leaf, or to the child slot occupied by a metavar.
 
 ///|
 type TreePattern = ArrayView[(RTLPath, String?)]
