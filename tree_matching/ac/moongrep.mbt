@@ -41,7 +41,7 @@ pub fn[Loc : Eq + Hash] MbtAstGrepEnv::grep(
       let len = out.iter().filter(symbol => symbol is Label(_)).count()
       let entry = stack[stack.length() - len]
       entry.node.hits += 1
-      // if current state has metavar, registering it to global table
+      // If the current state has a metavar, register it in the current search table.
       if state.metavar is Some(name) &&
         stack.last() is Some({ node, state: _, visited }) {
         let metavar_env = metavar_registry.get_or_init(

@@ -32,7 +32,7 @@ fn[T : Hash + Eq] TrieNode::new(parent : TrieNode[T]?) -> TrieNode[T] {
 }
 
 ///|
-/// Get all patterns from a node by following output links
+/// Get patterns from this node and the nodes reachable through output links.
 fn[T] TrieNode::outputs(node : TrieNode[T]) -> Array[ImmutArray[T]] {
   let out = []
   let mut current = Some(node)
@@ -50,7 +50,8 @@ fn[T] TrieNode::outputs(node : TrieNode[T]) -> Array[ImmutArray[T]] {
 }
 
 ///|
-/// Follow goto or suffix links to find next node
+/// After `Trie::compute`, follow a goto edge if present; otherwise chase suffix
+/// links to find the next state.
 fn[T : Eq + Hash] TrieNode::follow(node : TrieNode[T], x : T) -> TrieNode[T] {
   if node.goto.get(x) is Some(target) {
     target
@@ -154,9 +155,8 @@ fn[T : Eq + Hash] Trie::compute(trie : Trie[T]) -> Unit {
     let suffix = follow_from_parent(parent_suffix, x, root)
     node.suffix = Some(suffix)
 
-    // a node's output link is its suffix link if its suffix link
-    // has a pattern (is an output node), otherwise it's its suffix's
-    // output link.
+    // This implementation links directly to the suffix node when it stores a
+    // pattern; otherwise it falls back to that suffix node's suffix link.
     let output = if suffix.pattern.length() > 0 {
       Some(suffix)
     } else {
