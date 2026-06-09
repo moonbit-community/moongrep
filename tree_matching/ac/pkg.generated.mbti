@@ -2,23 +2,26 @@
 package "moonbit-community/moongrep/tree_matching/ac"
 
 import {
-  "moonbitlang/core/immut/array",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/immut/vector",
 }
 
 // Values
-pub fn build_pattern_from_labelled_tree(LabelledTree) -> ArrayView[(@array.T[Symbol], String?)]
+pub fn[Loc] build_pattern_from_labelled_tree(LabelledTree[Loc]) -> ArrayView[(@vector.Vector[Symbol], String?)]
 
 // Errors
 
 // Types and methods
-type LabelledTree
-pub impl ToJson for LabelledTree
+type LabelledTree[Loc]
+pub fn[Loc] LabelledTree::metavar(String) -> Self[Loc]
+pub fn[Loc] LabelledTree::node(Loc, String, ArrayView[Self[Loc]]) -> Self[Loc]
+pub impl[Loc] ToJson for LabelledTree[Loc]
 
-type MbtAstGrepEnv
-pub fn MbtAstGrepEnv::grep(Self, ArrayView[(@array.T[Symbol], String?)], LabelledTree) -> Map[String, Map[String, Array[String]]]
-pub fn MbtAstGrepEnv::new() -> Self
+type MbtAstGrepEnv[Loc]
+pub fn[Loc : Eq + Hash] MbtAstGrepEnv::grep(Self[Loc], ArrayView[(@vector.Vector[Symbol], String?)], LabelledTree[Loc]) -> Map[Loc, Map[String, Array[Loc]]]
+pub fn[Loc : Hash + Eq] MbtAstGrepEnv::new() -> Self[Loc]
 
-type Symbol derive(Eq, Hash, Show)
+type Symbol derive(Eq, Hash, @debug.Debug)
 
 // Type aliases
 
