@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/tree_matching/subpatterns/bridge"
+
+import {
+  "moonbit-community/moongrep/tree_matching/subpatterns",
+  "moonbitlang/parser/basic",
+  "moonbitlang/parser/syntax",
+}
+
+// Values
+pub fn expr_to_subject_tree(@syntax.Expr) -> @subpatterns.SubjectTree[@basic.Location]
+
+pub fn impl_to_subject_tree(@syntax.Impl) -> @subpatterns.SubjectTree[@basic.Location]
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

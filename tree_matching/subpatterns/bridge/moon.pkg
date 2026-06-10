@@ -1,0 +1,13 @@
+import {
+  "moonbitlang/parser/syntax",
+  "moonbitlang/parser/basic",
+  "moonbitlang/parser/attribute",
+  "moonbitlang/parser/tokens",
+  "moonbitlang/core/list",
+  "moonbit-community/moongrep/tree_matching/subpatterns",
+}
+
+import {
+  "moonbitlang/parser",
+  "moonbitlang/core/test",
+} for "test"
