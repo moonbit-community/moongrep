@@ -112,3 +112,91 @@ test "apply structural rule visits top let definitions" {
   )
   inspect(hits.length(), content="1")
 }
+
+///|
+test "apply taint rule reports source reaching sink" {
+  let rule_source =
+    #|package: example/pkg
+    #|description: |
+    #|  User input reaches sink.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|
+  let source =
+    #|fn sample {
+    #|  let x = get_user_input();
+    #|  sink(x)
+    #|}
+    #|
+  let hits = apply_taint_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+  inspect(hits[0].pattern_index, content="0")
+}
+
+///|
+test "apply taint rule sanitizer suppresses nested source sink" {
+  let rule_source =
+    #|package: example/pkg
+    #|description: |
+    #|  Sanitized input is safe.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|  sanitizers:
+    #|    - shape: sanitize(__SOURCE__)
+    #|
+  let source =
+    #|fn sample {
+    #|  sink(sanitize(get_user_input()))
+    #|}
+    #|
+  let hits = apply_taint_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="0")
+}
+
+///|
+test "apply taint rule reports receiver and root call targets with sink indexes" {
+  let rule_source =
+    #|package: example/pkg
+    #|description: |
+    #|  User input reaches multiple sink shapes.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: receiver.method(__SOURCE__)
+    #|    - shape: __SOURCE__.dangerous()
+    #|    - shape: wrap(__SOURCE__)
+    #|
+  let source =
+    #|fn sample(receiver) {
+    #|  let x = get_user_input();
+    #|  receiver.method(x);
+    #|  x.dangerous();
+    #|  wrap(x)
+    #|}
+    #|
+  let hits = apply_taint_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="3")
+  inspect(hits[0].pattern_index, content="0")
+  inspect(hits[1].pattern_index, content="1")
+  inspect(hits[2].pattern_index, content="2")
+}

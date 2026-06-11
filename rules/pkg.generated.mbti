@@ -12,6 +12,8 @@ import {
 // Values
 pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit]
 
+pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit] raise
+
 pub fn compile_rules(Array[RawRuleSpec]) -> Array[CompiledRule] raise
 
 pub fn load_rules(String) -> Array[RawRuleSpec] raise
