@@ -1,4 +1,6 @@
 ///|
+// Scanner-local result type. The public library boundary is `rules.MatchHit`;
+// parse failures stay here as warnings for the CLI renderer.
 priv struct SkippedFile {
   file : String
   reason : String
@@ -23,6 +25,8 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
     let source = @miniio.read_text_file(file)
     let (impls, reports) = @parser.parse_string(source, name=file)
     if reports.length() > 0 {
+      // Keep scanning other files even when one file fails to parse. This makes
+      // the CLI useful on in-progress worktrees.
       skipped_files.push({
         file,
         reason: "parse failed due to \{compact_reports(reports)}",
@@ -60,6 +64,8 @@ fn collect_source_files(path : String, files : Array[String]) -> Unit raise {
 
 ///|
 fn should_skip_entry(entry : String) -> Bool {
+  // Skip dependency, build, and VCS directories that are noisy and are rarely
+  // intended scan targets.
   entry == ".git" ||
   entry == "_build" ||
   entry == ".mooncakes" ||

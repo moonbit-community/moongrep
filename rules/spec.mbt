@@ -1,9 +1,17 @@
 ///|
+/// Errors raised while loading, validating, or compiling a rule set.
 pub suberror RuleLoadError {
+  /// The rule set or rule at `path` is malformed, conflicts with another rule,
+  /// or cannot be represented by runtime AST matching. `path` may be the rules
+  /// root for directory-level failures. `info` is written for rule authors.
   InvalidRule(path~ : String, info~ : String)
 } derive(Debug)
 
 ///|
+/// A single YAML pattern clause before it is parsed into a MoonBit AST.
+///
+/// `shape` must be a valid MoonBit expression. `subtree_metavars` bind AST
+/// subtrees and `identifier_metavars` bind normalized names.
 pub(all) struct RulePatternSpec {
   shape : String
   subtree_metavars : Array[String]
@@ -11,12 +19,25 @@ pub(all) struct RulePatternSpec {
 }
 
 ///|
+/// Raw structural-rule definition loaded from YAML.
+///
+/// `inside_expr`, when present, must contain a single `__TARGET__` expression
+/// placeholder. The normal `patterns` are then matched inside that target.
 pub(all) struct StructuralRuleSpec {
   inside_expr : RulePatternSpec?
   patterns : Array[RulePatternSpec]
 }
 
 ///|
+/// Raw taint-rule definition loaded from YAML.
+///
+/// Sources introduce taint from matching call results. Sinks report tainted
+/// values at their `__SOURCE__` target. Sanitizers contribute no return taint
+/// and kill stored taint when `__SOURCE__` resolves to a storage path.
+/// All taint clauses must be call expressions. Source shapes must not contain
+/// `__SOURCE__`. Sink and sanitizer shapes must contain exactly one
+/// `__SOURCE__` placeholder, placed as the whole receiver or whole argument
+/// value.
 pub(all) struct TaintRuleSpec {
   sources : Array[RulePatternSpec]
   sinks : Array[RulePatternSpec]
@@ -24,12 +45,17 @@ pub(all) struct TaintRuleSpec {
 }
 
 ///|
+/// The mutually exclusive rule bodies supported by a YAML rule file.
 pub(all) enum RuleDefinitionSpec {
   Structural(StructuralRuleSpec)
   Taint(TaintRuleSpec)
 }
 
 ///|
+/// A validated rule decoded from YAML plus metadata derived from its file path.
+///
+/// `rule_id` is the relative path below the rules root without the YAML suffix.
+/// `definition` is still uncompiled and contains source text shapes.
 pub(all) struct RawRuleSpec {
   path : String
   rule_id : String
@@ -39,18 +65,27 @@ pub(all) struct RawRuleSpec {
 }
 
 ///|
+/// A parsed and compiled pattern clause.
+///
+/// `source` preserves the user-facing YAML clause for diagnostics and metadata.
+/// `compiled` is the matcher-ready AST representation.
 pub(all) struct CompiledRulePattern {
   source : RulePatternSpec
   compiled : @matching.CompiledExprPattern
 }
 
 ///|
+/// A structural rule after shape parsing and metavar validation.
 pub(all) struct CompiledStructuralRule {
   inside_expr : CompiledRulePattern?
   patterns : Array[CompiledRulePattern]
 }
 
 ///|
+/// The whole receiver or argument value that a taint sink or sanitizer targets.
+///
+/// `LabelledArg` stores both label and positional index so matching can confirm
+/// the original argument slot even when labelled and positional arguments mix.
 pub(all) enum TaintTarget {
   Receiver
   PositionalArg(Int)
@@ -58,23 +93,27 @@ pub(all) enum TaintTarget {
 }
 
 ///|
+/// A compiled taint source call pattern.
 pub(all) struct CompiledTaintSource {
   pattern : CompiledRulePattern
 }
 
 ///|
+/// A compiled taint sink call pattern plus the value it checks for taint.
 pub(all) struct CompiledTaintSink {
   pattern : CompiledRulePattern
   target : TaintTarget
 }
 
 ///|
+/// A compiled sanitizer call pattern plus the value whose taint it removes.
 pub(all) struct CompiledTaintSanitizer {
   pattern : CompiledRulePattern
   target : TaintTarget
 }
 
 ///|
+/// A taint rule lowered enough to run through the generic taint engine.
 pub(all) struct CompiledTaintRule {
   sources : Array[CompiledTaintSource]
   sinks : Array[CompiledTaintSink]
@@ -82,12 +121,14 @@ pub(all) struct CompiledTaintRule {
 }
 
 ///|
+/// The executable rule body produced by `compile_rules`.
 pub(all) enum CompiledRuleDefinition {
   Structural(CompiledStructuralRule)
   Taint(CompiledTaintRule)
 }
 
 ///|
+/// A rule ready to apply to parser AST nodes.
 pub(all) struct CompiledRule {
   rule_id : String
   package_name : String

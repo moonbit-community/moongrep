@@ -1,4 +1,6 @@
 ///|
+// Control-flow exits are tracked so unreachable later expressions do not report
+// sinks after `return`, `raise`, `break`, or `continue`.
 priv enum FlowExit {
   FlowNormal
   FlowReturn
@@ -773,6 +775,9 @@ fn apply_declared_call_transfer(
               Some(path) => next = state_kill_path(next, path)
               None => ()
             }
+          // Argument sinks point at the argument expression. Receiver sinks
+          // point at the whole call while keeping the receiver as the value
+          // site, because receiver syntax has no standalone call-site location.
           ReportSinkArg(sink_id, index) =>
             match argument_at(info.arguments, index) {
               Some(arg) =>
@@ -1258,6 +1263,9 @@ fn eval_while(
   }
   let mut current = cond_result.state
   let mut iteration = 0
+  // Loops are interpreted to a bounded fixpoint. The condition is evaluated
+  // once before the body fixpoint; the state is joined after each body
+  // iteration and stops early once another pass adds no new taint facts.
   while iteration < spec.max_fixpoint_iterations {
     let body_result = eval_expr(loop_body, current, spec, findings)
     if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
@@ -1321,6 +1329,9 @@ fn eval_for(
     None => ()
   }
   let mut iteration = 0
+  // `for` uses the same bounded fixpoint strategy as `while`. The optional
+  // condition is evaluated once before the body fixpoint, and the continue block
+  // is applied between body evaluation and the join.
   while iteration < spec.max_fixpoint_iterations {
     let body_result = eval_expr(body, current, spec, findings)
     if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
@@ -1403,6 +1414,8 @@ fn eval_for_each(
     }
   }
   let mut iteration = 0
+  // A foreach binder receives the collection's `AnyIndex` taint summary before
+  // the loop body fixpoint starts.
   while iteration < spec.max_fixpoint_iterations {
     let body_result = eval_expr(body, current, spec, findings)
     if body_result.flow == FlowReturn || body_result.flow == FlowRaise {

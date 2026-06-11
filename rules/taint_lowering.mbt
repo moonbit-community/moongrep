@@ -24,6 +24,9 @@ fn lower_compiled_taint_rule(
 }
 
 ///|
+// Implements YAML taint rules as a custom call transfer instead of teaching the
+// taint engine about rule syntax. The rules package owns AST pattern matching;
+// the taint package only sees generic call facts and transfer results.
 fn transfer_compiled_taint_call(
   rule_id : String,
   taint_rule : CompiledTaintRule,

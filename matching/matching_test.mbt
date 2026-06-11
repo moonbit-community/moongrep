@@ -11,7 +11,7 @@ fn parse_expr(source : String) -> @syntax.Expr raise {
 }
 
 ///|
-test "undeclared double-underscore identifier is literal" {
+test "undeclared double-underscore-prefixed identifier is literal" {
   let pattern = parse_expr("__x + __x")
   inspect(expr_matches(pattern, parse_expr("a + a")), content="false")
   inspect(expr_matches(pattern, parse_expr("__x + __x")), content="true")

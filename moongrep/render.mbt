@@ -1,4 +1,6 @@
 ///|
+// Renders warnings first and match hits second so parse failures never hide
+// successful findings from other files.
 fn render_directory_scan_result(result : DirectoryScanResult) -> String {
   let sections : Array[String] = []
   let warnings : Array[String] = []
@@ -21,6 +23,9 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
 }
 
 ///|
+// Keep hit output stable and line-oriented for downstream agents. The first
+// line is always a location, followed by rule metadata and indented
+// description text.
 fn render_match_hit(hit : @rules.MatchHit) -> String {
   let lines : Array[String] = [
     format_location(hit.file, hit.loc),

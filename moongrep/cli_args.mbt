@@ -1,9 +1,11 @@
 ///|
+/// CLI argument errors with the process exit code the frontend should use.
 pub suberror CliError {
   Usage(message~ : String, exit_code~ : Int)
 } derive(Debug)
 
 ///|
+/// Parsed command-line options for one scan target.
 pub(all) struct CliOptions {
   rules_root : String
   scan_root : String
@@ -58,6 +60,14 @@ fn last_cli_value(
 }
 
 ///|
+/// Parses command-line arguments after the executable name has been removed.
+///
+/// `scan` is required after the executable name. Within the `scan` subcommand,
+/// `--rules <rules-root>`, `--rules=<rules-root>`, or `-r <rules-root>` is
+/// required; one optional scan-root positional may appear in the argument list.
+/// If the rules option appears multiple times, the last value wins. Missing
+/// subcommands, required arguments, unknown options, or more than one scan root
+/// raise `CliError::Usage` with exit code 2.
 pub fn parse_cli_options(argv : Array[String]) -> CliOptions raise {
   let matches = moongrep_command().parse(argv~, env={}) catch {
     err => {

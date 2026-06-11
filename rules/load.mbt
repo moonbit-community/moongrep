@@ -4,6 +4,10 @@ fn invalid_rule(path~ : String, info~ : String) -> RuleLoadError {
 }
 
 ///|
+/// Loads all YAML rule files below `rules_root`.
+///
+/// Files are discovered recursively, sorted for deterministic output, and
+/// parsed as raw specs. An empty rule directory is treated as a rule-load error.
 pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
   let files = collect_rule_files(rules_root)
   if files.is_empty() {
@@ -18,6 +22,11 @@ pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
 }
 
 ///|
+/// Parses one YAML rule document into a raw rule spec.
+///
+/// `path` is used in diagnostics and rule id derivation. `rules_root` must be
+/// an ancestor path of `path`; the rule id is the relative path without
+/// `.yaml` or `.yml`.
 pub fn parse_rule_source(
   path : String,
   rules_root : String,

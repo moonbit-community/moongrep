@@ -1,4 +1,11 @@
 ///|
+/// A compiled expression pattern.
+///
+/// `ast` is the parsed pattern expression. `subtree_metavars` bind whole AST
+/// nodes, while `identifier_metavars` bind normalized identifier strings.
+/// `target_metavar` and `source_metavar` are reserved bare-expression
+/// placeholders injected by the rules package for `__TARGET__` and
+/// `__SOURCE__`.
 pub(all) struct CompiledExprPattern {
   ast : @syntax.Expr
   subtree_metavars : Array[String]
@@ -8,6 +15,11 @@ pub(all) struct CompiledExprPattern {
 }
 
 ///|
+/// Values captured while matching a `CompiledExprPattern`.
+///
+/// Subtree metavars capture the AST node kind appropriate to the syntactic
+/// position in which the metavar appears. Identifier metavars capture the
+/// normalized name as `Identifier`.
 pub(all) enum BoundValue {
   Expr(@syntax.Expr)
   Var(@syntax.Var)
@@ -18,6 +30,13 @@ pub(all) enum BoundValue {
 }
 
 ///|
+/// Result of a successful expression-pattern match.
+///
+/// `root` is the candidate expression originally passed to the matcher.
+/// `bindings` is the effective binding context after the match. For
+/// `match_expr_pattern` it contains fresh captures; for
+/// `match_expr_pattern_with_bindings` it contains a copy of the initial
+/// bindings plus any new captures.
 pub(all) struct ExprMatch {
   root : @syntax.Expr
   bindings : @hashmap.HashMap[String, BoundValue]
