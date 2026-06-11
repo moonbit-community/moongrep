@@ -1,0 +1,12 @@
+import {
+  "moonbit-community/moongrep/rules",
+  "moonbitlang/core/list",
+  "moonbitlang/parser",
+  "moonbitlang/parser/basic",
+  "moonbitlang/x/fs",
+  "moonbitlang/x/sys",
+}
+
+options(
+  "is-main": true,
+)
