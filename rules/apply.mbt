@@ -19,6 +19,63 @@ pub fn apply_structural_rules(
 }
 
 ///|
+pub fn apply_taint_rules(
+  file : String,
+  impls : @list.List[@syntax.Impl],
+  rules : Array[CompiledRule],
+) -> Array[MatchHit] raise {
+  let hits : Array[MatchHit] = []
+  for node in impls.to_array() {
+    for rule in rules {
+      match rule.definition {
+        CompiledRuleDefinition::Taint(taint_rule) =>
+          apply_taint_rule_to_impl(file, rule, taint_rule, node, hits)
+        _ => ()
+      }
+    }
+  }
+  hits
+}
+
+///|
+fn apply_taint_rule_to_impl(
+  file : String,
+  rule : CompiledRule,
+  taint_rule : CompiledTaintRule,
+  node : @syntax.Impl,
+  hits : Array[MatchHit],
+) -> Unit raise {
+  let spec = lower_compiled_taint_rule(rule, taint_rule)
+  try @taint.analyze_function_like(node, spec) catch {
+    @taint.TaintAnalysisError::UnsupportedFunctionLike(..) => ()
+    err => raise err
+  } noraise {
+    result =>
+      for finding in result.findings {
+        hits.push({
+          file,
+          rule_id: rule.rule_id,
+          package_name: rule.package_name,
+          description: rule.description,
+          pattern_index: sink_pattern_index(taint_rule, finding.sink_id),
+          loc: finding.sink_loc,
+          outer_loc: None,
+        })
+      }
+  }
+}
+
+///|
+fn sink_pattern_index(taint_rule : CompiledTaintRule, sink_id : String) -> Int {
+  for index in 0..<taint_rule.sinks.length() {
+    if sink_id == "sink:\{index}" {
+      return index
+    }
+  }
+  0
+}
+
+///|
 fn apply_structural_rule_to_expr(
   file : String,
   rule : CompiledRule,

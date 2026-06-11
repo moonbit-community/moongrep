@@ -1,6 +1,7 @@
 import {
   "moonbit-community/moongrep/ident",
   "moonbit-community/moongrep/matching",
+  "moonbit-community/moongrep/taint",
   "moonbit-community/yaml",
   "moonbitlang/parser/basic",
   "moonbitlang/parser/lexer",
@@ -14,3 +15,7 @@ import {
 import {
   "moonbitlang/parser",
 } for "test"
+
+import {
+  "moonbitlang/parser",
+} for "wbtest"
