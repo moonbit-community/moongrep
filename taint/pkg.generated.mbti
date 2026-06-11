@@ -1,0 +1,146 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/taint"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/parser/basic",
+  "moonbitlang/parser/syntax",
+}
+
+// Values
+pub fn analyze_function_like(@syntax.Impl, TaintSpec) -> AnalysisResult raise
+
+pub fn analyze_function_like_multi(@syntax.Impl, Array[TaintSpec]) -> Array[AnalysisResult] raise
+
+// Errors
+pub suberror TaintAnalysisError {
+  UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct AnalysisResult {
+  rule_id : String
+  function_name : String
+  function_loc : @basic.Location
+  findings : Array[SinkFinding]
+}
+
+pub(all) struct CallArgument {
+  index : Int
+  label : String?
+  expr : @syntax.Expr
+  loc : @basic.Location
+  path : StoragePath?
+  site : ValueSite
+  taint : Array[RelativeTaint]
+}
+
+pub(all) enum CallEffect {
+  ReturnFreshSource(String, String?, Array[PathSegment])
+  PropagateArgToReturn(Int)
+  PropagateReceiverToReturn
+  PropagateArgSubpathToReturn(Int, Array[PathSegment])
+  KillArg(Int)
+  KillReceiver
+  ReportSinkArg(String, Int)
+  ReportSinkReceiver(String)
+} derive(Eq, @debug.Debug)
+
+pub(all) struct CallInfo {
+  kind : CallKind
+  ast : @syntax.Expr
+  loc : @basic.Location
+  callee_name : String?
+  receiver_path : StoragePath?
+  receiver_site : ValueSite?
+  receiver_taint : Array[RelativeTaint]
+  arguments : Array[CallArgument]
+}
+
+pub(all) enum CallKind {
+  Apply
+  DotApply
+  Pipe
+  RevPipe
+} derive(Eq, @debug.Debug)
+
+pub(all) enum CallMatcher {
+  CalleeName(String)
+  MethodName(String)
+  AnyCall
+} derive(Eq, @debug.Debug)
+
+pub(all) struct CallModel {
+  matcher : CallMatcher
+  effects : Array[CallEffect]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct CallTransfer {
+  return_taint : Array[RelativeTaint]
+  killed_paths : Array[StoragePath]
+  findings : Array[SinkFinding]
+} derive(Eq, @debug.Debug)
+
+pub(all) enum PathSegment {
+  Field(String)
+  TupleIndex(Int)
+  ConstIndex(String)
+  AnyIndex
+} derive(Eq, @debug.Debug)
+
+pub(all) struct RelativeTaint {
+  path : Array[PathSegment]
+  origins : Array[TaintOrigin]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct SinkFinding {
+  rule_id : String
+  sink_id : String
+  sink_loc : @basic.Location
+  sink_site : ValueSite
+  origins : Array[TaintOrigin]
+} derive(Eq, @debug.Debug)
+
+pub(all) enum SourceModel {
+  EntryPath(StoragePath, String, String?)
+  CallReturn(CallMatcher, String, String?, Array[PathSegment])
+} derive(Eq, @debug.Debug)
+
+pub(all) struct StoragePath {
+  root : String
+  segments : Array[PathSegment]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct TaintOrigin {
+  rule_id : String
+  origin_id : String
+  site : ValueSite
+  note : String?
+} derive(Eq, @debug.Debug)
+
+pub(all) struct TaintSpec {
+  rule_id : String
+  sources : Array[SourceModel]
+  call_models : Array[CallModel]
+  unknown_call_policy : UnknownCallPolicy
+  max_fixpoint_iterations : Int
+  custom_transfer_call : (CallInfo) -> CallTransfer?
+}
+
+pub(all) enum UnknownCallPolicy {
+  NoEffect
+  PropagateArgumentsToReturn
+} derive(Eq, @debug.Debug)
+
+pub(all) enum ValueSite {
+  Path(StoragePath)
+  CallResult(String?, @basic.Location)
+  Expr(@basic.Location, String?)
+  Synthetic(String)
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+pub type TaintTree = Array[RelativeTaint]
+
+// Traits
+
