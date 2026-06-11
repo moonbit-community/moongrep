@@ -342,3 +342,208 @@ fn count_supported_name_in_let_and_bindings(
   }
   total
 }
+
+///|
+fn traverse_impl_exprs(nodes : @list.List[@syntax.Impl]) -> Array[@syntax.Expr] {
+  let exprs : Array[@syntax.Expr] = []
+  for node in nodes {
+    collect_impl_exprs(node, exprs)
+  }
+  exprs
+}
+
+///|
+fn collect_impl_exprs(node : @syntax.Impl, exprs : Array[@syntax.Expr]) -> Unit {
+  match node {
+    TopExpr(expr~, ..) => collect_exprs(expr, exprs)
+    TopFuncDef(decl_body=DeclBody(expr~), ..) => collect_exprs(expr, exprs)
+    TopImpl(body=DeclBody(expr~), ..) => collect_exprs(expr, exprs)
+    TopLetDef(expr~, ..) => collect_exprs(expr, exprs)
+    TopTest(expr~, ..) => collect_exprs(expr, exprs)
+    TopView(body~, ..) => collect_exprs(body, exprs)
+    _ => ()
+  }
+}
+
+///|
+fn collect_exprs(expr : @syntax.Expr, exprs : Array[@syntax.Expr]) -> Unit {
+  exprs.push(expr)
+  match expr {
+    Apply(func~, args~, ..) => {
+      collect_exprs(func, exprs)
+      collect_argument_exprs(args, exprs)
+    }
+    DotApply(self~, args~, ..) => {
+      collect_exprs(self, exprs)
+      collect_argument_exprs(args, exprs)
+    }
+    Field(record~, ..) => collect_exprs(record, exprs)
+    Infix(lhs~, rhs~, ..) => {
+      collect_exprs(lhs, exprs)
+      collect_exprs(rhs, exprs)
+    }
+    Unary(expr~, ..) => collect_exprs(expr, exprs)
+    Assign(expr~, ..) => collect_exprs(expr, exprs)
+    Array(exprs=items, ..) | Tuple(exprs=items, ..) =>
+      collect_expr_list(items, exprs)
+    Sequence(exprs=items, last_expr~, ..) => {
+      collect_expr_list(items, exprs)
+      collect_exprs(last_expr, exprs)
+    }
+    ArrayGet(array~, index~, ..) => {
+      collect_exprs(array, exprs)
+      collect_exprs(index, exprs)
+    }
+    ArraySet(array~, index~, value~, ..) => {
+      collect_exprs(array, exprs)
+      collect_exprs(index, exprs)
+      collect_exprs(value, exprs)
+    }
+    ArrayGetSlice(array~, start_index~, end_index~, ..) => {
+      collect_exprs(array, exprs)
+      collect_optional_expr(start_index, exprs)
+      collect_optional_expr(end_index, exprs)
+    }
+    Group(expr~, ..) | Constraint(expr~, ..) | As(expr~, ..) =>
+      collect_exprs(expr, exprs)
+    If(cond~, ifso~, ifnot~, ..) => {
+      collect_exprs(cond, exprs)
+      collect_exprs(ifso, exprs)
+      collect_optional_expr(ifnot, exprs)
+    }
+    Let(expr~, body~, ..) | LetMut(expr~, body~, ..) => {
+      collect_exprs(expr, exprs)
+      collect_exprs(body, exprs)
+    }
+    For(binders~, condition~, continue_block~, body~, for_else~, ..) => {
+      collect_binder_expr_pairs(binders, exprs)
+      collect_optional_expr(condition, exprs)
+      collect_binder_expr_pairs(continue_block, exprs)
+      collect_exprs(body, exprs)
+      collect_optional_expr(for_else, exprs)
+    }
+    ForEach(expr~, body~, else_block~, ..) => {
+      collect_exprs(expr, exprs)
+      collect_exprs(body, exprs)
+      collect_optional_expr(else_block, exprs)
+    }
+    Return(return_value~, ..) => collect_optional_expr(return_value, exprs)
+    Raise(err_value~, ..) => collect_exprs(err_value, exprs)
+    Pipe(lhs~, rhs~, ..) => {
+      collect_exprs(lhs, exprs)
+      collect_exprs(rhs, exprs)
+    }
+    Record(fields~, ..) => collect_field_def_exprs(fields, exprs)
+    RecordUpdate(record~, fields~, ..) => {
+      collect_exprs(record, exprs)
+      collect_field_def_exprs(fields, exprs)
+    }
+    Mutate(record~, field~, ..) => {
+      collect_exprs(record, exprs)
+      collect_exprs(field, exprs)
+    }
+    Match(expr~, cases~, ..) => {
+      collect_exprs(expr, exprs)
+      collect_case_exprs(cases, exprs)
+    }
+    Is(expr~, ..) => collect_exprs(expr, exprs)
+    Try(body~, catch_~, try_else~, ..) => {
+      collect_exprs(body, exprs)
+      collect_case_exprs(catch_, exprs)
+      match try_else {
+        Some(cases) => collect_case_exprs(cases, exprs)
+        None => ()
+      }
+    }
+    TryOperator(body~, ..) => collect_exprs(body, exprs)
+    While(loop_cond~, loop_body~, while_else~, ..) => {
+      collect_exprs(loop_cond, exprs)
+      collect_exprs(loop_body, exprs)
+      collect_optional_expr(while_else, exprs)
+    }
+    Break(arg~, ..) => collect_optional_expr(arg, exprs)
+    Continue(args~, ..) => collect_expr_list(args, exprs)
+    Defer(expr~, body~, ..) => {
+      collect_exprs(expr, exprs)
+      collect_exprs(body, exprs)
+    }
+    Function(func~, ..) => collect_exprs(func.body, exprs)
+    LetFn(func~, body~, ..) => {
+      collect_exprs(func.body, exprs)
+      collect_exprs(body, exprs)
+    }
+    LetAnd(bindings~, body~, ..) => {
+      for binding in bindings {
+        let (_binder, _ty, func) = binding
+        collect_exprs(func.body, exprs)
+      }
+      collect_exprs(body, exprs)
+    }
+    Map(elems~, ..) => {
+      for elem in elems {
+        collect_exprs(elem.expr, exprs)
+      }
+    }
+    _ => ()
+  }
+}
+
+///|
+fn collect_argument_exprs(
+  args : @list.List[@syntax.Argument],
+  exprs : Array[@syntax.Expr],
+) -> Unit {
+  for arg in args {
+    collect_exprs(arg.value, exprs)
+  }
+}
+
+///|
+fn collect_expr_list(
+  list : @list.List[@syntax.Expr],
+  exprs : Array[@syntax.Expr],
+) -> Unit {
+  for expr in list {
+    collect_exprs(expr, exprs)
+  }
+}
+
+///|
+fn collect_optional_expr(expr : @syntax.Expr?, exprs : Array[@syntax.Expr]) -> Unit {
+  match expr {
+    Some(expr) => collect_exprs(expr, exprs)
+    None => ()
+  }
+}
+
+///|
+fn collect_binder_expr_pairs(
+  pairs : @list.List[(@syntax.Binder, @syntax.Expr)],
+  exprs : Array[@syntax.Expr],
+) -> Unit {
+  for pair in pairs {
+    let (_binder, expr) = pair
+    collect_exprs(expr, exprs)
+  }
+}
+
+///|
+fn collect_field_def_exprs(
+  fields : @list.List[@syntax.FieldDef],
+  exprs : Array[@syntax.Expr],
+) -> Unit {
+  for field in fields {
+    collect_exprs(field.expr, exprs)
+  }
+}
+
+///|
+fn collect_case_exprs(
+  cases : @list.List[@syntax.Case],
+  exprs : Array[@syntax.Expr],
+) -> Unit {
+  for case in cases {
+    collect_optional_expr(case.guard_, exprs)
+    collect_exprs(case.body, exprs)
+  }
+}

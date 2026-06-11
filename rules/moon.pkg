@@ -2,9 +2,14 @@ import {
   "moonbit-community/moongrep/ident",
   "moonbit-community/moongrep/matching",
   "moonbit-community/yaml",
+  "moonbitlang/parser/basic",
   "moonbitlang/parser/lexer",
   "moonbitlang/parser/handrolled_parser",
   "moonbitlang/parser/syntax",
+  "moonbitlang/core/hashmap",
   "moonbitlang/core/list",
   "moonbitlang/x/fs",
 }
+import {
+  "moonbitlang/parser",
+} for "test"
