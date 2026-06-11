@@ -9,7 +9,7 @@ import {
   "moonbitlang/parser/syntax",
   "moonbitlang/core/hashmap",
   "moonbitlang/core/list",
-  "moonbitlang/x/fs",
+  "moonbit-community/miniio",
 }
 
 import {
@@ -19,3 +19,5 @@ import {
 import {
   "moonbitlang/parser",
 } for "wbtest"
+
+supported_targets = "wasm"

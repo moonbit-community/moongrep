@@ -1,22 +1,23 @@
 ///|
 fn moongrep_tmp_root(prefix : String) -> String raise {
-  let base = match @sys.get_env_var("TMPDIR") {
-    Some(path) => path
-    None => "/tmp"
+  let base = "_build/moongrep-test-tmp"
+  @miniio.mkdir(base) catch {
+    Exist => ()
+    e => raise e
   }
-  for index in 0..<1000 {
-    let path = "\{base}/\{prefix}-\{index}"
-    if !@fs.path_exists(path) {
-      @fs.create_dir(path)
-      return path
-    }
+  let path = "\{base}/\{prefix}"
+  @miniio.rmdir(path, recursive=true) catch {
+    Noent => ()
+    Notdir => @miniio.remove_file(path)
+    e => raise e
   }
-  fail("could not create temporary directory")
+  @miniio.mkdir(path)
+  path
 }
 
 ///|
 fn write_rule_file(dir : String, body : String) -> Unit raise {
-  @fs.write_string_to_file("\{dir}/example.yaml", body)
+  @miniio.write_text_file("\{dir}/example.yaml", body)
 }
 
 ///|
@@ -51,28 +52,28 @@ test "scan collects mbt hits and skips build directories" {
   let root = moongrep_tmp_root("moongrep-scan")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
-  @fs.create_dir("\{scan_dir}/_build")
-  @fs.create_dir("\{scan_dir}/.git")
-  @fs.create_dir("\{scan_dir}/.mooncakes")
-  @fs.create_dir("\{scan_dir}/target")
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
+  @miniio.mkdir("\{scan_dir}/_build")
+  @miniio.mkdir("\{scan_dir}/.git")
+  @miniio.mkdir("\{scan_dir}/.mooncakes")
+  @miniio.mkdir("\{scan_dir}/target")
   write_rule_file(rules_dir, structural_target_rule())
-  @fs.write_string_to_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
-  @fs.write_string_to_file("\{scan_dir}/ignored.txt", "target()\n")
-  @fs.write_string_to_file(
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  @miniio.write_text_file("\{scan_dir}/ignored.txt", "target()\n")
+  @miniio.write_text_file(
     "\{scan_dir}/_build/ignored.mbt",
     "fn sample { target() }\n",
   )
-  @fs.write_string_to_file(
+  @miniio.write_text_file(
     "\{scan_dir}/.git/ignored.mbt",
     "fn sample { target() }\n",
   )
-  @fs.write_string_to_file(
+  @miniio.write_text_file(
     "\{scan_dir}/.mooncakes/ignored.mbt",
     "fn sample { target() }\n",
   )
-  @fs.write_string_to_file(
+  @miniio.write_text_file(
     "\{scan_dir}/target/ignored.mbt",
     "fn sample { target() }\n",
   )
@@ -89,11 +90,11 @@ test "scan records parse failure warning and continues" {
   let root = moongrep_tmp_root("moongrep-parse-warning")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
   write_rule_file(rules_dir, structural_target_rule())
-  @fs.write_string_to_file("\{scan_dir}/bad.mbt", "fn sample {\n")
-  @fs.write_string_to_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
@@ -123,10 +124,10 @@ test "render prints structural hit location and description" {
   let root = moongrep_tmp_root("moongrep-render-hit")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
   write_rule_file(rules_dir, structural_target_rule())
-  @fs.write_string_to_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
@@ -141,10 +142,10 @@ test "scan reports taint hits" {
   let root = moongrep_tmp_root("moongrep-taint-hit")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
   write_rule_file(rules_dir, taint_user_rule())
-  @fs.write_string_to_file(
+  @miniio.write_text_file(
     "\{scan_dir}/hit.mbt",
     "fn sample { let x = get_user_input(); sink(x) }\n",
   )
@@ -162,9 +163,9 @@ test "scan uses selected rules directory" {
   let left_rules = "\{root}/left-rules"
   let right_rules = "\{root}/right-rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(left_rules)
-  @fs.create_dir(right_rules)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(left_rules)
+  @miniio.mkdir(right_rules)
+  @miniio.mkdir(scan_dir)
   write_rule_file(left_rules, structural_target_rule())
   let right_rule =
     #|package: example/pkg
@@ -174,7 +175,7 @@ test "scan uses selected rules directory" {
     #|  - shape: other()
     #|
   write_rule_file(right_rules, right_rule)
-  @fs.write_string_to_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let left = collect_directory_hits({
     rules_root: left_rules,
     scan_root: scan_dir,

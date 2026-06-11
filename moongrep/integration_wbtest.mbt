@@ -4,7 +4,7 @@ fn write_integration_source(
   name : String,
   source : String,
 ) -> Unit raise {
-  @fs.write_string_to_file("\{dir}/\{name}.mbt", source)
+  @miniio.write_text_file("\{dir}/\{name}.mbt", source)
 }
 
 ///|
@@ -12,8 +12,8 @@ test "integration applies compatible async structural rule" {
   let root = moongrep_tmp_root("moongrep-integration-structural")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
   let rule_source =
     #|package: moonbitlang/async/fs
     #|description: |
@@ -39,8 +39,8 @@ test "integration applies inside expr target traversal" {
   let root = moongrep_tmp_root("moongrep-integration-inside")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
   let rule_source =
     #|package: moonbitlang/core
     #|description: |
@@ -75,8 +75,8 @@ test "integration applies taint rule and sanitizer" {
   let root = moongrep_tmp_root("moongrep-integration-taint")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"
-  @fs.create_dir(rules_dir)
-  @fs.create_dir(scan_dir)
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
   let rule_source =
     #|package: moonbit-community/rabbita/html
     #|description: |
