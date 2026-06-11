@@ -36,7 +36,10 @@ fn copy_origins(origins : Array[TaintOrigin]) -> Array[TaintOrigin] {
 fn copy_tree(tree : TaintTree) -> TaintTree {
   let copied : TaintTree = []
   for entry in tree {
-    copied.push({ path: copy_segments(entry.path), origins: copy_origins(entry.origins) })
+    copied.push({
+      path: copy_segments(entry.path),
+      origins: copy_origins(entry.origins),
+    })
   }
   copied
 }
@@ -143,7 +146,10 @@ fn append_segments(
 }
 
 ///|
-fn add_origin_unique(origins : Array[TaintOrigin], origin : TaintOrigin) -> Unit {
+fn add_origin_unique(
+  origins : Array[TaintOrigin],
+  origin : TaintOrigin,
+) -> Unit {
   if !origins.contains(origin) {
     origins.push(origin)
   }

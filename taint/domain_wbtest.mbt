@@ -5,12 +5,7 @@ fn test_path(root : String, segments : Array[PathSegment]) -> StoragePath {
 
 ///|
 fn test_origin(id : String) -> TaintOrigin {
-  {
-    rule_id: "test",
-    origin_id: id,
-    site: Synthetic(id),
-    note: None,
-  }
+  { rule_id: "test", origin_id: id, site: Synthetic(id), note: None }
 }
 
 ///|
@@ -36,7 +31,10 @@ fn origin_ids(tree : TaintTree) -> Array[String] {
 test "domain write overwrites target subtree and keeps siblings" {
   let state = empty_state()
     |> state_write_path(test_path("x", [Field("a")]), single_tree("a"))
-    |> state_write_path(test_path("x", [Field("a"), Field("b")]), single_tree("ab"))
+    |> state_write_path(
+      test_path("x", [Field("a"), Field("b")]),
+      single_tree("ab"),
+    )
     |> state_write_path(test_path("x", [Field("b")]), single_tree("b"))
     |> state_write_path(test_path("x", [Field("a")]), single_tree("new"))
   debug_inspect(
@@ -53,10 +51,16 @@ test "domain write overwrites target subtree and keeps siblings" {
 test "domain kill removes exact subtree only" {
   let state = empty_state()
     |> state_write_path(test_path("x", [Field("a")]), single_tree("a"))
-    |> state_write_path(test_path("x", [Field("a"), Field("b")]), single_tree("ab"))
+    |> state_write_path(
+      test_path("x", [Field("a"), Field("b")]),
+      single_tree("ab"),
+    )
     |> state_write_path(test_path("x", [Field("b")]), single_tree("b"))
   let killed = state_kill_path(state, test_path("x", [Field("a")]))
-  inspect(state_read_path(killed, test_path("x", [Field("a")])).length(), content="0")
+  inspect(
+    state_read_path(killed, test_path("x", [Field("a")])).length(),
+    content="0",
+  )
   debug_inspect(
     origin_ids(state_read_path(killed, test_path("x", [Field("b")]))),
     content="[\"b\"]",
@@ -66,7 +70,10 @@ test "domain kill removes exact subtree only" {
 ///|
 test "domain dynamic read sees any and constant index taint" {
   let state = empty_state()
-    |> state_write_path(test_path("arr", [ConstIndex("0")]), single_tree("zero"))
+    |> state_write_path(
+      test_path("arr", [ConstIndex("0")]),
+      single_tree("zero"),
+    )
     |> state_write_path(test_path("arr", [AnyIndex]), single_tree("any"))
   debug_inspect(
     origin_ids(state_read_path(state, test_path("arr", [AnyIndex]))),
