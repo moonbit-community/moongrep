@@ -1,0 +1,10 @@
+import {
+  "moonbit-community/moongrep/ident",
+  "moonbit-community/moongrep/matching",
+  "moonbitlang/parser/basic",
+  "moonbitlang/parser/syntax",
+  "moonbitlang/core/debug",
+}
+import {
+  "moonbitlang/parser",
+} for "test"
