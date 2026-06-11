@@ -1,5 +1,7 @@
 ///|
-pub fn compile_rules(raw_rules : Array[RawRuleSpec]) -> Array[CompiledRule] raise {
+pub fn compile_rules(
+  raw_rules : Array[RawRuleSpec],
+) -> Array[CompiledRule] raise {
   ensure_unique_matcher_names(raw_rules)
   let compiled : Array[CompiledRule] = []
   for raw in raw_rules {
@@ -12,7 +14,9 @@ pub fn compile_rules(raw_rules : Array[RawRuleSpec]) -> Array[CompiledRule] rais
 fn compile_rule(raw : RawRuleSpec) -> CompiledRule raise {
   let definition = match raw.definition {
     RuleDefinitionSpec::Structural(spec) =>
-      CompiledRuleDefinition::Structural(compile_structural_rule(raw.path, spec))
+      CompiledRuleDefinition::Structural(
+        compile_structural_rule(raw.path, spec),
+      )
     RuleDefinitionSpec::Taint(spec) =>
       CompiledRuleDefinition::Taint(compile_taint_rule(raw.path, spec))
   }
@@ -42,7 +46,14 @@ fn compile_structural_rule(
         )
       }
       validate_used_metavars(path, "inside-expr", pattern, ast)
-      Some(compile_pattern(pattern, ast, target_metavar=Some("__TARGET__"), source_metavar=None))
+      Some(
+        compile_pattern(
+          pattern,
+          ast,
+          target_metavar=Some("__TARGET__"),
+          source_metavar=None,
+        ),
+      )
     }
   }
   let outer_subtree = match spec.inside_expr {
@@ -58,8 +69,12 @@ fn compile_structural_rule(
     let context = "patterns[\{index}]"
     let pattern = spec.patterns[index]
     validate_declared_metavars(path, context, pattern, false)
-    ensure_not_redeclared_from_inside_expr(path, context, pattern, outer_subtree)
-    ensure_not_redeclared_from_inside_expr(path, context, pattern, outer_identifier)
+    ensure_not_redeclared_from_inside_expr(
+      path, context, pattern, outer_subtree,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path, context, pattern, outer_identifier,
+    )
     let ast = parse_shape(path, context, pattern.shape)
     if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
@@ -83,7 +98,10 @@ fn compile_structural_rule(
 }
 
 ///|
-fn compile_taint_rule(path : String, spec : TaintRuleSpec) -> CompiledTaintRule raise {
+fn compile_taint_rule(
+  path : String,
+  spec : TaintRuleSpec,
+) -> CompiledTaintRule raise {
   let sources : Array[CompiledTaintSource] = []
   for index in 0..<spec.sources.length() {
     let context = "taint.sources[\{index}]"
@@ -98,7 +116,14 @@ fn compile_taint_rule(path : String, spec : TaintRuleSpec) -> CompiledTaintRule 
       )
     }
     validate_used_metavars(path, context, pattern, ast)
-    sources.push({ pattern: compile_pattern(pattern, ast, target_metavar=None, source_metavar=None) })
+    sources.push({
+      pattern: compile_pattern(
+        pattern,
+        ast,
+        target_metavar=None,
+        source_metavar=None,
+      ),
+    })
   }
   let sinks : Array[CompiledTaintSink] = []
   for index in 0..<spec.sinks.length() {
@@ -110,7 +135,12 @@ fn compile_taint_rule(path : String, spec : TaintRuleSpec) -> CompiledTaintRule 
     let target = require_source_target(path, context, ast)
     validate_used_metavars(path, context, pattern, ast)
     sinks.push({
-      pattern: compile_pattern(pattern, ast, target_metavar=None, source_metavar=Some("__SOURCE__")),
+      pattern: compile_pattern(
+        pattern,
+        ast,
+        target_metavar=None,
+        source_metavar=Some("__SOURCE__"),
+      ),
       target,
     })
   }
@@ -124,7 +154,12 @@ fn compile_taint_rule(path : String, spec : TaintRuleSpec) -> CompiledTaintRule 
     let target = require_source_target(path, context, ast)
     validate_used_metavars(path, context, pattern, ast)
     sanitizers.push({
-      pattern: compile_pattern(pattern, ast, target_metavar=None, source_metavar=Some("__SOURCE__")),
+      pattern: compile_pattern(
+        pattern,
+        ast,
+        target_metavar=None,
+        source_metavar=Some("__SOURCE__"),
+      ),
       target,
     })
   }

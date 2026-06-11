@@ -105,9 +105,17 @@ test "load recursively loads yaml files in stable order" {
   @fs.create_dir(nested)
   @fs.write_string_to_file("\{rules_root}/ignored.txt", "nope")
   @fs.write_string_to_file("\{nested}/b.yml", valid_taint_rule_source())
-  @fs.write_string_to_file("\{rules_root}/a.yaml", valid_structural_rule_source())
+  @fs.write_string_to_file(
+    "\{rules_root}/a.yaml",
+    valid_structural_rule_source(),
+  )
   let rules = load_rules(rules_root)
-  debug_inspect([ for rule in rules => rule.rule_id ], content="[\"a\", \"nested/b\"]")
+  debug_inspect(
+    [
+      for rule in rules => rule.rule_id
+    ],
+    content="[\"a\", \"nested/b\"]",
+  )
 }
 
 ///|
@@ -132,8 +140,7 @@ test "load rejects unsupported top-level key" {
     #|extra: nope
     #|
   expect_invalid_rule_info(
-    source,
-    "top-level rule contains unsupported key extra",
+    source, "top-level rule contains unsupported key extra",
   )
 }
 
@@ -147,8 +154,7 @@ test "load rejects guard in runtime AST mode" {
     #|    guard: x
     #|
   expect_invalid_rule_info(
-    source,
-    "patterns[0].guard is not supported in runtime AST mode",
+    source, "patterns[0].guard is not supported in runtime AST mode",
   )
 }
 
@@ -164,8 +170,7 @@ test "load rejects invalid metavar buckets" {
     #|      identifier: [x]
     #|
   expect_invalid_rule_info(
-    source,
-    "patterns[0].metavars contains duplicate metavar x",
+    source, "patterns[0].metavars contains duplicate metavar x",
   )
 }
 
@@ -184,8 +189,7 @@ test "load rejects multi document and missing required keys" {
     #|  - shape: y
     #|
   expect_invalid_rule_info(
-    multi_doc,
-    "rule file must contain exactly one YAML document",
+    multi_doc, "rule file must contain exactly one YAML document",
   )
   let missing_package =
     #|description: Example.
@@ -235,8 +239,7 @@ test "load rejects malformed taint schema" {
     #|    - shape: sink(__SOURCE__)
     #|
   expect_invalid_rule_info(
-    non_mapping_clause,
-    "taint.sources[0] must be a mapping",
+    non_mapping_clause, "taint.sources[0] must be a mapping",
   )
 }
 
@@ -251,8 +254,7 @@ test "load rejects malformed metavars schema" {
     #|      subtree: x
     #|
   expect_invalid_rule_info(
-    bucket_not_array,
-    "patterns[0].metavars.subtree must be an array",
+    bucket_not_array, "patterns[0].metavars.subtree must be an array",
   )
   let bucket_non_string =
     #|package: example/pkg
@@ -263,7 +265,6 @@ test "load rejects malformed metavars schema" {
     #|      subtree: [1]
     #|
   expect_invalid_rule_info(
-    bucket_non_string,
-    "patterns[0].metavars.subtree[0] must be a string",
+    bucket_non_string, "patterns[0].metavars.subtree[0] must be a string",
   )
 }

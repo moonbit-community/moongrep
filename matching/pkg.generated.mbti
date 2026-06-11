@@ -1,0 +1,44 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/matching"
+
+import {
+  "moonbitlang/core/hashmap",
+  "moonbitlang/parser/syntax",
+}
+
+// Values
+pub fn expr_matches(@syntax.Expr, @syntax.Expr) -> Bool
+
+pub fn match_expr_pattern(CompiledExprPattern, @syntax.Expr) -> ExprMatch?
+
+pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @syntax.Expr, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
+
+// Errors
+
+// Types and methods
+pub(all) enum BoundValue {
+  Expr(@syntax.Expr)
+  Var(@syntax.Var)
+  Binder(@syntax.Binder)
+  Pattern(@syntax.Pattern)
+  Label(@syntax.Label)
+  Identifier(String)
+}
+
+pub(all) struct CompiledExprPattern {
+  ast : @syntax.Expr
+  subtree_metavars : Array[String]
+  identifier_metavars : Array[String]
+  target_metavar : String?
+  source_metavar : String?
+}
+
+pub(all) struct ExprMatch {
+  root : @syntax.Expr
+  bindings : @hashmap.HashMap[String, BoundValue]
+}
+
+// Type aliases
+
+// Traits
+

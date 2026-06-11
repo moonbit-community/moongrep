@@ -1,6 +1,7 @@
 import {
   "moonbitlang/parser/syntax",
 }
+
 import {
   "moonbitlang/parser/basic",
   "moonbitlang/parser/lexer",

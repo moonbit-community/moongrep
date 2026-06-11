@@ -27,7 +27,16 @@ fn apply_structural_rule_to_expr(
   hits : Array[MatchHit],
 ) -> Unit {
   match structural.inside_expr {
-    None => apply_patterns_at_expr(file, rule, structural.patterns, expr, None, None, hits)
+    None =>
+      apply_patterns_at_expr(
+        file,
+        rule,
+        structural.patterns,
+        expr,
+        None,
+        None,
+        hits,
+      )
     Some(inside) =>
       match @matching.match_expr_pattern(inside.compiled, expr) {
         Some(outer_match) =>
@@ -71,8 +80,10 @@ fn apply_patterns_at_expr(
           patterns[index].compiled,
           expr,
           bindings,
-        ) is Some(_)
-      None => @matching.match_expr_pattern(patterns[index].compiled, expr) is Some(_)
+        )
+        is Some(_)
+      None =>
+        @matching.match_expr_pattern(patterns[index].compiled, expr) is Some(_)
     }
     if matched {
       hits.push({

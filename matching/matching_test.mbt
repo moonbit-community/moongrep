@@ -1,10 +1,12 @@
 ///|
 fn parse_expr(source : String) -> @syntax.Expr raise {
-  let tokens = @lexer.tokens_from_string(source, comment=true, name="matching test").tokens
+  let tokens = @lexer.tokens_from_string(
+      source,
+      comment=true,
+      name="matching test",
+    ).tokens
   let (expr, reports) = @handrolled_parser.parse_expr(tokens)
-  guard reports is [] else {
-    fail("expected expression to parse: \{source}")
-  }
+  guard reports is [] else { fail("expected expression to parse: \{source}") }
   expr
 }
 
@@ -51,21 +53,26 @@ test "identifier metavar compares binder and uses by normalized name" {
     match_expr_pattern(
       compiled,
       parse_expr("for i = 0; i < n; i = i + 1 { println(i) }"),
-    ) is Some(_),
+    )
+    is Some(_),
     content="true",
   )
   inspect(
     match_expr_pattern(
       compiled,
       parse_expr("for i = 0; j < n; i = i + 1 { println(i) }"),
-    ) is Some(_),
+    )
+    is Some(_),
     content="false",
   )
 }
 
 ///|
 test "structural matcher compares scalar AST fields" {
-  inspect(expr_matches(parse_expr("a + b"), parse_expr("a - b")), content="false")
+  inspect(
+    expr_matches(parse_expr("a + b"), parse_expr("a - b")),
+    content="false",
+  )
   inspect(
     expr_matches(parse_expr("f(label=a)"), parse_expr("f(other=a)")),
     content="false",

@@ -7,7 +7,10 @@ fn count_supported_name_in_expr(expr : @syntax.Expr, name : String) -> Int {
 }
 
 ///|
-fn count_supported_name_in_expr_children(expr : @syntax.Expr, name : String) -> Int {
+fn count_supported_name_in_expr_children(
+  expr : @syntax.Expr,
+  name : String,
+) -> Int {
   match expr {
     Apply(func~, args~, ..) =>
       count_supported_name_in_expr(func, name) +
@@ -70,9 +73,12 @@ fn count_supported_name_in_expr_children(expr : @syntax.Expr, name : String) -> 
       count_supported_name_in_expr(body, name) +
       count_supported_name_in_optional_expr(else_block, name) +
       count_supported_name_in_optional_label(label, name)
-    Return(return_value~, ..) => count_supported_name_in_optional_expr(return_value, name)
+    Return(return_value~, ..) =>
+      count_supported_name_in_optional_expr(return_value, name)
     Raise(err_value~, ..) => count_supported_name_in_expr(err_value, name)
-    Pipe(lhs~, rhs~, ..) => count_supported_name_in_expr(lhs, name) + count_supported_name_in_expr(rhs, name)
+    Pipe(lhs~, rhs~, ..) =>
+      count_supported_name_in_expr(lhs, name) +
+      count_supported_name_in_expr(rhs, name)
     Record(fields~, ..) => count_supported_name_in_field_defs(fields, name)
     RecordUpdate(record~, fields~, ..) =>
       count_supported_name_in_expr(record, name) +
@@ -135,17 +141,24 @@ fn count_supported_name_in_arguments(
 }
 
 ///|
-fn count_supported_name_in_argument_kind(kind : @syntax.ArgumentKind, name : String) -> Int {
+fn count_supported_name_in_argument_kind(
+  kind : @syntax.ArgumentKind,
+  name : String,
+) -> Int {
   match kind {
     Positional => 0
-    Labelled(label) | LabelledPun(label) => count_supported_name_in_label(label, name)
+    Labelled(label) | LabelledPun(label) =>
+      count_supported_name_in_label(label, name)
     LabelledOption(label~, ..) | LabelledOptionPun(label~, ..) =>
       count_supported_name_in_label(label, name)
   }
 }
 
 ///|
-fn count_supported_name_in_accessor(accessor : @syntax.Accessor, name : String) -> Int {
+fn count_supported_name_in_accessor(
+  accessor : @syntax.Accessor,
+  name : String,
+) -> Int {
   match accessor {
     Label(label) => count_supported_name_in_label(label, name)
     _ => 0
@@ -169,7 +182,10 @@ fn count_supported_name_in_optional_var(v : @syntax.Var?, name : String) -> Int 
 }
 
 ///|
-fn count_supported_name_in_binder(binder : @syntax.Binder, name : String) -> Int {
+fn count_supported_name_in_binder(
+  binder : @syntax.Binder,
+  name : String,
+) -> Int {
   match @ident.normalize_identifier_name_from_binder(binder) {
     Some(found) => if found == name { 1 } else { 0 }
     None => 0
@@ -185,7 +201,10 @@ fn count_supported_name_in_label(label : @syntax.Label, name : String) -> Int {
 }
 
 ///|
-fn count_supported_name_in_optional_label(label : @syntax.Label?, name : String) -> Int {
+fn count_supported_name_in_optional_label(
+  label : @syntax.Label?,
+  name : String,
+) -> Int {
   match label {
     Some(label) => count_supported_name_in_label(label, name)
     None => 0
@@ -193,7 +212,10 @@ fn count_supported_name_in_optional_label(label : @syntax.Label?, name : String)
 }
 
 ///|
-fn count_supported_name_in_pattern(pattern : @syntax.Pattern, name : String) -> Int {
+fn count_supported_name_in_pattern(
+  pattern : @syntax.Pattern,
+  name : String,
+) -> Int {
   match @ident.normalize_identifier_name_from_pattern(pattern) {
     Some(found) => if found == name { 1 } else { 0 }
     None =>
@@ -214,7 +236,10 @@ fn count_supported_name_in_pattern(pattern : @syntax.Pattern, name : String) -> 
 }
 
 ///|
-fn count_supported_name_in_expr_list(exprs : @list.List[@syntax.Expr], name : String) -> Int {
+fn count_supported_name_in_expr_list(
+  exprs : @list.List[@syntax.Expr],
+  name : String,
+) -> Int {
   let mut total = 0
   for expr in exprs {
     total += count_supported_name_in_expr(expr, name)
@@ -223,7 +248,10 @@ fn count_supported_name_in_expr_list(exprs : @list.List[@syntax.Expr], name : St
 }
 
 ///|
-fn count_supported_name_in_optional_expr(expr : @syntax.Expr?, name : String) -> Int {
+fn count_supported_name_in_optional_expr(
+  expr : @syntax.Expr?,
+  name : String,
+) -> Int {
   match expr {
     Some(expr) => count_supported_name_in_expr(expr, name)
     None => 0
@@ -260,7 +288,10 @@ fn count_supported_name_in_optional_binders(
 }
 
 ///|
-fn count_supported_name_in_patterns(patterns : @list.List[@syntax.Pattern], name : String) -> Int {
+fn count_supported_name_in_patterns(
+  patterns : @list.List[@syntax.Pattern],
+  name : String,
+) -> Int {
   let mut total = 0
   for pattern in patterns {
     total += count_supported_name_in_pattern(pattern, name)
@@ -269,7 +300,10 @@ fn count_supported_name_in_patterns(patterns : @list.List[@syntax.Pattern], name
 }
 
 ///|
-fn count_supported_name_in_cases(cases : @list.List[@syntax.Case], name : String) -> Int {
+fn count_supported_name_in_cases(
+  cases : @list.List[@syntax.Case],
+  name : String,
+) -> Int {
   let mut total = 0
   for case in cases {
     total += count_supported_name_in_pattern(case.pattern, name)
@@ -280,7 +314,10 @@ fn count_supported_name_in_cases(cases : @list.List[@syntax.Case], name : String
 }
 
 ///|
-fn count_supported_name_in_optional_cases(cases : @list.List[@syntax.Case]?, name : String) -> Int {
+fn count_supported_name_in_optional_cases(
+  cases : @list.List[@syntax.Case]?,
+  name : String,
+) -> Int {
   match cases {
     Some(cases) => count_supported_name_in_cases(cases, name)
     None => 0
@@ -288,7 +325,10 @@ fn count_supported_name_in_optional_cases(cases : @list.List[@syntax.Case]?, nam
 }
 
 ///|
-fn count_supported_name_in_field_defs(fields : @list.List[@syntax.FieldDef], name : String) -> Int {
+fn count_supported_name_in_field_defs(
+  fields : @list.List[@syntax.FieldDef],
+  name : String,
+) -> Int {
   let mut total = 0
   for field in fields {
     total += count_supported_name_in_label(field.label, name)
@@ -319,13 +359,17 @@ fn count_supported_name_in_func(func : @syntax.Func, name : String) -> Int {
 }
 
 ///|
-fn count_supported_name_in_parameter(param : @syntax.Parameter, name : String) -> Int {
+fn count_supported_name_in_parameter(
+  param : @syntax.Parameter,
+  name : String,
+) -> Int {
   match param {
     DiscardPositional(..) => 0
-    Labelled(binder~, ..) |
-    Optional(binder~, ..) |
-    Positional(binder~, ..) |
-    QuestionOptional(binder~, ..) => count_supported_name_in_binder(binder, name)
+    Labelled(binder~, ..)
+    | Optional(binder~, ..)
+    | Positional(binder~, ..)
+    | QuestionOptional(binder~, ..) =>
+      count_supported_name_in_binder(binder, name)
   }
 }
 
@@ -479,11 +523,10 @@ fn collect_exprs(expr : @syntax.Expr, exprs : Array[@syntax.Expr]) -> Unit {
       }
       collect_exprs(body, exprs)
     }
-    Map(elems~, ..) => {
+    Map(elems~, ..) =>
       for elem in elems {
         collect_exprs(elem.expr, exprs)
       }
-    }
     _ => ()
   }
 }
@@ -509,7 +552,10 @@ fn collect_expr_list(
 }
 
 ///|
-fn collect_optional_expr(expr : @syntax.Expr?, exprs : Array[@syntax.Expr]) -> Unit {
+fn collect_optional_expr(
+  expr : @syntax.Expr?,
+  exprs : Array[@syntax.Expr],
+) -> Unit {
   match expr {
     Some(expr) => collect_exprs(expr, exprs)
     None => ()
