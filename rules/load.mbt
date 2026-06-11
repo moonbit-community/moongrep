@@ -11,7 +11,7 @@ pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
   }
   let rules : Array[RawRuleSpec] = []
   for file in files {
-    let source = @fs.read_file_to_string(file)
+    let source = @miniio.read_text_file(file)
     rules.push(parse_rule_source(file, rules_root, source))
   }
   rules
@@ -58,11 +58,11 @@ fn collect_rule_files(rules_root : String) -> Array[String] raise {
 
 ///|
 fn walk_rule_dir(dir : String, files : Array[String]) -> Unit raise {
-  let entries = @fs.read_dir(dir)
+  let entries = @miniio.readdir(dir)
   entries.sort()
   for entry in entries {
     let path = "\{dir}/\{entry}"
-    if @fs.is_dir(path) {
+    if @miniio.is_dir(path) {
       walk_rule_dir(path, files)
     } else if has_yaml_suffix(path) {
       files.push(path)

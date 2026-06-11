@@ -29,14 +29,19 @@ fn valid_taint_rule_source() -> String {
 
 ///|
 fn fresh_tmp_dir(prefix : String) -> String raise {
-  for index in 0..<1000 {
-    let path = "/tmp/\{prefix}-\{index}"
-    if !@fs.path_exists(path) {
-      @fs.create_dir(path)
-      return path
-    }
+  let base = "_build/moongrep-test-tmp"
+  @miniio.mkdir(base) catch {
+    Exist => ()
+    e => raise e
   }
-  fail("could not create temporary directory")
+  let path = "\{base}/\{prefix}"
+  @miniio.rmdir(path, recursive=true) catch {
+    Noent => ()
+    Notdir => @miniio.remove_file(path)
+    e => raise e
+  }
+  @miniio.mkdir(path)
+  path
 }
 
 ///|
@@ -102,10 +107,10 @@ test "load parses taint rule and defaults sanitizers to empty" {
 test "load recursively loads yaml files in stable order" {
   let rules_root = fresh_tmp_dir("moongrep-load-rules")
   let nested = "\{rules_root}/nested"
-  @fs.create_dir(nested)
-  @fs.write_string_to_file("\{rules_root}/ignored.txt", "nope")
-  @fs.write_string_to_file("\{nested}/b.yml", valid_taint_rule_source())
-  @fs.write_string_to_file(
+  @miniio.mkdir(nested)
+  @miniio.write_text_file("\{rules_root}/ignored.txt", "nope")
+  @miniio.write_text_file("\{nested}/b.yml", valid_taint_rule_source())
+  @miniio.write_text_file(
     "\{rules_root}/a.yaml",
     valid_structural_rule_source(),
   )

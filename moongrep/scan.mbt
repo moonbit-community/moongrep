@@ -20,7 +20,7 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let hits : Array[@rules.MatchHit] = []
   let skipped_files : Array[SkippedFile] = []
   for file in files {
-    let source = @fs.read_file_to_string(file)
+    let source = @miniio.read_text_file(file)
     let (impls, reports) = @parser.parse_string(source, name=file)
     if reports.length() > 0 {
       skipped_files.push({
@@ -45,15 +45,15 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
 
 ///|
 fn collect_source_files(path : String, files : Array[String]) -> Unit raise {
-  if @fs.is_dir(path) {
-    let entries = @fs.read_dir(path)
+  if @miniio.is_dir(path) {
+    let entries = @miniio.readdir(path)
     entries.sort()
     for entry in entries {
       if !should_skip_entry(entry) {
         collect_source_files("\{path}/\{entry}", files)
       }
     }
-  } else if @fs.is_file(path) && path.has_suffix(".mbt") {
+  } else if @miniio.is_file(path) && path.has_suffix(".mbt") {
     files.push(path)
   }
 }

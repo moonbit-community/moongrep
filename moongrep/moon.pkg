@@ -1,11 +1,13 @@
 import {
   "moonbit-community/moongrep/rules",
+  "moonbit-community/miniio",
+  "moonbitlang/core/argparse",
   "moonbitlang/core/list",
   "moonbitlang/parser",
   "moonbitlang/parser/basic",
-  "moonbitlang/x/fs",
-  "moonbitlang/x/sys",
 }
+
+supported_targets = "wasm"
 
 options(
   "is-main": true,

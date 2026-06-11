@@ -2,10 +2,12 @@ name = "moonbit-community/moongrep"
 
 version = "0.1.3"
 
+preferred_target = "wasm"
+
 import {
-  "moonbitlang/x@0.4.40",
   "moonbitlang/parser@0.3.3",
   "moonbit-community/yaml@0.0.4",
+  "moonbit-community/miniio@0.2.0",
 }
 
 readme = "README.mbt.md"
