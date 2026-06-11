@@ -1,0 +1,25 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/moongrep"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn parse_cli_options(Array[String]) -> CliOptions raise
+
+// Errors
+pub suberror CliError {
+  Usage(message~ : String, exit_code~ : Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct CliOptions {
+  rules_root : String
+  scan_root : String
+}
+
+// Type aliases
+
+// Traits
+
