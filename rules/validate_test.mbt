@@ -134,3 +134,25 @@ test "validate rejects normalized rule id collisions" {
     _ => fail("expected collision failure")
   }
 }
+
+///|
+test "validate rejects reference rule guard in runtime AST mode" {
+  let source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  C-style loop guard fixture.
+    #|patterns:
+    #|  - shape: |
+    #|      for counter = __; counter < upper_limit; counter = counter + 1 {
+    #|        body
+    #|      }
+    #|    metavars:
+    #|      subtree: [upper_limit, body]
+    #|      identifier: [counter]
+    #|    guard: |
+    #|      @greptools.is_unused_var(upper_limit, counter)
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].guard is not supported in runtime AST mode",
+  )
+}
