@@ -1,0 +1,118 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/rules"
+
+import {
+  "moonbit-community/moongrep/matching",
+  "moonbitlang/core/debug",
+  "moonbitlang/core/list",
+  "moonbitlang/parser/basic",
+  "moonbitlang/parser/syntax",
+}
+
+// Values
+pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit]
+
+pub fn compile_rules(Array[RawRuleSpec]) -> Array[CompiledRule] raise
+
+pub fn load_rules(String) -> Array[RawRuleSpec] raise
+
+pub fn parse_rule_source(String, String, String) -> RawRuleSpec raise
+
+// Errors
+pub suberror RuleLoadError {
+  InvalidRule(path~ : String, info~ : String)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct CompiledRule {
+  rule_id : String
+  package_name : String
+  description : String
+  definition : CompiledRuleDefinition
+}
+
+pub(all) enum CompiledRuleDefinition {
+  Structural(CompiledStructuralRule)
+  Taint(CompiledTaintRule)
+}
+
+pub(all) struct CompiledRulePattern {
+  source : RulePatternSpec
+  compiled : @matching.CompiledExprPattern
+}
+
+pub(all) struct CompiledStructuralRule {
+  inside_expr : CompiledRulePattern?
+  patterns : Array[CompiledRulePattern]
+}
+
+pub(all) struct CompiledTaintRule {
+  sources : Array[CompiledTaintSource]
+  sinks : Array[CompiledTaintSink]
+  sanitizers : Array[CompiledTaintSanitizer]
+}
+
+pub(all) struct CompiledTaintSanitizer {
+  pattern : CompiledRulePattern
+  target : TaintTarget
+}
+
+pub(all) struct CompiledTaintSink {
+  pattern : CompiledRulePattern
+  target : TaintTarget
+}
+
+pub(all) struct CompiledTaintSource {
+  pattern : CompiledRulePattern
+}
+
+pub(all) struct MatchHit {
+  file : String
+  rule_id : String
+  package_name : String
+  description : String
+  pattern_index : Int
+  loc : @basic.Location
+  outer_loc : @basic.Location?
+}
+
+pub(all) struct RawRuleSpec {
+  path : String
+  rule_id : String
+  package_name : String
+  description : String
+  definition : RuleDefinitionSpec
+}
+
+pub(all) enum RuleDefinitionSpec {
+  Structural(StructuralRuleSpec)
+  Taint(TaintRuleSpec)
+}
+
+pub(all) struct RulePatternSpec {
+  shape : String
+  subtree_metavars : Array[String]
+  identifier_metavars : Array[String]
+}
+
+pub(all) struct StructuralRuleSpec {
+  inside_expr : RulePatternSpec?
+  patterns : Array[RulePatternSpec]
+}
+
+pub(all) struct TaintRuleSpec {
+  sources : Array[RulePatternSpec]
+  sinks : Array[RulePatternSpec]
+  sanitizers : Array[RulePatternSpec]
+}
+
+pub(all) enum TaintTarget {
+  Receiver
+  PositionalArg(Int)
+  LabelledArg(label~ : String, index~ : Int)
+}
+
+// Type aliases
+
+// Traits
+

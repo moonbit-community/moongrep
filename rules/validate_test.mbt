@@ -1,6 +1,8 @@
 ///|
 fn compile_one(source : String) -> Array[CompiledRule] raise {
-  compile_rules([parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source)])
+  compile_rules([
+    parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
+  ])
 }
 
 ///|
@@ -24,8 +26,7 @@ test "validate rejects reserved metavar names" {
     #|      subtree: [__]
     #|
   expect_compile_invalid(
-    source,
-    "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
+    source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
   )
 }
 
@@ -39,10 +40,7 @@ test "validate rejects unused metavars" {
     #|    metavars:
     #|      subtree: [missing]
     #|
-  expect_compile_invalid(
-    source,
-    "patterns[0] declares unused metavar missing",
-  )
+  expect_compile_invalid(source, "patterns[0] declares unused metavar missing")
 }
 
 ///|
@@ -56,8 +54,7 @@ test "validate inside expr requires exactly one target" {
     #|  - shape: x
     #|
   expect_compile_invalid(
-    source,
-    "inside-expr.shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    source, "inside-expr.shape must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }
 
@@ -72,10 +69,7 @@ test "validate taint source placeholder placement" {
     #|  sinks:
     #|    - shape: sink(__SOURCE__)
     #|
-  expect_compile_invalid(
-    source,
-    "taint.sources[0] must not contain __SOURCE__",
-  )
+  expect_compile_invalid(source, "taint.sources[0] must not contain __SOURCE__")
 }
 
 ///|
@@ -90,8 +84,7 @@ test "validate taint sink requires whole source target" {
     #|    - shape: sink(wrap(__SOURCE__))
     #|
   expect_compile_invalid(
-    source,
-    "taint.sinks[0].shape must place __SOURCE__ as the whole receiver or argument value",
+    source, "taint.sinks[0].shape must place __SOURCE__ as the whole receiver or argument value",
   )
 }
 

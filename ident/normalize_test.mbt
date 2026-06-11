@@ -1,10 +1,12 @@
 ///|
 fn parse_expr(source : String) -> @syntax.Expr raise {
-  let tokens = @lexer.tokens_from_string(source, comment=true, name="ident test").tokens
+  let tokens = @lexer.tokens_from_string(
+      source,
+      comment=true,
+      name="ident test",
+    ).tokens
   let (expr, reports) = @handrolled_parser.parse_expr(tokens)
-  guard reports is [] else {
-    fail("expected expression to parse")
-  }
+  guard reports is [] else { fail("expected expression to parse") }
   expr
 }
 

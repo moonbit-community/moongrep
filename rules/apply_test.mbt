@@ -1,15 +1,15 @@
 ///|
 fn parse_impls(source : String) -> @list.List[@syntax.Impl] raise {
   let (impls, reports) = @parser.parse_string(source, name="apply test")
-  guard reports is [] else {
-    fail("expected source to parse")
-  }
+  guard reports is [] else { fail("expected source to parse") }
   impls
 }
 
 ///|
 fn compile_rule_source(source : String) -> Array[CompiledRule] raise {
-  compile_rules([parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source)])
+  compile_rules([
+    parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
+  ])
 }
 
 ///|

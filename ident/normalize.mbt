@@ -26,7 +26,7 @@ pub fn normalize_identifier_name_from_label(label : @syntax.Label) -> String? {
 
 ///|
 pub fn normalize_identifier_name_from_pattern(
-  pattern : @syntax.Pattern
+  pattern : @syntax.Pattern,
 ) -> String? {
   match pattern {
     Var(binder) => normalize_identifier_name_from_binder(binder)
