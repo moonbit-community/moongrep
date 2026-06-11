@@ -3,8 +3,9 @@ name = "moonbit-community/moongrep"
 version = "0.1.3"
 
 import {
-  "moonbitlang/x@0.4.38",
-  "moonbitlang/parser@0.2.3",
+  "moonbitlang/x@0.4.40",
+  "moonbitlang/parser@0.3.3",
+  "moonbit-community/yaml@0.0.4",
 }
 
 readme = "README.mbt.md"
