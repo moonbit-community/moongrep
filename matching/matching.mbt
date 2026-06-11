@@ -1,4 +1,9 @@
 ///|
+/// Returns whether `candidate` has the same AST shape as `pattern`.
+///
+/// This convenience entry point does not enable declared metavars. It still
+/// treats parser holes and identifiers made entirely of two or more underscores
+/// as ignore placeholders.
 pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
   let compiled : CompiledExprPattern = {
     ast: pattern,
@@ -11,6 +16,14 @@ pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
 }
 
 ///|
+/// Matches `candidate` against a compiled expression pattern.
+///
+/// This attempts a single root-level match of `compiled.ast` against
+/// `candidate`. It does not traverse candidate descendants; callers that need
+/// search should pass each candidate expression subtree separately.
+///
+/// The returned bindings are fresh for this call. A failed match returns
+/// `None` and does not expose partial bindings.
 pub fn match_expr_pattern(
   compiled : CompiledExprPattern,
   candidate : @syntax.Expr,
@@ -20,6 +33,12 @@ pub fn match_expr_pattern(
 }
 
 ///|
+/// Matches with a caller-supplied binding context.
+///
+/// This is used by `inside-expr` rules: the outer match establishes bindings,
+/// then candidate target expressions are matched with those bindings already in
+/// scope. The input map is copied before matching, so failed attempts cannot
+/// mutate the caller's context.
 pub fn match_expr_pattern_with_bindings(
   compiled : CompiledExprPattern,
   candidate : @syntax.Expr,
@@ -319,6 +338,8 @@ fn match_expr(
 }
 
 ///|
+// Handles rule-pattern placeholders, including special identifiers and parser
+// holes, before the structural matcher falls back to literal AST comparison.
 fn match_expr_placeholder(
   pattern : @syntax.Expr,
   candidate : @syntax.Expr,
@@ -686,8 +707,8 @@ fn match_interp_elem(
     (Expr(expr=pattern, ..), Expr(expr=candidate, ..)) =>
       match_expr(pattern, candidate, compiled, bindings)
     (Literal(repr=left, ..), Literal(repr=right, ..)) => left == right
-    // Parser token internals are scalar source data; keep non-expression
-    // interpolation sources literal-only for now.
+    // Parser token internals are not compared here; non-expression
+    // interpolation sources currently match by node kind only.
     (Source(_), Source(_)) => true
     _ => false
   }

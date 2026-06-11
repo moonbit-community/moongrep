@@ -1,4 +1,9 @@
 ///|
+/// Validates and compiles raw YAML rule specs into executable rules.
+///
+/// This step parses each `shape`, checks declared metavars, rejects reserved
+/// names, and records taint `__SOURCE__` targets. It raises `RuleLoadError`
+/// when a rule cannot be represented by the runtime AST matcher.
 pub fn compile_rules(
   raw_rules : Array[RawRuleSpec],
 ) -> Array[CompiledRule] raise {
@@ -56,6 +61,9 @@ fn compile_structural_rule(
       )
     }
   }
+  // Metavars from `inside-expr` remain visible while matching each target
+  // expression. Inner patterns cannot redeclare them because that would make
+  // binding consistency ambiguous.
   let outer_subtree = match spec.inside_expr {
     Some(pattern) => pattern.subtree_metavars
     None => []
@@ -132,6 +140,8 @@ fn compile_taint_rule(
     validate_declared_metavars(path, context, pattern, true)
     let ast = parse_shape(path, context, pattern.shape)
     ensure_taint_call_shape(path, context, ast)
+    // `__SOURCE__` must be captured as a whole argument or receiver so the
+    // lowering layer can read or kill a concrete taint path.
     let target = require_source_target(path, context, ast)
     validate_used_metavars(path, context, pattern, ast)
     sinks.push({
@@ -151,6 +161,8 @@ fn compile_taint_rule(
     validate_declared_metavars(path, context, pattern, true)
     let ast = parse_shape(path, context, pattern.shape)
     ensure_taint_call_shape(path, context, ast)
+    // Sanitizers share the same target restrictions as sinks because both
+    // operate on one concrete call value.
     let target = require_source_target(path, context, ast)
     validate_used_metavars(path, context, pattern, ast)
     sanitizers.push({

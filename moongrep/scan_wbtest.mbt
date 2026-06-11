@@ -48,7 +48,7 @@ fn taint_user_rule() -> String {
 }
 
 ///|
-test "scan collects mbt hits and skips build directories" {
+test "scan collects mbt hits and skips dependency, build, and VCS directories" {
   let root = moongrep_tmp_root("moongrep-scan")
   let rules_dir = "\{root}/rules"
   let scan_dir = "\{root}/src"

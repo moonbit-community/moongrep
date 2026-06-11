@@ -18,4 +18,4 @@ license = "Apache-2.0"
 
 keywords = [ ]
 
-description = ""
+description = "Experimental MoonBit structural search and taint-analysis tool"

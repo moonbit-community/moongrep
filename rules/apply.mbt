@@ -1,4 +1,9 @@
 ///|
+/// Applies only structural rules to the supplied parser AST nodes.
+///
+/// Supported expression subtrees collected by `traverse_impl_exprs` and
+/// `collect_exprs` are visited in source-tree order. For a single expression
+/// and rule, the first matching pattern wins and determines `pattern_index`.
 pub fn apply_structural_rules(
   file : String,
   impls : @list.List[@syntax.Impl],
@@ -19,6 +24,10 @@ pub fn apply_structural_rules(
 }
 
 ///|
+/// Applies only taint rules to function-like parser AST nodes.
+///
+/// Unsupported top-level nodes are ignored. Other taint-analysis errors are
+/// propagated to the caller.
 pub fn apply_taint_rules(
   file : String,
   impls : @list.List[@syntax.Impl],
@@ -99,6 +108,9 @@ fn apply_structural_rule_to_expr(
         Some(outer_match) =>
           match outer_match.bindings.get("__TARGET__") {
             Some(@matching.BoundValue::Expr(target)) => {
+              // The context rule can bind a larger expression than the final
+              // hit. Search supported expressions under `__TARGET__`, while
+              // carrying any bindings established by the outer match.
               let target_exprs : Array[@syntax.Expr] = []
               collect_exprs(target, target_exprs)
               for target_expr in target_exprs {

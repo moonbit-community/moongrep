@@ -220,7 +220,7 @@ test "taint engine does not continue sequence after return" {
 }
 
 ///|
-test "taint engine propagates unknown call arguments to return by default" {
+test "taint engine propagates unknown call argument taint to return by default" {
   let source =
     #|fn sample(input) {
     #|  sink(wrap(input))

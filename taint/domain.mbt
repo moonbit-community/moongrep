@@ -5,6 +5,9 @@ priv struct StateEntry {
 }
 
 ///|
+// The abstract state maps storage paths, including summarized `AnyIndex` paths,
+// to source origins. Expression values use `TaintTree`, which is relative to
+// that expression, while state entries are rooted at locals or parameters.
 priv struct TaintState {
   entries : Array[StateEntry]
 }
@@ -87,6 +90,8 @@ fn path_prefix_match_for_write(
 ///|
 fn segment_matches_for_read(query : PathSegment, actual : PathSegment) -> Bool {
   match query {
+    // Reads through an unknown array index may observe any concrete index, and
+    // reads through a concrete index may observe an `AnyIndex` summary entry.
     AnyIndex =>
       match actual {
         AnyIndex | ConstIndex(_) => true
