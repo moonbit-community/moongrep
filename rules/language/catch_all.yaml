@@ -1,0 +1,24 @@
+package: moonbitlang
+description: |
+  Single catch arm handles every error, which can hide unexpected failures.
+  Prefer matching only the specific error cases that can be recovered from.
+patterns:
+  - shape: |
+      try expr catch {
+        _ => handler_expr
+      }
+    metavars:
+      subtree: [expr, handler_expr]
+  - shape: |
+      expr catch {
+        _ => handler_expr
+      }
+    metavars:
+      subtree: [expr, handler_expr]
+  - shape: |
+      try expr catch {
+        allerror => handler_expr
+      }
+    metavars:
+      subtree: [expr, handler_expr]
+      identifier: [allerror]
