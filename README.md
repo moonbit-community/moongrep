@@ -37,6 +37,13 @@ moon run . -- scan --rules path/to/rules
 moon run . -- scan -r path/to/rules
 ```
 
+Embedded documentation is available through the `docs` subcommand:
+
+```bash
+moon run . -- docs --list
+moon run . -- docs RuleSpec
+```
+
 The scanner recursively reads `.mbt` files. When descending from `scan-root`,
 child entries named `.git`, `_build`, `.mooncakes`, or `target` are skipped; if
 one of those directories is passed explicitly as `scan-root`, it is scanned.

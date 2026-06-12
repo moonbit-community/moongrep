@@ -1,4 +1,5 @@
 import {
+  "moonbit-community/moongrep/docs",
   "moonbit-community/moongrep/rules",
   "moonbit-community/miniio",
   "moonbitlang/core/argparse",

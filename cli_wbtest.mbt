@@ -17,6 +17,28 @@ test "cli args require rules option" {
 }
 
 ///|
+test "cli args parse docs list command" {
+  match parse_cli_command(["docs", "--list"]) {
+    ("docs-list", None, None) => inspect("docs-list", content="docs-list")
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse docs named command" {
+  match parse_cli_command(["docs", "RuleSpec"]) {
+    ("docs-show", None, Some(name)) => inspect(name, content="RuleSpec")
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args reject ambiguous docs command" {
+  expect_cli_usage(["docs"], 2)
+  expect_cli_usage(["docs", "--list", "RuleSpec"], 2)
+}
+
+///|
 test "cli args parse rules root and default scan root" {
   let options = parse_cli_options(["scan", "--rules", "custom-rules"])
   inspect(options.rules_root, content="custom-rules")
@@ -59,6 +81,7 @@ test "cli args render argparse help" {
   let help = moongrep_command().render_help()
   inspect(help.has_prefix("Usage: moongrep <command>"), content="true")
   inspect(help.contains("scan"), content="true")
+  inspect(help.contains("docs"), content="true")
 }
 
 ///|
