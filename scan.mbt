@@ -49,16 +49,25 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
 
 ///|
 fn collect_source_files(path : String, files : Array[String]) -> Unit raise {
-  if @miniio.is_dir(path) {
-    let entries = @miniio.readdir(path)
-    entries.sort()
-    for entry in entries {
-      if !should_skip_entry(entry) {
-        collect_source_files("\{path}/\{entry}", files)
+  try {
+    if @miniio.is_dir(path) {
+      let entries = @miniio.readdir(path)
+      entries.sort()
+      for entry in entries {
+        if !should_skip_entry(entry) {
+          collect_source_files("\{path}/\{entry}", files)
+        }
       }
+    } else if @miniio.is_file(path) && path.has_suffix(".mbt") {
+      files.push(path)
     }
-  } else if @miniio.is_file(path) && path.has_suffix(".mbt") {
-    files.push(path)
+  } catch {
+    // TODO: miniio currently lacks public symlink/lstat/readlink/walk APIs, so
+    // symlinks can only be recognized indirectly through Errno::Loop here.
+    // Replace this with explicit symlink handling once miniio exposes enough
+    // filesystem metadata.
+    @miniio.Errno::Loop => ()
+    e => raise e
   }
 }
 

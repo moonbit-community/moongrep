@@ -39,8 +39,9 @@ moon run moongrep -- scan -r path/to/rules
 The scanner recursively reads `.mbt` files. When descending from `scan-root`,
 child entries named `.git`, `_build`, `.mooncakes`, or `target` are skipped; if
 one of those directories is passed explicitly as `scan-root`, it is scanned.
-Files that fail to parse are reported as warnings and skipped; other files
-continue to be scanned.
+Symbolic links encountered during recursive source or rule traversal are
+skipped. Files that fail to parse are reported as warnings and skipped; other
+files continue to be scanned.
 
 Human-readable output starts with parse warnings, if any, followed by one block
 per hit:
