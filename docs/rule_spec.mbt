@@ -385,16 +385,12 @@ let _embed_rulespec_md : String =
   #|
   #|- any name consisting only of two or more underscores
   #|- `__TARGET__`
-  #|- `file`
-  #|- `hits`
-  #|- `loc`
-  #|- any name beginning with `__moongrep_`
   #|
   #|In taint clauses, `__SOURCE__` is also reserved and must not be declared as a
   #|metavar. It is the built-in placeholder for the sink or sanitizer target.
   #|
   #|These names are reserved because matcher code uses them for built-in
-  #|placeholder semantics, binding plumbing, or internal matcher/runtime names.
+  #|placeholder semantics and binding plumbing.
   #|
   #|## Error Conditions
   #|

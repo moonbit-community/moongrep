@@ -281,16 +281,6 @@ fn validate_declared_metavar(
       path~,
       info="\{context} cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
     )
-  } else if name == "file" || name == "hits" || name == "loc" {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context} cannot declare metavar \{name} because it conflicts with generated matcher locals",
-    )
-  } else if name.has_prefix("__moongrep_") {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context} cannot declare metavar \{name} because names starting with __moongrep_ are reserved for generated matcher locals",
-    )
   }
 }
 

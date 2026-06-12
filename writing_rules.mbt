@@ -156,9 +156,6 @@ let _embed_writingrules_md : String =
   #|`__`, `___`, and `____`. They are special ignore placeholders inside `shape`,
   #|so you must not declare them under `metavars`.
   #|
-  #|Generated-local names are also reserved and must not be declared as metavars:
-  #|`file`, `hits`, `loc`, and names beginning with `__moongrep_`.
-  #|
   #|```yaml
   #|patterns:
   #|  - shape: foo(__)

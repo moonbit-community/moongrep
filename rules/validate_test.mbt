@@ -31,6 +31,27 @@ test "validate rejects reserved metavar names" {
 }
 
 ///|
+test "validate allows matcher-local-looking metavar names" {
+  let source =
+    #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: file + hits + loc + __moongrep_value
+    #|    metavars:
+    #|      subtree: [file, hits, loc, __moongrep_value]
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].source.subtree_metavars,
+        content="[\"file\", \"hits\", \"loc\", \"__moongrep_value\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate rejects unused metavars" {
   let source =
     #|package: example/pkg
