@@ -3,7 +3,7 @@
 This document is the authoritative specification for YAML rules in the
 `rules` package.
 
-If you are writing your first rule, start with [README.md](README.md).
+If you are writing your first rule, start with [WritingRules.md](WritingRules.md).
 
 ## Scope and Status
 

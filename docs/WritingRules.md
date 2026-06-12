@@ -296,7 +296,7 @@ different.
 Run `moongrep` from the module root with a rules directory:
 
 ```bash
-moon run moongrep -- scan --rules <rules-root> [scan-root]
+moon run . -- scan --rules <rules-root> [scan-root]
 ```
 
 `--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
@@ -396,7 +396,7 @@ clause is rejected in runtime AST mode.
 After changing a rule or rule behavior:
 
 1. run the scanner on a focused fixture with
-   `moon run moongrep -- scan --rules <rules-root> <fixture-root>`
+   `moon run . -- scan --rules <rules-root> <fixture-root>`
 2. add or update focused tests under `rules/`
 3. cover both a positive case and at least one nearby negative case
 

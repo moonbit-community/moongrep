@@ -1,8 +1,9 @@
 # moongrep
 
 `moongrep` is an experimental MoonBit structural search and taint-analysis tool.
-Matching rules are declared as YAML files. See [rules/README.md](rules/README.md)
-for the rule authoring guide and YAML rule format.
+Matching rules are declared as YAML files. See
+[docs/WritingRules.md](docs/WritingRules.md) for the rule authoring guide and
+[docs/RuleSpec.md](docs/RuleSpec.md) for the YAML rule format.
 
 ## Command Line
 
@@ -10,13 +11,13 @@ Run the scanner with a rule directory and an optional scan target directory or
 `.mbt` file:
 
 ```bash
-moon run moongrep -- scan --rules path/to/rules path/to/src
+moon run . -- scan --rules path/to/rules path/to/src
 ```
 
 Synopsis:
 
 ```text
-moon run moongrep -- scan (--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) [scan-root]
+moon run . -- scan (--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
@@ -32,8 +33,8 @@ read failures, abort the run; the CLI prints the error and exits with code 1.
 If `scan-root` is omitted, `moongrep` scans the current directory:
 
 ```bash
-moon run moongrep -- scan --rules path/to/rules
-moon run moongrep -- scan -r path/to/rules
+moon run . -- scan --rules path/to/rules
+moon run . -- scan -r path/to/rules
 ```
 
 The scanner recursively reads `.mbt` files. When descending from `scan-root`,
