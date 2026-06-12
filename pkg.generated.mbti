@@ -8,6 +8,8 @@ import {
 // Values
 pub fn parse_cli_options(Array[String]) -> CliOptions raise
 
+pub let writingrules_md : String
+
 // Errors
 pub suberror CliError {
   Usage(message~ : String, exit_code~ : Int)
