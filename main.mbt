@@ -10,7 +10,7 @@ fn main {
       @miniio.exit(exit_code)
     }
     err => {
-      println("\{err}")
+      println("\{to_repr(err)}")
       @miniio.exit(1)
     }
   }
