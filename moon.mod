@@ -9,7 +9,7 @@ supported_targets = "wasm"
 import {
   "moonbitlang/parser@0.3.3",
   "moonbit-community/yaml@0.0.4",
-  "moonbit-community/miniio@0.2.0",
+  "moonbit-community/miniio@0.2.1",
 }
 
 readme = "README.mbt.md"
