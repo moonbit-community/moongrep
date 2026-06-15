@@ -75,7 +75,7 @@ test "load parses structural rule and derives yaml rule id" {
       inspect(spec.patterns[0].shape, content="_expr == _expr")
       debug_inspect(spec.patterns[0].subtree_metavars, content="[\"_expr\"]")
       debug_inspect(spec.patterns[0].identifier_metavars, content="[]")
-      inspect(spec.inside_expr is None, content="true")
+      assert_true(spec.inside_expr is None)
     }
     Taint(_) => fail("expected structural rule")
   }

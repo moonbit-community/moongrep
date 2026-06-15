@@ -82,7 +82,7 @@ test "scan collects mbt hits and skips dependency, build, and VCS directories" {
     scan_root: scan_dir,
   })
   inspect(result.hits.length(), content="1")
-  inspect(result.hits[0].file.has_suffix("hit.mbt"), content="true")
+  assert_true(result.hits[0].file.has_suffix("hit.mbt"))
 }
 
 ///|
@@ -111,10 +111,7 @@ test "scan records parse failure warning and continues" {
   })
   inspect(result.hits.length(), content="1")
   inspect(result.skipped_files.length(), content="1")
-  inspect(
-    result.skipped_files[0].reason.has_prefix("parse failed due to"),
-    content="true",
-  )
+  assert_true(result.skipped_files[0].reason.has_prefix("parse failed due to"))
 }
 
 ///|
@@ -143,8 +140,8 @@ test "render prints structural hit location and description" {
     scan_root: scan_dir,
   })
   let output = render_directory_scan_result(result)
-  inspect(output.contains("rule: example"), content="true")
-  inspect(output.contains("description:\n  Target call."), content="true")
+  assert_true(output.contains("rule: example"))
+  assert_true(output.contains("description:\n  Target call."))
 }
 
 ///|

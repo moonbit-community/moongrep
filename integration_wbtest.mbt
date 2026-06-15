@@ -67,7 +67,7 @@ test "integration applies inside expr target traversal" {
   })
   inspect(result.skipped_files.length(), content="0")
   inspect(result.hits.length(), content="1")
-  inspect(result.hits[0].outer_loc is Some(_), content="true")
+  assert_true(result.hits[0].outer_loc is Some(_))
 }
 
 ///|

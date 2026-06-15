@@ -125,8 +125,8 @@ test "validate compiles taint source target metadata" {
   match rules[0].definition {
     Taint(rule) => {
       inspect(rule.sinks.length(), content="2")
-      inspect(rule.sinks[0].target is PositionalArg(0), content="true")
-      inspect(rule.sinks[1].target is Receiver, content="true")
+      assert_true(rule.sinks[0].target is PositionalArg(0))
+      assert_true(rule.sinks[1].target is Receiver)
     }
     Structural(_) => fail("expected taint rule")
   }

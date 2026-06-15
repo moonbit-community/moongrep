@@ -100,7 +100,7 @@ test "cli args reject missing rules value" {
 ///|
 test "cli args render argparse help" {
   let help = moongrep_command.render_help()
-  inspect(help.has_prefix("Usage: moongrep <command>"), content="true")
+  assert_true(help.has_prefix("Usage: moongrep <command>"))
   assert_true(help.contains("scan"))
   assert_true(help.contains("docs"))
 }

@@ -12,8 +12,8 @@ test "docs list renders names and summaries" {
 ///|
 test "docs show returns matching document body" {
   let body = render_doc_body("RuleSpec")
-  inspect(body.has_prefix("# Rule Specification"), content="true")
-  inspect(body.contains("## YAML Schema"), content="true")
+  assert_true(body.has_prefix("# Rule Specification"))
+  assert_true(body.contains("## YAML Schema"))
 }
 
 ///|

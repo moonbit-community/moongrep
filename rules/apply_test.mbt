@@ -90,7 +90,7 @@ test "apply structural rule supports inside expr inherited bindings" {
     compile_rule_source(rule_source),
   )
   inspect(hits.length(), content="1")
-  inspect(hits[0].outer_loc is Some(_), content="true")
+  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
