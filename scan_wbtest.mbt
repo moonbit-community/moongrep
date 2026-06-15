@@ -103,7 +103,7 @@ test "scan records parse failure warning and continues" {
   @miniio.mkdir(rules_dir)
   @miniio.mkdir(scan_dir)
   write_rule_file(rules_dir, structural_target_rule())
-  @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
+  @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample { target()\n")
   @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let result = collect_directory_hits({
     rules_root: rules_dir,
@@ -112,6 +112,98 @@ test "scan records parse failure warning and continues" {
   inspect(result.hits.length(), content="1")
   inspect(result.skipped_files.length(), content="1")
   assert_true(result.skipped_files[0].reason.has_prefix("parse failed due to"))
+}
+
+///|
+test "scan prefilter skips parse failures for irrelevant files" {
+  let root = moongrep_tmp_root("moongrep-prefilter-skip")
+  let rules_dir = "\{root}/rules"
+  let scan_dir = "\{root}/src"
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
+  write_rule_file(rules_dir, structural_target_rule())
+  @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
+  let result = collect_directory_hits({
+    rules_root: rules_dir,
+    scan_root: scan_dir,
+  })
+  inspect(result.hits.length(), content="0")
+  inspect(result.skipped_files.length(), content="0")
+}
+
+///|
+test "scan prefilter keeps unfilterable rules relevant" {
+  let root = moongrep_tmp_root("moongrep-prefilter-general")
+  let rules_dir = "\{root}/rules"
+  let scan_dir = "\{root}/src"
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
+  let general_rule =
+    #|package: example/pkg
+    #|description: |
+    #|  Any expression.
+    #|patterns:
+    #|  - shape: _expr
+    #|    metavars:
+    #|      subtree: [_expr]
+    #|
+  write_rule_file(rules_dir, general_rule)
+  @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
+  let result = collect_directory_hits({
+    rules_root: rules_dir,
+    scan_root: scan_dir,
+  })
+  inspect(result.hits.length(), content="0")
+  inspect(result.skipped_files.length(), content="1")
+}
+
+///|
+fn rule_ids(rules : Array[@rules.CompiledRule]) -> Array[String] {
+  let ids : Array[String] = []
+  for rule in rules {
+    ids.push(rule.rule_id)
+  }
+  ids
+}
+
+///|
+test "scan prefilter narrows rules by impl source text" {
+  let root = moongrep_tmp_root("moongrep-prefilter-impl")
+  let rules_dir = "\{root}/rules"
+  @miniio.mkdir(rules_dir)
+  @miniio.write_text_file("\{rules_dir}/target.yaml", structural_target_rule())
+  let other_rule =
+    #|package: example/pkg
+    #|description: |
+    #|  Other call.
+    #|patterns:
+    #|  - shape: other()
+    #|
+  @miniio.write_text_file("\{rules_dir}/other.yaml", other_rule)
+  let compiled_rules = @rules.compile_rules(@rules.load_rules(rules_dir))
+  let source =
+    #|fn first {
+    #|  target()
+    #|}
+    #|
+    #|fn second {
+    #|  other()
+    #|}
+    #|
+  let (impls, reports) = @parser.parse_string(source, name="impl-filter.mbt")
+  inspect(reports.length(), content="0")
+  let nodes = impls.to_array()
+  guard nodes is [first, second] else { fail("expected two impls") }
+  let first_rules = @rules.prefilter_rules_for_source(
+    compiled_rules,
+    source_text_for_impl(source, first),
+  )
+  let second_rules = @rules.prefilter_rules_for_source(
+    compiled_rules,
+    source_text_for_impl(source, second),
+  )
+  debug_inspect(rule_ids(first_rules), content="[\"target\"]")
+  debug_inspect(rule_ids(second_rules), content="[\"other\"]")
 }
 
 ///|

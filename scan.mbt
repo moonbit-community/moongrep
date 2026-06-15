@@ -23,28 +23,71 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let skipped_files : Array[SkippedFile] = []
   for file in files {
     let source = @miniio.read_text_file(file)
-    let (impls, reports) = @parser.parse_string(source, name=file)
-    if reports.length() > 0 {
-      // Keep scanning other files even when one file fails to parse. This makes
-      // the CLI useful on in-progress worktrees.
-      skipped_files.push({
-        file,
-        reason: "parse failed due to \{compact_reports(reports)}",
-      })
-    } else {
-      let structural_hits = @rules.apply_structural_rules(
-        file, impls, compiled_rules,
-      )
-      for hit in structural_hits {
-        hits.push(hit)
-      }
-      let taint_hits = @rules.apply_taint_rules(file, impls, compiled_rules)
-      for hit in taint_hits {
-        hits.push(hit)
+    let file_rules = @rules.prefilter_rules_for_source(compiled_rules, source)
+    if !file_rules.is_empty() {
+      let (impls, reports) = @parser.parse_string(source, name=file)
+      if reports.length() > 0 {
+        // Keep scanning other files even when one file fails to parse. This makes
+        // the CLI useful on in-progress worktrees.
+        skipped_files.push({
+          file,
+          reason: "parse failed due to \{compact_reports(reports)}",
+        })
+      } else {
+        for node in impls {
+          let impl_source = source_text_for_impl(source, node)
+          let impl_rules = @rules.prefilter_rules_for_source(
+            file_rules, impl_source,
+          )
+          if !impl_rules.is_empty() {
+            let structural_hits = @rules.apply_structural_rules_to_impl(
+              file, node, impl_rules,
+            )
+            for hit in structural_hits {
+              hits.push(hit)
+            }
+            let taint_hits = @rules.apply_taint_rules_to_impl(
+              file, node, impl_rules,
+            )
+            for hit in taint_hits {
+              hits.push(hit)
+            }
+          }
+        }
       }
     }
   }
   { hits, skipped_files }
+}
+
+///|
+fn source_text_for_impl(source : String, node : @syntax.Impl) -> String {
+  source_text_for_location(source, node.loc())
+}
+
+///|
+fn source_text_for_location(source : String, loc : @basic.Location) -> String {
+  let lines = source.split("\n").to_array()
+  let start_line = loc.start.lnum
+  let end_line = loc.end.lnum
+  if start_line <= 0 || end_line <= 0 || end_line < start_line {
+    return source
+  }
+  let start_index = start_line - 1
+  let end_index = end_line
+  if start_index >= lines.length() || end_index > lines.length() {
+    return source
+  }
+  let block_lines = []
+  for line in lines[start_index:end_index] {
+    block_lines.push(line)
+  }
+  let block = block_lines.join("\n")
+  if block.length() == 0 {
+    source
+  } else {
+    block
+  }
 }
 
 ///|

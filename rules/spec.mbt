@@ -128,10 +128,21 @@ pub(all) enum CompiledRuleDefinition {
 }
 
 ///|
+/// Source-text prefilter compiled from rule shapes.
+///
+/// Each inner array is a conjunction of literals that must all occur in the
+/// source text. The outer array is a disjunction. Empty alternatives mean the
+/// rule cannot be filtered safely and must remain relevant.
+pub(all) struct RulePrefilter {
+  alternatives : Array[Array[String]]
+}
+
+///|
 /// A rule ready to apply to parser AST nodes.
 pub(all) struct CompiledRule {
   rule_id : String
   package_name : String
   description : String
   definition : CompiledRuleDefinition
+  prefilter : RulePrefilter
 }

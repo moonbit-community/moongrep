@@ -12,13 +12,21 @@ import {
 // Values
 pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit]
 
+pub fn apply_structural_rules_to_impl(String, @syntax.Impl, Array[CompiledRule]) -> Array[MatchHit]
+
 pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit] raise
+
+pub fn apply_taint_rules_to_impl(String, @syntax.Impl, Array[CompiledRule]) -> Array[MatchHit] raise
 
 pub fn compile_rules(Array[RawRuleSpec]) -> Array[CompiledRule] raise
 
 pub fn load_rules(String) -> Array[RawRuleSpec] raise
 
 pub fn parse_rule_source(String, String, String) -> RawRuleSpec raise
+
+pub fn prefilter_rules_for_source(Array[CompiledRule], String) -> Array[CompiledRule]
+
+pub fn rule_is_relevant_to_source(CompiledRule, String) -> Bool
 
 // Errors
 pub suberror RuleLoadError {
@@ -31,6 +39,7 @@ pub(all) struct CompiledRule {
   package_name : String
   description : String
   definition : CompiledRuleDefinition
+  prefilter : RulePrefilter
 }
 
 pub(all) enum CompiledRuleDefinition {
@@ -95,6 +104,10 @@ pub(all) struct RulePatternSpec {
   shape : String
   subtree_metavars : Array[String]
   identifier_metavars : Array[String]
+}
+
+pub(all) struct RulePrefilter {
+  alternatives : Array[Array[String]]
 }
 
 pub(all) struct StructuralRuleSpec {

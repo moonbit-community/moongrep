@@ -388,15 +388,6 @@ fn count_supported_name_in_let_and_bindings(
 }
 
 ///|
-fn traverse_impl_exprs(nodes : @list.List[@syntax.Impl]) -> Array[@syntax.Expr] {
-  let exprs : Array[@syntax.Expr] = []
-  for node in nodes {
-    collect_impl_exprs(node, exprs)
-  }
-  exprs
-}
-
-///|
 fn collect_impl_exprs(node : @syntax.Impl, exprs : Array[@syntax.Expr]) -> Unit {
   match node {
     TopExpr(expr~, ..) => collect_exprs(expr, exprs)

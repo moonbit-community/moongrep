@@ -430,40 +430,6 @@ Loading or compilation is rejected in the following cases:
 - two rule ids have the same normalized matcher name after replacing
   `/` and `-` with `_`
 
-## Runtime Interface
-
-The `rules` package exposes runtime APIs rather than a generated bundle:
-
-```moonbit nocheck
-pub fn load_rules(String) -> Array[RawRuleSpec] raise
-pub fn parse_rule_source(String, String, String) -> RawRuleSpec raise
-pub fn compile_rules(Array[RawRuleSpec]) -> Array[CompiledRule] raise
-pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit]
-pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit] raise
-```
-
-The CLI uses this flow:
-
-1. `load_rules(options.rules_root)`
-2. `compile_rules(raw_rules)`
-3. parse each source file with `@parser.parse_string(...)`
-4. apply structural rules
-5. apply taint rules
-
-Each emitted `MatchHit` contains:
-
-- `file`
-- `rule_id`
-- `package_name`, copied from YAML `package`
-- `description`, copied from YAML `description`
-- zero-based `pattern_index`
-- `loc`
-- `outer_loc`
-
-For structural rules, `pattern_index` is the zero-based index of the first
-matching entry in `patterns` for that expression. For taint rules,
-`pattern_index` is the zero-based sink index inside `taint.sinks`.
-
 ## Normative Examples
 
 ### Repeated subtree equality
