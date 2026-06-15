@@ -86,6 +86,16 @@ test "scan collects mbt hits and skips dependency, build, and VCS directories" {
 }
 
 ///|
+test "scan follows symlinked directories" {
+  let files : Array[String] = []
+  collect_source_files("testdata/symlink-fixtures/scan-dir-link", files)
+  debug_inspect(
+    files,
+    content="[\"testdata/symlink-fixtures/scan-dir-link/hit.mbt\"]",
+  )
+}
+
+///|
 test "scan records parse failure warning and continues" {
   let root = moongrep_tmp_root("moongrep-parse-warning")
   let rules_dir = "\{root}/rules"
