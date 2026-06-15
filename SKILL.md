@@ -15,7 +15,7 @@ moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules path/to/sr
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan (--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] (--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
@@ -27,6 +27,8 @@ code 2: missing `scan` command, missing rules option, missing rules value,
 unknown options, or more than one scan root. Non-usage errors, including
 unreadable paths, an empty rules directory, invalid YAML/schema/shape, or source
 read failures, abort the run; the CLI prints the error and exits with code 1.
+Pass `--verbose` to print the directory traversal progress before warnings and
+match results.
 
 If `scan-root` is omitted, `moongrep` scans the current directory:
 

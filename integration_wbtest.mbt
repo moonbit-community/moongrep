@@ -29,6 +29,7 @@ test "integration applies compatible async structural rule" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.hits.length(), content="1")
   inspect(result.hits[0].rule_id, content="example")
@@ -64,6 +65,7 @@ test "integration applies inside expr target traversal" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.skipped_files.length(), content="0")
   inspect(result.hits.length(), content="1")
@@ -109,6 +111,7 @@ test "integration applies taint rule and sanitizer" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.skipped_files.length(), content="0")
   inspect(result.hits.length(), content="1")

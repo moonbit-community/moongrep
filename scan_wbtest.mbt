@@ -80,6 +80,7 @@ test "scan collects mbt hits and skips dependency, build, and VCS directories" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.hits.length(), content="1")
   assert_true(result.hits[0].file.has_suffix("hit.mbt"))
@@ -88,7 +89,7 @@ test "scan collects mbt hits and skips dependency, build, and VCS directories" {
 ///|
 test "scan follows symlinked directories" {
   let files : Array[String] = []
-  collect_source_files("testdata/symlink-fixtures/scan-dir-link", files)
+  collect_source_files("testdata/symlink-fixtures/scan-dir-link", files, None)
   debug_inspect(
     files,
     content="[\"testdata/symlink-fixtures/scan-dir-link/hit.mbt\"]",
@@ -108,6 +109,7 @@ test "scan records parse failure warning and continues" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.hits.length(), content="1")
   inspect(result.skipped_files.length(), content="1")
@@ -126,6 +128,7 @@ test "scan prefilter skips parse failures for irrelevant files" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.hits.length(), content="0")
   inspect(result.skipped_files.length(), content="0")
@@ -152,6 +155,7 @@ test "scan prefilter keeps unfilterable rules relevant" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.hits.length(), content="0")
   inspect(result.skipped_files.length(), content="1")
@@ -209,6 +213,7 @@ test "scan prefilter narrows rules by impl source text" {
 ///|
 test "render prints warnings before no hits" {
   let output = render_directory_scan_result({
+    scan_trace: [],
     hits: [],
     skipped_files: [{ file: "bad.mbt", reason: "parse failed due to nope" }],
   })
@@ -216,6 +221,40 @@ test "render prints warnings before no hits" {
     output,
     content="warning: skipping bad.mbt: parse failed due to nope\n\nno match hits",
   )
+}
+
+///|
+test "render prints verbose scan traversal before hits" {
+  let root = moongrep_tmp_root("moongrep-verbose")
+  let rules_dir = "\{root}/rules"
+  let scan_dir = "\{root}/src"
+  let nested_dir = "\{scan_dir}/nested"
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
+  @miniio.mkdir("\{scan_dir}/_build")
+  @miniio.mkdir(nested_dir)
+  write_rule_file(rules_dir, structural_target_rule())
+  @miniio.write_text_file("\{nested_dir}/hit.mbt", "fn sample { target() }\n")
+  @miniio.write_text_file(
+    "\{scan_dir}/_build/ignored.mbt",
+    "fn sample { target() }\n",
+  )
+  let output = render_directory_scan_result(
+    collect_directory_hits({
+      rules_root: rules_dir,
+      scan_root: scan_dir,
+      verbose: true,
+    }),
+  )
+  let expected_prefix = [
+      "moongrep scan: entering \{scan_dir}",
+      "moongrep scan: skipping \{scan_dir}/_build",
+      "moongrep scan: entering \{nested_dir}",
+      "moongrep scan: file \{nested_dir}/hit.mbt",
+    ].join("\n") +
+    "\n\n"
+  assert_true(output.has_prefix(expected_prefix))
+  assert_true(output.contains("rule: example"))
 }
 
 ///|
@@ -230,6 +269,7 @@ test "render prints structural hit location and description" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   let output = render_directory_scan_result(result)
   assert_true(output.contains("rule: example"))
@@ -251,6 +291,7 @@ test "scan reports taint hits" {
   let result = collect_directory_hits({
     rules_root: rules_dir,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(result.hits.length(), content="1")
   inspect(result.hits[0].rule_id, content="example")
@@ -278,10 +319,12 @@ test "scan uses selected rules directory" {
   let left = collect_directory_hits({
     rules_root: left_rules,
     scan_root: scan_dir,
+    verbose: false,
   })
   let right = collect_directory_hits({
     rules_root: right_rules,
     scan_root: scan_dir,
+    verbose: false,
   })
   inspect(left.hits.length(), content="1")
   inspect(right.hits.length(), content="0")

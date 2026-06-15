@@ -8,6 +8,7 @@ priv struct SkippedFile {
 
 ///|
 priv struct DirectoryScanResult {
+  scan_trace : Array[String]
   hits : Array[@rules.MatchHit]
   skipped_files : Array[SkippedFile]
 }
@@ -17,7 +18,16 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let raw_rules = @rules.load_rules(options.rules_root)
   let compiled_rules = @rules.compile_rules(raw_rules)
   let files : Array[String] = []
-  collect_source_files(options.scan_root, files)
+  let scan_trace : Array[String] = []
+  collect_source_files(
+    options.scan_root,
+    files,
+    if options.verbose {
+      Some(scan_trace)
+    } else {
+      None
+    },
+  )
   files.sort()
   let hits : Array[@rules.MatchHit] = []
   let skipped_files : Array[SkippedFile] = []
@@ -57,7 +67,7 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
       }
     }
   }
-  { hits, skipped_files }
+  { scan_trace, hits, skipped_files }
 }
 
 ///|
@@ -91,16 +101,32 @@ fn source_text_for_location(source : String, loc : @basic.Location) -> String {
 }
 
 ///|
-fn collect_source_files(path : String, files : Array[String]) -> Unit raise {
+fn collect_source_files(
+  path : String,
+  files : Array[String],
+  scan_trace : Array[String]?,
+) -> Unit raise {
   if @miniio.is_dir(path) {
+    push_scan_trace(scan_trace, "moongrep scan: entering \{path}")
     let entries = @miniio.readdir(path, sort=true, follow_symlink=true)
     for entry in entries {
       if !should_skip_entry(entry) {
-        collect_source_files("\{path}/\{entry}", files)
+        collect_source_files("\{path}/\{entry}", files, scan_trace)
+      } else {
+        push_scan_trace(scan_trace, "moongrep scan: skipping \{path}/\{entry}")
       }
     }
   } else if @miniio.is_file(path) && path.has_suffix(".mbt") {
     files.push(path)
+    push_scan_trace(scan_trace, "moongrep scan: file \{path}")
+  }
+}
+
+///|
+fn push_scan_trace(scan_trace : Array[String]?, message : String) -> Unit {
+  match scan_trace {
+    Some(lines) => lines.push(message)
+    None => ()
   }
 }
 
