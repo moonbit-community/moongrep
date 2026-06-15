@@ -67,24 +67,14 @@ fn collect_rule_files(rules_root : String) -> Array[String] raise {
 
 ///|
 fn walk_rule_dir(dir : String, files : Array[String]) -> Unit raise {
-  try {
-    let entries = @miniio.readdir(dir)
-    entries.sort()
-    for entry in entries {
-      let path = "\{dir}/\{entry}"
-      if @miniio.is_dir(path) {
-        walk_rule_dir(path, files)
-      } else if has_yaml_suffix(path) {
-        files.push(path)
-      }
+  let entries = @miniio.readdir(dir, sort=true, follow_symlink=true)
+  for entry in entries {
+    let path = "\{dir}/\{entry}"
+    if @miniio.is_dir(path) {
+      walk_rule_dir(path, files)
+    } else if has_yaml_suffix(path) {
+      files.push(path)
     }
-  } catch {
-    // TODO: miniio currently lacks public symlink/lstat/readlink/walk APIs, so
-    // symlinks can only be recognized indirectly through Errno::Loop here.
-    // Replace this with explicit symlink handling once miniio exposes enough
-    // filesystem metadata.
-    @miniio.Errno::Loop => ()
-    e => raise e
   }
 }
 
