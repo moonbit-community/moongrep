@@ -27,7 +27,8 @@ test "integration applies compatible async structural rule" {
     scan_dir, "hit", "fn sample { @fs.read_file(path) }\n",
   )
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -63,7 +64,8 @@ test "integration applies inside expr target traversal" {
     #|
   write_integration_source(scan_dir, "hit", source)
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -109,7 +111,8 @@ test "integration applies taint rule and sanitizer" {
     #|
   write_integration_source(scan_dir, "safe", safe_source)
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })

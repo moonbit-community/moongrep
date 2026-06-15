@@ -78,7 +78,8 @@ test "scan collects mbt hits and skips dependency, build, and VCS directories" {
     "fn sample { target() }\n",
   )
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -107,7 +108,8 @@ test "scan records parse failure warning and continues" {
   @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample { target()\n")
   @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -126,7 +128,8 @@ test "scan prefilter skips parse failures for irrelevant files" {
   write_rule_file(rules_dir, structural_target_rule())
   @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -153,7 +156,8 @@ test "scan prefilter keeps unfilterable rules relevant" {
   write_rule_file(rules_dir, general_rule)
   @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -241,7 +245,8 @@ test "render prints verbose scan traversal before hits" {
   )
   let output = render_directory_scan_result(
     collect_directory_hits({
-      rules_root: rules_dir,
+      rules_root: Some(rules_dir),
+      patterns: [],
       scan_root: scan_dir,
       verbose: true,
     }),
@@ -267,7 +272,8 @@ test "render prints structural hit location and description" {
   write_rule_file(rules_dir, structural_target_rule())
   @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -289,7 +295,8 @@ test "scan reports taint hits" {
     "fn sample { let x = get_user_input(); sink(x) }\n",
   )
   let result = collect_directory_hits({
-    rules_root: rules_dir,
+    rules_root: Some(rules_dir),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
@@ -317,15 +324,34 @@ test "scan uses selected rules directory" {
   write_rule_file(right_rules, right_rule)
   @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
   let left = collect_directory_hits({
-    rules_root: left_rules,
+    rules_root: Some(left_rules),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
   let right = collect_directory_hits({
-    rules_root: right_rules,
+    rules_root: Some(right_rules),
+    patterns: [],
     scan_root: scan_dir,
     verbose: false,
   })
   inspect(left.hits.length(), content="1")
   inspect(right.hits.length(), content="0")
+}
+
+///|
+test "scan applies anonymous cli pattern without rules directory" {
+  let root = moongrep_tmp_root("moongrep-cli-pattern")
+  let scan_dir = "\{root}/src"
+  @miniio.mkdir(scan_dir)
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  match parse_cli_command(["scan", "--pattern", "target()", scan_dir]) {
+    ("scan", Some(options), None) => {
+      let result = collect_directory_hits(options)
+      inspect(result.hits.length(), content="1")
+      inspect(result.hits[0].rule_id, content="<pattern>")
+      inspect(result.hits[0].package_name, content="<unknown>")
+    }
+    _ => fail("unexpected command")
+  }
 }
