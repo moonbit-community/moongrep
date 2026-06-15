@@ -15,7 +15,7 @@ priv struct DirectoryScanResult {
 
 ///|
 fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
-  let raw_rules = @rules.load_rules(options.rules_root)
+  let raw_rules = load_scan_rules(options)
   let compiled_rules = @rules.compile_rules(raw_rules)
   let files : Array[String] = []
   let scan_trace : Array[String] = []
@@ -68,6 +68,36 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
     }
   }
   { scan_trace, hits, skipped_files }
+}
+
+///|
+fn load_scan_rules(options : CliOptions) -> Array[@rules.RawRuleSpec] raise {
+  let raw_rules : Array[@rules.RawRuleSpec] = []
+  match options.rules_root {
+    Some(rules_root) => raw_rules.append(@rules.load_rules(rules_root))
+    None => ()
+  }
+  for index in 0..<options.patterns.length() {
+    raw_rules.push(anonymous_pattern_rule(options.patterns[index], index))
+  }
+  raw_rules
+}
+
+///|
+fn anonymous_pattern_rule(pattern : String, index : Int) -> @rules.RawRuleSpec {
+  let rule_id = if index == 0 { "<pattern>" } else { "<pattern:\{index + 1}>" }
+  {
+    path: rule_id,
+    rule_id,
+    package_name: "<unknown>",
+    description: "Anonymous CLI pattern.",
+    definition: @rules.RuleDefinitionSpec::Structural({
+      inside_expr: None,
+      patterns: [
+        { shape: pattern, subtree_metavars: [], identifier_metavars: [] },
+      ],
+    }),
+  }
 }
 
 ///|

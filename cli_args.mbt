@@ -7,7 +7,8 @@ priv suberror CliError {
 ///|
 /// Parsed command-line options for one scan target.
 priv struct CliOptions {
-  rules_root : String
+  rules_root : String?
+  patterns : Array[String]
   scan_root : String
   verbose : Bool
 }
@@ -38,7 +39,11 @@ let scan_command : @argparse.Command = @argparse.Command(
       short='r',
       action=@argparse.OptionAction::Append,
       about="Directory containing YAML rules.",
-      required=true,
+    ),
+    @argparse.OptionArg(
+      "pattern",
+      action=@argparse.OptionAction::Append,
+      about="Anonymous structural pattern to match.",
     ),
   ],
   positionals=[@argparse.PositionArg("scan-root", about="Directory to scan.")],
@@ -84,6 +89,17 @@ fn last_cli_value(
 }
 
 ///|
+fn all_cli_values(
+  values : Map[String, Array[String]],
+  name : String,
+) -> Array[String] {
+  match values.get(name) {
+    Some(items) => items
+    None => []
+  }
+}
+
+///|
 fn cli_flag_enabled(flags : Map[String, Bool], name : String) -> Bool {
   match flags.get(name) {
     Some(true) => true
@@ -116,27 +132,31 @@ fn docs_cli_command(
 ///|
 fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
-  let rules_root = match last_cli_value(scan_matches.values, "rules") {
-    Some(path) => path
-    None =>
-      raise CliError::Usage(message="missing required --rules", exit_code=2)
+  let rules_root = last_cli_value(scan_matches.values, "rules")
+  let patterns = all_cli_values(scan_matches.values, "pattern")
+  if rules_root is None && patterns.is_empty() {
+    raise CliError::Usage(
+      message="missing required --rules or --pattern",
+      exit_code=2,
+    )
   }
   let scan_root = match last_cli_value(scan_matches.values, "scan-root") {
     Some(path) => path
     None => "."
   }
-  { rules_root, scan_root, verbose }
+  { rules_root, patterns, scan_root, verbose }
 }
 
 ///|
 /// Parses command-line arguments after the executable name has been removed.
 ///
 /// `scan` is required after the executable name. Within the `scan` subcommand,
-/// `--rules <rules-root>`, `--rules=<rules-root>`, or `-r <rules-root>` is
-/// required, and `--verbose` is optional. One optional scan-root positional may
-/// appear in the argument list. If the rules option appears multiple times, the
-/// last value wins. Missing subcommands, required arguments, unknown options, or
-/// more than one scan root raise `CliError::Usage` with exit code 2.
+/// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
+/// least one `--pattern <pattern>` is required, and `--verbose` is optional. One
+/// optional scan-root positional may appear in the argument list. If the rules
+/// option appears multiple times, the last value wins. Repeated patterns are
+/// appended in order. Missing subcommands, required arguments, unknown options,
+/// or more than one scan root raise `CliError::Usage` with exit code 2.
 fn parse_cli_command(
   argv : Array[String],
 ) -> (String, CliOptions?, String?) raise {
