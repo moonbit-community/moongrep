@@ -45,6 +45,11 @@ fn fresh_tmp_dir(prefix : String) -> String raise {
 }
 
 ///|
+fn host_symlink_tests_enabled() -> Bool raise {
+  @miniio.get_env_var("RUNNER_OS") != Some("Windows")
+}
+
+///|
 fn expect_invalid_rule_info(source : String, expected : String) -> Unit raise {
   try parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source) catch {
     RuleLoadError::InvalidRule(path=_, info~) => inspect(info, content=expected)
@@ -121,6 +126,19 @@ test "load recursively loads yaml files in stable order" {
     ],
     content="[\"a\", \"nested/b\"]",
   )
+}
+
+///|
+test "load follows symlinked rule directories" {
+  if host_symlink_tests_enabled() {
+    let rules = load_rules("testdata/symlink-fixtures/rules-dir-link")
+    inspect(rules.length(), content="1")
+    inspect(rules[0].rule_id, content="example")
+    inspect(
+      rules[0].description,
+      content="Target call through symlinked rules.\n",
+    )
+  }
 }
 
 ///|
