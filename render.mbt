@@ -3,6 +3,9 @@
 // successful findings from other files.
 fn render_directory_scan_result(result : DirectoryScanResult) -> String {
   let sections : Array[String] = []
+  if result.scan_trace.length() > 0 {
+    sections.push(result.scan_trace.join("\n"))
+  }
   let warnings : Array[String] = []
   for skipped in result.skipped_files {
     warnings.push("warning: skipping \{skipped.file}: \{skipped.reason}")

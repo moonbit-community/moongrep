@@ -9,6 +9,7 @@ priv suberror CliError {
 priv struct CliOptions {
   rules_root : String
   scan_root : String
+  verbose : Bool
 }
 
 ///|
@@ -24,6 +25,13 @@ fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 let scan_command : @argparse.Command = @argparse.Command(
   "scan",
   about="Scan MoonBit source files with structural and taint rules.",
+  flags=[
+    @argparse.FlagArg(
+      "verbose",
+      long="verbose",
+      about="Print directory traversal progress.",
+    ),
+  ],
   options=[
     @argparse.OptionArg(
       "rules",
@@ -107,6 +115,7 @@ fn docs_cli_command(
 
 ///|
 fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
+  let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
   let rules_root = match last_cli_value(scan_matches.values, "rules") {
     Some(path) => path
     None =>
@@ -116,7 +125,7 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
     Some(path) => path
     None => "."
   }
-  { rules_root, scan_root }
+  { rules_root, scan_root, verbose }
 }
 
 ///|
@@ -124,10 +133,10 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
 ///
 /// `scan` is required after the executable name. Within the `scan` subcommand,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, or `-r <rules-root>` is
-/// required; one optional scan-root positional may appear in the argument list.
-/// If the rules option appears multiple times, the last value wins. Missing
-/// subcommands, required arguments, unknown options, or more than one scan root
-/// raise `CliError::Usage` with exit code 2.
+/// required, and `--verbose` is optional. One optional scan-root positional may
+/// appear in the argument list. If the rules option appears multiple times, the
+/// last value wins. Missing subcommands, required arguments, unknown options, or
+/// more than one scan root raise `CliError::Usage` with exit code 2.
 fn parse_cli_command(
   argv : Array[String],
 ) -> (String, CliOptions?, String?) raise {

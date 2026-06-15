@@ -44,6 +44,7 @@ test "cli args parse rules root and default scan root" {
     ("scan", Some(options), None) => {
       inspect(options.rules_root, content="custom-rules")
       inspect(options.scan_root, content=".")
+      assert_false(options.verbose)
     }
     _ => fail("unexpected command")
   }
@@ -55,6 +56,20 @@ test "cli args parse explicit scan root" {
     ("scan", Some(options), None) => {
       inspect(options.rules_root, content="custom-rules")
       inspect(options.scan_root, content="src")
+      assert_false(options.verbose)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse scan verbose flag" {
+  match
+    parse_cli_command(["scan", "--rules", "custom-rules", "--verbose", "src"]) {
+    ("scan", Some(options), None) => {
+      inspect(options.rules_root, content="custom-rules")
+      inspect(options.scan_root, content="src")
+      assert_true(options.verbose)
     }
     _ => fail("unexpected command")
   }
@@ -66,6 +81,7 @@ test "cli args parse argparse option input forms" {
     ("scan", Some(options), None) => {
       inspect(options.rules_root, content="inline-rules")
       inspect(options.scan_root, content=".")
+      assert_false(options.verbose)
     }
     _ => fail("unexpected inline command")
   }
@@ -73,6 +89,7 @@ test "cli args parse argparse option input forms" {
     ("scan", Some(options), None) => {
       inspect(options.rules_root, content="short-rules")
       inspect(options.scan_root, content="src")
+      assert_false(options.verbose)
     }
     _ => fail("unexpected short command")
   }
@@ -87,6 +104,7 @@ test "cli args keep the last rules option" {
     ("scan", Some(options), None) => {
       inspect(options.rules_root, content="new-rules")
       inspect(options.scan_root, content="src")
+      assert_false(options.verbose)
     }
     _ => fail("unexpected command")
   }
@@ -114,6 +132,7 @@ test "cli args from runtime drop executable name" {
     ("scan", Some(options), None) => {
       inspect(options.rules_root, content="custom-rules")
       inspect(options.scan_root, content="src")
+      assert_false(options.verbose)
     }
     _ => fail("unexpected command")
   }

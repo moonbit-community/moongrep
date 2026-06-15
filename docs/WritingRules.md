@@ -293,11 +293,12 @@ different.
 Run `moongrep` from the module root with a rules directory:
 
 ```bash
-moon run . -- scan --rules <rules-root> [scan-root]
+moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 ```
 
 `--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
-If `scan-root` is omitted, the scanner uses `.`.
+If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints directory
+traversal progress before warnings and match results.
 
 ## Worked Examples
 
