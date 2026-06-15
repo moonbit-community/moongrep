@@ -10,7 +10,24 @@ pub fn apply_structural_rules(
   rules : Array[CompiledRule],
 ) -> Array[MatchHit] {
   let hits : Array[MatchHit] = []
-  let exprs = traverse_impl_exprs(impls)
+  for node in impls {
+    let node_hits = apply_structural_rules_to_impl(file, node, rules)
+    for hit in node_hits {
+      hits.push(hit)
+    }
+  }
+  hits
+}
+
+///|
+pub fn apply_structural_rules_to_impl(
+  file : String,
+  node : @syntax.Impl,
+  rules : Array[CompiledRule],
+) -> Array[MatchHit] {
+  let hits : Array[MatchHit] = []
+  let exprs : Array[@syntax.Expr] = []
+  collect_impl_exprs(node, exprs)
   for expr in exprs {
     for rule in rules {
       match rule.definition {
@@ -34,13 +51,27 @@ pub fn apply_taint_rules(
   rules : Array[CompiledRule],
 ) -> Array[MatchHit] raise {
   let hits : Array[MatchHit] = []
-  for node in impls.to_array() {
-    for rule in rules {
-      match rule.definition {
-        CompiledRuleDefinition::Taint(taint_rule) =>
-          apply_taint_rule_to_impl(file, rule, taint_rule, node, hits)
-        _ => ()
-      }
+  for node in impls {
+    let node_hits = apply_taint_rules_to_impl(file, node, rules)
+    for hit in node_hits {
+      hits.push(hit)
+    }
+  }
+  hits
+}
+
+///|
+pub fn apply_taint_rules_to_impl(
+  file : String,
+  node : @syntax.Impl,
+  rules : Array[CompiledRule],
+) -> Array[MatchHit] raise {
+  let hits : Array[MatchHit] = []
+  for rule in rules {
+    match rule.definition {
+      CompiledRuleDefinition::Taint(taint_rule) =>
+        apply_taint_rule_to_impl(file, rule, taint_rule, node, hits)
+      _ => ()
     }
   }
   hits

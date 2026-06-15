@@ -6,6 +6,7 @@ import {
   "moonbitlang/core/list",
   "moonbitlang/parser",
   "moonbitlang/parser/basic",
+  "moonbitlang/parser/syntax",
 }
 
 supported_targets = "wasm"
