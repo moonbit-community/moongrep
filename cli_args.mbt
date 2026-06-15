@@ -1,12 +1,12 @@
 ///|
 /// CLI argument errors with the process exit code the frontend should use.
-pub suberror CliError {
+priv suberror CliError {
   Usage(message~ : String, exit_code~ : Int)
 } derive(Debug)
 
 ///|
 /// Parsed command-line options for one scan target.
-pub(all) struct CliOptions {
+priv struct CliOptions {
   rules_root : String
   scan_root : String
 }
@@ -21,54 +21,48 @@ fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 }
 
 ///|
-fn scan_command() -> @argparse.Command {
-  @argparse.Command(
-    "scan",
-    about="Scan MoonBit source files with structural and taint rules.",
-    options=[
-      @argparse.OptionArg(
-        "rules",
-        short='r',
-        action=@argparse.OptionAction::Append,
-        about="Directory containing YAML rules.",
-        required=true,
-      ),
-    ],
-    positionals=[@argparse.PositionArg("scan-root", about="Directory to scan.")],
-  )
-}
+let scan_command : @argparse.Command = @argparse.Command(
+  "scan",
+  about="Scan MoonBit source files with structural and taint rules.",
+  options=[
+    @argparse.OptionArg(
+      "rules",
+      short='r',
+      action=@argparse.OptionAction::Append,
+      about="Directory containing YAML rules.",
+      required=true,
+    ),
+  ],
+  positionals=[@argparse.PositionArg("scan-root", about="Directory to scan.")],
+)
 
 ///|
-fn docs_command() -> @argparse.Command {
-  @argparse.Command(
-    "docs",
-    about="Print embedded moongrep documentation.",
-    flags=[
-      @argparse.FlagArg(
-        "list",
-        long="list",
-        about="List available embedded documents.",
-      ),
-    ],
-    positionals=[
-      @argparse.PositionArg(
-        "doc-name",
-        about="Document name to print.",
-        num_args=@argparse.ValueRange(lower=0, upper=1),
-      ),
-    ],
-  )
-}
+let docs_command : @argparse.Command = @argparse.Command(
+  "docs",
+  about="Print embedded moongrep documentation.",
+  flags=[
+    @argparse.FlagArg(
+      "list",
+      long="list",
+      about="List available embedded documents.",
+    ),
+  ],
+  positionals=[
+    @argparse.PositionArg(
+      "doc-name",
+      about="Document name to print.",
+      num_args=@argparse.ValueRange(lower=0, upper=1),
+    ),
+  ],
+)
 
 ///|
-fn moongrep_command() -> @argparse.Command {
-  @argparse.Command(
-    "moongrep",
-    about="Scan MoonBit source files with structural and taint rules.",
-    subcommands=[scan_command(), docs_command()],
-    subcommand_required=true,
-  )
-}
+let moongrep_command : @argparse.Command = @argparse.Command(
+  "moongrep",
+  about="Scan MoonBit source files with structural and taint rules.",
+  subcommands=[scan_command, docs_command],
+  subcommand_required=true,
+)
 
 ///|
 fn last_cli_value(
@@ -137,7 +131,7 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
 fn parse_cli_command(
   argv : Array[String],
 ) -> (String, CliOptions?, String?) raise {
-  let matches = moongrep_command().parse(argv~, env={}) catch {
+  let matches = moongrep_command.parse(argv~, env={}) catch {
     err => {
       let message = "\{err}"
       raise CliError::Usage(message~, exit_code=2)
@@ -148,13 +142,5 @@ fn parse_cli_command(
       ("scan", Some(scan_cli_options(scan_matches)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)
-  }
-}
-
-///|
-pub fn parse_cli_options(argv : Array[String]) -> CliOptions raise {
-  match parse_cli_command(argv) {
-    ("scan", Some(options), None) => options
-    _ => raise CliError::Usage(message="expected scan command", exit_code=2)
   }
 }
