@@ -139,16 +139,22 @@ fn match_expr(
           ForEach(
             binders=pb,
             expr=pe,
+            init=pi,
+            continue_block=pcont,
             body=pbody,
             else_block=pelse,
+            where_clause=pwhere,
             label=pl,
             ..
           ),
           ForEach(
             binders=cb,
             expr=ce,
+            init=ci,
+            continue_block=ccont,
             body=cbody,
             else_block=celse,
+            where_clause=cwhere,
             label=cl,
             ..
           ),
@@ -157,9 +163,18 @@ fn match_expr(
             option_match(p, c, (p, c) => match_binder(p, c, compiled, bindings))
           }) &&
           match_expr(pe, ce, compiled, bindings) &&
+          list_match(pi, ci, (p, c) => {
+            match_binder_expr_pair(p, c, compiled, bindings)
+          }) &&
+          list_match(pcont, ccont, (p, c) => {
+            match_binder_expr_pair(p, c, compiled, bindings)
+          }) &&
           match_expr(pbody, cbody, compiled, bindings) &&
           option_match(pelse, celse, (p, c) => {
             match_expr(p, c, compiled, bindings)
+          }) &&
+          option_match(pwhere, cwhere, (p, c) => {
+            match_where_clause(p, c, compiled, bindings)
           }) &&
           option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
         (Function(func=pf, ..), Function(func=cf, ..)) =>
@@ -240,6 +255,57 @@ fn match_expr(
         (Pipe(lhs=pl, rhs=pr, ..), Pipe(lhs=cl, rhs=cr, ..)) =>
           match_expr(pl, cl, compiled, bindings) &&
           match_expr(pr, cr, compiled, bindings)
+        (RevPipe(lhs=pl, rhs=pr, ..), RevPipe(lhs=cl, rhs=cr, ..)) =>
+          match_expr(pl, cl, compiled, bindings) &&
+          match_expr(pr, cr, compiled, bindings)
+        (Implies(lhs=pl, rhs=pr, ..), Implies(lhs=cl, rhs=cr, ..)) =>
+          match_expr(pl, cl, compiled, bindings) &&
+          match_expr(pr, cr, compiled, bindings)
+        (
+          IsLexMatch(expr=pe, strategy=ps, pat=pp, ..),
+          IsLexMatch(expr=ce, strategy=cs, pat=cp, ..),
+        ) =>
+          match_expr(pe, ce, compiled, bindings) &&
+          option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
+          list_match(pp, cp, (p, c) => {
+            match_lex_top_pattern(p, c, compiled, bindings)
+          })
+        (
+          LexMatch(strategy=ps, expr=pe, cases=pc, ..),
+          LexMatch(strategy=cs, expr=ce, cases=cc, ..),
+        ) =>
+          option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
+          match_expr(pe, ce, compiled, bindings) &&
+          list_match(pc, cc, (p, c) => match_lex_case(p, c, compiled, bindings))
+        (
+          ListComprehension(kind=pk, guard_=pg, body=pb, ..),
+          ListComprehension(kind=ck, guard_=cg, body=cb, ..),
+        ) =>
+          match_list_comprehension_kind(pk, ck, compiled, bindings) &&
+          option_match(pg, cg, (p, c) => match_expr(p, c, compiled, bindings)) &&
+          match_expr(pb, cb, compiled, bindings)
+        (ProofAssert(expr=pe, ..), ProofAssert(expr=ce, ..)) =>
+          match_expr(pe, ce, compiled, bindings)
+        (ProofLet(binder=pb, expr=pe, ..), ProofLet(binder=cb, expr=ce, ..)) =>
+          match_binder(pb, cb, compiled, bindings) &&
+          match_expr(pe, ce, compiled, bindings)
+        (
+          Quantifier(kind=pk, binder=pb, binder_ty=pt, body=pe, ..),
+          Quantifier(kind=ck, binder=cb, binder_ty=ct, body=ce, ..),
+        ) =>
+          predicate_quantifier_kind_equal(pk, ck) &&
+          match_binder(pb, cb, compiled, bindings) &&
+          type_equal(pt, ct) &&
+          match_expr(pe, ce, compiled, bindings)
+        (
+          RegexMatch(expr=pe, pat=pp, bindings=pb, ..),
+          RegexMatch(expr=ce, pat=cp, bindings=cb, ..),
+        ) =>
+          match_expr(pe, ce, compiled, bindings) &&
+          match_regex_pattern(pp, cp, compiled, bindings) &&
+          list_match(pb, cb, (p, c) => {
+            match_regex_binding(p, c, compiled, bindings)
+          })
         (Raise(err_value=pe, ..), Raise(err_value=ce, ..)) =>
           match_expr(pe, ce, compiled, bindings)
         (
@@ -270,6 +336,15 @@ fn match_expr(
         ) =>
           list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
           match_expr(pl, cl, compiled, bindings)
+        (StaticAssert(asserts=pa, body=pb), StaticAssert(asserts=ca, body=cb)) =>
+          list_match(pa, ca, static_assertion_equal) &&
+          match_expr(pb, cb, compiled, bindings)
+        (
+          TemplateWriting(expr=pe, template=pt, ..),
+          TemplateWriting(expr=ce, template=ct, ..),
+        ) =>
+          match_expr(pe, ce, compiled, bindings) &&
+          match_expr(pt, ct, compiled, bindings)
         (
           For(
             binders=pb,
@@ -811,6 +886,135 @@ fn match_where_clause(
 }
 
 ///|
+fn match_list_comprehension_kind(
+  pattern : @syntax.ListComprehensionKind,
+  candidate : @syntax.ListComprehensionKind,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern, candidate) {
+    (
+      For(binders=pb, condition=pc, continue_block=pcont, ..),
+      For(binders=cb, condition=cc, continue_block=ccont, ..),
+    ) =>
+      list_match(pb, cb, (p, c) => {
+        match_binder_expr_pair(p, c, compiled, bindings)
+      }) &&
+      option_match(pc, cc, (p, c) => match_expr(p, c, compiled, bindings)) &&
+      list_match(pcont, ccont, (p, c) => {
+        match_binder_expr_pair(p, c, compiled, bindings)
+      })
+    (
+      Foreach(binders=pb, expr=pe, init=pi, continue_block=pcont),
+      Foreach(binders=cb, expr=ce, init=ci, continue_block=ccont),
+    ) =>
+      list_match(pb, cb, (p, c) => {
+        option_match(p, c, (p, c) => match_binder(p, c, compiled, bindings))
+      }) &&
+      match_expr(pe, ce, compiled, bindings) &&
+      list_match(pi, ci, (p, c) => {
+        match_binder_expr_pair(p, c, compiled, bindings)
+      }) &&
+      list_match(pcont, ccont, (p, c) => {
+        match_binder_expr_pair(p, c, compiled, bindings)
+      })
+    _ => false
+  }
+}
+
+///|
+fn match_lex_case(
+  pattern : @syntax.LexCase,
+  candidate : @syntax.LexCase,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  list_match(pattern.pat, candidate.pat, (p, c) => {
+    match_lex_top_pattern(p, c, compiled, bindings)
+  }) &&
+  option_match(pattern.guard_, candidate.guard_, (p, c) => {
+    match_expr(p, c, compiled, bindings)
+  }) &&
+  match_expr(pattern.body, candidate.body, compiled, bindings)
+}
+
+///|
+fn match_lex_top_pattern(
+  pattern : @syntax.LexTopPattern,
+  candidate : @syntax.LexTopPattern,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern, candidate) {
+    (Binder(pattern), Binder(candidate)) =>
+      match_binder(pattern, candidate, compiled, bindings)
+    (Pattern(pattern), Pattern(candidate)) =>
+      match_lex_pattern(pattern, candidate, compiled, bindings)
+    (Wildcard(..), Wildcard(..)) => true
+    _ => false
+  }
+}
+
+///|
+fn match_lex_pattern(
+  pattern : @syntax.LexPattern,
+  candidate : @syntax.LexPattern,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern, candidate) {
+    (Alias(pat=pp, binder=pb, ..), Alias(pat=cp, binder=cb, ..)) =>
+      match_lex_pattern(pp, cp, compiled, bindings) &&
+      match_binder(pb, cb, compiled, bindings)
+    (ConstantRef(lid=pl, ..), ConstantRef(lid=cl, ..)) =>
+      long_ident_equal(pl, cl)
+    (Regex(lit=pl, offset=po, ..), Regex(lit=cl, offset=co, ..)) =>
+      pl == cl && po == co
+    (RegexInterp(elems=pe, ..), RegexInterp(elems=ce, ..)) =>
+      list_match(pe, ce, (p, c) => match_interp_elem(p, c, compiled, bindings))
+    (Sequence(pats=pp, ..), Sequence(pats=cp, ..)) =>
+      list_match(pp, cp, (p, c) => match_lex_pattern(p, c, compiled, bindings))
+    _ => false
+  }
+}
+
+///|
+fn match_regex_pattern(
+  pattern : @syntax.RegexPattern,
+  candidate : @syntax.RegexPattern,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern, candidate) {
+    (Alias(pat=pp, binder=pb, ..), Alias(pat=cp, binder=cb, ..)) =>
+      match_regex_pattern(pp, cp, compiled, bindings) &&
+      match_binder(pb, cb, compiled, bindings)
+    (Alternation(pat1=pl, pat2=pr, ..), Alternation(pat1=cl, pat2=cr, ..))
+    | (Sequence(pat1=pl, pat2=pr, ..), Sequence(pat1=cl, pat2=cr, ..)) =>
+      match_regex_pattern(pl, cl, compiled, bindings) &&
+      match_regex_pattern(pr, cr, compiled, bindings)
+    (Literal(lit=pl, ..), Literal(lit=cl, ..)) => pl == cl
+    (Reference(lid=pl, ..), Reference(lid=cl, ..)) => long_ident_equal(pl, cl)
+    _ => false
+  }
+}
+
+///|
+fn match_regex_binding(
+  pattern : (@syntax.Label, @syntax.Binder?),
+  candidate : (@syntax.Label, @syntax.Binder?),
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  let (pattern_label, pattern_binder) = pattern
+  let (candidate_label, candidate_binder) = candidate
+  match_label(pattern_label, candidate_label, compiled, bindings) &&
+  option_match(pattern_binder, candidate_binder, (p, c) => {
+    match_binder(p, c, compiled, bindings)
+  })
+}
+
+///|
 fn match_var(
   pattern : @syntax.Var,
   candidate : @syntax.Var,
@@ -1254,6 +1458,28 @@ fn range_kind_equal(
     (InclusiveMissingEqual, InclusiveMissingEqual) => true
     _ => false
   }
+}
+
+///|
+fn predicate_quantifier_kind_equal(
+  left : @syntax.PredicateQuantifierKind,
+  right : @syntax.PredicateQuantifierKind,
+) -> Bool {
+  match (left, right) {
+    (Exists, Exists) => true
+    (Forall, Forall) => true
+    _ => false
+  }
+}
+
+///|
+fn static_assertion_equal(
+  left : @syntax.StaticAssertion,
+  right : @syntax.StaticAssertion,
+) -> Bool {
+  left.msg == right.msg &&
+  long_ident_equal(left.trait_, right.trait_) &&
+  type_equal(left.ty, right.ty)
 }
 
 ///|
