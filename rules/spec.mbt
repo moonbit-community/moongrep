@@ -11,11 +11,13 @@ pub suberror RuleLoadError {
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
 /// `shape` must be a valid MoonBit expression. `subtree_metavars` bind AST
-/// subtrees and `identifier_metavars` bind normalized names.
+/// subtrees, `identifier_metavars` bind normalized names, and `auto_metavars`
+/// choose either mode from the first matched candidate.
 pub(all) struct RulePatternSpec {
   shape : String
   subtree_metavars : Array[String]
   identifier_metavars : Array[String]
+  auto_metavars : Array[String]
 }
 
 ///|

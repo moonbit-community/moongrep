@@ -9,6 +9,7 @@ pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
     ast: pattern,
     subtree_metavars: [],
     identifier_metavars: [],
+    auto_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -361,6 +362,15 @@ fn match_expr_placeholder(
                 Some(bind_value(bindings, name, Identifier(candidate_name)))
               None => Some(false)
             }
+          } else if contains_name(compiled.auto_metavars, name) {
+            Some(
+              bind_auto_value(
+                bindings,
+                name,
+                @ident.normalize_identifier_name_from_expr(candidate),
+                Expr(candidate),
+              ),
+            )
           } else {
             None
           }
@@ -511,6 +521,13 @@ fn match_pattern(
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
         }
+      } else if contains_name(compiled.auto_metavars, name) {
+        bind_auto_value(
+          bindings,
+          name,
+          @ident.normalize_identifier_name_from_pattern(candidate),
+          Pattern(candidate),
+        )
       } else {
         match candidate {
           Var(candidate_binder) => binder_equal(binder, candidate_binder)
@@ -799,6 +816,13 @@ fn match_var(
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
         }
+      } else if contains_name(compiled.auto_metavars, name) {
+        bind_auto_value(
+          bindings,
+          name,
+          @ident.normalize_identifier_name_from_var(candidate),
+          Var(candidate),
+        )
       } else {
         var_equal(pattern, candidate)
       }
@@ -820,6 +844,13 @@ fn match_binder(
     bind_value(bindings, name, Binder(candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
     bind_value(bindings, name, Identifier(candidate.name))
+  } else if contains_name(compiled.auto_metavars, name) {
+    bind_auto_value(
+      bindings,
+      name,
+      @ident.normalize_identifier_name_from_binder(candidate),
+      Binder(candidate),
+    )
   } else {
     binder_equal(pattern, candidate)
   }
@@ -839,8 +870,43 @@ fn match_label(
     bind_value(bindings, name, Label(candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
     bind_value(bindings, name, Identifier(candidate.name))
+  } else if contains_name(compiled.auto_metavars, name) {
+    bind_auto_value(
+      bindings,
+      name,
+      @ident.normalize_identifier_name_from_label(candidate),
+      Label(candidate),
+    )
   } else {
     label_equal(pattern, candidate)
+  }
+}
+
+///|
+fn bind_auto_value(
+  bindings : @hashmap.HashMap[String, BoundValue],
+  name : String,
+  normalized_identifier : String?,
+  structural_value : BoundValue,
+) -> Bool {
+  match bindings.get(name) {
+    Some(Identifier(existing)) =>
+      match normalized_identifier {
+        Some(candidate) => existing == candidate
+        None => false
+      }
+    Some(existing) => bound_value_equal(existing, structural_value)
+    None =>
+      match normalized_identifier {
+        Some(candidate) => {
+          bindings[name] = Identifier(candidate)
+          true
+        }
+        None => {
+          bindings[name] = structural_value
+          true
+        }
+      }
   }
 }
 

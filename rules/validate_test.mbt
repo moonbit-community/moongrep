@@ -28,6 +28,16 @@ test "validate rejects reserved metavar names" {
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
   )
+  let auto_source =
+    #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|    metavars: [__]
+    #|
+  expect_compile_invalid(
+    auto_source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
+  )
 }
 
 ///|
@@ -62,6 +72,24 @@ test "validate rejects unused metavars" {
     #|      subtree: [missing]
     #|
   expect_compile_invalid(source, "patterns[0] declares unused metavar missing")
+}
+
+///|
+test "validate rejects redeclared inside expr auto metavars" {
+  let source =
+    #|package: example/pkg
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper(prefix, __TARGET__)
+    #|  metavars: [prefix]
+    #|patterns:
+    #|  - shape: target(prefix)
+    #|    metavars:
+    #|      subtree: [prefix]
+    #|
+  expect_compile_invalid(
+    source, "patterns[0] cannot declare metavar prefix because it is already visible from inside-expr",
+  )
 }
 
 ///|

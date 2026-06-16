@@ -29,6 +29,7 @@ pub(all) struct CompiledExprPattern {
   ast : @syntax.Expr
   subtree_metavars : Array[String]
   identifier_metavars : Array[String]
+  auto_metavars : Array[String]
   target_metavar : String?
   source_metavar : String?
 }

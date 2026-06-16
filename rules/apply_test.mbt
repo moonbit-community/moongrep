@@ -40,6 +40,31 @@ test "apply structural rule matches repeated subtree once" {
 }
 
 ///|
+test "apply structural rule supports auto metavar shorthand" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Repeated call value.
+    #|patterns:
+    #|  - shape: value + value
+    #|    metavars: [value]
+    #|
+  let source =
+    #|fn sample {
+    #|  make() + make();
+    #|  make() + other()
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule treats patterns as ordered alternatives" {
   let rule_source =
     #|package: moonbitlang/core
@@ -94,6 +119,33 @@ test "apply structural rule supports inside expr inherited bindings" {
 }
 
 ///|
+test "apply structural rule inherits inside expr auto bindings" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper(prefix, __TARGET__)
+    #|  metavars: [prefix]
+    #|patterns:
+    #|  - shape: target.call(prefix)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(token, target.call(token));
+    #|  wrapper(token, target.call(other))
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
 test "apply structural rule visits top let definitions" {
   let rule_source =
     #|package: moonbitlang/core
@@ -129,6 +181,38 @@ test "apply taint rule reports source reaching sink" {
     #|fn sample {
     #|  let x = get_user_input();
     #|  sink(x)
+    #|}
+    #|
+  let hits = apply_taint_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+  inspect(hits[0].pattern_index, content="0")
+}
+
+///|
+test "apply taint rule supports auto metavar shorthand" {
+  let rule_source =
+    #|package: example/pkg
+    #|description: |
+    #|  Repeated tagged source reaches matching sink.
+    #|taint:
+    #|  sources:
+    #|    - shape: tagged_source(tag, tag)
+    #|      metavars: [tag]
+    #|  sinks:
+    #|    - shape: tagged_sink(tag, tag, __SOURCE__)
+    #|      metavars: [tag]
+    #|
+  let source =
+    #|fn sample {
+    #|  let ignored = tagged_source(user, other);
+    #|  let x = tagged_source(user, user);
+    #|  tagged_sink(user, other, x);
+    #|  tagged_sink(user, user, x)
     #|}
     #|
   let hits = apply_taint_rules(

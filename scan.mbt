@@ -94,7 +94,12 @@ fn anonymous_pattern_rule(pattern : String, index : Int) -> @rules.RawRuleSpec {
     definition: @rules.RuleDefinitionSpec::Structural({
       inside_expr: None,
       patterns: [
-        { shape: pattern, subtree_metavars: [], identifier_metavars: [] },
+        {
+          shape: pattern,
+          subtree_metavars: [],
+          identifier_metavars: [],
+          auto_metavars: [],
+        },
       ],
     }),
   }

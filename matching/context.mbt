@@ -2,7 +2,8 @@
 /// A compiled expression pattern.
 ///
 /// `ast` is the parsed pattern expression. `subtree_metavars` bind whole AST
-/// nodes, while `identifier_metavars` bind normalized identifier strings.
+/// nodes, `identifier_metavars` bind normalized identifier strings, and
+/// `auto_metavars` choose either mode from the first matched candidate.
 /// `target_metavar` and `source_metavar` are reserved bare-expression
 /// placeholders injected by the rules package for `__TARGET__` and
 /// `__SOURCE__`.
@@ -10,6 +11,7 @@ pub(all) struct CompiledExprPattern {
   ast : @syntax.Expr
   subtree_metavars : Array[String]
   identifier_metavars : Array[String]
+  auto_metavars : Array[String]
   target_metavar : String?
   source_metavar : String?
 }

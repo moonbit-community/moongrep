@@ -209,10 +209,10 @@ fn parse_rule_clause_map(
     )
   }
   let shape = expect_yaml_string(clause_map, path, "shape")
-  let (subtree_metavars, identifier_metavars) = expect_metavars(
+  let (subtree_metavars, identifier_metavars, auto_metavars) = expect_metavars(
     clause_map, path, clause_context,
   )
-  { shape, subtree_metavars, identifier_metavars }
+  { shape, subtree_metavars, identifier_metavars, auto_metavars }
 }
 
 ///|
@@ -220,7 +220,7 @@ fn expect_metavars(
   map : Map[String, @yaml.Yaml],
   path : String,
   clause_context : String,
-) -> (Array[String], Array[String]) raise {
+) -> (Array[String], Array[String], Array[String]) raise {
   match map.get("metavars") {
     Some(Map(meta_map)) => {
       ensure_allowed_keys(path, "\{clause_context}.metavars", meta_map, [
@@ -233,15 +233,42 @@ fn expect_metavars(
         meta_map, path, clause_context, "identifier",
       )
       ensure_metavar_buckets_disjoint(path, clause_context, subtree, identifier)
-      (subtree, identifier)
+      (subtree, identifier, [])
     }
+    Some(Array(values)) =>
+      ([], [], expect_auto_metavars(values, path, clause_context))
     Some(_) =>
       raise invalid_rule(
         path~,
-        info="\{clause_context}.metavars must be a mapping",
+        info="\{clause_context}.metavars must be a mapping or array",
       )
-    None => ([], [])
+    None => ([], [], [])
   }
+}
+
+///|
+fn expect_auto_metavars(
+  values : Array[@yaml.Yaml],
+  path : String,
+  clause_context : String,
+) -> Array[String] raise {
+  let metavars : Array[String] = []
+  for index in 0..<values.length() {
+    guard values[index] is String(meta_name) else {
+      raise invalid_rule(
+        path~,
+        info="\{clause_context}.metavars[\{index}] must be a string",
+      )
+    }
+    if array_contains(metavars, meta_name) {
+      raise invalid_rule(
+        path~,
+        info="\{clause_context}.metavars contains duplicate metavar \{meta_name}",
+      )
+    }
+    metavars.push(meta_name)
+  }
+  metavars
 }
 
 ///|

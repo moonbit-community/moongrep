@@ -151,7 +151,8 @@ fn is_filter_placeholder(
   compiled.target_metavar == Some(name) ||
   compiled.source_metavar == Some(name) ||
   contains_string(compiled.subtree_metavars, name) ||
-  contains_string(compiled.identifier_metavars, name)
+  contains_string(compiled.identifier_metavars, name) ||
+  contains_string(compiled.auto_metavars, name)
 }
 
 ///|
