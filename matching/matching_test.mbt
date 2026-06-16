@@ -235,67 +235,6 @@ test "auto metavar matches labels by identifier mode" {
 }
 
 ///|
-test "underscore placeholders of same length require auto equality" {
-  assert_true(expr_matches(parse_expr("__ + __"), parse_expr("a + a")))
-  assert_false(expr_matches(parse_expr("__ + __"), parse_expr("a + b")))
-  assert_true(
-    expr_matches(parse_expr("__ + __"), parse_expr("make() + make()")),
-  )
-  assert_false(
-    expr_matches(parse_expr("__ + __"), parse_expr("make() + other()")),
-  )
-}
-
-///|
-test "underscore placeholders of different length are independent" {
-  assert_true(expr_matches(parse_expr("__ + ___"), parse_expr("a + b")))
-  assert_false(
-    expr_matches(parse_expr("__ + ___ + __"), parse_expr("a + b + c")),
-  )
-}
-
-///|
-test "underscore placeholders use auto equality across binder and use" {
-  assert_true(
-    expr_matches(
-      parse_expr("match value { __ => __ }"),
-      parse_expr("match value { actual => actual }"),
-    ),
-  )
-  assert_false(
-    expr_matches(
-      parse_expr("match value { __ => __ }"),
-      parse_expr("match value { actual => other }"),
-    ),
-  )
-  assert_true(
-    expr_matches(
-      parse_expr("match value { __ => ___ }"),
-      parse_expr("match value { actual => other }"),
-    ),
-  )
-}
-
-///|
-test "underscore placeholder bindings are not returned" {
-  let result = match_expr_pattern(
-    {
-      ast: parse_expr("__ + __"),
-      subtree_metavars: [],
-      identifier_metavars: [],
-      auto_metavars: [],
-      target_metavar: None,
-      source_metavar: None,
-    },
-    parse_expr("value + value"),
-  )
-  match result {
-    Some(hit) => assert_false(hit.bindings.contains("__"))
-    None => fail("expected placeholder pattern to match")
-  }
-}
-
-///|
 test "structural matcher compares scalar AST fields" {
   assert_false(expr_matches(parse_expr("a + b"), parse_expr("a - b")))
   assert_false(expr_matches(parse_expr("f(label=a)"), parse_expr("f(other=a)")))

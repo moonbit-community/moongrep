@@ -263,18 +263,18 @@ record, map, constraint, or special-constructor patterns is not valid as the
 only occurrence of a declared metavar today.
 
 Runtime pattern matching can still recurse through nested pattern forms. When a
-declared name or an all-underscore built-in placeholder appears under array,
+declared name or an all-underscore ignore placeholder appears under array,
 constructor, record, map, constraint, or special-constructor patterns, it
 participates in matching there. Those nested pattern occurrences are not
 sufficient by themselves to satisfy used-metavar validation.
 
 Names made only of two or more underscores, such as `__`, `___`, and `____`,
-are special built-in placeholders:
+are special ignore placeholders:
 
 - they must not be declared under `metavars`
 - in validation-counted positions, they match anything in that one position
-- repeated occurrences of the same length use auto metavar equality
-- different lengths are independent from each other
+- they do not bind a value for equality checks
+- repeated occurrences are independent wildcards
 - in non-supported positions, they are treated literally as that identifier or
   other source-level text
 - this rule is separate from MoonBit's own special handling of `_`
@@ -399,11 +399,6 @@ kind and value. If the first occurrence binds as `Identifier`, later
 occurrences must also normalize and produce the same string. If the first
 occurrence binds structurally, later occurrences must compare equal as the same
 structural binding kind.
-
-All-underscore built-in placeholders use the same equality rule within one
-pattern, keyed by underscore length. For example, `__ + __` matches `a + a` and
-`make() + make()`, but rejects `a + b` and `make() + other()`. `__ + ___`
-keeps the two placeholders independent because their lengths differ.
 
 Auto is useful when one rule naturally mixes identifier-like captures and
 structural captures and the candidate code should decide the stricter mode. For

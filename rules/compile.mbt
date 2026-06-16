@@ -282,7 +282,7 @@ fn validate_declared_metavar(
   if is_builtin_ignore_metavar_name(name) {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context} cannot declare metavar \{name} because it is a built-in underscore placeholder",
+      info="\{context} cannot declare metavar \{name} because it is a built-in ignore placeholder",
     )
   } else if name == "__TARGET__" {
     raise RuleLoadError::InvalidRule(

@@ -26,7 +26,7 @@ test "validate rejects reserved metavar names" {
     #|      subtree: [__]
     #|
   expect_compile_invalid(
-    source, "patterns[0] cannot declare metavar __ because it is a built-in underscore placeholder",
+    source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
   )
   let auto_source =
     #|package: example/pkg
@@ -36,7 +36,7 @@ test "validate rejects reserved metavar names" {
     #|    metavars: [__]
     #|
   expect_compile_invalid(
-    auto_source, "patterns[0] cannot declare metavar __ because it is a built-in underscore placeholder",
+    auto_source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
   )
 }
 
