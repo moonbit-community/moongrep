@@ -146,6 +146,30 @@ test "apply structural rule inherits inside expr auto bindings" {
 }
 
 ///|
+test "apply structural rule keeps underscore placeholders pattern-local" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper(__, __TARGET__)
+    #|patterns:
+    #|  - shape: target.call(__)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(token, target.call(other))
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+}
+
+///|
 test "apply structural rule visits top let definitions" {
   let rule_source =
     #|package: moonbitlang/core

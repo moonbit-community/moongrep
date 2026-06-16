@@ -3,7 +3,7 @@
 ///
 /// This convenience entry point does not enable declared metavars. It still
 /// treats parser holes and identifiers made entirely of two or more underscores
-/// as ignore placeholders.
+/// as built-in auto placeholders keyed by underscore length.
 pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
   let compiled : CompiledExprPattern = {
     ast: pattern,
@@ -47,6 +47,7 @@ pub fn match_expr_pattern_with_bindings(
 ) -> ExprMatch? {
   let bindings = initial_bindings.copy()
   if match_expr(compiled.ast, candidate, compiled, bindings) {
+    remove_underscore_placeholder_bindings(bindings)
     Some({ root: candidate, bindings })
   } else {
     None
@@ -351,8 +352,15 @@ fn match_expr_placeholder(
     Ident(id~, ..) =>
       match @ident.normalize_identifier_name_from_var(id) {
         Some(name) =>
-          if is_ignore_placeholder(name) {
-            Some(true)
+          if is_underscore_placeholder(name) {
+            Some(
+              bind_underscore_placeholder(
+                bindings,
+                name,
+                @ident.normalize_identifier_name_from_expr(candidate),
+                Expr(candidate),
+              ),
+            )
           } else if is_special_expr_metavar(compiled, name) ||
             contains_name(compiled.subtree_metavars, name) {
             Some(bind_value(bindings, name, Expr(candidate)))
@@ -511,8 +519,13 @@ fn match_pattern(
   match pattern {
     Var(binder) => {
       let name = binder.name
-      if is_ignore_placeholder(name) {
-        true
+      if is_underscore_placeholder(name) {
+        bind_underscore_placeholder(
+          bindings,
+          name,
+          @ident.normalize_identifier_name_from_pattern(candidate),
+          Pattern(candidate),
+        )
       } else if contains_name(compiled.subtree_metavars, name) {
         bind_value(bindings, name, Pattern(candidate))
       } else if contains_name(compiled.identifier_metavars, name) {
@@ -806,8 +819,13 @@ fn match_var(
 ) -> Bool {
   match @ident.normalize_identifier_name_from_var(pattern) {
     Some(name) =>
-      if is_ignore_placeholder(name) {
-        true
+      if is_underscore_placeholder(name) {
+        bind_underscore_placeholder(
+          bindings,
+          name,
+          @ident.normalize_identifier_name_from_var(candidate),
+          Var(candidate),
+        )
       } else if contains_name(compiled.subtree_metavars, name) {
         bind_value(bindings, name, Var(candidate))
       } else if contains_name(compiled.identifier_metavars, name) {
@@ -838,8 +856,13 @@ fn match_binder(
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   let name = pattern.name
-  if is_ignore_placeholder(name) {
-    true
+  if is_underscore_placeholder(name) {
+    bind_underscore_placeholder(
+      bindings,
+      name,
+      @ident.normalize_identifier_name_from_binder(candidate),
+      Binder(candidate),
+    )
   } else if contains_name(compiled.subtree_metavars, name) {
     bind_value(bindings, name, Binder(candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
@@ -864,8 +887,13 @@ fn match_label(
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   let name = pattern.name
-  if is_ignore_placeholder(name) {
-    true
+  if is_underscore_placeholder(name) {
+    bind_underscore_placeholder(
+      bindings,
+      name,
+      @ident.normalize_identifier_name_from_label(candidate),
+      Label(candidate),
+    )
   } else if contains_name(compiled.subtree_metavars, name) {
     bind_value(bindings, name, Label(candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
@@ -880,6 +908,16 @@ fn match_label(
   } else {
     label_equal(pattern, candidate)
   }
+}
+
+///|
+fn bind_underscore_placeholder(
+  bindings : @hashmap.HashMap[String, BoundValue],
+  name : String,
+  normalized_identifier : String?,
+  structural_value : BoundValue,
+) -> Bool {
+  bind_auto_value(bindings, name, normalized_identifier, structural_value)
 }
 
 ///|
@@ -907,6 +945,21 @@ fn bind_auto_value(
           true
         }
       }
+  }
+}
+
+///|
+fn remove_underscore_placeholder_bindings(
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Unit {
+  let names : Array[String] = []
+  bindings.each((name, _) => {
+    if is_underscore_placeholder(name) {
+      names.push(name)
+    }
+  })
+  for name in names {
+    bindings.remove(name)
   }
 }
 
@@ -1340,7 +1393,7 @@ fn is_special_expr_metavar(
 }
 
 ///|
-fn is_ignore_placeholder(name : String) -> Bool {
+fn is_underscore_placeholder(name : String) -> Bool {
   if name.length() < 2 {
     return false
   }
