@@ -11,6 +11,71 @@ fn parse_expr(source : String) -> @syntax.Expr raise {
 }
 
 ///|
+fn test_loc() -> @basic.Location {
+  @syntax.no_location
+}
+
+///|
+fn test_var(name : String) -> @syntax.Var {
+  { name: @syntax.LongIdent::Ident(name~), loc: test_loc() }
+}
+
+///|
+fn test_binder(name : String) -> @syntax.Binder {
+  { name, loc: test_loc() }
+}
+
+///|
+fn test_label(name : String) -> @syntax.Label {
+  { name, loc: test_loc() }
+}
+
+///|
+fn test_field_def(label : String, expr : @syntax.Expr) -> @syntax.FieldDef {
+  { label: test_label(label), expr, is_pun: false, loc: test_loc() }
+}
+
+///|
+fn test_ident(name : String) -> @syntax.Expr {
+  @syntax.Expr::Ident(id=test_var(name), loc=test_loc())
+}
+
+///|
+fn test_implies(lhs : String, rhs : String) -> @syntax.Expr {
+  @syntax.Expr::Implies(
+    lhs=test_ident(lhs),
+    rhs=test_ident(rhs),
+    loc=test_loc(),
+  )
+}
+
+///|
+fn test_foreach(
+  init : String,
+  continue_value : String,
+  where_value : String,
+) -> @syntax.Expr {
+  @syntax.Expr::ForEach(
+    binders=@list.from_array([Some(test_binder("item"))]),
+    expr=test_ident("items"),
+    init=@list.from_array([(test_binder("start"), test_ident(init))]),
+    continue_block=@list.from_array([
+      (test_binder("next"), test_ident(continue_value)),
+    ]),
+    body=test_ident("body"),
+    else_block=None,
+    where_clause=Some({
+      fields: @list.from_array([
+        test_field_def("field", test_ident(where_value)),
+      ]),
+      loc: test_loc(),
+    }),
+    label=None,
+    loc=test_loc(),
+  )
+}
+
+///|
 test "undeclared double-underscore-prefixed identifier is literal" {
   let pattern = parse_expr("__x + __x")
   assert_false(expr_matches(pattern, parse_expr("a + a")))
@@ -243,4 +308,48 @@ test "structural matcher compares scalar AST fields" {
     ),
   )
   assert_false(expr_matches(parse_expr("Text(__)"), parse_expr("Blank")))
+}
+
+///|
+test "structural matcher supports reverse pipe and implication roots" {
+  assert_true(
+    expr_matches(parse_expr("sink <| input"), parse_expr("sink <| input")),
+  )
+  assert_false(
+    expr_matches(parse_expr("sink <| input"), parse_expr("other <| input")),
+  )
+  assert_true(expr_matches(test_implies("a", "b"), test_implies("a", "b")))
+  assert_false(expr_matches(test_implies("a", "b"), test_implies("a", "c")))
+}
+
+///|
+test "structural matcher supports list comprehension roots" {
+  let pattern = parse_expr("[for item in items if allow(item) => target(item)]")
+  assert_true(
+    expr_matches(
+      pattern,
+      parse_expr("[for item in items if allow(item) => target(item)]"),
+    ),
+  )
+  assert_false(
+    expr_matches(
+      pattern,
+      parse_expr("[for item in items if allow(item) => other(item)]"),
+    ),
+  )
+}
+
+///|
+test "structural matcher compares foreach init continue and where clause" {
+  let pattern = test_foreach("seed", "step", "where_value")
+  assert_true(
+    expr_matches(pattern, test_foreach("seed", "step", "where_value")),
+  )
+  assert_false(
+    expr_matches(pattern, test_foreach("other", "step", "where_value")),
+  )
+  assert_false(
+    expr_matches(pattern, test_foreach("seed", "other", "where_value")),
+  )
+  assert_false(expr_matches(pattern, test_foreach("seed", "step", "other")))
 }

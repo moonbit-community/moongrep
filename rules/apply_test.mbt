@@ -170,6 +170,84 @@ test "apply structural rule keeps underscore placeholders pattern-local" {
 }
 
 ///|
+test "inside expr traverses guard target children" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Guard target call.
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper({
+    #|    guard ready() else { fallback() }
+    #|    target()
+    #|  })
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "inside expr traverses reverse pipe target children" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Reverse pipe target call.
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(sink <| target())
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "inside expr traverses list comprehension target children" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  List comprehension target call.
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target(item)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper([for item in items if allow(item) => target(item)])
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
 test "apply structural rule visits top let definitions" {
   let rule_source =
     #|package: moonbitlang/core
