@@ -1,7 +1,7 @@
 ///|
 /// Applies only structural rules to the supplied parser AST nodes.
 ///
-/// Supported expression subtrees collected by `traverse_impl_exprs` and
+/// Supported expression subtrees collected by `collect_impl_exprs` and
 /// `collect_exprs` are visited in source-tree order. For a single expression
 /// and rule, the first matching pattern wins and determines `pattern_index`.
 pub fn apply_structural_rules(
