@@ -47,7 +47,7 @@ The scanner recursively reads `.mbt` files. When descending from `scan-root`,
 child entries named `.git`, `_build`, `.mooncakes`, or `target` are skipped; if
 one of those directories is passed explicitly as `scan-root`, it is scanned.
 Symbolic links encountered during recursive source or rule traversal are
-skipped. Files that fail to parse are reported as warnings and skipped; other
+followed. Files that fail to parse are reported as warnings and skipped; other
 files continue to be scanned.
 
 ## Document
