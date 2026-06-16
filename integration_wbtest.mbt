@@ -91,7 +91,7 @@ test "integration applies taint rule and sanitizer" {
     #|        @html.Attrs::build().inner_html(__)
     #|  sinks:
     #|    - shape: |
-    #|        @html.div(class=__, attrs=__SOURCE__, __)
+    #|        @html.div(class=__, attrs=__SOURCE__, ___)
     #|  sanitizers:
     #|    - shape: sanitize(__SOURCE__)
     #|

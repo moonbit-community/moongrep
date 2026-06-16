@@ -152,7 +152,7 @@ candidate it captures: simple identifiers bind by normalized name, while
 non-identifiers bind structurally.
 
 The built-in exceptions are names made only of two or more underscores, such as
-`__`, `___`, and `____`. They are special ignore placeholders inside `shape`,
+`__`, `___`, and `____`. They are special built-in placeholders inside `shape`,
 so you must not declare them under `metavars`.
 
 ```yaml
@@ -161,15 +161,16 @@ patterns:
 ```
 
 When one of these names appears in a supported metavar position, it matches
-anything there without binding a value or participating in repeated-name
-equality. Repeated ignore placeholders are independent wildcards. In
-unsupported positions such as constructor names, they stay literal. This rule is
-separate from MoonBit's own special handling of `_`.
+anything there and repeated occurrences of the same length must be equal using
+auto metavar semantics. Different lengths are independent, so `__ + __` requires
+the two captures to match while `__ + ___` does not. In unsupported positions
+such as constructor names, they stay literal. This rule is separate from
+MoonBit's own special handling of `_`.
 
 The supported positions documented in [RuleSpec.md](RuleSpec.md) are the
 positions that count for declared-metavar validation. Runtime pattern matching
 may still recurse through nested pattern forms. If a declared name or an
-all-underscore ignore placeholder appears under array, constructor, record,
+all-underscore built-in placeholder appears under array, constructor, record,
 map, constraint, or special-constructor patterns, it can participate in runtime
 matching there; those nested occurrences are not sufficient by themselves to
 satisfy the used-metavar validation.
