@@ -53,6 +53,22 @@ test "prefilter keeps unfilterable structural rule relevant" {
 }
 
 ///|
+test "prefilter treats auto metavars as placeholders" {
+  let source =
+    #|package: example/pkg
+    #|description: Target call.
+    #|patterns:
+    #|  - shape: sink(value)
+    #|    metavars: [value]
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { sink(actual) }\n"))
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { other(actual) }\n"),
+  )
+}
+
+///|
 test "prefilter ignores one digit int literals" {
   let one_digit_source =
     #|package: example/pkg

@@ -75,7 +75,32 @@ test "load parses structural rule and derives yaml rule id" {
       inspect(spec.patterns[0].shape, content="_expr == _expr")
       debug_inspect(spec.patterns[0].subtree_metavars, content="[\"_expr\"]")
       debug_inspect(spec.patterns[0].identifier_metavars, content="[]")
+      debug_inspect(spec.patterns[0].auto_metavars, content="[]")
       assert_true(spec.inside_expr is None)
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "load parses auto metavar shorthand" {
+  let source =
+    #|package: example/pkg
+    #|description: |
+    #|  Auto metavars.
+    #|patterns:
+    #|  - shape: counter + body
+    #|    metavars: [counter, body]
+    #|
+  let rule = parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source)
+  match rule.definition {
+    Structural(spec) => {
+      debug_inspect(spec.patterns[0].subtree_metavars, content="[]")
+      debug_inspect(spec.patterns[0].identifier_metavars, content="[]")
+      debug_inspect(
+        spec.patterns[0].auto_metavars,
+        content="[\"counter\", \"body\"]",
+      )
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -289,5 +314,36 @@ test "load rejects malformed metavars schema" {
     #|
   expect_invalid_rule_info(
     bucket_non_string, "patterns[0].metavars.subtree[0] must be a string",
+  )
+  let auto_duplicate =
+    #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|    metavars: [x, x]
+    #|
+  expect_invalid_rule_info(
+    auto_duplicate, "patterns[0].metavars contains duplicate metavar x",
+  )
+  let auto_non_string =
+    #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|    metavars: [1]
+    #|
+  expect_invalid_rule_info(
+    auto_non_string, "patterns[0].metavars[0] must be a string",
+  )
+  let unsupported_auto_bucket =
+    #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|    metavars:
+    #|      auto: [x]
+    #|
+  expect_invalid_rule_info(
+    unsupported_auto_bucket, "patterns[0].metavars contains unsupported key auto",
   )
 }

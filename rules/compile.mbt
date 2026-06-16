@@ -73,6 +73,10 @@ fn compile_structural_rule(
     Some(pattern) => pattern.identifier_metavars
     None => []
   }
+  let outer_auto = match spec.inside_expr {
+    Some(pattern) => pattern.auto_metavars
+    None => []
+  }
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
     let context = "patterns[\{index}]"
@@ -84,6 +88,7 @@ fn compile_structural_rule(
     ensure_not_redeclared_from_inside_expr(
       path, context, pattern, outer_identifier,
     )
+    ensure_not_redeclared_from_inside_expr(path, context, pattern, outer_auto)
     let ast = parse_shape(path, context, pattern.shape)
     if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
@@ -98,6 +103,7 @@ fn compile_structural_rule(
         ast,
         concat_arrays(outer_subtree, pattern.subtree_metavars),
         concat_arrays(outer_identifier, pattern.identifier_metavars),
+        concat_arrays(outer_auto, pattern.auto_metavars),
         target_metavar=None,
         source_metavar=None,
       ),
@@ -191,6 +197,7 @@ fn compile_pattern(
     ast,
     pattern.subtree_metavars,
     pattern.identifier_metavars,
+    pattern.auto_metavars,
     target_metavar~,
     source_metavar~,
   )
@@ -202,6 +209,7 @@ fn compile_pattern_with_effective_metavars(
   ast : @syntax.Expr,
   subtree_metavars : Array[String],
   identifier_metavars : Array[String],
+  auto_metavars : Array[String],
   target_metavar~ : String?,
   source_metavar~ : String?,
 ) -> CompiledRulePattern {
@@ -211,6 +219,7 @@ fn compile_pattern_with_effective_metavars(
       ast,
       subtree_metavars,
       identifier_metavars,
+      auto_metavars,
       target_metavar,
       source_metavar,
     },
@@ -256,6 +265,9 @@ fn validate_declared_metavars(
     validate_declared_metavar(path, context, name, reserve_source)
   }
   for name in pattern.identifier_metavars {
+    validate_declared_metavar(path, context, name, reserve_source)
+  }
+  for name in pattern.auto_metavars {
     validate_declared_metavar(path, context, name, reserve_source)
   }
 }
@@ -308,6 +320,14 @@ fn validate_used_metavars(
       )
     }
   }
+  for name in pattern.auto_metavars {
+    if count_supported_name_in_expr(ast, name) == 0 {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{context} declares unused metavar \{name}",
+      )
+    }
+  }
 }
 
 ///|
@@ -326,6 +346,14 @@ fn ensure_not_redeclared_from_inside_expr(
     }
   }
   for name in pattern.identifier_metavars {
+    if array_contains(outer, name) {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{context} cannot declare metavar \{name} because it is already visible from inside-expr",
+      )
+    }
+  }
+  for name in pattern.auto_metavars {
     if array_contains(outer, name) {
       raise RuleLoadError::InvalidRule(
         path~,

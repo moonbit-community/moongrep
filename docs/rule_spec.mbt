@@ -72,7 +72,7 @@ let _embed_rulespec_md : String =
   #|Only these keys are recognized:
   #|
   #|- `shape` (required): YAML string
-  #|- `metavars` (optional): YAML mapping
+  #|- `metavars` (optional): YAML mapping or array shorthand
   #|- `guard`: recognized only to reject it in runtime AST mode
   #|
   #|Any other key inside a pattern object is rejected.
@@ -85,7 +85,7 @@ let _embed_rulespec_md : String =
   #|`inside-expr` uses the same object schema as one structural pattern:
   #|
   #|- `shape` (required): YAML string
-  #|- `metavars` (optional): YAML mapping
+  #|- `metavars` (optional): YAML mapping or array shorthand
   #|- `guard`: recognized only to reject it in runtime AST mode
   #|
   #|Additional validation and runtime behavior:
@@ -138,14 +138,18 @@ let _embed_rulespec_md : String =
   #|
   #|### `metavars`
   #|
-  #|If `metavars` is present, it must be a mapping. Only these keys are accepted:
+  #|If `metavars` is present, it must be either a mapping with explicit binding
+  #|buckets or an array shorthand for auto metavars.
+  #|
+  #|Mapping form accepts only these keys:
   #|
   #|- `subtree` (optional): array of strings
   #|- `identifier` (optional): array of strings
   #|
-  #|If either bucket is omitted, it defaults to the empty array.
+  #|If either mapping bucket is omitted, it defaults to the empty array. A mapping
+  #|bucket named `auto` is not supported and is rejected as an unsupported key.
   #|
-  #|Each bucket:
+  #|Each mapping bucket:
   #|
   #|- must be an array if present
   #|- may contain only strings
@@ -154,6 +158,19 @@ let _embed_rulespec_md : String =
   #|Across buckets:
   #|
   #|- a metavar name must not appear in both `subtree` and `identifier`
+  #|
+  #|Array shorthand:
+  #|
+  #|```yaml
+  #|metavars: [counter, body]
+  #|```
+  #|
+  #|declares `counter` and `body` as auto metavars. Each array entry must be a
+  #|string, and duplicate names are rejected.
+  #|
+  #|Auto metavars use the same reserved-name rules as explicit metavars: names made
+  #|only of two or more underscores must not be declared, `__TARGET__` is reserved,
+  #|and `__SOURCE__` is reserved in taint clauses.
   #|
   #|## `shape`
   #|
@@ -369,6 +386,29 @@ let _embed_rulespec_md : String =
   #|uses, or repeated field and method labels in expressions such as
   #|`record.field = record.field + value` and `receiver.method()`.
   #|
+  #|## `auto` Shorthand Semantics
+  #|
+  #|The YAML shorthand `metavars: [name, ...]` declares auto metavars. There is no
+  #|`auto` mapping bucket; `metavars.auto` is rejected.
+  #|
+  #|An auto metavar chooses its binding mode from the first candidate it captures:
+  #|
+  #|- if the candidate normalizes through the same helpers used by `identifier`, it
+  #|  binds as `Identifier`
+  #|- otherwise it binds as the structural value used by `subtree` at that
+  #|  syntactic position: `Expr`, `Var`, `Binder`, `Pattern`, or `Label`
+  #|
+  #|Later occurrences of the same auto metavar must match the first chosen binding
+  #|kind and value. If the first occurrence binds as `Identifier`, later
+  #|occurrences must also normalize and produce the same string. If the first
+  #|occurrence binds structurally, later occurrences must compare equal as the same
+  #|structural binding kind.
+  #|
+  #|Auto is useful when one rule naturally mixes identifier-like captures and
+  #|structural captures and the candidate code should decide the stricter mode. For
+  #|rules where the intended behavior is known, explicit `subtree` and
+  #|`identifier` buckets remain valid and make the rule easier to audit.
+  #|
   #|## Guard Status
   #|
   #|YAML `guard` expressions are not supported by the current runtime AST matcher.
@@ -413,10 +453,12 @@ let _embed_rulespec_md : String =
   #|- an unsupported key appears at top level, inside `taint`, inside a rule
   #|  clause, or inside `metavars`
   #|- `guard` is present in any rule clause
-  #|- `metavars` is present but not a mapping
-  #|- a metavar bucket is present but not an array
-  #|- a metavar bucket contains a non-string entry
+  #|- `metavars` is present but is neither a mapping nor an array
+  #|- a metavar mapping bucket is present but not an array
+  #|- a metavar mapping bucket contains a non-string entry
+  #|- `metavars` shorthand contains a non-string entry
   #|- a metavar name is duplicated within one bucket
+  #|- a metavar name is duplicated within shorthand
   #|- a metavar name appears in both `subtree` and `identifier`
   #|- a metavar uses a reserved name for that rule context
   #|- a declared metavar is never bound in a supported position

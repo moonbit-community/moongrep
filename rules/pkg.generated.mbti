@@ -104,6 +104,7 @@ pub(all) struct RulePatternSpec {
   shape : String
   subtree_metavars : Array[String]
   identifier_metavars : Array[String]
+  auto_metavars : Array[String]
 }
 
 pub(all) struct RulePrefilter {

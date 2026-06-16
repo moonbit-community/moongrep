@@ -82,8 +82,8 @@ let _embed_writingrules_md : String =
   #|  when `__SOURCE__` resolves to a storage path such as an identifier, field, or
   #|  array access. If the same call also matches a source clause, source return
   #|  taint is still produced.
-  #|- taint clause `metavars` follow the same `subtree` / `identifier` rules as
-  #|  structural patterns.
+  #|- taint clause `metavars` follow the same auto / `subtree` / `identifier`
+  #|  rules as structural patterns.
   #|- taint clauses do not support `guard`.
   #|- `__SOURCE__` is reserved inside taint rules and must not be declared under
   #|  `metavars`. It is only valid in sink and sanitizer shapes; source shapes must
@@ -148,9 +148,12 @@ let _embed_writingrules_md : String =
   #|```yaml
   #|patterns:
   #|  - shape: _expr == _expr
-  #|    metavars:
-  #|      subtree: [_expr]
+  #|    metavars: [_expr]
   #|```
+  #|
+  #|The array form declares auto metavars. Auto chooses how to bind from the first
+  #|candidate it captures: simple identifiers bind by normalized name, while
+  #|non-identifiers bind structurally.
   #|
   #|The built-in exceptions are names made only of two or more underscores, such as
   #|`__`, `___`, and `____`. They are special ignore placeholders inside `shape`,
@@ -183,7 +186,21 @@ let _embed_writingrules_md : String =
   #|
   #|The exact validation-counted positions are listed in [RuleSpec.md](RuleSpec.md).
   #|
-  #|### 3. Choose `subtree` or `identifier`
+  #|### 3. Choose auto, `subtree`, or `identifier`
+  #|
+  #|Use auto shorthand when candidate code should decide whether a name behaves
+  #|like an identifier or a structural capture:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: value + value
+  #|    metavars: [value]
+  #|```
+  #|
+  #|This can match `item + item` by identifier name and `make() + make()` by
+  #|structural expression equality. It rejects mixed repeated captures such as
+  #|`item + make()` because the second occurrence does not match the first chosen
+  #|binding mode.
   #|
   #|Use `subtree` when you want to match and compare the full parser AST node at
   #|the metavar position. Repeating a `subtree` metavar means the repeated captures
@@ -226,9 +243,11 @@ let _embed_writingrules_md : String =
   #|AST as `Var`, so rules like `x = x + 1` can bind the left-hand target by
   #|normalized name instead of treating it as a literal string.
   #|
-  #|Declare each metavar name exactly once. A name must appear in only one bucket;
-  #|duplicates within a bucket or across `subtree` and `identifier` are load
-  #|errors.
+  #|Declare each metavar name exactly once. In mapping form, a name must appear in
+  #|only one bucket; duplicates within a bucket or across `subtree` and
+  #|`identifier` are load errors. In shorthand form, duplicate array entries are
+  #|load errors. There is no `auto` mapping bucket; write `metavars: [name]`
+  #|instead.
   #|
   #|### 3.5 Use `inside-expr` when the interesting node must appear inside a larger context
   #|
@@ -265,8 +284,9 @@ let _embed_writingrules_md : String =
   #|
   #|YAML `guard` expressions are not supported by the current runtime AST matcher.
   #|If a rule needs extra logic, first check whether a narrower `shape`,
-  #|`inside-expr`, or `identifier` metavars can express it. Otherwise, the behavior
-  #|needs MoonBit implementation work before it can be represented as a YAML rule.
+  #|`inside-expr`, auto, or `identifier` metavars can express it. Otherwise, the
+  #|behavior needs MoonBit implementation work before it can be represented as a
+  #|YAML rule.
   #|
   #|### 5. Add more `patterns` when the message is shared
   #|
