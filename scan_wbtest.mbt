@@ -355,3 +355,23 @@ test "scan applies anonymous cli pattern without rules directory" {
     _ => fail("unexpected command")
   }
 }
+
+///|
+test "scan infers metavars in anonymous cli pattern" {
+  let root = moongrep_tmp_root("moongrep-cli-pattern-metavar")
+  let scan_dir = "\{root}/src"
+  @miniio.mkdir(scan_dir)
+  @miniio.write_text_file(
+    "\{scan_dir}/hit.mbt",
+    "fn sample { make() + make(); make() + other() }\n",
+  )
+  match
+    parse_cli_command(["scan", "--pattern", "$exp:value + $exp:value", scan_dir]) {
+    ("scan", Some(options), None) => {
+      let result = collect_directory_hits(options)
+      inspect(result.hits.length(), content="1")
+      inspect(result.hits[0].rule_id, content="<pattern>")
+    }
+    _ => fail("unexpected command")
+  }
+}

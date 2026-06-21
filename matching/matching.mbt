@@ -424,32 +424,44 @@ fn match_expr_placeholder(
 ) -> Bool? {
   match pattern {
     Ident(id~, ..) =>
-      match @ident.normalize_identifier_name_from_var(id) {
-        Some(name) =>
-          if is_ignore_placeholder(name) {
-            Some(true)
-          } else if is_special_expr_metavar(compiled, name) ||
-            contains_name(compiled.subtree_metavars, name) {
-            Some(bind_value(bindings, name, Expr(candidate)))
-          } else if contains_name(compiled.identifier_metavars, name) {
-            match @ident.normalize_identifier_name_from_expr(candidate) {
-              Some(candidate_name) =>
-                Some(bind_value(bindings, name, Identifier(candidate_name)))
-              None => Some(false)
-            }
-          } else if contains_name(compiled.auto_metavars, name) {
-            Some(
-              bind_auto_value(
-                bindings,
-                name,
-                @ident.normalize_identifier_name_from_expr(candidate),
-                Expr(candidate),
-              ),
-            )
-          } else {
-            None
+      match id.metavar() {
+        Some(meta) =>
+          Some(
+            bind_metavar_value(
+              bindings,
+              meta,
+              @ident.normalize_identifier_name_from_expr(candidate),
+              Expr(candidate),
+            ),
+          )
+        None =>
+          match @ident.normalize_identifier_name_from_var(id) {
+            Some(name) =>
+              if is_ignore_placeholder(name) {
+                Some(true)
+              } else if is_special_expr_metavar(compiled, name) ||
+                contains_name(compiled.subtree_metavars, name) {
+                Some(bind_value(bindings, name, Expr(candidate)))
+              } else if contains_name(compiled.identifier_metavars, name) {
+                match @ident.normalize_identifier_name_from_expr(candidate) {
+                  Some(candidate_name) =>
+                    Some(bind_value(bindings, name, Identifier(candidate_name)))
+                  None => Some(false)
+                }
+              } else if contains_name(compiled.auto_metavars, name) {
+                Some(
+                  bind_auto_value(
+                    bindings,
+                    name,
+                    @ident.normalize_identifier_name_from_expr(candidate),
+                    Expr(candidate),
+                  ),
+                )
+              } else {
+                None
+              }
+            None => None
           }
-        None => None
       }
     Hole(..) => Some(true)
     _ => None
@@ -584,32 +596,42 @@ fn match_pattern(
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   match pattern {
-    Var(binder) => {
-      let name = binder.name
-      if is_ignore_placeholder(name) {
-        true
-      } else if contains_name(compiled.subtree_metavars, name) {
-        bind_value(bindings, name, Pattern(candidate))
-      } else if contains_name(compiled.identifier_metavars, name) {
-        match @ident.normalize_identifier_name_from_pattern(candidate) {
-          Some(candidate_name) =>
-            bind_value(bindings, name, Identifier(candidate_name))
-          None => false
-        }
-      } else if contains_name(compiled.auto_metavars, name) {
-        bind_auto_value(
-          bindings,
-          name,
-          @ident.normalize_identifier_name_from_pattern(candidate),
-          Pattern(candidate),
-        )
-      } else {
-        match candidate {
-          Var(candidate_binder) => binder_equal(binder, candidate_binder)
-          _ => false
+    Var(binder) =>
+      match binder.metavar() {
+        Some(meta) =>
+          bind_metavar_value(
+            bindings,
+            meta,
+            @ident.normalize_identifier_name_from_pattern(candidate),
+            Pattern(candidate),
+          )
+        None => {
+          let name = binder.name
+          if is_ignore_placeholder(name) {
+            true
+          } else if contains_name(compiled.subtree_metavars, name) {
+            bind_value(bindings, name, Pattern(candidate))
+          } else if contains_name(compiled.identifier_metavars, name) {
+            match @ident.normalize_identifier_name_from_pattern(candidate) {
+              Some(candidate_name) =>
+                bind_value(bindings, name, Identifier(candidate_name))
+              None => false
+            }
+          } else if contains_name(compiled.auto_metavars, name) {
+            bind_auto_value(
+              bindings,
+              name,
+              @ident.normalize_identifier_name_from_pattern(candidate),
+              Pattern(candidate),
+            )
+          } else {
+            match candidate {
+              Var(candidate_binder) => binder_equal(binder, candidate_binder)
+              _ => false
+            }
+          }
         }
       }
-    }
     Any(..) =>
       match candidate {
         Any(..) => true
@@ -1008,29 +1030,39 @@ fn match_var(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match @ident.normalize_identifier_name_from_var(pattern) {
-    Some(name) =>
-      if is_ignore_placeholder(name) {
-        true
-      } else if contains_name(compiled.subtree_metavars, name) {
-        bind_value(bindings, name, Var(candidate))
-      } else if contains_name(compiled.identifier_metavars, name) {
-        match @ident.normalize_identifier_name_from_var(candidate) {
-          Some(candidate_name) =>
-            bind_value(bindings, name, Identifier(candidate_name))
-          None => false
-        }
-      } else if contains_name(compiled.auto_metavars, name) {
-        bind_auto_value(
-          bindings,
-          name,
-          @ident.normalize_identifier_name_from_var(candidate),
-          Var(candidate),
-        )
-      } else {
-        var_equal(pattern, candidate)
+  match pattern.metavar() {
+    Some(meta) =>
+      bind_metavar_value(
+        bindings,
+        meta,
+        @ident.normalize_identifier_name_from_var(candidate),
+        Var(candidate),
+      )
+    None =>
+      match @ident.normalize_identifier_name_from_var(pattern) {
+        Some(name) =>
+          if is_ignore_placeholder(name) {
+            true
+          } else if contains_name(compiled.subtree_metavars, name) {
+            bind_value(bindings, name, Var(candidate))
+          } else if contains_name(compiled.identifier_metavars, name) {
+            match @ident.normalize_identifier_name_from_var(candidate) {
+              Some(candidate_name) =>
+                bind_value(bindings, name, Identifier(candidate_name))
+              None => false
+            }
+          } else if contains_name(compiled.auto_metavars, name) {
+            bind_auto_value(
+              bindings,
+              name,
+              @ident.normalize_identifier_name_from_var(candidate),
+              Var(candidate),
+            )
+          } else {
+            var_equal(pattern, candidate)
+          }
+        None => var_equal(pattern, candidate)
       }
-    None => var_equal(pattern, candidate)
   }
 }
 
@@ -1041,22 +1073,33 @@ fn match_binder(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  let name = pattern.name
-  if is_ignore_placeholder(name) {
-    true
-  } else if contains_name(compiled.subtree_metavars, name) {
-    bind_value(bindings, name, Binder(candidate))
-  } else if contains_name(compiled.identifier_metavars, name) {
-    bind_value(bindings, name, Identifier(candidate.name))
-  } else if contains_name(compiled.auto_metavars, name) {
-    bind_auto_value(
-      bindings,
-      name,
-      @ident.normalize_identifier_name_from_binder(candidate),
-      Binder(candidate),
-    )
-  } else {
-    binder_equal(pattern, candidate)
+  match pattern.metavar() {
+    Some(meta) =>
+      bind_metavar_value(
+        bindings,
+        meta,
+        @ident.normalize_identifier_name_from_binder(candidate),
+        Binder(candidate),
+      )
+    None => {
+      let name = pattern.name
+      if is_ignore_placeholder(name) {
+        true
+      } else if contains_name(compiled.subtree_metavars, name) {
+        bind_value(bindings, name, Binder(candidate))
+      } else if contains_name(compiled.identifier_metavars, name) {
+        bind_value(bindings, name, Identifier(candidate.name))
+      } else if contains_name(compiled.auto_metavars, name) {
+        bind_auto_value(
+          bindings,
+          name,
+          @ident.normalize_identifier_name_from_binder(candidate),
+          Binder(candidate),
+        )
+      } else {
+        binder_equal(pattern, candidate)
+      }
+    }
   }
 }
 
@@ -1067,22 +1110,51 @@ fn match_label(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  let name = pattern.name
-  if is_ignore_placeholder(name) {
-    true
-  } else if contains_name(compiled.subtree_metavars, name) {
-    bind_value(bindings, name, Label(candidate))
-  } else if contains_name(compiled.identifier_metavars, name) {
-    bind_value(bindings, name, Identifier(candidate.name))
-  } else if contains_name(compiled.auto_metavars, name) {
-    bind_auto_value(
-      bindings,
-      name,
-      @ident.normalize_identifier_name_from_label(candidate),
-      Label(candidate),
-    )
-  } else {
-    label_equal(pattern, candidate)
+  match pattern.metavar() {
+    Some(meta) =>
+      bind_metavar_value(
+        bindings,
+        meta,
+        @ident.normalize_identifier_name_from_label(candidate),
+        Label(candidate),
+      )
+    None => {
+      let name = pattern.name
+      if is_ignore_placeholder(name) {
+        true
+      } else if contains_name(compiled.subtree_metavars, name) {
+        bind_value(bindings, name, Label(candidate))
+      } else if contains_name(compiled.identifier_metavars, name) {
+        bind_value(bindings, name, Identifier(candidate.name))
+      } else if contains_name(compiled.auto_metavars, name) {
+        bind_auto_value(
+          bindings,
+          name,
+          @ident.normalize_identifier_name_from_label(candidate),
+          Label(candidate),
+        )
+      } else {
+        label_equal(pattern, candidate)
+      }
+    }
+  }
+}
+
+///|
+fn bind_metavar_value(
+  bindings : @hashmap.HashMap[String, BoundValue],
+  meta : @syntax.MetaVar,
+  normalized_identifier : String?,
+  structural_value : BoundValue,
+) -> Bool {
+  match meta.kind {
+    Subtree => bind_value(bindings, meta.name, structural_value)
+    Identifier =>
+      match normalized_identifier {
+        Some(candidate_name) =>
+          bind_value(bindings, meta.name, Identifier(candidate_name))
+        None => false
+      }
   }
 }
 

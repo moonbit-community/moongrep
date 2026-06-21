@@ -65,6 +65,54 @@ test "apply structural rule supports auto metavar shorthand" {
 }
 
 ///|
+test "apply structural rule infers parser subtree metavars" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Repeated call value.
+    #|patterns:
+    #|  - shape: "$exp:value + $exp:value"
+    #|
+  let source =
+    #|fn sample {
+    #|  make() + make();
+    #|  make() + other()
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural rule infers parser identifier metavars" {
+  let rule_source =
+    #|package: moonbitlang/core
+    #|description: |
+    #|  Consistent loop counter.
+    #|patterns:
+    #|  - shape: "for $id:counter = 0; $id:counter < $exp:limit; $id:counter = $id:counter + 1 { $exp:body }"
+    #|
+  let source =
+    #|fn sample {
+    #|  for i = 0; i < n; i = i + 1 { println(i) };
+    #|  for i = 0; j < n; i = i + 1 { println(i) }
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule treats patterns as ordered alternatives" {
   let rule_source =
     #|package: moonbitlang/core

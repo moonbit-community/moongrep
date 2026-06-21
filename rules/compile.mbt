@@ -44,6 +44,7 @@ fn compile_structural_rule(
     Some(pattern) => {
       validate_declared_metavars(path, "inside-expr", pattern, false)
       let ast = parse_shape(path, "inside-expr", pattern.shape)
+      let metas = effective_metavars(path, "inside-expr", pattern, ast, false)
       let target_count = count_supported_name_in_expr(ast, "__TARGET__")
       if target_count != 1 {
         raise RuleLoadError::InvalidRule(
@@ -53,9 +54,12 @@ fn compile_structural_rule(
       }
       validate_used_metavars(path, "inside-expr", pattern, ast)
       Some(
-        compile_pattern(
+        compile_pattern_with_effective_metavars(
           pattern,
           ast,
+          metas.subtree,
+          metas.identifier,
+          metas.auto,
           target_metavar=Some("__TARGET__"),
           source_metavar=None,
         ),
@@ -66,15 +70,27 @@ fn compile_structural_rule(
   // expression. Inner patterns cannot redeclare them because that would make
   // binding consistency ambiguous.
   let outer_subtree = match spec.inside_expr {
-    Some(pattern) => pattern.subtree_metavars
+    Some(_) =>
+      match inside_expr {
+        Some(pattern) => pattern.compiled.subtree_metavars
+        None => []
+      }
     None => []
   }
   let outer_identifier = match spec.inside_expr {
-    Some(pattern) => pattern.identifier_metavars
+    Some(_) =>
+      match inside_expr {
+        Some(pattern) => pattern.compiled.identifier_metavars
+        None => []
+      }
     None => []
   }
   let outer_auto = match spec.inside_expr {
-    Some(pattern) => pattern.auto_metavars
+    Some(_) =>
+      match inside_expr {
+        Some(pattern) => pattern.compiled.auto_metavars
+        None => []
+      }
     None => []
   }
   let patterns : Array[CompiledRulePattern] = []
@@ -82,14 +98,62 @@ fn compile_structural_rule(
     let context = "patterns[\{index}]"
     let pattern = spec.patterns[index]
     validate_declared_metavars(path, context, pattern, false)
-    ensure_not_redeclared_from_inside_expr(
-      path, context, pattern, outer_subtree,
-    )
-    ensure_not_redeclared_from_inside_expr(
-      path, context, pattern, outer_identifier,
-    )
-    ensure_not_redeclared_from_inside_expr(path, context, pattern, outer_auto)
     let ast = parse_shape(path, context, pattern.shape)
+    let metas = effective_metavars(path, context, pattern, ast, false)
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.subtree,
+      outer_subtree,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.identifier,
+      outer_subtree,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.auto,
+      outer_subtree,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.subtree,
+      outer_identifier,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.identifier,
+      outer_identifier,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.auto,
+      outer_identifier,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.subtree,
+      outer_auto,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.identifier,
+      outer_auto,
+    )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      metas.auto,
+      outer_auto,
+    )
     if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
@@ -101,9 +165,9 @@ fn compile_structural_rule(
       compile_pattern_with_effective_metavars(
         pattern,
         ast,
-        concat_arrays(outer_subtree, pattern.subtree_metavars),
-        concat_arrays(outer_identifier, pattern.identifier_metavars),
-        concat_arrays(outer_auto, pattern.auto_metavars),
+        concat_arrays(outer_subtree, metas.subtree),
+        concat_arrays(outer_identifier, metas.identifier),
+        concat_arrays(outer_auto, metas.auto),
         target_metavar=None,
         source_metavar=None,
       ),
@@ -123,6 +187,7 @@ fn compile_taint_rule(
     let pattern = spec.sources[index]
     validate_declared_metavars(path, context, pattern, true)
     let ast = parse_shape(path, context, pattern.shape)
+    let metas = effective_metavars(path, context, pattern, ast, true)
     ensure_taint_call_shape(path, context, ast)
     if count_supported_name_in_expr(ast, "__SOURCE__") != 0 {
       raise RuleLoadError::InvalidRule(
@@ -132,9 +197,12 @@ fn compile_taint_rule(
     }
     validate_used_metavars(path, context, pattern, ast)
     sources.push({
-      pattern: compile_pattern(
+      pattern: compile_pattern_with_effective_metavars(
         pattern,
         ast,
+        metas.subtree,
+        metas.identifier,
+        metas.auto,
         target_metavar=None,
         source_metavar=None,
       ),
@@ -146,15 +214,19 @@ fn compile_taint_rule(
     let pattern = spec.sinks[index]
     validate_declared_metavars(path, context, pattern, true)
     let ast = parse_shape(path, context, pattern.shape)
+    let metas = effective_metavars(path, context, pattern, ast, true)
     ensure_taint_call_shape(path, context, ast)
     // `__SOURCE__` must be captured as a whole argument or receiver so the
     // lowering layer can read or kill a concrete taint path.
     let target = require_source_target(path, context, ast)
     validate_used_metavars(path, context, pattern, ast)
     sinks.push({
-      pattern: compile_pattern(
+      pattern: compile_pattern_with_effective_metavars(
         pattern,
         ast,
+        metas.subtree,
+        metas.identifier,
+        metas.auto,
         target_metavar=None,
         source_metavar=Some("__SOURCE__"),
       ),
@@ -167,15 +239,19 @@ fn compile_taint_rule(
     let pattern = spec.sanitizers[index]
     validate_declared_metavars(path, context, pattern, true)
     let ast = parse_shape(path, context, pattern.shape)
+    let metas = effective_metavars(path, context, pattern, ast, true)
     ensure_taint_call_shape(path, context, ast)
     // Sanitizers share the same target restrictions as sinks because both
     // operate on one concrete call value.
     let target = require_source_target(path, context, ast)
     validate_used_metavars(path, context, pattern, ast)
     sanitizers.push({
-      pattern: compile_pattern(
+      pattern: compile_pattern_with_effective_metavars(
         pattern,
         ast,
+        metas.subtree,
+        metas.identifier,
+        metas.auto,
         target_metavar=None,
         source_metavar=Some("__SOURCE__"),
       ),
@@ -183,24 +259,6 @@ fn compile_taint_rule(
     })
   }
   { sources, sinks, sanitizers }
-}
-
-///|
-fn compile_pattern(
-  pattern : RulePatternSpec,
-  ast : @syntax.Expr,
-  target_metavar~ : String?,
-  source_metavar~ : String?,
-) -> CompiledRulePattern {
-  compile_pattern_with_effective_metavars(
-    pattern,
-    ast,
-    pattern.subtree_metavars,
-    pattern.identifier_metavars,
-    pattern.auto_metavars,
-    target_metavar~,
-    source_metavar~,
-  )
 }
 
 ///|
@@ -223,6 +281,125 @@ fn compile_pattern_with_effective_metavars(
       target_metavar,
       source_metavar,
     },
+  }
+}
+
+///|
+priv struct EffectiveMetavars {
+  subtree : Array[String]
+  identifier : Array[String]
+  auto : Array[String]
+}
+
+///|
+priv struct InferredMetavars {
+  subtree : Array[String]
+  identifier : Array[String]
+}
+
+///|
+fn InferredMetavars::record(self : Self, meta : @syntax.MetaVar) -> Unit {
+  match meta.kind {
+    Subtree => push_unique(self.subtree, meta.name)
+    Identifier => push_unique(self.identifier, meta.name)
+  }
+}
+
+///|
+impl @syntax.IterVisitor for InferredMetavars with fn visit_Var(self, var_) {
+  match var_.metavar() {
+    Some(meta) => self.record(meta)
+    None => ()
+  }
+}
+
+///|
+impl @syntax.IterVisitor for InferredMetavars with fn visit_Binder(self, binder) {
+  match binder.metavar() {
+    Some(meta) => self.record(meta)
+    None => ()
+  }
+}
+
+///|
+impl @syntax.IterVisitor for InferredMetavars with fn visit_Label(self, label) {
+  match label.metavar() {
+    Some(meta) => self.record(meta)
+    None => ()
+  }
+}
+
+///|
+fn infer_metavars(ast : @syntax.Expr) -> InferredMetavars {
+  let collector = InferredMetavars::{ subtree: [], identifier: [] }
+  collector.visit_Expr(ast)
+  collector
+}
+
+///|
+fn effective_metavars(
+  path : String,
+  context : String,
+  pattern : RulePatternSpec,
+  ast : @syntax.Expr,
+  reserve_source : Bool,
+) -> EffectiveMetavars raise {
+  let inferred = infer_metavars(ast)
+  validate_inferred_metavars(path, context, inferred.subtree, reserve_source)
+  validate_inferred_metavars(path, context, inferred.identifier, reserve_source)
+  let subtree = merge_metavar_bucket(pattern.subtree_metavars, inferred.subtree)
+  let identifier = merge_metavar_bucket(
+    pattern.identifier_metavars,
+    inferred.identifier,
+  )
+  let auto = merge_metavar_bucket(pattern.auto_metavars, [])
+  ensure_metavar_bucket_conflict_free(path, context, subtree, identifier)
+  ensure_metavar_bucket_conflict_free(path, context, subtree, auto)
+  ensure_metavar_bucket_conflict_free(path, context, identifier, auto)
+  { subtree, identifier, auto }
+}
+
+///|
+fn validate_inferred_metavars(
+  path : String,
+  context : String,
+  names : Array[String],
+  reserve_source : Bool,
+) -> Unit raise {
+  for name in names {
+    validate_declared_metavar(path, context, name, reserve_source)
+  }
+}
+
+///|
+fn merge_metavar_bucket(
+  declared : Array[String],
+  inferred : Array[String],
+) -> Array[String] {
+  let result : Array[String] = []
+  for name in declared {
+    push_unique(result, name)
+  }
+  for name in inferred {
+    push_unique(result, name)
+  }
+  result
+}
+
+///|
+fn ensure_metavar_bucket_conflict_free(
+  path : String,
+  context : String,
+  left : Array[String],
+  right : Array[String],
+) -> Unit raise {
+  for name in left {
+    if array_contains(right, name) {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{context} contains conflicting metavar \{name}",
+      )
+    }
   }
 }
 
@@ -334,26 +511,10 @@ fn validate_used_metavars(
 fn ensure_not_redeclared_from_inside_expr(
   path : String,
   context : String,
-  pattern : RulePatternSpec,
+  names : Array[String],
   outer : Array[String],
 ) -> Unit raise {
-  for name in pattern.subtree_metavars {
-    if array_contains(outer, name) {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context} cannot declare metavar \{name} because it is already visible from inside-expr",
-      )
-    }
-  }
-  for name in pattern.identifier_metavars {
-    if array_contains(outer, name) {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context} cannot declare metavar \{name} because it is already visible from inside-expr",
-      )
-    }
-  }
-  for name in pattern.auto_metavars {
+  for name in names {
     if array_contains(outer, name) {
       raise RuleLoadError::InvalidRule(
         path~,
@@ -465,4 +626,11 @@ fn concat_arrays(left : Array[String], right : Array[String]) -> Array[String] {
     result.push(name)
   }
   result
+}
+
+///|
+fn push_unique(items : Array[String], name : String) -> Unit {
+  if !array_contains(items, name) {
+    items.push(name)
+  }
 }

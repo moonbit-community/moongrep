@@ -1,8 +1,8 @@
 ///|
 fn count_supported_name_in_expr(expr : @syntax.Expr, name : String) -> Int {
-  match @ident.normalize_identifier_name_from_expr(expr) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => count_supported_name_in_expr_children(expr, name)
+  match expr {
+    Ident(id~, ..) => count_supported_name_in_var(id, name)
+    _ => count_supported_name_in_expr_children(expr, name)
   }
 }
 
@@ -231,9 +231,13 @@ fn count_supported_name_in_accessor(
 
 ///|
 fn count_supported_name_in_var(v : @syntax.Var, name : String) -> Int {
-  match @ident.normalize_identifier_name_from_var(v) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => 0
+  match v.metavar() {
+    Some(meta) => if meta.name == name { 1 } else { 0 }
+    None =>
+      match @ident.normalize_identifier_name_from_var(v) {
+        Some(found) => if found == name { 1 } else { 0 }
+        None => 0
+      }
   }
 }
 
@@ -250,17 +254,25 @@ fn count_supported_name_in_binder(
   binder : @syntax.Binder,
   name : String,
 ) -> Int {
-  match @ident.normalize_identifier_name_from_binder(binder) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => 0
+  match binder.metavar() {
+    Some(meta) => if meta.name == name { 1 } else { 0 }
+    None =>
+      match @ident.normalize_identifier_name_from_binder(binder) {
+        Some(found) => if found == name { 1 } else { 0 }
+        None => 0
+      }
   }
 }
 
 ///|
 fn count_supported_name_in_label(label : @syntax.Label, name : String) -> Int {
-  match @ident.normalize_identifier_name_from_label(label) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => 0
+  match label.metavar() {
+    Some(meta) => if meta.name == name { 1 } else { 0 }
+    None =>
+      match @ident.normalize_identifier_name_from_label(label) {
+        Some(found) => if found == name { 1 } else { 0 }
+        None => 0
+      }
   }
 }
 
@@ -280,9 +292,9 @@ fn count_supported_name_in_pattern(
   pattern : @syntax.Pattern,
   name : String,
 ) -> Int {
-  match @ident.normalize_identifier_name_from_pattern(pattern) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None =>
+  match pattern {
+    Var(binder) => count_supported_name_in_binder(binder, name)
+    _ =>
       match pattern {
         Alias(pat~, alias_~, ..) =>
           count_supported_name_in_pattern(pat, name) +

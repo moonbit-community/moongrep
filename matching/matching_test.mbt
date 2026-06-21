@@ -11,6 +11,21 @@ fn parse_expr(source : String) -> @syntax.Expr raise {
 }
 
 ///|
+fn parse_pattern_expr(source : String) -> @syntax.Expr raise {
+  let tokens = @lexer.tokens_from_string(
+      source,
+      comment=true,
+      metavar_syntax=true,
+      name="matching pattern test",
+    ).tokens
+  let (expr, reports) = @handrolled_parser.parse_pattern_expr(tokens)
+  guard reports is [] else {
+    fail("expected pattern expression to parse: \{source}")
+  }
+  expr
+}
+
+///|
 fn test_loc() -> @basic.Location {
   @syntax.no_location
 }
@@ -230,6 +245,29 @@ test "auto metavar matches labels by identifier mode" {
   )
   assert_false(
     match_expr_pattern(compiled, parse_expr("item.name + item.other"))
+    is Some(_),
+  )
+}
+
+///|
+test "parser metavars match structural and identifier positions" {
+  let compiled : CompiledExprPattern = {
+    ast: parse_pattern_expr("$exp:receiver.$id:field + $exp:receiver.$id:field"),
+    subtree_metavars: [],
+    identifier_metavars: [],
+    auto_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("item.name + item.name")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("item.name + item.other"))
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("item.name + other.name"))
     is Some(_),
   )
 }

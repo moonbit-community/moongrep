@@ -62,6 +62,33 @@ test "validate allows matcher-local-looking metavar names" {
 }
 
 ///|
+test "validate infers parser metavars from pattern syntax" {
+  let source =
+    #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: "$exp:value == $exp:value"
+    #|  - shape: "$exp:receiver.$id:field"
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      inspect(rule.patterns[0].compiled.subtree_metavars, content="[\"value\"]")
+      inspect(rule.patterns[0].compiled.identifier_metavars, content="[]")
+      inspect(
+        rule.patterns[1].compiled.subtree_metavars,
+        content="[\"receiver\"]",
+      )
+      inspect(
+        rule.patterns[1].compiled.identifier_metavars,
+        content="[\"field\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate rejects unused metavars" {
   let source =
     #|package: example/pkg
