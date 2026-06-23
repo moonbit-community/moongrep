@@ -1,17 +1,8 @@
 rule(
-  name: "WritingRules",
-  command: "moon runwasm moonbit-community/embed ./docs/WritingRules.md -o ./docs/writing_rules.mbt",
+  name: "embed",
+  command: "moon runwasm moonbit-community/embed $input -o $output",
 )
 
-dev_build(
-  rule: "WritingRules",
-  input: "WritingRules.md",
-  output: "writing_rules.mbt",
-)
+dev_build(rule: "embed", input: "WritingRules.md", output: "writing_rules.mbt")
 
-rule(
-  name: "RuleSpec",
-  command: "moon runwasm moonbit-community/embed ./docs/RuleSpec.md -o ./docs/rule_spec.mbt",
-)
-
-dev_build(rule: "RuleSpec", input: "RuleSpec.md", output: "rule_spec.mbt")
+dev_build(rule: "embed", input: "RuleSpec.md", output: "rule_spec.mbt")
