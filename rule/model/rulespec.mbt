@@ -54,14 +54,14 @@ pub(all) enum RuleDefinitionSpec {
 }
 
 ///|
-/// A validated rule decoded from YAML plus metadata derived from its file path.
+/// A validated rule decoded from YAML plus metadata from its file path.
 ///
-/// `rule_id` is the relative path below the rules root without the YAML suffix.
-/// `definition` is still uncompiled and contains source text shapes.
+/// `rule_id` is the rule file's relative directory below the rules root joined
+/// with the YAML `id`. `definition` is still uncompiled and contains source
+/// text shapes.
 pub(all) struct RawRuleSpec {
   path : String
   rule_id : String
-  package_name : String
   description : String
   definition : RuleDefinitionSpec
 }
@@ -143,7 +143,6 @@ pub(all) struct RulePrefilter {
 /// A rule ready to apply to parser AST nodes.
 pub(all) struct CompiledRule {
   rule_id : String
-  package_name : String
   description : String
   definition : CompiledRuleDefinition
   prefilter : RulePrefilter

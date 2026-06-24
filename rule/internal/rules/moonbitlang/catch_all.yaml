@@ -1,4 +1,4 @@
-package: moonbitlang
+id: catch_all
 description: |
   Single catch arm handles every error, which can hide unexpected failures.
   Prefer matching only the specific error cases that can be recovered from.

@@ -35,8 +35,8 @@ pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
 /// Parses one YAML rule document into a raw rule spec.
 ///
 /// `path` is used in diagnostics and rule id derivation. `rules_root` must be
-/// an ancestor path of `path`; the rule id is the relative path without
-/// `.yaml` or `.yml`.
+/// an ancestor path of `path`; the rule id is the relative directory below
+/// `rules_root` joined with the YAML `id`.
 pub fn parse_rule_source(
   path : String,
   rules_root : String,
@@ -53,15 +53,14 @@ pub fn parse_rule_source(
     raise invalid_rule(path~, info="top-level YAML document must be a mapping")
   }
   ensure_allowed_keys(path, "top-level rule", doc, [
-    "package", "description", "patterns", "inside-expr", "taint",
+    "id", "description", "patterns", "inside-expr", "taint",
   ])
-  let package_name = expect_yaml_string(doc, path, "package")
+  let id = expect_rule_id(doc, path)
   let description = expect_yaml_string(doc, path, "description")
   let definition = expect_rule_definition(doc, path)
   {
     path,
-    rule_id: rule_id_from_path(path, rules_root),
-    package_name,
+    rule_id: rule_id_from_path(path, rules_root, id),
     description,
     definition,
   }
@@ -365,6 +364,18 @@ fn expect_yaml_string(
 }
 
 ///|
+fn expect_rule_id(map : Map[String, @yaml.Yaml], path : String) -> String raise {
+  let id = expect_yaml_string(map, path, "id")
+  if id.length() == 0 {
+    raise invalid_rule(path~, info="id must not be empty")
+  }
+  if id.contains("/") {
+    raise invalid_rule(path~, info="id must not contain /")
+  }
+  id
+}
+
+///|
 fn expect_yaml_array(
   map : Map[String, @yaml.Yaml],
   path : String,
@@ -378,7 +389,11 @@ fn expect_yaml_array(
 }
 
 ///|
-fn rule_id_from_path(path : String, rules_root : String) -> String raise {
+fn rule_id_from_path(
+  path : String,
+  rules_root : String,
+  id : String,
+) -> String raise {
   let prefix = "\{rules_root}/"
   if !path.has_prefix(prefix) {
     raise invalid_rule(
@@ -387,12 +402,16 @@ fn rule_id_from_path(path : String, rules_root : String) -> String raise {
     )
   }
   let relative = path[prefix.length():].to_owned()
-  if relative.has_suffix(".yaml") {
+  let relative_without_suffix = if relative.has_suffix(".yaml") {
     relative[0:relative.length() - 5].to_owned()
   } else if relative.has_suffix(".yml") {
     relative[0:relative.length() - 4].to_owned()
   } else {
     raise invalid_rule(path~, info="unsupported rule file suffix")
+  }
+  match relative_without_suffix.rev_split_once("/") {
+    None => id
+    Some((directory, _file_stem)) => "\{directory.to_owned()}/\{id}"
   }
 }
 

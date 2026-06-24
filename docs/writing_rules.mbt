@@ -22,16 +22,17 @@ let _embed_writingrules_md : String =
   #|discovered files are loaded in sorted order for deterministic output. An empty
   #|rules root is an error.
   #|
-  #|Rule ids come from each rule file path relative to the rules root, with the
-  #|`.yaml` or `.yml` suffix removed. For example,
-  #|`rules/security/raw-html.yaml` becomes `security/raw-html` when `rules` is the
-  #|rules root. Rule ids must also be unique after matcher-name normalization,
-  #|where `/` and `-` are replaced with `_`.
+  #|Rule ids come from the rule file directory plus the YAML `id`. For example,
+  #|`rules/security/raw.yaml` with `id: raw-html` becomes `security/raw-html` when
+  #|`rules` is the rules root. A file directly under the rules root uses just its
+  #|`id`. Filenames do not contribute to rule ids. The YAML `id` must be non-empty
+  #|and must not contain `/`; directory ownership is encoded by file location. Rule
+  #|ids must also be unique after matcher-name normalization, where `/` and `-` are
+  #|replaced with `_`.
   #|
   #|Each YAML file must contain exactly one document, and that document must be a
-  #|mapping. A complete rule file requires string `package` and `description`
-  #|fields, rejects unknown top-level keys, and uses exactly one of these top-level
-  #|modes:
+  #|mapping. A complete rule file requires string `id` and `description` fields,
+  #|rejects unknown top-level keys, and uses exactly one of these top-level modes:
   #|
   #|- `patterns`: structural expression matching
   #|- `taint`: intraprocedural taint modeling compiled to the `taint` package
@@ -58,7 +59,7 @@ let _embed_writingrules_md : String =
   #|- Multiple entries under `patterns` are ordered alternatives. For one
   #|  expression and one rule, the first matching pattern wins and determines
   #|  `pattern_index`.
-  #|- All patterns in one rule share the same `package` and `description`.
+  #|- All patterns in one rule share the same rule id and `description`.
   #|- `guard` keys are currently rejected in runtime AST mode.
   #|- If `inside-expr` is present, it runs first on the current expression. If it
   #|  captures `__TARGET__` as an expression, `patterns` are applied to every
@@ -256,7 +257,7 @@ let _embed_writingrules_md : String =
   #|captures.
   #|
   #|```yaml
-  #|package: moonbit-community/example
+  #|id: wrapped-target
   #|description: |
   #|  Match a call only when it appears inside a specific wrapper.
   #|inside-expr:
@@ -290,11 +291,11 @@ let _embed_writingrules_md : String =
   #|
   #|### 5. Add more `patterns` when the message is shared
   #|
-  #|If several surface forms deserve the same rule id, package, and description,
-  #|put them in one rule file.
+  #|If several surface forms deserve the same rule id and description, put them in
+  #|one rule file.
   #|
   #|```yaml
-  #|package: moonbitlang/async/http
+  #|id: request-lifecycle
   #|description: |
   #|  These HTTP parser entrypoints accept messages where `Content-Length` and
   #|  `Transfer-Encoding` may coexist.
@@ -329,7 +330,7 @@ let _embed_writingrules_md : String =
   #|### Repeated subtree equality
   #|
   #|```yaml
-  #|package: moonbitlang/core
+  #|id: repeated-equality
   #|description: |
   #|  Repeated subtree equality.
   #|patterns:
@@ -348,7 +349,7 @@ let _embed_writingrules_md : String =
   #|### Binder and use must share one source-level name
   #|
   #|```yaml
-  #|package: moonbitlang/core
+  #|id: counter-loop
   #|description: |
   #|  Counter-style `for` loop.
   #|patterns:
@@ -369,7 +370,7 @@ let _embed_writingrules_md : String =
   #|### Same rule, multiple shapes
   #|
   #|```yaml
-  #|package: moonbitlang/async/process
+  #|id: collect-output
   #|description: |
   #|  These helpers collect full child-process output into memory before returning.
   #|patterns:

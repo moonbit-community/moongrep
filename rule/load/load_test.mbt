@@ -4,7 +4,7 @@ using @model {type RuleLoadError}
 ///|
 fn valid_structural_rule_source() -> String {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Repeated equality.
     #|patterns:
@@ -18,7 +18,7 @@ fn valid_structural_rule_source() -> String {
 ///|
 fn valid_taint_rule_source() -> String {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  User input reaches sink.
     #|taint:
@@ -63,14 +63,13 @@ fn expect_invalid_rule_info(source : String, expected : String) -> Unit raise {
 }
 
 ///|
-test "load parses structural rule and derives yaml rule id" {
+test "load parses structural rule and prefixes yaml id with rule directory" {
   let rule = parse_rule_source(
     "/tmp/rules/language/example.yaml",
     "/tmp/rules",
     valid_structural_rule_source(),
   )
   inspect(rule.rule_id, content="language/example")
-  inspect(rule.package_name, content="example/pkg")
   inspect(rule.description, content="Repeated equality.\n")
   match rule.definition {
     Structural(spec) => {
@@ -88,7 +87,7 @@ test "load parses structural rule and derives yaml rule id" {
 ///|
 test "load parses auto metavar shorthand" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Auto metavars.
     #|patterns:
@@ -110,9 +109,35 @@ test "load parses auto metavar shorthand" {
 }
 
 ///|
-test "load derives yml rule id" {
+test "load derives root rule id from yaml id" {
   let rule = parse_rule_source(
-    "/tmp/rules/language/example.yml",
+    "/tmp/rules/from-filename.yaml",
+    "/tmp/rules",
+    valid_structural_rule_source(),
+  )
+  inspect(rule.rule_id, content="example")
+}
+
+///|
+test "load ignores yaml and yml file names when deriving rule id" {
+  let yaml_rule = parse_rule_source(
+    "/tmp/rules/language/first.yaml",
+    "/tmp/rules",
+    valid_structural_rule_source(),
+  )
+  let yml_rule = parse_rule_source(
+    "/tmp/rules/language/second.yml",
+    "/tmp/rules",
+    valid_structural_rule_source(),
+  )
+  inspect(yaml_rule.rule_id, content="language/example")
+  inspect(yml_rule.rule_id, content="language/example")
+}
+
+///|
+test "load derives nested yml rule id from yaml id" {
+  let rule = parse_rule_source(
+    "/tmp/rules/language/ignored-file-name.yml",
     "/tmp/rules",
     valid_structural_rule_source(),
   )
@@ -152,7 +177,7 @@ test "load recursively loads yaml files in stable order" {
     [
       for rule in rules => rule.rule_id
     ],
-    content="[\"a\", \"nested/b\"]",
+    content="[\"example\", \"nested/example\"]",
   )
 }
 
@@ -184,7 +209,7 @@ test "load rejects empty rule directory" {
 ///|
 test "load rejects unsupported top-level key" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -196,9 +221,53 @@ test "load rejects unsupported top-level key" {
 }
 
 ///|
-test "load rejects guard in runtime AST mode" {
+test "load rejects old package key" {
   let source =
     #|package: example/pkg
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(
+    source, "top-level rule contains unsupported key package",
+  )
+}
+
+///|
+test "load rejects invalid id schema" {
+  let missing_id =
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(missing_id, "missing required key id")
+  let non_string_id =
+    #|id: 1
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(non_string_id, "id must be a string")
+  let empty_id =
+    #|id: ""
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(empty_id, "id must not be empty")
+  let slash_id =
+    #|id: nested/example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(slash_id, "id must not contain /")
+}
+
+///|
+test "load rejects guard in runtime AST mode" {
+  let source =
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -212,7 +281,7 @@ test "load rejects guard in runtime AST mode" {
 ///|
 test "load rejects invalid metavar buckets" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -229,12 +298,12 @@ test "load rejects invalid metavar buckets" {
 test "load rejects multi document and missing required keys" {
   let multi_doc =
     #|---
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
     #|---
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: y
@@ -242,18 +311,27 @@ test "load rejects multi document and missing required keys" {
   expect_invalid_rule_info(
     multi_doc, "rule file must contain exactly one YAML document",
   )
-  let missing_package =
-    #|description: Example.
+  let missing_description =
+    #|id: example
     #|patterns:
     #|  - shape: x
     #|
-  expect_invalid_rule_info(missing_package, "missing required key package")
+  expect_invalid_rule_info(
+    missing_description, "missing required key description",
+  )
+  let missing_definition =
+    #|id: example
+    #|description: Example.
+    #|
+  expect_invalid_rule_info(
+    missing_definition, "rule must contain exactly one of patterns or taint",
+  )
 }
 
 ///|
 test "load rejects malformed taint schema" {
   let missing_sources =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sinks:
@@ -261,7 +339,7 @@ test "load rejects malformed taint schema" {
     #|
   expect_invalid_rule_info(missing_sources, "missing required key sources")
   let empty_sinks =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sources:
@@ -270,7 +348,7 @@ test "load rejects malformed taint schema" {
     #|
   expect_invalid_rule_info(empty_sinks, "taint.sinks must not be empty")
   let bad_sanitizers =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sources:
@@ -281,7 +359,7 @@ test "load rejects malformed taint schema" {
     #|
   expect_invalid_rule_info(bad_sanitizers, "sanitizers must be an array")
   let non_mapping_clause =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sources:
@@ -297,7 +375,7 @@ test "load rejects malformed taint schema" {
 ///|
 test "load rejects malformed metavars schema" {
   let bucket_not_array =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -308,7 +386,7 @@ test "load rejects malformed metavars schema" {
     bucket_not_array, "patterns[0].metavars.subtree must be an array",
   )
   let bucket_non_string =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -319,7 +397,7 @@ test "load rejects malformed metavars schema" {
     bucket_non_string, "patterns[0].metavars.subtree[0] must be a string",
   )
   let auto_duplicate =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -329,7 +407,7 @@ test "load rejects malformed metavars schema" {
     auto_duplicate, "patterns[0].metavars contains duplicate metavar x",
   )
   let auto_non_string =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -339,7 +417,7 @@ test "load rejects malformed metavars schema" {
     auto_non_string, "patterns[0].metavars[0] must be a string",
   )
   let unsupported_auto_bucket =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x

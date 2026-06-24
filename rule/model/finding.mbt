@@ -8,7 +8,6 @@
 pub(all) struct RuleFinding {
   file : String
   rule_id : String
-  package_name : String
   description : String
   pattern_index : Int
   loc : @basic.Location

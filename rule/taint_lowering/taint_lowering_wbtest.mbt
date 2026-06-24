@@ -33,7 +33,7 @@ fn compile_single_taint_rule(
 ///|
 test "taint lowering preserves internal source and sink ids" {
   let rule_source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  User input reaches sink.
     #|taint:

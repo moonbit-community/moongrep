@@ -24,7 +24,7 @@ fn compile_rule_source(source : String) -> Array[CompiledRule] raise {
 ///|
 test "apply structural rule matches repeated subtree once" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Repeated equality.
     #|patterns:
@@ -51,7 +51,7 @@ test "apply structural rule matches repeated subtree once" {
 ///|
 test "apply structural rule supports auto metavar shorthand" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Repeated call value.
     #|patterns:
@@ -76,7 +76,7 @@ test "apply structural rule supports auto metavar shorthand" {
 ///|
 test "apply structural rule treats patterns as ordered alternatives" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Lifecycle calls.
     #|patterns:
@@ -102,7 +102,7 @@ test "apply structural rule treats patterns as ordered alternatives" {
 ///|
 test "apply structural rule supports inside expr inherited bindings" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Wrapped target call.
     #|inside-expr:
@@ -130,7 +130,7 @@ test "apply structural rule supports inside expr inherited bindings" {
 ///|
 test "apply structural rule inherits inside expr auto bindings" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Wrapped target call.
     #|inside-expr:
@@ -157,7 +157,7 @@ test "apply structural rule inherits inside expr auto bindings" {
 ///|
 test "inside expr traverses guard target children" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Guard target call.
     #|inside-expr:
@@ -185,7 +185,7 @@ test "inside expr traverses guard target children" {
 ///|
 test "inside expr traverses reverse pipe target children" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Reverse pipe target call.
     #|inside-expr:
@@ -210,7 +210,7 @@ test "inside expr traverses reverse pipe target children" {
 ///|
 test "inside expr traverses list comprehension target children" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  List comprehension target call.
     #|inside-expr:
@@ -235,7 +235,7 @@ test "inside expr traverses list comprehension target children" {
 ///|
 test "apply structural rule visits top let definitions" {
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Read request.
     #|patterns:
@@ -255,7 +255,7 @@ test "apply structural rule visits top let definitions" {
 ///|
 test "apply taint rule reports source reaching sink" {
   let rule_source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  User input reaches sink.
     #|taint:
@@ -283,7 +283,7 @@ test "apply taint rule reports source reaching sink" {
 ///|
 test "apply taint rule supports auto metavar shorthand" {
   let rule_source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Repeated tagged source reaches matching sink.
     #|taint:
@@ -315,7 +315,7 @@ test "apply taint rule supports auto metavar shorthand" {
 ///|
 test "apply taint rule sanitizer suppresses nested source sink" {
   let rule_source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Sanitized input is safe.
     #|taint:
@@ -342,7 +342,7 @@ test "apply taint rule sanitizer suppresses nested source sink" {
 ///|
 test "apply taint rule reports receiver and root call targets with sink indexes" {
   let rule_source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  User input reaches multiple sink shapes.
     #|taint:

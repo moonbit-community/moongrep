@@ -25,17 +25,20 @@
 - 顶层 YAML 文档必须是映射。
 - 每个规则文件定义且只定义一条规则。
 
-规则 id 由规则文件路径派生：
+规则 id 由规则文件目录和 YAML `id` 派生：
 
-- 取相对于规则根目录的文件路径
-- 移除末尾的 `.yaml` 或 `.yml` 后缀
-- 保留剩余路径中的目录分隔符
+- 取相对于规则根目录的规则文件目录
+- 从 YAML 文档读取顶层 `id` 字符串
+- 用 `/` 连接相对目录和 `id`
+
+对于直接位于规则根目录下的规则文件，最终规则 id 就是 `id`。规则文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属只由文件位置编码。
 
 示例：
 
 ```text
-rules/security/raw-html.yaml -> security/raw-html
-rules/style.yml              -> style
+rules/example.yaml with id: target-call            -> target-call
+rules/security/raw.yaml with id: unsafe-html       -> security/unsafe-html
+rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-html
 ```
 
 规则 id 必须唯一。此外，将 `/` 和 `-` 替换为 `_` 后，两个 id 也不能变成相同字符串。
@@ -46,7 +49,7 @@ rules/style.yml              -> style
 
 只接受这些顶层键：
 
-- `package`（必需）：YAML 字符串
+- `id`（必需）：非空 YAML 字符串，且不能包含 `/`
 - `description`（必需）：YAML 字符串
 - `patterns`（结构规则必需）：非空 YAML 数组
 - `inside-expr`（结构规则可选）：一个作为外层上下文的 pattern object
@@ -61,7 +64,7 @@ rules/style.yml              -> style
 
 `patterns` 和 `taint` 互斥。`inside-expr` 只在与 `patterns` 一起使用时有效；它在污点规则中会被拒绝。
 
-`package` 是元数据。它是必需字段且必须是字符串，但不会过滤候选源文件。`description` 也是必需字段且必须是字符串。它的内容会按 YAML 提供的结果保留，包括 block scalar 产生的尾随换行。
+`id` 是其文件目录内的本地规则名。`description` 也是必需字段且必须是字符串。它的内容会按 YAML 提供的结果保留，包括 block scalar 产生的尾随换行。
 
 ### Pattern Objects
 
@@ -288,7 +291,7 @@ make() + other()
 结构规则具有非空 `patterns` 数组。
 
 ```yaml
-package: moonbitlang/core
+id: repeated-equality
 description: |
   Repeated equality.
 patterns:
@@ -308,14 +311,14 @@ patterns:
 
 报告的 pattern index 从零开始，指向 `patterns` 中匹配的条目。
 
-同一条规则中的所有 pattern 共享同一个规则 id、`package` 和 `description`。
+同一条规则中的所有 pattern 共享同一个规则 id 和 `description`。
 
 ### `inside-expr`
 
 `inside-expr` 将结构规则限制在更大的表达式上下文内部匹配。
 
 ```yaml
-package: moonbit-community/example
+id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
 inside-expr:
@@ -363,7 +366,7 @@ patterns:
 示例：
 
 ```yaml
-package: example/html
+id: raw-html
 description: |
   Raw user input reaches an HTML sink.
 taint:
@@ -450,7 +453,8 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 顶层 YAML 文档不是映射
 - 顶层、`taint` 内、pattern object 内或 `metavars` 映射内出现不支持的键
 - 缺少必需键
-- `package`、`description` 或 `shape` 不是 YAML 字符串
+- `id`、`description` 或 `shape` 不是 YAML 字符串
+- `id` 为空或包含 `/`
 - 规则没有且只有一个 `patterns` 或 `taint`
 - taint 规则中出现 `inside-expr`
 - `inside-expr` 存在但不是映射
@@ -484,7 +488,7 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 ### 有序结构备选项
 
 ```yaml
-package: moonbitlang/async/process
+id: collect-output
 description: |
   These helpers collect full child-process output before returning.
 patterns:
@@ -496,12 +500,12 @@ patterns:
       subtree: [_command, _args]
 ```
 
-两个备选项会产生相同的规则 id、package 和 description。报告的 pattern index 用于区分匹配的是哪个 shape。
+两个备选项会产生相同的规则 id 和 description。报告的 pattern index 用于区分匹配的是哪个 shape。
 
 ### Binder 和使用处名称比较
 
 ```yaml
-package: moonbitlang/core
+id: counter-loop
 description: |
   Counter-style `for` loop.
 patterns:
@@ -519,7 +523,7 @@ patterns:
 ### 限制上下文的结构匹配
 
 ```yaml
-package: moonbit-community/example
+id: unsafe-wrapper
 description: |
   Match a sink only under an unsafe wrapper.
 inside-expr:
@@ -533,7 +537,7 @@ patterns:
 ### Taint Source、Sink 和 Sanitizer
 
 ```yaml
-package: example/html
+id: raw-html
 description: |
   Raw user input reaches an HTML sink.
 taint:
