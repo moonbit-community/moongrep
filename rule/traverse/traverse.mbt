@@ -1,5 +1,5 @@
 ///|
-fn count_supported_name_in_expr(expr : @syntax.Expr, name : String) -> Int {
+pub fn count_supported_name_in_expr(expr : @syntax.Expr, name : String) -> Int {
   match @ident.normalize_identifier_name_from_expr(expr) {
     Some(found) => if found == name { 1 } else { 0 }
     None => count_supported_name_in_expr_children(expr, name)
@@ -631,7 +631,10 @@ fn count_supported_name_in_let_and_bindings(
 }
 
 ///|
-fn collect_impl_exprs(node : @syntax.Impl, exprs : Array[@syntax.Expr]) -> Unit {
+pub fn collect_impl_exprs(
+  node : @syntax.Impl,
+  exprs : Array[@syntax.Expr],
+) -> Unit {
   match node {
     TopExpr(expr~, ..) => collect_exprs(expr, exprs)
     TopFuncDef(decl_body=DeclBody(expr~), ..) => collect_exprs(expr, exprs)
@@ -644,7 +647,7 @@ fn collect_impl_exprs(node : @syntax.Impl, exprs : Array[@syntax.Expr]) -> Unit 
 }
 
 ///|
-fn collect_exprs(expr : @syntax.Expr, exprs : Array[@syntax.Expr]) -> Unit {
+pub fn collect_exprs(expr : @syntax.Expr, exprs : Array[@syntax.Expr]) -> Unit {
   exprs.push(expr)
   match expr {
     Apply(func~, args~, ..) => {

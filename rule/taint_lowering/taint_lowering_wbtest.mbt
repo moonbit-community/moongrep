@@ -1,4 +1,10 @@
 ///|
+using @compile {compile_rules}
+
+///|
+using @load {parse_rule_source}
+
+///|
 fn parse_single_taint_impl(source : String) -> @syntax.Impl raise {
   let (impls, reports) = @parser.parse_string(
     source,

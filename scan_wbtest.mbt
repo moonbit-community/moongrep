@@ -166,7 +166,7 @@ test "scan prefilter keeps unfilterable rules relevant" {
 }
 
 ///|
-fn rule_ids(rules : Array[@rules.CompiledRule]) -> Array[String] {
+fn rule_ids(rules : Array[@rule_model.CompiledRule]) -> Array[String] {
   let ids : Array[String] = []
   for rule in rules {
     ids.push(rule.rule_id)
@@ -188,7 +188,9 @@ test "scan prefilter narrows rules by impl source text" {
     #|  - shape: other()
     #|
   @miniio.write_text_file("\{rules_dir}/other.yaml", other_rule)
-  let compiled_rules = @rules.compile_rules(@rules.load_rules(rules_dir))
+  let compiled_rules = @rule_compile.compile_rules(
+    @rule_load.load_rules(rules_dir),
+  )
   let source =
     #|fn first {
     #|  target()
@@ -202,11 +204,11 @@ test "scan prefilter narrows rules by impl source text" {
   inspect(reports.length(), content="0")
   let nodes = impls.to_array()
   guard nodes is [first, second] else { fail("expected two impls") }
-  let first_rules = @rules.prefilter_rules_for_source(
+  let first_rules = @rule_prefilter.prefilter_rules_for_source(
     compiled_rules,
     source_text_for_impl(source, first),
   )
-  let second_rules = @rules.prefilter_rules_for_source(
+  let second_rules = @rule_prefilter.prefilter_rules_for_source(
     compiled_rules,
     source_text_for_impl(source, second),
   )

@@ -15,12 +15,12 @@ fn test_label(name : String) -> @syntax.Label {
 
 ///|
 fn test_var(name : String) -> @syntax.Var {
-  { name: @syntax.LongIdent::Ident(name~), loc: test_loc() }
+  { name: Ident(name~), loc: test_loc() }
 }
 
 ///|
 fn test_ident(name : String) -> @syntax.Expr {
-  @syntax.Expr::Ident(id=test_var(name), loc=test_loc())
+  Ident(id=test_var(name), loc=test_loc())
 }
 
 ///|

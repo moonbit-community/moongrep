@@ -18,7 +18,7 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
   } else {
     let rendered_hits : Array[String] = []
     for hit in result.hits {
-      rendered_hits.push(render_match_hit(hit))
+      rendered_hits.push(render_rule_finding(hit))
     }
     sections.push(rendered_hits.join("\n\n"))
   }
@@ -29,7 +29,7 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
 // Keep hit output stable and line-oriented for downstream agents. The first
 // line is always a location, followed by rule metadata and indented
 // description text.
-fn render_match_hit(hit : @rules.MatchHit) -> String {
+fn render_rule_finding(hit : @rule_model.RuleFinding) -> String {
   let lines : Array[String] = [
     format_location(hit.file, hit.loc),
     "rule: \{hit.rule_id}",

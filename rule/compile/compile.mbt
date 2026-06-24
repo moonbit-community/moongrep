@@ -1,4 +1,28 @@
 ///|
+using @model {
+  type CompiledRule,
+  type CompiledRuleDefinition,
+  type CompiledRulePattern,
+  type CompiledStructuralRule,
+  type CompiledTaintRule,
+  type CompiledTaintSanitizer,
+  type CompiledTaintSink,
+  type CompiledTaintSource,
+  type RawRuleSpec,
+  type RuleLoadError,
+  type RulePatternSpec,
+  type StructuralRuleSpec,
+  type TaintRuleSpec,
+  type TaintTarget,
+}
+
+///|
+using @prefilter {compile_rule_prefilter}
+
+///|
+using @traverse {count_supported_name_in_expr}
+
+///|
 /// Validates and compiles raw YAML rule specs into executable rules.
 ///
 /// This step parses each `shape`, checks declared metavars, rejects reserved
@@ -18,12 +42,11 @@ pub fn compile_rules(
 ///|
 fn compile_rule(raw : RawRuleSpec) -> CompiledRule raise {
   let definition = match raw.definition {
-    RuleDefinitionSpec::Structural(spec) =>
+    Structural(spec) =>
       CompiledRuleDefinition::Structural(
         compile_structural_rule(raw.path, spec),
       )
-    RuleDefinitionSpec::Taint(spec) =>
-      CompiledRuleDefinition::Taint(compile_taint_rule(raw.path, spec))
+    Taint(spec) => Taint(compile_taint_rule(raw.path, spec))
   }
   {
     rule_id: raw.rule_id,
@@ -465,4 +488,14 @@ fn concat_arrays(left : Array[String], right : Array[String]) -> Array[String] {
     result.push(name)
   }
   result
+}
+
+///|
+fn array_contains(items : Array[String], needle : String) -> Bool {
+  for item in items {
+    if item == needle {
+      return true
+    }
+  }
+  false
 }

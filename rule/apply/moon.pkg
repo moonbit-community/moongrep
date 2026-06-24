@@ -1,23 +1,19 @@
 import {
-  "moonbit-community/moongrep/ident",
   "moonbit-community/moongrep/matching",
+  "moonbit-community/moongrep/rule/model",
+  "moonbit-community/moongrep/rule/taint_lowering",
+  "moonbit-community/moongrep/rule/traverse",
   "moonbit-community/moongrep/taint",
-  "moonbit-community/yaml",
   "moonbitlang/parser/basic",
-  "moonbitlang/parser/lexer",
-  "moonbitlang/parser/handrolled_parser",
   "moonbitlang/parser/syntax",
   "moonbitlang/core/hashmap",
   "moonbitlang/core/list",
-  "moonbit-community/miniio",
 }
 
 import {
+  "moonbit-community/moongrep/rule/compile",
+  "moonbit-community/moongrep/rule/load",
   "moonbitlang/parser",
 } for "test"
-
-import {
-  "moonbitlang/parser",
-} for "wbtest"
 
 supported_targets = "wasm"

@@ -1,4 +1,13 @@
 ///|
+using @compile {compile_rules}
+
+///|
+using @load {parse_rule_source}
+
+///|
+using @model {type CompiledRule}
+
+///|
 fn parse_impls(source : String) -> @list.List[@syntax.Impl] raise {
   let (impls, reports) = @parser.parse_string(source, name="apply test")
   guard reports is [] else { fail("expected source to parse") }

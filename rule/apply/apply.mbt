@@ -1,4 +1,19 @@
 ///|
+using @model {
+  type CompiledRule,
+  type CompiledRulePattern,
+  type CompiledStructuralRule,
+  type CompiledTaintRule,
+  type RuleFinding,
+}
+
+///|
+using @taint_lowering {lower_compiled_taint_rule}
+
+///|
+using @traverse {collect_exprs, collect_impl_exprs}
+
+///|
 /// Applies only structural rules to the supplied parser AST nodes.
 ///
 /// Supported expression subtrees collected by `collect_impl_exprs` and
@@ -8,8 +23,8 @@ pub fn apply_structural_rules(
   file : String,
   impls : @list.List[@syntax.Impl],
   rules : Array[CompiledRule],
-) -> Array[MatchHit] {
-  let hits : Array[MatchHit] = []
+) -> Array[RuleFinding] {
+  let hits : Array[RuleFinding] = []
   for node in impls {
     let node_hits = apply_structural_rules_to_impl(file, node, rules)
     for hit in node_hits {
@@ -24,14 +39,14 @@ pub fn apply_structural_rules_to_impl(
   file : String,
   node : @syntax.Impl,
   rules : Array[CompiledRule],
-) -> Array[MatchHit] {
-  let hits : Array[MatchHit] = []
+) -> Array[RuleFinding] {
+  let hits : Array[RuleFinding] = []
   let exprs : Array[@syntax.Expr] = []
   collect_impl_exprs(node, exprs)
   for expr in exprs {
     for rule in rules {
       match rule.definition {
-        CompiledRuleDefinition::Structural(structural) =>
+        Structural(structural) =>
           apply_structural_rule_to_expr(file, rule, structural, expr, hits)
         _ => ()
       }
@@ -49,8 +64,8 @@ pub fn apply_taint_rules(
   file : String,
   impls : @list.List[@syntax.Impl],
   rules : Array[CompiledRule],
-) -> Array[MatchHit] raise {
-  let hits : Array[MatchHit] = []
+) -> Array[RuleFinding] raise {
+  let hits : Array[RuleFinding] = []
   for node in impls {
     let node_hits = apply_taint_rules_to_impl(file, node, rules)
     for hit in node_hits {
@@ -65,11 +80,11 @@ pub fn apply_taint_rules_to_impl(
   file : String,
   node : @syntax.Impl,
   rules : Array[CompiledRule],
-) -> Array[MatchHit] raise {
-  let hits : Array[MatchHit] = []
+) -> Array[RuleFinding] raise {
+  let hits : Array[RuleFinding] = []
   for rule in rules {
     match rule.definition {
-      CompiledRuleDefinition::Taint(taint_rule) =>
+      Taint(taint_rule) =>
         apply_taint_rule_to_impl(file, rule, taint_rule, node, hits)
       _ => ()
     }
@@ -83,7 +98,7 @@ fn apply_taint_rule_to_impl(
   rule : CompiledRule,
   taint_rule : CompiledTaintRule,
   node : @syntax.Impl,
-  hits : Array[MatchHit],
+  hits : Array[RuleFinding],
 ) -> Unit raise {
   let spec = lower_compiled_taint_rule(rule, taint_rule)
   try @taint.analyze_function_like(node, spec) catch {
@@ -121,7 +136,7 @@ fn apply_structural_rule_to_expr(
   rule : CompiledRule,
   structural : CompiledStructuralRule,
   expr : @syntax.Expr,
-  hits : Array[MatchHit],
+  hits : Array[RuleFinding],
 ) -> Unit {
   match structural.inside_expr {
     None =>
@@ -138,7 +153,7 @@ fn apply_structural_rule_to_expr(
       match @matching.match_expr_pattern(inside.compiled, expr) {
         Some(outer_match) =>
           match outer_match.bindings.get("__TARGET__") {
-            Some(@matching.BoundValue::Expr(target)) => {
+            Some(Expr(target)) => {
               // The context rule can bind a larger expression than the final
               // hit. Search supported expressions under `__TARGET__`, while
               // carrying any bindings established by the outer match.
@@ -171,7 +186,7 @@ fn apply_patterns_at_expr(
   expr : @syntax.Expr,
   outer_loc : @basic.Location?,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
-  hits : Array[MatchHit],
+  hits : Array[RuleFinding],
 ) -> Unit {
   for index in 0..<patterns.length() {
     let matched = match initial_bindings {
