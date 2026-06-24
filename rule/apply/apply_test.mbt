@@ -253,6 +253,28 @@ test "apply structural rule visits top let definitions" {
 }
 
 ///|
+test "apply structural rule matches let pattern header with omitted body" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Tuple let header.
+    #|patterns:
+    #|  - shape: let (__, __) = __
+    #|
+  let source =
+    #|fn sample {
+    #|  let (fst, snd) = tuple; consume(fst); snd
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+}
+
+///|
 test "apply taint rule reports source reaching sink" {
   let rule_source =
     #|id: example
