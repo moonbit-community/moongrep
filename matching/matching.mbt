@@ -424,7 +424,7 @@ fn match_expr_placeholder(
 ) -> Bool? {
   match pattern {
     Ident(id~, ..) =>
-      match @ident.normalize_identifier_name_from_var(id) {
+      match @id.normalize_identifier_name_from_var(id) {
         Some(name) =>
           if is_ignore_placeholder(name) {
             Some(true)
@@ -432,7 +432,7 @@ fn match_expr_placeholder(
             contains_name(compiled.subtree_metavars, name) {
             Some(bind_value(bindings, name, Expr(candidate)))
           } else if contains_name(compiled.identifier_metavars, name) {
-            match @ident.normalize_identifier_name_from_expr(candidate) {
+            match @id.normalize_identifier_name_from_expr(candidate) {
               Some(candidate_name) =>
                 Some(bind_value(bindings, name, Identifier(candidate_name)))
               None => Some(false)
@@ -442,7 +442,7 @@ fn match_expr_placeholder(
               bind_auto_value(
                 bindings,
                 name,
-                @ident.normalize_identifier_name_from_expr(candidate),
+                @id.normalize_identifier_name_from_expr(candidate),
                 Expr(candidate),
               ),
             )
@@ -591,7 +591,7 @@ fn match_pattern(
       } else if contains_name(compiled.subtree_metavars, name) {
         bind_value(bindings, name, Pattern(candidate))
       } else if contains_name(compiled.identifier_metavars, name) {
-        match @ident.normalize_identifier_name_from_pattern(candidate) {
+        match @id.normalize_identifier_name_from_pattern(candidate) {
           Some(candidate_name) =>
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
@@ -600,7 +600,7 @@ fn match_pattern(
         bind_auto_value(
           bindings,
           name,
-          @ident.normalize_identifier_name_from_pattern(candidate),
+          @id.normalize_identifier_name_from_pattern(candidate),
           Pattern(candidate),
         )
       } else {
@@ -1008,14 +1008,14 @@ fn match_var(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match @ident.normalize_identifier_name_from_var(pattern) {
+  match @id.normalize_identifier_name_from_var(pattern) {
     Some(name) =>
       if is_ignore_placeholder(name) {
         true
       } else if contains_name(compiled.subtree_metavars, name) {
         bind_value(bindings, name, Var(candidate))
       } else if contains_name(compiled.identifier_metavars, name) {
-        match @ident.normalize_identifier_name_from_var(candidate) {
+        match @id.normalize_identifier_name_from_var(candidate) {
           Some(candidate_name) =>
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
@@ -1024,7 +1024,7 @@ fn match_var(
         bind_auto_value(
           bindings,
           name,
-          @ident.normalize_identifier_name_from_var(candidate),
+          @id.normalize_identifier_name_from_var(candidate),
           Var(candidate),
         )
       } else {
@@ -1052,7 +1052,7 @@ fn match_binder(
     bind_auto_value(
       bindings,
       name,
-      @ident.normalize_identifier_name_from_binder(candidate),
+      @id.normalize_identifier_name_from_binder(candidate),
       Binder(candidate),
     )
   } else {
@@ -1078,7 +1078,7 @@ fn match_label(
     bind_auto_value(
       bindings,
       name,
-      @ident.normalize_identifier_name_from_label(candidate),
+      @id.normalize_identifier_name_from_label(candidate),
       Label(candidate),
     )
   } else {

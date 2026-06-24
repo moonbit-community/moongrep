@@ -1,5 +1,5 @@
 import {
-  "moonbit-community/moongrep/ident",
+  "moonbit-community/moongrep/rule/syntax_id" @id,
   "moonbitlang/parser/basic",
   "moonbitlang/parser/syntax",
   "moonbitlang/core/hashmap",

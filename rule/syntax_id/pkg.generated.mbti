@@ -1,5 +1,5 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbit-community/moongrep/ident"
+package "moonbit-community/moongrep/rule/syntax_id"
 
 import {
   "moonbitlang/parser/syntax",

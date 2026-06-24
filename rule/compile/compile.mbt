@@ -460,7 +460,7 @@ fn source_target_from_args(args : @list.List[@syntax.Argument]) -> TaintTarget? 
 fn is_source_placeholder_expr(expr : @syntax.Expr) -> Bool {
   match expr {
     Ident(id~, ..) =>
-      @ident.normalize_identifier_name_from_var(id) == Some("__SOURCE__")
+      @id.normalize_identifier_name_from_var(id) == Some("__SOURCE__")
     _ => false
   }
 }

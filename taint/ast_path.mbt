@@ -98,7 +98,7 @@ fn binder_from_parameter(parameter : @syntax.Parameter) -> @syntax.Binder? {
 
 ///|
 fn storage_path_from_var(var_ : @syntax.Var) -> StoragePath? {
-  match @ident.normalize_identifier_name_from_var(var_) {
+  match @id.normalize_identifier_name_from_var(var_) {
     Some(name) => Some({ root: name, segments: [] })
     None => None
   }

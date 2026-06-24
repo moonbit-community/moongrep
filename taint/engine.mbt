@@ -923,7 +923,7 @@ fn site_for_expr(expr : @syntax.Expr, path : StoragePath?) -> ValueSite {
 ///|
 fn callee_name_from_expr(expr : @syntax.Expr) -> String? {
   match expr {
-    Ident(id~, ..) => @ident.normalize_identifier_name_from_var(id)
+    Ident(id~, ..) => @id.normalize_identifier_name_from_var(id)
     Field(accessor=Label(label), ..) => Some(label.name)
     Method(method_name~, ..) => Some(method_name.name)
     Group(expr~, ..) | Constraint(expr~, ..) => callee_name_from_expr(expr)
