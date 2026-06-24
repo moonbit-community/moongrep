@@ -23,7 +23,7 @@ fn write_rule_file(dir : String, body : String) -> Unit raise {
 ///|
 fn structural_target_rule() -> String {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Target call.
     #|patterns:
@@ -35,7 +35,7 @@ fn structural_target_rule() -> String {
 ///|
 fn taint_user_rule() -> String {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  User input reaches sink.
     #|taint:
@@ -145,7 +145,7 @@ test "scan prefilter keeps unfilterable rules relevant" {
   @miniio.mkdir(rules_dir)
   @miniio.mkdir(scan_dir)
   let general_rule =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Any expression.
     #|patterns:
@@ -179,9 +179,16 @@ test "scan prefilter narrows rules by impl source text" {
   let root = moongrep_tmp_root("moongrep-prefilter-impl")
   let rules_dir = "\{root}/rules"
   @miniio.mkdir(rules_dir)
-  @miniio.write_text_file("\{rules_dir}/target.yaml", structural_target_rule())
+  let target_rule =
+    #|id: target
+    #|description: |
+    #|  Target call.
+    #|patterns:
+    #|  - shape: target()
+    #|
+  @miniio.write_text_file("\{rules_dir}/target.yaml", target_rule)
   let other_rule =
-    #|package: example/pkg
+    #|id: other
     #|description: |
     #|  Other call.
     #|patterns:
@@ -317,7 +324,7 @@ test "scan uses selected rules directory" {
   @miniio.mkdir(scan_dir)
   write_rule_file(left_rules, structural_target_rule())
   let right_rule =
-    #|package: example/pkg
+    #|id: example
     #|description: |
     #|  Other call.
     #|patterns:
@@ -351,8 +358,7 @@ test "scan applies anonymous cli pattern without rules directory" {
     ("scan", Some(options), None) => {
       let result = collect_directory_hits(options)
       inspect(result.hits.length(), content="1")
-      inspect(result.hits[0].rule_id, content="<pattern>")
-      inspect(result.hits[0].package_name, content="<unknown>")
+      inspect(result.hits[0].rule_id, content="target()")
     }
     _ => fail("unexpected command")
   }

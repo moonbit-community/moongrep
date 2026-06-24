@@ -90,13 +90,11 @@ fn load_scan_rules(
 ///|
 fn anonymous_pattern_rule(
   pattern : String,
-  index : Int,
+  _index : Int,
 ) -> @rule_model.RawRuleSpec {
-  let rule_id = if index == 0 { "<pattern>" } else { "<pattern:\{index + 1}>" }
   {
-    path: rule_id,
-    rule_id,
-    package_name: "<unknown>",
+    path: pattern,
+    rule_id: pattern,
     description: "Anonymous CLI pattern.",
     definition: Structural({
       inside_expr: None,

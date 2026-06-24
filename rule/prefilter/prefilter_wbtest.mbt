@@ -16,7 +16,7 @@ fn compile_prefilter_rule_source(source : String) -> CompiledRule raise {
 ///|
 test "prefilter keeps structural rule when required literal exists" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Target call.
     #|patterns:
     #|  - shape: target()
@@ -29,7 +29,7 @@ test "prefilter keeps structural rule when required literal exists" {
 ///|
 test "prefilter treats structural patterns as alternatives" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Lifecycle calls.
     #|patterns:
     #|  - shape: read_request()
@@ -46,7 +46,7 @@ test "prefilter treats structural patterns as alternatives" {
 ///|
 test "prefilter keeps unfilterable structural rule relevant" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Any expression.
     #|patterns:
     #|  - shape: _expr
@@ -61,7 +61,7 @@ test "prefilter keeps unfilterable structural rule relevant" {
 ///|
 test "prefilter treats auto metavars as placeholders" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Target call.
     #|patterns:
     #|  - shape: sink(value)
@@ -77,7 +77,7 @@ test "prefilter treats auto metavars as placeholders" {
 ///|
 test "prefilter ignores one digit int literals" {
   let one_digit_source =
-    #|package: example/pkg
+    #|id: example
     #|description: One digit int.
     #|patterns:
     #|  - shape: "1"
@@ -87,7 +87,7 @@ test "prefilter ignores one digit int literals" {
     rule_is_relevant_to_source(one_digit_rule, "fn sample { other() }\n"),
   )
   let two_digit_source =
-    #|package: example/pkg
+    #|id: example
     #|description: Two digit int.
     #|patterns:
     #|  - shape: "12"
@@ -104,7 +104,7 @@ test "prefilter ignores one digit int literals" {
 ///|
 test "prefilter requires inside expr and inner pattern literals together" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Wrapped target call.
     #|inside-expr:
     #|  shape: wrapper(__TARGET__)
@@ -124,7 +124,7 @@ test "prefilter requires inside expr and inner pattern literals together" {
 ///|
 test "prefilter requires taint source and sink literals" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: User input reaches sink.
     #|taint:
     #|  sources:

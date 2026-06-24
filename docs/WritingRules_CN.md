@@ -12,9 +12,9 @@
 
 YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules` 或 `-r` 传给 `moongrep scan` CLI 的任意目录。以 `.yaml` 或 `.yml` 结尾的文件会在该根目录下递归发现；其他文件会被忽略。发现的文件会按排序后的顺序加载，以得到确定性的输出。空规则根目录是错误。
 
-规则 id 来自每个规则文件相对于规则根目录的路径，并移除 `.yaml` 或 `.yml` 后缀。例如，当 `rules` 是规则根目录时，`rules/security/raw-html.yaml` 会变成 `security/raw-html`。规则 id 在 matcher-name normalization 后也必须唯一；该归一化会将 `/` 和 `-` 替换为 `_`。
+规则 id 来自规则文件目录加 YAML `id`。例如，当 `rules` 是规则根目录时，`rules/security/raw.yaml` 中的 `id: raw-html` 会变成 `security/raw-html`。直接位于规则根目录下的文件只使用其 `id`。文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属由文件位置编码。规则 id 在 matcher-name normalization 后也必须唯一；该归一化会将 `/` 和 `-` 替换为 `_`。
 
-每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `package` 和 `description`，会拒绝未知顶层键，并且使用且只使用以下顶层模式之一：
+每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `id` 和 `description`，会拒绝未知顶层键，并且使用且只使用以下顶层模式之一：
 
 - `patterns`：结构化表达式匹配
 - `taint`：过程内污点建模，编译到 `taint` package
@@ -31,7 +31,7 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 - `shape` 应该是能捕获你想标记内容的最小表达式片段。
 - `patterns` 下的多个条目是有序备选项。对于一个表达式和一条规则，第一个匹配的 pattern 获胜，并决定 `pattern_index`。
-- 同一规则中的所有 pattern 共享相同的 `package` 和 `description`。
+- 同一规则中的所有 pattern 共享相同的规则 id 和 `description`。
 - `guard` 键目前会在 runtime AST mode 中被拒绝。
 - 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将 `__TARGET__` 捕获为表达式，则 `patterns` 会应用到该目标子树内的每个表达式。
 - `inside-expr` 元变量对内部 `patterns` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 `patterns` 使用。
@@ -170,7 +170,7 @@ patterns:
 当你想标记的内容只有在特定外层表达式内才有意义，并且你希望内部匹配继承外层捕获时，可以使用 `inside-expr`。
 
 ```yaml
-package: moonbit-community/example
+id: wrapped-target
 description: |
   Match a call only when it appears inside a specific wrapper.
 inside-expr:
@@ -197,10 +197,10 @@ patterns:
 
 ### 5. 当消息共享时添加更多 `patterns`
 
-如果多个表面形式应该使用同一个规则 id、package 和 description，请把它们放在同一个规则文件中。
+如果多个表面形式应该使用同一个规则 id 和 description，请把它们放在同一个规则文件中。
 
 ```yaml
-package: moonbitlang/async/http
+id: request-lifecycle
 description: |
   These HTTP parser entrypoints accept messages where `Content-Length` and
   `Transfer-Encoding` may coexist.
@@ -232,7 +232,7 @@ moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 ### 重复 subtree 相等性
 
 ```yaml
-package: moonbitlang/core
+id: repeated-equality
 description: |
   Repeated subtree equality.
 patterns:
@@ -250,7 +250,7 @@ patterns:
 ### Binder 和使用处必须共享同一个源码层面名称
 
 ```yaml
-package: moonbitlang/core
+id: counter-loop
 description: |
   Counter-style `for` loop.
 patterns:
@@ -271,7 +271,7 @@ patterns:
 ### 同一规则，多个 shape
 
 ```yaml
-package: moonbitlang/async/process
+id: collect-output
 description: |
   These helpers collect full child-process output into memory before returning.
 patterns:

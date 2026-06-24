@@ -1,4 +1,4 @@
-package: moonbitlang
+id: inspect_boolean
 description: |
   Found inspect(), debug_inspect(), or json_inspect() snapshots whose expected value is true or false.
   Prefer assert_true(...) or assert_false(...) for boolean checks.

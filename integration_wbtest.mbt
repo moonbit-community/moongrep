@@ -15,7 +15,7 @@ test "integration applies compatible async structural rule" {
   @miniio.mkdir(rules_dir)
   @miniio.mkdir(scan_dir)
   let rule_source =
-    #|package: moonbitlang/async/fs
+    #|id: example
     #|description: |
     #|  `@fs.read_file(...)` reads the full target into memory.
     #|patterns:
@@ -44,7 +44,7 @@ test "integration applies inside expr target traversal" {
   @miniio.mkdir(rules_dir)
   @miniio.mkdir(scan_dir)
   let rule_source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  Local println shadows the builtin.
     #|inside-expr:
@@ -82,7 +82,7 @@ test "integration applies taint rule and sanitizer" {
   @miniio.mkdir(rules_dir)
   @miniio.mkdir(scan_dir)
   let rule_source =
-    #|package: moonbit-community/rabbita/html
+    #|id: example
     #|description: |
     #|  Attrs built with `inner_html(...)` carry raw DOM content.
     #|taint:

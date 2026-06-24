@@ -1,4 +1,4 @@
-package: example/pkg
+id: example
 description: |
   Target call through symlinked rules.
 patterns:

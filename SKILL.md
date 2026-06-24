@@ -22,8 +22,8 @@ moon runwasm moonbit-community/moongrep -- scan [--verbose] ((--rules <rules-roo
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
 optional when at least one `--pattern <pattern>` is supplied. The long rules
 option accepts both `--rules <rules-root>` and `--rules=<rules-root>` forms.
-Inline patterns are treated as anonymous structural rules with package
-`<unknown>`, no description metadata beyond the CLI placeholder, and no declared
+Inline patterns are treated as anonymous structural rules whose rule id is the
+pattern string itself, with the CLI placeholder description and no declared
 metavars. One optional positional `scan-root` may appear in the `scan` argument
 list and defaults to `.`. If the rules option appears multiple times, the last
 value wins. Repeated `--pattern` values are appended as separate anonymous

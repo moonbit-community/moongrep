@@ -50,7 +50,6 @@ fn compile_rule(raw : RawRuleSpec) -> CompiledRule raise {
   }
   {
     rule_id: raw.rule_id,
-    package_name: raw.package_name,
     description: raw.description,
     definition,
     prefilter: compile_rule_prefilter(definition),

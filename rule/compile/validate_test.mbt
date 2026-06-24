@@ -5,20 +5,6 @@ using @load {parse_rule_source}
 using @model {type CompiledRule, type RuleLoadError}
 
 ///|
-fn valid_structural_rule_source() -> String {
-  let source =
-    #|package: example/pkg
-    #|description: |
-    #|  Repeated equality.
-    #|patterns:
-    #|  - shape: _expr == _expr
-    #|    metavars:
-    #|      subtree: [_expr]
-    #|
-  source
-}
-
-///|
 fn compile_one(source : String) -> Array[CompiledRule] raise {
   compile_rules([
     parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
@@ -38,7 +24,7 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 ///|
 test "validate rejects reserved metavar names" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -49,7 +35,7 @@ test "validate rejects reserved metavar names" {
     source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
   )
   let auto_source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -63,7 +49,7 @@ test "validate rejects reserved metavar names" {
 ///|
 test "validate allows matcher-local-looking metavar names" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: file + hits + loc + __moongrep_value
@@ -84,7 +70,7 @@ test "validate allows matcher-local-looking metavar names" {
 ///|
 test "validate rejects unused metavars" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|patterns:
     #|  - shape: x
@@ -97,7 +83,7 @@ test "validate rejects unused metavars" {
 ///|
 test "validate rejects redeclared inside expr auto metavars" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|inside-expr:
     #|  shape: wrapper(prefix, __TARGET__)
@@ -115,7 +101,7 @@ test "validate rejects redeclared inside expr auto metavars" {
 ///|
 test "validate inside expr requires exactly one target" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|inside-expr:
     #|  shape: wrapper(x)
@@ -130,7 +116,7 @@ test "validate inside expr requires exactly one target" {
 ///|
 test "validate taint source placeholder placement" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sources:
@@ -144,7 +130,7 @@ test "validate taint source placeholder placement" {
 ///|
 test "validate taint sink requires whole source target" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sources:
@@ -160,7 +146,7 @@ test "validate taint sink requires whole source target" {
 ///|
 test "validate compiles taint source target metadata" {
   let source =
-    #|package: example/pkg
+    #|id: example
     #|description: Example.
     #|taint:
     #|  sources:
@@ -182,15 +168,29 @@ test "validate compiles taint source target metadata" {
 
 ///|
 test "validate rejects normalized rule id collisions" {
+  let hyphen_source =
+    #|id: a-b
+    #|description: |
+    #|  Repeated equality.
+    #|patterns:
+    #|  - shape: _expr == _expr
+    #|    metavars:
+    #|      subtree: [_expr]
+    #|
+  let underscore_source =
+    #|id: a_b
+    #|description: |
+    #|  Repeated equality.
+    #|patterns:
+    #|  - shape: _expr == _expr
+    #|    metavars:
+    #|      subtree: [_expr]
+    #|
   let left = parse_rule_source(
-    "/tmp/rules/a-b.yaml",
-    "/tmp/rules",
-    valid_structural_rule_source(),
+    "/tmp/rules/left.yaml", "/tmp/rules", hyphen_source,
   )
   let right = parse_rule_source(
-    "/tmp/rules/a_b.yaml",
-    "/tmp/rules",
-    valid_structural_rule_source(),
+    "/tmp/rules/right.yaml", "/tmp/rules", underscore_source,
   )
   try ignore(compile_rules([left, right])) catch {
     RuleLoadError::InvalidRule(path=_, info~) =>
@@ -207,7 +207,7 @@ test "validate rejects normalized rule id collisions" {
 ///|
 test "validate rejects reference rule guard in runtime AST mode" {
   let source =
-    #|package: moonbitlang/core
+    #|id: example
     #|description: |
     #|  C-style loop guard fixture.
     #|patterns:

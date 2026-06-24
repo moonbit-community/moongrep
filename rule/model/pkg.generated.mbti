@@ -17,7 +17,6 @@ pub(all) suberror RuleLoadError {
 // Types and methods
 pub(all) struct CompiledRule {
   rule_id : String
-  package_name : String
   description : String
   definition : CompiledRuleDefinition
   prefilter : RulePrefilter
@@ -61,7 +60,6 @@ pub(all) struct CompiledTaintSource {
 pub(all) struct RawRuleSpec {
   path : String
   rule_id : String
-  package_name : String
   description : String
   definition : RuleDefinitionSpec
 }
@@ -74,7 +72,6 @@ pub(all) enum RuleDefinitionSpec {
 pub(all) struct RuleFinding {
   file : String
   rule_id : String
-  package_name : String
   description : String
   pattern_index : Int
   loc : @basic.Location

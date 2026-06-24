@@ -110,7 +110,6 @@ fn apply_taint_rule_to_impl(
         hits.push({
           file,
           rule_id: rule.rule_id,
-          package_name: rule.package_name,
           description: rule.description,
           pattern_index: sink_pattern_index(taint_rule, finding.sink_id),
           loc: finding.sink_loc,
@@ -204,7 +203,6 @@ fn apply_patterns_at_expr(
       hits.push({
         file,
         rule_id: rule.rule_id,
-        package_name: rule.package_name,
         description: rule.description,
         pattern_index: index,
         loc: expr.loc(),

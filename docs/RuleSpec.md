@@ -35,17 +35,23 @@ A rules root is a directory containing YAML rule files.
 - The top-level YAML document must be a mapping.
 - Each rule file defines exactly one rule.
 
-Rule ids are derived from the rule file path:
+Rule ids are derived from the rule file directory and the YAML `id`:
 
-- take the file path relative to the rules root
-- remove the trailing `.yaml` or `.yml` suffix
-- keep any remaining directory separators
+- take the rule file directory relative to the rules root
+- read the top-level `id` string from the YAML document
+- join the relative directory and `id` with `/`
+
+For rule files directly under the rules root, the final rule id is just `id`.
+The rule filename does not contribute to the rule id. The YAML `id` must not be
+empty and must not contain `/`; directory ownership is encoded only by file
+location.
 
 Example:
 
 ```text
-rules/security/raw-html.yaml -> security/raw-html
-rules/style.yml              -> style
+rules/example.yaml with id: target-call               -> target-call
+rules/security/raw.yaml with id: unsafe-html          -> security/unsafe-html
+rules/security/nested/raw.yml with id: unsafe-html    -> security/nested/unsafe-html
 ```
 
 Rule ids must be unique. In addition, two ids must not become identical after
@@ -57,7 +63,7 @@ replacing `/` and `-` with `_`.
 
 Only these top-level keys are accepted:
 
-- `package` (required): YAML string
+- `id` (required): non-empty YAML string that must not contain `/`
 - `description` (required): YAML string
 - `patterns` (required for structural rules): non-empty YAML array
 - `inside-expr` (optional for structural rules): one pattern object used as an
@@ -74,10 +80,9 @@ Each rule must choose exactly one rule mode:
 `patterns` and `taint` are mutually exclusive. `inside-expr` is valid only with
 `patterns`; it is rejected on taint rules.
 
-`package` is metadata. It is required and must be a string, but it does not
-filter candidate source files. `description` is also required and must be a
-string. Its content is preserved as supplied by YAML, including trailing
-newlines produced by block scalars.
+`id` is the local rule name within its file directory. `description` is also
+required and must be a string. Its content is preserved as supplied by YAML,
+including trailing newlines produced by block scalars.
 
 ### Pattern Objects
 
@@ -350,7 +355,7 @@ make() + other()
 A structural rule has a non-empty `patterns` array.
 
 ```yaml
-package: moonbitlang/core
+id: repeated-equality
 description: |
   Repeated equality.
 patterns:
@@ -374,7 +379,7 @@ visited expression and one rule:
 The reported pattern index is zero-based and refers to the matching entry in
 `patterns`.
 
-All patterns in one rule share the same rule id, `package`, and `description`.
+All patterns in one rule share the same rule id and `description`.
 
 ### `inside-expr`
 
@@ -382,7 +387,7 @@ All patterns in one rule share the same rule id, `package`, and `description`.
 context.
 
 ```yaml
-package: moonbit-community/example
+id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
 inside-expr:
@@ -440,7 +445,7 @@ supported `guard`.
 Example:
 
 ```yaml
-package: example/html
+id: raw-html
 description: |
   Raw user input reaches an HTML sink.
 taint:
@@ -543,7 +548,8 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - an unsupported key appears at the top level, inside `taint`, inside a pattern
   object, or inside a `metavars` mapping
 - a required key is missing
-- `package`, `description`, or `shape` is not a YAML string
+- `id`, `description`, or `shape` is not a YAML string
+- `id` is empty or contains `/`
 - the rule does not contain exactly one of `patterns` or `taint`
 - `inside-expr` appears on a taint rule
 - `inside-expr` is present but is not a mapping
@@ -581,7 +587,7 @@ A rule set or rule file is rejected when any of these conditions occurs:
 ### Ordered Structural Alternatives
 
 ```yaml
-package: moonbitlang/async/process
+id: collect-output
 description: |
   These helpers collect full child-process output before returning.
 patterns:
@@ -593,13 +599,13 @@ patterns:
       subtree: [_command, _args]
 ```
 
-Both alternatives emit the same rule id, package, and description. The
-reported pattern index distinguishes which shape matched.
+Both alternatives emit the same rule id and description. The reported pattern
+index distinguishes which shape matched.
 
 ### Binder and Use Name Comparison
 
 ```yaml
-package: moonbitlang/core
+id: counter-loop
 description: |
   Counter-style `for` loop.
 patterns:
@@ -618,7 +624,7 @@ positions. `_start`, `upper_limit`, and `body` are structural captures.
 ### Context-Restricted Structural Match
 
 ```yaml
-package: moonbit-community/example
+id: unsafe-wrapper
 description: |
   Match a sink only under an unsafe wrapper.
 inside-expr:
@@ -633,7 +639,7 @@ by `__TARGET__` for `sink(...)`.
 ### Taint Source, Sink, and Sanitizer
 
 ```yaml
-package: example/html
+id: raw-html
 description: |
   Raw user input reaches an HTML sink.
 taint:
