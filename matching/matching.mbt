@@ -206,7 +206,7 @@ fn match_expr(
         ) =>
           match_pattern(pp, cp, compiled, bindings) &&
           match_expr(pe, ce, compiled, bindings) &&
-          match_expr(pb, cb, compiled, bindings)
+          (is_faked_unit(pb) || match_expr(pb, cb, compiled, bindings))
         (
           LetAnd(bindings=pb, body=pbody, ..),
           LetAnd(bindings=cb, body=cbody, ..),
@@ -410,6 +410,14 @@ fn match_expr(
           option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
         _ => false
       }
+  }
+}
+
+///|
+fn is_faked_unit(expr : @syntax.Expr) -> Bool {
+  match expr {
+    Unit(faked=true, ..) => true
+    _ => false
   }
 }
 

@@ -292,3 +292,23 @@ test "structural matcher compares foreach init continue and where clause" {
   )
   assert_false(expr_matches(pattern, test_foreach("seed", "step", "other")))
 }
+
+///|
+test "let pattern with omitted body matches let header only" {
+  let pattern = parse_expr("let (__, __) = __")
+  assert_true(
+    expr_matches(pattern, parse_expr("let (fst, snd) = tuple; use(fst, snd)")),
+  )
+  assert_true(
+    expr_matches(
+      pattern,
+      parse_expr("let (fst, snd) = tuple; { consume(fst); snd }"),
+    ),
+  )
+  assert_false(
+    expr_matches(
+      parse_expr("let (__, __) = __; finish(__)"),
+      parse_expr("let (fst, snd) = tuple; other(fst)"),
+    ),
+  )
+}
