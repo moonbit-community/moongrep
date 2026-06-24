@@ -27,13 +27,20 @@ pattern string itself, with the CLI placeholder description and no declared
 metavars. One optional positional `scan-root` may appear in the `scan` argument
 list and defaults to `.`. If the rules option appears multiple times, the last
 value wins. Repeated `--pattern` values are appended as separate anonymous
-rules. Usage errors print a message and exit with code 2: missing `scan`
-command, missing both rules and pattern options, missing option value,
-unknown options, or more than one scan root. Non-usage errors, including
-unreadable paths, an empty rules directory, invalid YAML/schema/shape, or source
-read failures, abort the run; the CLI prints the error and exits with code 1.
+rules.
+
+Usage errors print a message and exit with code 2: missing `scan` command,
+missing both rules and pattern options, missing option value, unknown options,
+or more than one scan root. Non-usage errors, including unreadable paths, an
+empty rules directory, invalid YAML/schema/shape, or source read failures,
+abort the run; the CLI prints the error and exits with code 1.
+
 Pass `--verbose` to print the directory traversal progress before warnings and
 match results.
+
+Each match result prints the source line covered by the finding plus up to two
+lines of surrounding source context. Extra surrounding lines are rendered in
+gray, and source line-number prefixes are rendered in gray.
 
 If `scan-root` is omitted, `moongrep` scans the current directory:
 
@@ -46,6 +53,7 @@ moon runwasm moonbit-community/moongrep -- scan --pattern 'target()'
 The scanner recursively reads `.mbt` files. When descending from `scan-root`,
 child entries named `.git`, `_build`, `.mooncakes`, or `target` are skipped; if
 one of those directories is passed explicitly as `scan-root`, it is scanned.
+
 Symbolic links encountered during recursive source or rule traversal are
 followed. Files that fail to parse are reported as warnings and skipped; other
 files continue to be scanned.

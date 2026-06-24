@@ -18,7 +18,7 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
   } else {
     let rendered_hits : Array[String] = []
     for hit in result.hits {
-      rendered_hits.push(render_rule_finding(hit))
+      rendered_hits.push(render_scan_hit(hit))
     }
     sections.push(rendered_hits.join("\n\n"))
   }
@@ -29,17 +29,18 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
 // Keep hit output stable and line-oriented for downstream agents. The first
 // line is always a location, followed by rule metadata and indented
 // description text.
-fn render_rule_finding(hit : @rule_model.RuleFinding) -> String {
+fn render_scan_hit(hit : ScanHit) -> String {
+  let finding = hit.finding
   let lines : Array[String] = [
-    format_location(hit.file, hit.loc),
-    "rule: \{hit.rule_id}",
+    format_location(finding.file, finding.loc),
+    "rule: \{finding.rule_id}",
   ]
-  match hit.outer_loc {
-    Some(loc) => lines.push("outer_loc: \{format_location(hit.file, loc)}")
+  match finding.outer_loc {
+    Some(loc) => lines.push("outer_loc: \{format_location(finding.file, loc)}")
     None => ()
   }
   lines.push("description:")
-  let description = trim_trailing_newlines(hit.description)
+  let description = trim_trailing_newlines(finding.description)
   if description == "" {
     lines.push("  ")
   } else {
@@ -47,7 +48,26 @@ fn render_rule_finding(hit : @rule_model.RuleFinding) -> String {
       lines.push("  \{line}")
     }
   }
+  lines.push("source:")
+  for context_line in hit.source_context.lines {
+    lines.push(render_source_context_line(context_line))
+  }
   lines.join("\n")
+}
+
+///|
+fn render_source_context_line(line : SourceContextLine) -> String {
+  let prefix = "\{line.line_number} | "
+  if line.is_match {
+    render_gray(prefix) + line.text
+  } else {
+    render_gray(prefix + line.text)
+  }
+}
+
+///|
+fn render_gray(text : String) -> String {
+  @chalk.chalk().color(@chalk.Colors::BlackBright).render(text)
 }
 
 ///|

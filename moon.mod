@@ -10,6 +10,7 @@ import {
   "moonbitlang/parser@0.3.3",
   "moonbit-community/yaml@0.0.4",
   "moonbit-community/miniio@0.2.1",
+  "moonbit-community/chalk@0.0.1",
 }
 
 readme = "README.mbt.md"
