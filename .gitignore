@@ -5,3 +5,4 @@ _build/
 .moonagent/
 
 target/
+e2etests/moongrep.wasm

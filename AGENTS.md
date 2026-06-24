@@ -39,6 +39,11 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
   testing, so when your changes indeed change the behavior of the code, you
   should run `moon test --update` to update the snapshot.
 
+- Run `bash scripts/e2e.sh test` to check the e2etest suite. 
+
+- Run `bash scripts/e2e.sh update` to update the e2etest cram snapshots when the
+  expected output changes.
+
 - You can run `moon check` to check the code is linted correctly.
 
 - When writing tests, you are encouraged to use `inspect` and run
@@ -46,6 +51,3 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
   `assert_eq` when you are in some loops where each snapshot may vary. You can
   use `moon coverage analyze > uncovered.log` to see which parts of your code
   are not covered by tests.
-
-- agent-todo.md has some small tasks that are easy for AI to pick up, agent is
-  welcome to finish the tasks and check the box when you are done
