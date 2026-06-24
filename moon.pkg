@@ -1,6 +1,10 @@
 import {
   "moonbit-community/moongrep/docs",
-  "moonbit-community/moongrep/rules",
+  "moonbit-community/moongrep/rule/apply" @rule_apply,
+  "moonbit-community/moongrep/rule/compile" @rule_compile,
+  "moonbit-community/moongrep/rule/load" @rule_load,
+  "moonbit-community/moongrep/rule/model" @rule_model,
+  "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
   "moonbit-community/miniio",
   "moonbitlang/core/argparse",
   "moonbitlang/core/list",

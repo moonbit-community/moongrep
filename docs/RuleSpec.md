@@ -1,14 +1,14 @@
 # Rule Specification
 
 This document is the authoritative specification for YAML rules in the
-`rules` package.
+`rule/*` packages.
 
 If you are writing your first rule, start with [WritingRules.md](WritingRules.md).
 
 ## Scope and Status
 
 This document specifies the current rule file format, loader/compiler
-validation, and runtime matcher semantics implemented by the `rules` package.
+validation, and runtime matcher semantics implemented by the `rule/*` packages.
 
 Unless stated otherwise, the keywords "must", "must not", "may", and
 "currently" describe the behavior of the current implementation.
@@ -55,7 +55,7 @@ Any other top-level key is rejected.
 
 No semantic validation is performed on `package` or `description` beyond
 requiring them to be YAML strings. `description` is stored verbatim in
-`MatchHit.description`; if YAML block-scalar syntax preserves a trailing
+`RuleFinding.description`; if YAML block-scalar syntax preserves a trailing
 newline, that newline is preserved in the stored value.
 
 `inside-expr` is only supported together with `patterns`. It is rejected for
@@ -213,13 +213,13 @@ Pattern semantics:
 - all patterns in the same rule share the same `rule_id`, `package`, and
   `description`
 
-The location stored in `MatchHit.loc` is:
+The location stored in `RuleFinding.loc` is:
 
 - for structural rules, the `loc` of the matched expression subtree
 - for taint argument sinks, the `loc` of the tainted argument
 - for taint receiver sinks, the `loc` of the sink call
 
-For structural `inside-expr` rules, `MatchHit.outer_loc` is `Some(...)` and
+For structural `inside-expr` rules, `RuleFinding.outer_loc` is `Some(...)` and
 points at the outer expression that matched `inside-expr`. For other hits it is
 `None`.
 

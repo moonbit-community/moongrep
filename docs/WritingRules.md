@@ -1,6 +1,6 @@
 # Writing Rules
 
-The `rules` package defines the YAML rule format and the runtime loader,
+The `rule/*` packages define the YAML rule format and the runtime loader,
 validator, compiler, and applicator used by `moongrep`.
 
 Start here if you want to add or refine a rule.
@@ -415,7 +415,7 @@ After changing a rule or rule behavior:
 
 1. run the scanner on a focused fixture with
    `moon run . -- scan --rules <rules-root> <fixture-root>`
-2. add or update focused tests under `rules/`
+2. add or update focused tests under `rule/`
 3. cover both a positive case and at least one nearby negative case
 
 Keep tests narrow. A good rule test proves the intended match and at least one

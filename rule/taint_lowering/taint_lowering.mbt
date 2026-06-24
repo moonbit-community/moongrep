@@ -1,4 +1,7 @@
 ///|
+using @model {type CompiledRule, type CompiledTaintRule, type TaintTarget}
+
+///|
 priv struct TargetValue {
   loc : @basic.Location
   site : @taint.ValueSite
@@ -7,7 +10,7 @@ priv struct TargetValue {
 }
 
 ///|
-fn lower_compiled_taint_rule(
+pub fn lower_compiled_taint_rule(
   rule : CompiledRule,
   taint_rule : CompiledTaintRule,
 ) -> @taint.TaintSpec {
@@ -15,7 +18,7 @@ fn lower_compiled_taint_rule(
     rule_id: rule.rule_id,
     sources: [],
     call_models: [],
-    unknown_call_policy: @taint.UnknownCallPolicy::NoEffect,
+    unknown_call_policy: NoEffect,
     max_fixpoint_iterations: 6,
     custom_transfer_call: call => {
       transfer_compiled_taint_call(rule.rule_id, taint_rule, call)
@@ -25,7 +28,7 @@ fn lower_compiled_taint_rule(
 
 ///|
 // Implements YAML taint rules as a custom call transfer instead of teaching the
-// taint engine about rule syntax. The rules package owns AST pattern matching;
+// taint engine about rule syntax. The rule package family owns AST pattern matching;
 // the taint package only sees generic call facts and transfer results.
 fn transfer_compiled_taint_call(
   rule_id : String,
@@ -49,7 +52,7 @@ fn transfer_compiled_taint_call(
           {
             rule_id,
             origin_id: "source:\{index}",
-            site: @taint.ValueSite::CallResult(call.callee_name, call.loc),
+            site: CallResult(call.callee_name, call.loc),
             note: None,
           },
         ],

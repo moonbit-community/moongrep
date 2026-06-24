@@ -1,0 +1,11 @@
+import {
+  "moonbit-community/moongrep/ident",
+  "moonbitlang/parser/syntax",
+  "moonbitlang/core/list",
+}
+
+import {
+  "moonbitlang/parser/basic",
+} for "wbtest"
+
+supported_targets = "wasm"

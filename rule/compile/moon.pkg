@@ -1,0 +1,16 @@
+import {
+  "moonbit-community/moongrep/ident",
+  "moonbit-community/moongrep/rule/model",
+  "moonbit-community/moongrep/rule/prefilter",
+  "moonbit-community/moongrep/rule/traverse",
+  "moonbitlang/parser/lexer",
+  "moonbitlang/parser/handrolled_parser",
+  "moonbitlang/parser/syntax",
+  "moonbitlang/core/list",
+}
+
+import {
+  "moonbit-community/moongrep/rule/load",
+} for "test"
+
+supported_targets = "wasm"

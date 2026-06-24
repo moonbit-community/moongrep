@@ -1,35 +1,16 @@
 // Generated using `moon info`, DON'T EDIT IT
-package "moonbit-community/moongrep/rules"
+package "moonbit-community/moongrep/rule/model"
 
 import {
   "moonbit-community/moongrep/matching",
   "moonbitlang/core/debug",
-  "moonbitlang/core/list",
   "moonbitlang/parser/basic",
-  "moonbitlang/parser/syntax",
 }
 
 // Values
-pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit]
-
-pub fn apply_structural_rules_to_impl(String, @syntax.Impl, Array[CompiledRule]) -> Array[MatchHit]
-
-pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[CompiledRule]) -> Array[MatchHit] raise
-
-pub fn apply_taint_rules_to_impl(String, @syntax.Impl, Array[CompiledRule]) -> Array[MatchHit] raise
-
-pub fn compile_rules(Array[RawRuleSpec]) -> Array[CompiledRule] raise
-
-pub fn load_rules(String) -> Array[RawRuleSpec] raise
-
-pub fn parse_rule_source(String, String, String) -> RawRuleSpec raise
-
-pub fn prefilter_rules_for_source(Array[CompiledRule], String) -> Array[CompiledRule]
-
-pub fn rule_is_relevant_to_source(CompiledRule, String) -> Bool
 
 // Errors
-pub suberror RuleLoadError {
+pub(all) suberror RuleLoadError {
   InvalidRule(path~ : String, info~ : String)
 } derive(@debug.Debug)
 
@@ -77,16 +58,6 @@ pub(all) struct CompiledTaintSource {
   pattern : CompiledRulePattern
 }
 
-pub(all) struct MatchHit {
-  file : String
-  rule_id : String
-  package_name : String
-  description : String
-  pattern_index : Int
-  loc : @basic.Location
-  outer_loc : @basic.Location?
-}
-
 pub(all) struct RawRuleSpec {
   path : String
   rule_id : String
@@ -98,6 +69,16 @@ pub(all) struct RawRuleSpec {
 pub(all) enum RuleDefinitionSpec {
   Structural(StructuralRuleSpec)
   Taint(TaintRuleSpec)
+}
+
+pub(all) struct RuleFinding {
+  file : String
+  rule_id : String
+  package_name : String
+  description : String
+  pattern_index : Int
+  loc : @basic.Location
+  outer_loc : @basic.Location?
 }
 
 pub(all) struct RulePatternSpec {

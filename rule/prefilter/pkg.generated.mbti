@@ -1,0 +1,22 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/rule/prefilter"
+
+import {
+  "moonbit-community/moongrep/rule/model",
+}
+
+// Values
+pub fn compile_rule_prefilter(@model.CompiledRuleDefinition) -> @model.RulePrefilter
+
+pub fn prefilter_rules_for_source(Array[@model.CompiledRule], String) -> Array[@model.CompiledRule]
+
+pub fn rule_is_relevant_to_source(@model.CompiledRule, String) -> Bool
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

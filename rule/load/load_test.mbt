@@ -1,4 +1,7 @@
 ///|
+using @model {type RuleLoadError}
+
+///|
 fn valid_structural_rule_source() -> String {
   let source =
     #|package: example/pkg

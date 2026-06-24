@@ -1,4 +1,24 @@
 ///|
+using @load {parse_rule_source}
+
+///|
+using @model {type CompiledRule, type RuleLoadError}
+
+///|
+fn valid_structural_rule_source() -> String {
+  let source =
+    #|package: example/pkg
+    #|description: |
+    #|  Repeated equality.
+    #|patterns:
+    #|  - shape: _expr == _expr
+    #|    metavars:
+    #|      subtree: [_expr]
+    #|
+  source
+}
+
+///|
 fn compile_one(source : String) -> Array[CompiledRule] raise {
   compile_rules([
     parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),

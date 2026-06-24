@@ -1,6 +1,16 @@
 ///|
+using @model {
+  type RawRuleSpec,
+  type RuleDefinitionSpec,
+  type RuleLoadError,
+  type RulePatternSpec,
+  type StructuralRuleSpec,
+  type TaintRuleSpec,
+}
+
+///|
 fn invalid_rule(path~ : String, info~ : String) -> RuleLoadError {
-  RuleLoadError::InvalidRule(path~, info~)
+  InvalidRule(path~, info~)
 }
 
 ///|

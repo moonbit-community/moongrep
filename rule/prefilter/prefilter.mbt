@@ -1,4 +1,14 @@
 ///|
+using @model {
+  type CompiledRule,
+  type CompiledRuleDefinition,
+  type CompiledRulePattern,
+  type CompiledStructuralRule,
+  type CompiledTaintRule,
+  type RulePrefilter,
+}
+
+///|
 pub fn rule_is_relevant_to_source(rule : CompiledRule, source : String) -> Bool {
   prefilter_matches_source(rule.prefilter, source)
 }
@@ -89,7 +99,9 @@ fn unique_literals(values : Array[String]) -> Array[String] {
 }
 
 ///|
-fn compile_rule_prefilter(definition : CompiledRuleDefinition) -> RulePrefilter {
+pub fn compile_rule_prefilter(
+  definition : CompiledRuleDefinition,
+) -> RulePrefilter {
   match definition {
     Structural(rule) => compile_structural_prefilter(rule)
     Taint(rule) => compile_taint_prefilter(rule)

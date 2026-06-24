@@ -1,0 +1,15 @@
+import {
+  "moonbit-community/moongrep/matching",
+  "moonbit-community/moongrep/rule/model",
+  "moonbit-community/moongrep/taint",
+  "moonbitlang/parser/basic",
+}
+
+import {
+  "moonbit-community/moongrep/rule/compile",
+  "moonbit-community/moongrep/rule/load",
+  "moonbitlang/parser",
+  "moonbitlang/parser/syntax",
+} for "wbtest"
+
+supported_targets = "wasm"

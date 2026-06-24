@@ -1,6 +1,6 @@
 ///|
 /// Errors raised while loading, validating, or compiling a rule set.
-pub suberror RuleLoadError {
+pub(all) suberror RuleLoadError {
   /// The rule set or rule at `path` is malformed, conflicts with another rule,
   /// or cannot be represented by runtime AST matching. `path` may be the rules
   /// root for directory-level failures. `info` is written for rule authors.

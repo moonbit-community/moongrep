@@ -1,5 +1,5 @@
 ///|
-// Scanner-local result type. The public library boundary is `rules.MatchHit`;
+// Scanner-local result type. The rule model boundary is `rule_model.RuleFinding`;
 // parse failures stay here as warnings for the CLI renderer.
 priv struct SkippedFile {
   file : String
@@ -9,14 +9,14 @@ priv struct SkippedFile {
 ///|
 priv struct DirectoryScanResult {
   scan_trace : Array[String]
-  hits : Array[@rules.MatchHit]
+  hits : Array[@rule_model.RuleFinding]
   skipped_files : Array[SkippedFile]
 }
 
 ///|
 fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let raw_rules = load_scan_rules(options)
-  let compiled_rules = @rules.compile_rules(raw_rules)
+  let compiled_rules = @rule_compile.compile_rules(raw_rules)
   let files : Array[String] = []
   let scan_trace : Array[String] = []
   collect_source_files(
@@ -29,11 +29,13 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
     },
   )
   files.sort()
-  let hits : Array[@rules.MatchHit] = []
+  let hits : Array[@rule_model.RuleFinding] = []
   let skipped_files : Array[SkippedFile] = []
   for file in files {
     let source = @miniio.read_text_file(file)
-    let file_rules = @rules.prefilter_rules_for_source(compiled_rules, source)
+    let file_rules = @rule_prefilter.prefilter_rules_for_source(
+      compiled_rules, source,
+    )
     if !file_rules.is_empty() {
       let (impls, reports) = @parser.parse_string(source, name=file)
       if reports.length() > 0 {
@@ -46,17 +48,17 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
       } else {
         for node in impls {
           let impl_source = source_text_for_impl(source, node)
-          let impl_rules = @rules.prefilter_rules_for_source(
+          let impl_rules = @rule_prefilter.prefilter_rules_for_source(
             file_rules, impl_source,
           )
           if !impl_rules.is_empty() {
-            let structural_hits = @rules.apply_structural_rules_to_impl(
+            let structural_hits = @rule_apply.apply_structural_rules_to_impl(
               file, node, impl_rules,
             )
             for hit in structural_hits {
               hits.push(hit)
             }
-            let taint_hits = @rules.apply_taint_rules_to_impl(
+            let taint_hits = @rule_apply.apply_taint_rules_to_impl(
               file, node, impl_rules,
             )
             for hit in taint_hits {
@@ -71,10 +73,12 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
 }
 
 ///|
-fn load_scan_rules(options : CliOptions) -> Array[@rules.RawRuleSpec] raise {
-  let raw_rules : Array[@rules.RawRuleSpec] = []
+fn load_scan_rules(
+  options : CliOptions,
+) -> Array[@rule_model.RawRuleSpec] raise {
+  let raw_rules : Array[@rule_model.RawRuleSpec] = []
   match options.rules_root {
-    Some(rules_root) => raw_rules.append(@rules.load_rules(rules_root))
+    Some(rules_root) => raw_rules.append(@rule_load.load_rules(rules_root))
     None => ()
   }
   for index in 0..<options.patterns.length() {
@@ -84,14 +88,17 @@ fn load_scan_rules(options : CliOptions) -> Array[@rules.RawRuleSpec] raise {
 }
 
 ///|
-fn anonymous_pattern_rule(pattern : String, index : Int) -> @rules.RawRuleSpec {
+fn anonymous_pattern_rule(
+  pattern : String,
+  index : Int,
+) -> @rule_model.RawRuleSpec {
   let rule_id = if index == 0 { "<pattern>" } else { "<pattern:\{index + 1}>" }
   {
     path: rule_id,
     rule_id,
     package_name: "<unknown>",
     description: "Anonymous CLI pattern.",
-    definition: @rules.RuleDefinitionSpec::Structural({
+    definition: Structural({
       inside_expr: None,
       patterns: [
         {
