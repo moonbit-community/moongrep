@@ -63,6 +63,7 @@ pub(all) struct RawRuleSpec {
   description : String
   definition : RuleDefinitionSpec
 }
+pub fn RawRuleSpec::from_str(String, String, String) -> Self raise
 
 pub(all) enum RuleDefinitionSpec {
   Structural(StructuralRuleSpec)

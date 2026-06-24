@@ -2,9 +2,6 @@
 using @compile {compile_rules}
 
 ///|
-using @load {parse_rule_source}
-
-///|
 fn parse_single_taint_impl(source : String) -> @syntax.Impl raise {
   let (impls, reports) = @parser.parse_string(
     source,
@@ -21,7 +18,9 @@ fn compile_single_taint_rule(
   source : String,
 ) -> (CompiledRule, CompiledTaintRule) raise {
   let rules = compile_rules([
-    parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
+    @model.RawRuleSpec::from_str(
+      "/tmp/rules/example.yaml", "/tmp/rules", source,
+    ),
   ])
   guard rules is [rule] else { fail("expected one compiled rule") }
   match rule.definition {

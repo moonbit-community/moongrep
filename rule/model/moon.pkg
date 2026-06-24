@@ -1,6 +1,5 @@
 import {
   "moonbit-community/moongrep/matching",
   "moonbitlang/parser/basic",
+  "moonbit-community/yaml",
 }
-
-supported_targets = "wasm"

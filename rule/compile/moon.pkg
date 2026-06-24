@@ -8,9 +8,3 @@ import {
   "moonbitlang/parser/syntax",
   "moonbitlang/core/list",
 }
-
-import {
-  "moonbit-community/moongrep/rule/load",
-} for "test"
-
-supported_targets = "wasm"

@@ -8,8 +8,6 @@ import {
 // Values
 pub fn load_rules(String) -> Array[@model.RawRuleSpec] raise
 
-pub fn parse_rule_source(String, String, String) -> @model.RawRuleSpec raise
-
 // Errors
 
 // Types and methods

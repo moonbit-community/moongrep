@@ -7,9 +7,6 @@ import {
 
 import {
   "moonbit-community/moongrep/rule/compile",
-  "moonbit-community/moongrep/rule/load",
   "moonbitlang/parser",
   "moonbitlang/parser/syntax",
 } for "wbtest"
-
-supported_targets = "wasm"

@@ -2,12 +2,11 @@
 using @compile {compile_rules}
 
 ///|
-using @load {parse_rule_source}
-
-///|
 fn compile_prefilter_rule_source(source : String) -> CompiledRule raise {
   let rules = compile_rules([
-    parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
+    @model.RawRuleSpec::from_str(
+      "/tmp/rules/example.yaml", "/tmp/rules", source,
+    ),
   ])
   guard rules is [rule] else { fail("expected one compiled rule") }
   rule

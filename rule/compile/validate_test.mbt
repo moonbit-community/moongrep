@@ -1,13 +1,12 @@
 ///|
-using @load {parse_rule_source}
-
-///|
 using @model {type CompiledRule, type RuleLoadError}
 
 ///|
 fn compile_one(source : String) -> Array[CompiledRule] raise {
   compile_rules([
-    parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
+    @model.RawRuleSpec::from_str(
+      "/tmp/rules/example.yaml", "/tmp/rules", source,
+    ),
   ])
 }
 
@@ -186,10 +185,10 @@ test "validate rejects normalized rule id collisions" {
     #|    metavars:
     #|      subtree: [_expr]
     #|
-  let left = parse_rule_source(
+  let left = @model.RawRuleSpec::from_str(
     "/tmp/rules/left.yaml", "/tmp/rules", hyphen_source,
   )
-  let right = parse_rule_source(
+  let right = @model.RawRuleSpec::from_str(
     "/tmp/rules/right.yaml", "/tmp/rules", underscore_source,
   )
   try ignore(compile_rules([left, right])) catch {
