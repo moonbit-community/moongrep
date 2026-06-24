@@ -51,3 +51,7 @@ jobs:
       - name: moon test
         run: |
           moon test --target all
+      
+      - name: e2e test
+        run: |
+          bash scripts/e2e.sh test
