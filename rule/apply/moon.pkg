@@ -12,8 +12,5 @@ import {
 
 import {
   "moonbit-community/moongrep/rule/compile",
-  "moonbit-community/moongrep/rule/load",
   "moonbitlang/parser",
 } for "test"
-
-supported_targets = "wasm"

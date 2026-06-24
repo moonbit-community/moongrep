@@ -2,9 +2,6 @@
 using @compile {compile_rules}
 
 ///|
-using @load {parse_rule_source}
-
-///|
 using @model {type CompiledRule}
 
 ///|
@@ -17,7 +14,9 @@ fn parse_impls(source : String) -> @list.List[@syntax.Impl] raise {
 ///|
 fn compile_rule_source(source : String) -> Array[CompiledRule] raise {
   compile_rules([
-    parse_rule_source("/tmp/rules/example.yaml", "/tmp/rules", source),
+    @model.RawRuleSpec::from_str(
+      "/tmp/rules/example.yaml", "/tmp/rules", source,
+    ),
   ])
 }
 

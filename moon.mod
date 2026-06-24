@@ -4,8 +4,6 @@ version = "0.1.6"
 
 preferred_target = "wasm"
 
-supported_targets = "wasm"
-
 import {
   "moonbitlang/parser@0.3.3",
   "moonbit-community/yaml@0.0.4",

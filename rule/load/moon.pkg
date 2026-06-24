@@ -1,6 +1,5 @@
 import {
   "moonbit-community/moongrep/rule/model",
-  "moonbit-community/yaml",
   "moonbit-community/miniio",
 }
 
