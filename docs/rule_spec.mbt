@@ -4,341 +4,236 @@
 let _embed_rulespec_md : String =
   #|# Rule Specification
   #|
-  #|This document is the authoritative specification for YAML rules in the
-  #|`rule/*` packages.
+  #|This document is the authoritative specification for YAML rules accepted by
+  #|the moongrep.
   #|
   #|If you are writing your first rule, start with [WritingRules.md](WritingRules.md).
   #|
   #|## Scope and Status
   #|
-  #|This document specifies the current rule file format, loader/compiler
-  #|validation, and runtime matcher semantics implemented by the `rule/*` packages.
+  #|This document specifies the current YAML rule file format, validation rules,
+  #|and matching semantics.
   #|
-  #|Unless stated otherwise, the keywords "must", "must not", "may", and
-  #|"currently" describe the behavior of the current implementation.
+  #|The keywords "must", "must not", "may", and "currently" describe the behavior
+  #|rule authors can rely on today. This specification intentionally avoids
+  #|describing source layout, syntax-processing internals, concrete data types, or
+  #|function names from the implementation.
   #|
-  #|The current implementation is a runtime AST matcher. It parses rule shapes into
-  #|`moonbitlang/parser/syntax` nodes and matches those nodes directly against
-  #|parsed source files. It does not generate matcher source code and does not use a
-  #|JSON AST intermediate representation.
+  #|Rules are written as YAML, but every `shape` value is MoonBit surface syntax.
+  #|The scanner matches parsed MoonBit expression structure, not raw text. As a
+  #|result, formatting and comments are not significant, while expression form,
+  #|operators, literal values, labels, callee names, and argument structure are
+  #|significant unless a wildcard or declared metavariable says otherwise.
   #|
-  #|## Rule File Model
+  #|## Rule Files
   #|
-  #|- `load_rules(rules_root)` recursively scans the rules root for files ending in
-  #|  `.yaml` or `.yml`.
-  #|- If no YAML rule files are found, loading is rejected.
+  #|A rules root is a directory containing YAML rule files.
+  #|
+  #|- Files ending in `.yaml` or `.yml` are discovered recursively below the rules
+  #|  root.
+  #|- Other files are ignored.
+  #|- Discovered rule files are processed in sorted order.
+  #|- Symlinked rule directories are followed.
+  #|- An empty rules root is invalid.
   #|- Each rule file must contain exactly one YAML document.
   #|- The top-level YAML document must be a mapping.
   #|- Each rule file defines exactly one rule.
   #|
-  #|Rule ids are derived from the rule file path relative to the rules root:
+  #|Rule ids are derived from the rule file path:
   #|
-  #|- the relative path is computed against `<rules-root>/`
-  #|- the trailing `.yaml` or `.yml` suffix is removed
-  #|- the remaining relative path becomes the rule id
+  #|- take the file path relative to the rules root
+  #|- remove the trailing `.yaml` or `.yml` suffix
+  #|- keep any remaining directory separators
   #|
   #|Example:
   #|
-  #|- `rules/security/raw-html.yaml` -> `security/raw-html`
+  #|```text
+  #|rules/security/raw-html.yaml -> security/raw-html
+  #|rules/style.yml              -> style
+  #|```
+  #|
+  #|Rule ids must be unique. In addition, two ids must not become identical after
+  #|replacing `/` and `-` with `_`.
   #|
   #|## YAML Schema
   #|
   #|### Top-Level Keys
   #|
-  #|Only these keys are accepted:
+  #|Only these top-level keys are accepted:
   #|
   #|- `package` (required): YAML string
   #|- `description` (required): YAML string
-  #|- `inside-expr` (optional): one structural pattern object used as an outer
-  #|  context filter for `patterns`
-  #|- exactly one of:
-  #|  `patterns` (non-empty YAML array)
-  #|  `taint` (YAML mapping)
+  #|- `patterns` (required for structural rules): non-empty YAML array
+  #|- `inside-expr` (optional for structural rules): one pattern object used as an
+  #|  outer context
+  #|- `taint` (required for taint rules): YAML mapping
   #|
-  #|Any other top-level key is rejected.
+  #|Unknown top-level keys are rejected.
   #|
-  #|No semantic validation is performed on `package` or `description` beyond
-  #|requiring them to be YAML strings. `description` is stored verbatim in
-  #|`RuleFinding.description`; if YAML block-scalar syntax preserves a trailing
-  #|newline, that newline is preserved in the stored value.
+  #|Each rule must choose exactly one rule mode:
   #|
-  #|`inside-expr` is only supported together with `patterns`. It is rejected for
-  #|`taint` rules.
+  #|- structural mode: `patterns`
+  #|- taint mode: `taint`
   #|
-  #|### Structural Pattern Objects
+  #|`patterns` and `taint` are mutually exclusive. `inside-expr` is valid only with
+  #|`patterns`; it is rejected on taint rules.
   #|
-  #|Each entry in `patterns` must be a mapping.
+  #|`package` is metadata. It is required and must be a string, but it does not
+  #|filter candidate source files. `description` is also required and must be a
+  #|string. Its content is preserved as supplied by YAML, including trailing
+  #|newlines produced by block scalars.
   #|
-  #|Only these keys are recognized:
+  #|### Pattern Objects
   #|
-  #|- `shape` (required): YAML string
-  #|- `metavars` (optional): YAML mapping or array shorthand
-  #|- `guard`: recognized only to reject it in runtime AST mode
-  #|
-  #|Any other key inside a pattern object is rejected.
-  #|
-  #|`guard` is not supported by the current runtime AST matcher. If a `guard` key is
-  #|present, loading is rejected before shape compilation.
-  #|
-  #|### `inside-expr`
-  #|
-  #|`inside-expr` uses the same object schema as one structural pattern:
-  #|
-  #|- `shape` (required): YAML string
-  #|- `metavars` (optional): YAML mapping or array shorthand
-  #|- `guard`: recognized only to reject it in runtime AST mode
-  #|
-  #|Additional validation and runtime behavior:
-  #|
-  #|- `inside-expr.shape` must contain exactly one supported `__TARGET__`
-  #|  occurrence according to the current name-position counter
-  #|- the runtime applicator only traverses the target when `__TARGET__` binds as
-  #|  an expression, so rule authors should place `__TARGET__` where a whole
-  #|  expression is expected
-  #|- `__TARGET__` must not be declared under `metavars`
-  #|- names declared in `inside-expr.metavars` remain visible to all inner
-  #|  `patterns`
-  #|- inner `patterns` must not redeclare a name already visible from
-  #|  `inside-expr`
-  #|- inner `patterns` must not contain a supported `__TARGET__` occurrence
-  #|  according to the current name-position counter. Unsupported textual
-  #|  occurrences are not target placeholders and are matched literally.
-  #|
-  #|### Taint Rule Objects
-  #|
-  #|`taint` must be a mapping.
+  #|The same object schema is used for entries in `patterns`, for `inside-expr`,
+  #|and for entries in taint `sources`, `sinks`, and `sanitizers`.
   #|
   #|Only these keys are accepted:
   #|
-  #|- `sources` (required): non-empty YAML array
-  #|- `sinks` (required): non-empty YAML array
-  #|- `sanitizers` (optional): YAML array, defaults to empty
+  #|- `shape` (required): YAML string containing one MoonBit expression snippet
+  #|- `metavars` (optional): YAML mapping or array shorthand
+  #|- `guard` (reserved): currently rejected everywhere
   #|
-  #|Each taint clause object uses the same rule-clause object schema:
+  #|Unknown keys inside a pattern object are rejected.
   #|
-  #|- `shape` (required): YAML string
-  #|- `metavars` (optional): same schema and semantics as structural rules
-  #|- `guard`: recognized only to reject it in runtime AST mode
+  #|`guard` is not supported today. A rule containing `guard` in any pattern object
+  #|is invalid.
   #|
-  #|Additional taint-specific validation:
+  #|## Shapes
   #|
-  #|- `__SOURCE__` is reserved in taint clauses and must not be declared under
-  #|  `metavars`
-  #|- taint `sources` must not contain a supported `__SOURCE__` occurrence
-  #|- taint `sinks` and `sanitizers` must contain exactly one supported
-  #|  `__SOURCE__` occurrence
-  #|- in sinks and sanitizers, the accepted `__SOURCE__` placeholder must be a bare
-  #|  identifier expression used as the whole receiver or the whole argument value,
-  #|  not a nested subexpression. Unsupported textual occurrences are matched
-  #|  literally and do not satisfy this requirement.
-  #|- source, sink, and sanitizer shapes must be call expressions rooted at
-  #|  `Expr::Apply` or `Expr::DotApply`
-  #|- YAML taint shapes are written as direct calls or method calls only. Pipe and
-  #|  reverse-pipe surface syntax is not expressible by YAML taint rules today.
+  #|`shape` must be a single MoonBit expression snippet.
   #|
-  #|### `metavars`
+  #|Valid shapes include expressions such as calls, method calls, field accesses,
+  #|operators, blocks, conditionals, loops, matches, lambdas, collection literals,
+  #|record expressions, and other expression-sized MoonBit syntax. A shape is not a
+  #|whole file, top-level declaration, package fragment, or import list.
   #|
-  #|If `metavars` is present, it must be either a mapping with explicit binding
-  #|buckets or an array shorthand for auto metavars.
+  #|Shapes are structural:
+  #|
+  #|- undeclared identifiers and labels match literally
+  #|- constants match by value
+  #|- operators match literally
+  #|- call and method-call argument kinds, labels, order, and arity must match
+  #|- type annotations and type names in matched syntax must match where present
+  #|- source locations, formatting, and comments do not participate in matching
+  #|
+  #|The scanner does not type-check shapes and does not resolve names semantically.
+  #|For example, two different imported names that refer to the same definition are
+  #|still different unless their parsed source spelling matches or a metavariable
+  #|captures them.
+  #|
+  #|## Metavariables
+  #|
+  #|Identifiers in a shape are literal by default. A name becomes a metavariable
+  #|only when it is declared under `metavars`, except for the built-in wildcard
+  #|forms described below.
+  #|
+  #|### Syntax
+  #|
+  #|`metavars` may be a mapping:
+  #|
+  #|```yaml
+  #|metavars:
+  #|  subtree: [expr, body]
+  #|  identifier: [name]
+  #|```
   #|
   #|Mapping form accepts only these keys:
   #|
-  #|- `subtree` (optional): array of strings
-  #|- `identifier` (optional): array of strings
+  #|- `subtree`: optional array of strings
+  #|- `identifier`: optional array of strings
   #|
-  #|If either mapping bucket is omitted, it defaults to the empty array. A mapping
-  #|bucket named `auto` is not supported and is rejected as an unsupported key.
+  #|Omitted buckets default to empty arrays. Bucket values must be arrays, and
+  #|every item must be a string. Duplicate names within one bucket are rejected. A
+  #|name must not appear in both `subtree` and `identifier`.
   #|
-  #|Each mapping bucket:
-  #|
-  #|- must be an array if present
-  #|- may contain only strings
-  #|- must not contain duplicate names
-  #|
-  #|Across buckets:
-  #|
-  #|- a metavar name must not appear in both `subtree` and `identifier`
-  #|
-  #|Array shorthand:
+  #|There is no `auto` mapping bucket. This is invalid:
   #|
   #|```yaml
-  #|metavars: [counter, body]
+  #|metavars:
+  #|  auto: [x]
   #|```
   #|
-  #|declares `counter` and `body` as auto metavars. Each array entry must be a
-  #|string, and duplicate names are rejected.
+  #|Use array shorthand for auto metavars:
   #|
-  #|Auto metavars use the same reserved-name rules as explicit metavars: names made
-  #|only of two or more underscores must not be declared, `__TARGET__` is reserved,
-  #|and `__SOURCE__` is reserved in taint clauses.
+  #|```yaml
+  #|metavars: [x, y]
+  #|```
   #|
-  #|## `shape`
+  #|Each shorthand entry must be a string, and duplicate names are rejected.
   #|
-  #|`shape` must be a single MoonBit expression snippet accepted by the expression
-  #|parser used by `@handrolled_parser.parse_expr(...)`.
+  #|### Reserved Names
   #|
-  #|Normatively:
+  #|These names must not be declared as metavars in any rule clause:
   #|
-  #|- `shape` is parsed with the expression parser, not the full-file parser
-  #|- `shape` must therefore be valid as one expression-sized snippet
-  #|- `shape` is not an arbitrary module fragment or entire source file
+  #|- any name made only of two or more underscores, such as `__`, `___`, or
+  #|  `____`
+  #|- `__TARGET__`
   #|
-  #|The compiler parses `shape` into a parser `Expr`. The rule author writes
-  #|surface MoonBit syntax; the matcher operates on `moonbitlang/parser/syntax`
-  #|nodes.
+  #|In taint clauses, `__SOURCE__` is also reserved and must not be declared.
   #|
-  #|## Matching Model
+  #|`__SOURCE__` has no built-in meaning in structural rules. If it is not declared
+  #|and is not being used by a taint sink or sanitizer, it is just a literal name.
   #|
-  #|The runtime matcher is applied to traversed expression subtrees, not to entire
-  #|files as single units.
+  #|### Where Metavars Can Bind
   #|
-  #|Current structural traversal model:
+  #|A declared metavar must appear at least once in a position that can bind a
+  #|value. Binding-capable positions currently include:
   #|
-  #|- source files are parsed into parser `Impl` nodes before entering the `rules`
-  #|  package
-  #|- `apply_structural_rules(...)` collects expressions from supported top-level
-  #|  bodies, including top expressions, function bodies, method bodies, let
-  #|  definitions, tests, and views
-  #|- each collected expression subtree is visited in source-tree order
-  #|- each visited expression is passed to every structural rule
+  #|- a bare identifier expression, such as `value`
+  #|- a simple variable target, such as the left side of `x = y` or an operator
+  #|  token represented as a variable in expression syntax
+  #|- a binder, such as a function parameter, loop variable, `let mut` binder, or
+  #|  lambda parameter
+  #|- a simple variable pattern, such as `item` in `match value { item => ... }`
+  #|- a label, such as a method name, field name, labelled argument name, or record
+  #|  field label
   #|
-  #|Pattern semantics:
+  #|Validation also looks through many ordinary expression containers, including
+  #|calls, field accesses, operators, blocks, arrays, tuples, records, loops,
+  #|matches, try/catch, lambdas, interpolations, and comprehensions.
   #|
-  #|- without `inside-expr`, entries in `patterns` are ordered alternatives
-  #|- for one expression and one rule, the first matching pattern wins, emits one
-  #|  hit, and stops checking later patterns for that expression
-  #|- traversal still continues into other expression subtrees
-  #|- with `inside-expr`, the current expression is first matched against
-  #|  `inside-expr`; if it matches and `__TARGET__` binds as an expression, the
-  #|  matcher recursively traverses that expression and applies `patterns` to every
-  #|  expression in that nested traversal
-  #|- the hit records the zero-based `pattern_index` of the inner `patterns` entry
-  #|  that matched
-  #|- all patterns in the same rule share the same `rule_id`, `package`, and
-  #|  `description`
+  #|Pattern validation is intentionally narrower than full pattern matching. Names
+  #|inside direct variable patterns and inside alias, tuple, `or`, and range
+  #|patterns count for validation. Names that appear only inside constructor,
+  #|array, record, map, constraint, or special-constructor patterns may still
+  #|participate in runtime matching, but they do not currently satisfy the
+  #|"declared metavar is used" validation by themselves.
   #|
-  #|The location stored in `RuleFinding.loc` is:
+  #|If a declared name appears only in positions that cannot bind, the rule is
+  #|invalid as an unused metavar.
   #|
-  #|- for structural rules, the `loc` of the matched expression subtree
-  #|- for taint argument sinks, the `loc` of the tainted argument
-  #|- for taint receiver sinks, the `loc` of the sink call
+  #|### Built-In Wildcards
   #|
-  #|For structural `inside-expr` rules, `RuleFinding.outer_loc` is `Some(...)` and
-  #|points at the outer expression that matched `inside-expr`. For other hits it is
-  #|`None`.
+  #|Names made only of two or more underscores are ignore placeholders when they
+  #|appear in binding-capable positions:
   #|
-  #|Current taint traversal model:
+  #|```yaml
+  #|patterns:
+  #|  - shape: foo(__)
+  #|```
   #|
-  #|- `apply_taint_rules(...)` applies taint rules to top-level function
-  #|  definitions and impl methods with bodies, one rule at a time
-  #|- unsupported top-level nodes such as top-level lets, tests, views, and
-  #|  expressions are ignored as `UnsupportedFunctionLike`
-  #|- taint analysis is intraprocedural
-  #|- YAML taint rules use `UnknownCallPolicy::NoEffect`
-  #|- YAML sources, sinks, and sanitizers are lowered to a custom call transfer
-  #|- unmatched calls do not propagate taint through arbitrary wrapper/helper calls
-  #|- sanitizers contribute no return taint and kill stored taint only when
-  #|  `__SOURCE__` resolves to a storage path such as an identifier, field, or array
-  #|  access
-  #|- if one call matches both a source and a sanitizer, source return taint is
-  #|  still produced
-  #|- if one call matches both a sink and a sanitizer, the sink is reported from
-  #|  pre-call taint; sanitizer effects only affect later storage reads
+  #|An ignore placeholder matches anything at that one position. It does not bind a
+  #|value, and repeated ignore placeholders are independent:
   #|
-  #|## Metavariable Recognition
+  #|```yaml
+  #|patterns:
+  #|  - shape: pair(__, __)
+  #|```
   #|
-  #|Identifiers inside `shape` are not metavariables by default. A declared
-  #|metavariable must appear at least once in a position counted by
-  #|`count_supported_name_in_expr`; otherwise compilation rejects it as unused.
+  #|The example above can match `pair(left, right)`.
   #|
-  #|The validation-counted positions include:
+  #|Only all-underscore names have this built-in behavior. A name such as `__x` is
+  #|literal unless it is declared as a normal metavar.
   #|
-  #|- bare identifier expressions represented as `Expr::Ident`
-  #|- simple parser `Var` positions, including simple assignment targets and
-  #|  operator variables
-  #|- `Binder`
-  #|- simple variable patterns represented as `Pattern::Var`
-  #|- `Label`, including method names, field labels, and labelled arguments
+  #|MoonBit expression holes, such as `_` where parsed as an expression hole, also
+  #|match any expression at that position.
   #|
-  #|Pattern traversal is currently limited. Pattern metavars are counted only in a
-  #|direct `Pattern::Var` and under `Alias`, `Tuple`, `Or`, and `Range`. A
-  #|`Pattern::Var`, `Label`, or `Binder` occurrence under constructor, array,
-  #|record, map, constraint, or special-constructor patterns is not valid as the
-  #|only occurrence of a declared metavar today.
+  #|### `subtree`
   #|
-  #|Runtime pattern matching can still recurse through nested pattern forms. When a
-  #|declared name or an all-underscore ignore placeholder appears under array,
-  #|constructor, record, map, constraint, or special-constructor patterns, it
-  #|participates in matching there. Those nested pattern occurrences are not
-  #|sufficient by themselves to satisfy used-metavar validation.
-  #|
-  #|Names made only of two or more underscores, such as `__`, `___`, and `____`,
-  #|are special ignore placeholders:
-  #|
-  #|- they must not be declared under `metavars`
-  #|- in validation-counted positions, they match anything in that one position
-  #|- they do not bind a value for equality checks
-  #|- repeated occurrences are independent wildcards
-  #|- in non-supported positions, they are treated literally as that identifier or
-  #|  other source-level text
-  #|- this rule is separate from MoonBit's own special handling of `_`
-  #|
-  #|Parser hole expressions also act as expression wildcards when a shape parses to
-  #|`Expr::Hole`.
-  #|
-  #|Current non-supported examples include:
-  #|
-  #|- constructor names
-  #|- arbitrary string-valued fields
-  #|- qualified names that do not normalize to a simple identifier
-  #|- any position that is not one of the supported AST node kinds above
-  #|
-  #|If a name is declared under `metavars` but only appears in unsupported
-  #|positions, compilation is rejected with an unused-metavar error because no
-  #|binding is generated for that name.
-  #|
-  #|Undeclared names are matched literally according to the parser AST produced from
-  #|`shape`.
-  #|
-  #|## `subtree` Semantics
-  #|
-  #|A `subtree` metavar binds the matched parser AST node at its syntactic position.
-  #|The internal binding is one of:
-  #|
-  #|- `Expr`
-  #|- `Var`
-  #|- `Binder`
-  #|- `Pattern`
-  #|- `Label`
-  #|
-  #|Consequences:
-  #|
-  #|- repeating the same `subtree` metavar requires every occurrence to bind the
-  #|  same internal binding kind
-  #|- repeated `Expr` captures are compared with matcher-defined structural
-  #|  equality that ignores source locations
-  #|- repeated `Var`, `Binder`, `Pattern`, and `Label` captures use matcher-defined
-  #|  per-form equality helpers
-  #|- if equality for a repeated captured node shape is not implemented, that
-  #|  repeated match fails
-  #|
-  #|Current repeated-`Expr` equality is narrower than full structural matching. It
-  #|currently covers these expression forms:
-  #|
-  #|- identifiers, holes, constants, units
-  #|- infix, apply, dot-apply, field, method, constructor, group, and sequence
-  #|  expressions
-  #|- array and tuple literals
-  #|- functional `for` expressions, with repeated-equality comparison currently
-  #|  ignoring labels and `where` clauses
-  #|
-  #|It does not currently cover every expression form that can be matched once.
-  #|Avoid relying on repeated `subtree` equality for expression kinds not listed
-  #|above.
-  #|
-  #|Current repeated-`Pattern` equality is also narrower than one-shot pattern
-  #|matching. It covers variable, wildcard, constant, tuple, and `or` patterns.
-  #|Other pattern forms may match once but fail as repeated `subtree` captures.
+  #|A `subtree` metavar captures the parsed syntax at its position. Repeating the
+  #|same `subtree` name requires later captures to have the same kind of syntactic
+  #|position and equal parsed structure, ignoring source locations.
   #|
   #|Example:
   #|
@@ -349,157 +244,363 @@ let _embed_rulespec_md : String =
   #|      subtree: [_expr]
   #|```
   #|
-  #|This can match repeated supported subtrees such as `x == x`,
-  #|`record.field == record.field`, and `make(value) == make(value)`.
+  #|This can match examples such as:
   #|
-  #|`subtree` is usually the wrong choice when the same source-level name appears
-  #|once as a binder and later as an identifier expression or label, because those
-  #|are different parser node kinds and therefore do not compare as equal.
+  #|```moonbit
+  #|x == x
+  #|record.field == record.field
+  #|make(value) == make(value)
+  #|```
   #|
-  #|## `identifier` Semantics
+  #|It does not match:
   #|
-  #|An `identifier` metavar binds by normalized identifier or label name rather than
-  #|by raw parser-node equality.
+  #|```moonbit
+  #|x == y
+  #|make(value) == make(other)
+  #|```
   #|
-  #|Current normalization succeeds only for:
+  #|`subtree` is usually not the right choice when the same source-level name
+  #|appears in different syntactic roles, such as once as a binder and later as an
+  #|identifier expression. Use `identifier` for that.
   #|
-  #|- simple variable targets represented as `Var` with `LongIdent::Ident`,
-  #|  including simple assignment targets and operator variables
-  #|- `Binder`
-  #|- simple identifier expressions represented as `Expr::Ident`
-  #|- `Pattern::Var`
-  #|- `Label`
+  #|Repeated `subtree` equality is currently guaranteed for common expression
+  #|forms, including identifiers, holes, constants, unit, infix expressions, calls,
+  #|method calls, field access, method references, constructor expressions,
+  #|grouped expressions, blocks, array literals, tuple literals, and `for`
+  #|expressions. Some expression and pattern forms can be matched once but are not
+  #|yet supported for repeated `subtree` equality. If a repeated `subtree` capture
+  #|uses an unsupported equality form, that match fails rather than producing a
+  #|hit.
   #|
-  #|If normalization succeeds:
+  #|### `identifier`
   #|
-  #|- the internal binding stores the normalized `String`
-  #|- repeating the same `identifier` metavar requires all normalized strings to be
-  #|  equal
+  #|An `identifier` metavar captures a normalized source-level name. Repeating the
+  #|same `identifier` name requires every occurrence to normalize to the same
+  #|string.
   #|
-  #|If normalization fails for any occurrence:
+  #|This is useful when a rule compares a binder with later uses:
   #|
-  #|- the pattern does not emit a hit
-  #|- no exception is raised
+  #|```yaml
+  #|patterns:
+  #|  - shape: |
+  #|      for counter = _start; counter < upper_limit; counter = counter + 1 {
+  #|        body
+  #|      }
+  #|    metavars:
+  #|      subtree: [_start, upper_limit, body]
+  #|      identifier: [counter]
+  #|```
   #|
-  #|This is the intended tool for cases where the same logical name appears across
-  #|different AST node kinds, such as loop-variable binders and later identifier
-  #|uses, or repeated field and method labels in expressions such as
-  #|`record.field = record.field + value` and `receiver.method()`.
+  #|This can match:
   #|
-  #|## `auto` Shorthand Semantics
+  #|```moonbit
+  #|for i = 0; i < n; i = i + 1 {
+  #|  println(i)
+  #|}
+  #|```
   #|
-  #|The YAML shorthand `metavars: [name, ...]` declares auto metavars. There is no
-  #|`auto` mapping bucket; `metavars.auto` is rejected.
+  #|It does not match when the repeated source-level names differ:
   #|
-  #|An auto metavar chooses its binding mode from the first candidate it captures:
+  #|```moonbit
+  #|for i = 0; j < n; i = i + 1 {
+  #|  println(i)
+  #|}
+  #|```
   #|
-  #|- if the candidate normalizes through the same helpers used by `identifier`, it
-  #|  binds as `Identifier`
-  #|- otherwise it binds as the structural value used by `subtree` at that
-  #|  syntactic position: `Expr`, `Var`, `Binder`, `Pattern`, or `Label`
+  #|Normalization currently succeeds for simple unqualified variable names,
+  #|binders, bare identifier expressions, simple variable patterns, and labels.
+  #|Qualified names do not normalize to simple identifiers for this purpose.
   #|
-  #|Later occurrences of the same auto metavar must match the first chosen binding
-  #|kind and value. If the first occurrence binds as `Identifier`, later
-  #|occurrences must also normalize and produce the same string. If the first
-  #|occurrence binds structurally, later occurrences must compare equal as the same
-  #|structural binding kind.
+  #|### Auto Metavars
   #|
-  #|Auto is useful when one rule naturally mixes identifier-like captures and
-  #|structural captures and the candidate code should decide the stricter mode. For
-  #|rules where the intended behavior is known, explicit `subtree` and
-  #|`identifier` buckets remain valid and make the rule easier to audit.
+  #|The array shorthand declares auto metavars:
   #|
-  #|## Guard Status
+  #|```yaml
+  #|metavars: [value]
+  #|```
   #|
-  #|YAML `guard` expressions are not supported by the current runtime AST matcher.
+  #|An auto metavar chooses its mode from the first candidate it captures:
   #|
-  #|The key is recognized so the loader can emit a clear error, but any `guard` key
-  #|inside `patterns`, `inside-expr`, or taint clauses is rejected before shape
-  #|compilation. There is no current guard syntax validation, guard parameter
-  #|binding, or guard evaluation.
+  #|- if the candidate can normalize as an identifier, it behaves like
+  #|  `identifier`
+  #|- otherwise it behaves like `subtree`
   #|
-  #|## Reserved Names
+  #|Later occurrences must match the first chosen mode and value.
   #|
-  #|The following names are reserved in all rule clauses and must not be declared as
-  #|metavars:
+  #|Example:
   #|
-  #|- any name consisting only of two or more underscores
-  #|- `__TARGET__`
+  #|```yaml
+  #|patterns:
+  #|  - shape: value + value
+  #|    metavars: [value]
+  #|```
   #|
-  #|In taint clauses, `__SOURCE__` is also reserved and must not be declared as a
-  #|metavar. It is the built-in placeholder for the sink or sanitizer target.
+  #|This can match both:
   #|
-  #|These names are reserved because matcher code uses them for built-in
-  #|placeholder semantics and binding plumbing.
+  #|```moonbit
+  #|item + item
+  #|make() + make()
+  #|```
   #|
-  #|## Error Conditions
+  #|It does not match mixed or unequal captures:
   #|
-  #|Loading or compilation is rejected in the following cases:
+  #|```moonbit
+  #|item + make()
+  #|make() + other()
+  #|```
   #|
-  #|- the rules root contains no YAML rule files
-  #|- a rule file contains zero YAML documents or more than one YAML document
-  #|- the top-level YAML document is not a mapping
-  #|- a required key is missing
-  #|- `package`, `description`, or `shape` is not a YAML string
-  #|- a rule does not contain exactly one of `patterns` or `taint`
-  #|- `inside-expr` is present on a taint rule
-  #|- `inside-expr` is present but is not a mapping
-  #|- `patterns` is not an array or is empty
-  #|- a `patterns` entry is not a mapping
-  #|- `taint` is not a mapping
-  #|- `taint.sources` or `taint.sinks` is not an array or is empty
-  #|- `taint.sanitizers` is present but is not an array
-  #|- a taint clause entry is not a mapping
-  #|- an unsupported key appears at top level, inside `taint`, inside a rule
-  #|  clause, or inside `metavars`
-  #|- `guard` is present in any rule clause
-  #|- `metavars` is present but is neither a mapping nor an array
-  #|- a metavar mapping bucket is present but not an array
-  #|- a metavar mapping bucket contains a non-string entry
-  #|- `metavars` shorthand contains a non-string entry
-  #|- a metavar name is duplicated within one bucket
-  #|- a metavar name is duplicated within shorthand
-  #|- a metavar name appears in both `subtree` and `identifier`
-  #|- a metavar uses a reserved name for that rule context
-  #|- a declared metavar is never bound in a supported position
-  #|- `shape` is not syntactically valid MoonBit expression syntax
-  #|- `inside-expr.shape` does not contain exactly one supported `__TARGET__`
-  #|  occurrence according to the current name-position counter
-  #|- an inner structural pattern contains a supported `__TARGET__` occurrence
-  #|- an inner structural pattern redeclares a name from `inside-expr`
-  #|- a taint source contains a supported `__SOURCE__` occurrence
-  #|- a taint sink or sanitizer does not contain exactly one supported `__SOURCE__`
-  #|  occurrence
-  #|- a taint sink or sanitizer places the accepted `__SOURCE__` somewhere other
-  #|  than the whole receiver or whole argument value
-  #|- a taint source, sink, or sanitizer shape is not a call expression
-  #|- two rule ids have the same normalized matcher name after replacing
-  #|  `/` and `-` with `_`
+  #|## Structural Rules
   #|
-  #|## Normative Examples
-  #|
-  #|### Repeated subtree equality
+  #|A structural rule has a non-empty `patterns` array.
   #|
   #|```yaml
   #|package: moonbitlang/core
   #|description: |
-  #|  Repeated subtree equality.
+  #|  Repeated equality.
   #|patterns:
   #|  - shape: _expr == _expr
   #|    metavars:
   #|      subtree: [_expr]
   #|```
   #|
-  #|Semantics:
+  #|Structural rules are applied to expression subtrees collected from source
+  #|files. Currently, structural matching searches expression bodies from top-level
+  #|expressions, functions, methods, top-level `let` definitions, tests, and views.
   #|
-  #|- `_expr` binds as an internal `Expr`
-  #|- both occurrences must be equal according to repeated-`Expr` equality
-  #|- `x == x` may match
-  #|- `record.field == record.field` may match
-  #|- expression kinds outside the repeated-`Expr` equality list are not guaranteed
-  #|  to match when repeated
+  #|Each visited expression is checked against each structural rule. For one
+  #|visited expression and one rule:
   #|
-  #|### Binder/use-name comparison
+  #|- `patterns` entries are ordered alternatives
+  #|- the first matching pattern emits one hit
+  #|- later patterns in that same rule are not checked for that expression
+  #|- scanning still continues into other expression subtrees
+  #|
+  #|The reported pattern index is zero-based and refers to the matching entry in
+  #|`patterns`.
+  #|
+  #|All patterns in one rule share the same rule id, `package`, and `description`.
+  #|
+  #|### `inside-expr`
+  #|
+  #|`inside-expr` restricts a structural rule to matches inside a larger expression
+  #|context.
+  #|
+  #|```yaml
+  #|package: moonbit-community/example
+  #|description: |
+  #|  Match a target call only inside wrapper(...).
+  #|inside-expr:
+  #|  shape: wrapper(prefix, __TARGET__)
+  #|  metavars:
+  #|    subtree: [prefix]
+  #|patterns:
+  #|  - shape: target.call(prefix)
+  #|```
+  #|
+  #|`inside-expr` uses the same pattern-object schema as entries in `patterns`.
+  #|
+  #|Additional rules:
+  #|
+  #|- `inside-expr.shape` must contain exactly one `__TARGET__` occurrence in a
+  #|  binding-capable position.
+  #|- `__TARGET__` must occupy a whole expression position, such as a whole call
+  #|  argument, receiver, or block expression. If it appears only as a label or
+  #|  other non-expression value, no target subtree can be searched.
+  #|- `__TARGET__` must not be declared under `metavars`.
+  #|- Entries in `patterns` must not contain `__TARGET__` in a binding-capable
+  #|  position.
+  #|- Metavars declared by `inside-expr` remain visible when matching the inner
+  #|  `patterns`.
+  #|- Inner `patterns` must not redeclare a metavar name that is already visible
+  #|  from `inside-expr`.
+  #|
+  #|Runtime behavior:
+  #|
+  #|- the current expression is first matched against `inside-expr`
+  #|- if it matches, the subtree captured by `__TARGET__` is searched
+  #|- each expression inside that captured subtree is checked against `patterns`
+  #|- inner pattern matching starts with the bindings established by
+  #|  `inside-expr`
+  #|
+  #|The reported location for an `inside-expr` hit is the inner match location.
+  #|Consumers that expose context locations may also expose the outer expression
+  #|location.
+  #|
+  #|## Taint Rules
+  #|
+  #|A taint rule has a top-level `taint` mapping.
+  #|
+  #|Only these keys are accepted inside `taint`:
+  #|
+  #|- `sources` (required): non-empty array
+  #|- `sinks` (required): non-empty array
+  #|- `sanitizers` (optional): array, defaults to empty
+  #|
+  #|Unknown keys inside `taint` are rejected.
+  #|
+  #|Each array entry is a pattern object with `shape`, optional `metavars`, and no
+  #|supported `guard`.
+  #|
+  #|Example:
+  #|
+  #|```yaml
+  #|package: example/html
+  #|description: |
+  #|  Raw user input reaches an HTML sink.
+  #|taint:
+  #|  sources:
+  #|    - shape: get_user_input()
+  #|  sinks:
+  #|    - shape: render_html(__SOURCE__)
+  #|  sanitizers:
+  #|    - shape: sanitize_html(__SOURCE__)
+  #|```
+  #|
+  #|### Taint Shape Restrictions
+  #|
+  #|Every taint `shape` must be a direct call or method call.
+  #|
+  #|Valid forms include:
+  #|
+  #|```moonbit
+  #|source()
+  #|receiver.method(arg)
+  #|sink(label=arg)
+  #|```
+  #|
+  #|Pipe and reverse-pipe syntax are not valid taint rule shapes today, even though
+  #|source programs may contain those calls after parsing.
+  #|
+  #|`__SOURCE__` is reserved in taint clauses:
+  #|
+  #|- source shapes must not contain `__SOURCE__`
+  #|- sink shapes must contain exactly one `__SOURCE__`
+  #|- sanitizer shapes must contain exactly one `__SOURCE__`
+  #|- in sinks and sanitizers, `__SOURCE__` must be the whole receiver or the whole
+  #|  argument value
+  #|
+  #|Valid sink and sanitizer targets:
+  #|
+  #|```yaml
+  #|taint:
+  #|  sources:
+  #|    - shape: source()
+  #|  sinks:
+  #|    - shape: sink(__SOURCE__)
+  #|    - shape: sink(label=__SOURCE__)
+  #|    - shape: __SOURCE__.dangerous()
+  #|```
+  #|
+  #|Invalid target placement:
+  #|
+  #|```yaml
+  #|taint:
+  #|  sources:
+  #|    - shape: source()
+  #|  sinks:
+  #|    - shape: sink(wrap(__SOURCE__))
+  #|```
+  #|
+  #|The invalid example nests `__SOURCE__` inside another expression instead of
+  #|using it as the whole argument value.
+  #|
+  #|### Taint Semantics
+  #|
+  #|Taint analysis is intraprocedural. It currently analyzes function bodies and
+  #|method bodies. Top-level lets, tests, views, top-level expressions, and
+  #|declarations without bodies are not taint-analyzed.
+  #|
+  #|For one taint rule:
+  #|
+  #|- a matching source call marks the call result as tainted
+  #|- a matching sink call reports when the selected `__SOURCE__` receiver or
+  #|  argument is tainted
+  #|- a matching sanitizer call does not produce tainted return data
+  #|- a matching sanitizer clears stored taint for the selected `__SOURCE__` value
+  #|  only when that value is a storage path, such as a variable, field access,
+  #|  tuple field access, or array access
+  #|- unmatched calls have no effect on taint
+  #|
+  #|There is no interprocedural propagation for YAML taint rules today. If tainted
+  #|data is passed through a helper call that does not match a source, sink, or
+  #|sanitizer clause in the same rule, that helper call does not propagate taint to
+  #|its return value.
+  #|
+  #|When one call matches more than one taint clause type, effects are ordered as
+  #|follows:
+  #|
+  #|- if a call matches both a source and a sanitizer, source return taint is still
+  #|  produced
+  #|- if a call matches both a sink and a sanitizer, the sink is reported using the
+  #|  taint state before sanitizer effects affect later reads
+  #|
+  #|The reported pattern index for taint hits is the zero-based index of the
+  #|matching sink entry.
+  #|
+  #|## Error Conditions
+  #|
+  #|A rule set or rule file is rejected when any of these conditions occurs:
+  #|
+  #|- the rules root contains no `.yaml` or `.yml` files
+  #|- a rule file contains zero YAML documents or more than one YAML document
+  #|- the top-level YAML document is not a mapping
+  #|- an unsupported key appears at the top level, inside `taint`, inside a pattern
+  #|  object, or inside a `metavars` mapping
+  #|- a required key is missing
+  #|- `package`, `description`, or `shape` is not a YAML string
+  #|- the rule does not contain exactly one of `patterns` or `taint`
+  #|- `inside-expr` appears on a taint rule
+  #|- `inside-expr` is present but is not a mapping
+  #|- `patterns` is not an array or is empty
+  #|- a `patterns` entry is not a mapping
+  #|- `taint` is not a mapping
+  #|- `taint.sources` or `taint.sinks` is missing, not an array, or empty
+  #|- `taint.sanitizers` is present but is not an array
+  #|- a taint clause entry is not a mapping
+  #|- `guard` appears in any pattern object
+  #|- `metavars` is neither a mapping nor an array
+  #|- a `metavars` mapping bucket is not an array
+  #|- a `metavars` mapping bucket contains a non-string entry
+  #|- `metavars` shorthand contains a non-string entry
+  #|- a metavar name is duplicated within a bucket or shorthand array
+  #|- a metavar name appears in both `subtree` and `identifier`
+  #|- a metavar declaration uses a reserved name
+  #|- a declared metavar never appears in a binding-capable position
+  #|- `shape` is not valid as one MoonBit expression
+  #|- `inside-expr.shape` does not contain exactly one binding-capable
+  #|  `__TARGET__`
+  #|- a structural `patterns` entry contains binding-capable `__TARGET__`
+  #|- a structural `patterns` entry redeclares a name already declared by
+  #|  `inside-expr`
+  #|- a taint source contains binding-capable `__SOURCE__`
+  #|- a taint sink or sanitizer does not contain exactly one binding-capable
+  #|  `__SOURCE__`
+  #|- a taint sink or sanitizer does not place `__SOURCE__` as the whole receiver
+  #|  or whole argument value
+  #|- a taint source, sink, or sanitizer shape is not a direct call or method call
+  #|- two rule ids conflict after replacing `/` and `-` with `_`
+  #|
+  #|## Examples
+  #|
+  #|### Ordered Structural Alternatives
+  #|
+  #|```yaml
+  #|package: moonbitlang/async/process
+  #|description: |
+  #|  These helpers collect full child-process output before returning.
+  #|patterns:
+  #|  - shape: _command.output_collect(_args)
+  #|    metavars:
+  #|      subtree: [_command, _args]
+  #|  - shape: _command.stderr_collect(_args)
+  #|    metavars:
+  #|      subtree: [_command, _args]
+  #|```
+  #|
+  #|Both alternatives emit the same rule id, package, and description. The
+  #|reported pattern index distinguishes which shape matched.
+  #|
+  #|### Binder and Use Name Comparison
   #|
   #|```yaml
   #|package: moonbitlang/core
@@ -515,38 +616,25 @@ let _embed_rulespec_md : String =
   #|      identifier: [counter]
   #|```
   #|
-  #|Semantics:
+  #|`counter` is compared by source-level name across binder, condition, and update
+  #|positions. `_start`, `upper_limit`, and `body` are structural captures.
   #|
-  #|- `_start`, `upper_limit`, and `body` bind as parser AST nodes
-  #|- each `counter` occurrence must normalize to a simple identifier name
-  #|- all normalized `counter` strings must be equal
-  #|
-  #|### Multi-pattern rule
+  #|### Context-Restricted Structural Match
   #|
   #|```yaml
-  #|package: moonbitlang/async/http
+  #|package: moonbit-community/example
   #|description: |
-  #|  These HTTP parser entrypoints accept messages where `Content-Length` and
-  #|  `Transfer-Encoding` may coexist.
+  #|  Match a sink only under an unsafe wrapper.
+  #|inside-expr:
+  #|  shape: unsafe(__TARGET__)
   #|patterns:
-  #|  - shape: |
-  #|      _conn.read_request()
-  #|    metavars:
-  #|      subtree: [_conn]
-  #|  - shape: |
-  #|      _client.end_request()
-  #|    metavars:
-  #|      subtree: [_client]
+  #|  - shape: sink(__)
   #|```
   #|
-  #|Semantics:
+  #|The rule first finds `unsafe(...)`, then searches only the expression captured
+  #|by `__TARGET__` for `sink(...)`.
   #|
-  #|- the first and second patterns are ordered alternatives
-  #|- either form may emit a hit
-  #|- both alternatives use the same `rule_id`, `package`, and `description`
-  #|- the hit distinguishes them through `pattern_index`
-  #|
-  #|### Taint sink target
+  #|### Taint Source, Sink, and Sanitizer
   #|
   #|```yaml
   #|package: example/html
@@ -561,13 +649,10 @@ let _embed_rulespec_md : String =
   #|    - shape: sanitize_html(__SOURCE__)
   #|```
   #|
-  #|Semantics:
-  #|
-  #|- `get_user_input()` marks the call result as tainted
-  #|- `render_html(__SOURCE__)` reports when its first argument is tainted
-  #|- `sanitize_html(__SOURCE__)` contributes no return taint and kills stored taint
-  #|  when its first argument resolves to a storage path
-  #|- `__SOURCE__` is the whole argument value in both sink and sanitizer clauses
+  #|`get_user_input()` taints its result. `render_html(__SOURCE__)` reports when
+  #|its argument is tainted. `sanitize_html(__SOURCE__)` prevents that selected
+  #|value from contributing taint to later reads when the selected value can be
+  #|tracked as storage.
   #|
 
 ///|

@@ -1,0 +1,323 @@
+# 编写规则
+
+`rule/*` packages 定义了 `moongrep` 使用的 YAML 规则格式，以及运行时 loader、validator、compiler 和 applicator。
+
+如果你想新增或调整规则，请从这里开始。
+
+另见：
+
+- [RuleSpec_CN.md](RuleSpec_CN.md)：权威 YAML 规则规范，包含可接受的键、匹配器语义和失败情况
+
+## 介绍
+
+YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules` 或 `-r` 传给 `moongrep scan` CLI 的任意目录。以 `.yaml` 或 `.yml` 结尾的文件会在该根目录下递归发现；其他文件会被忽略。发现的文件会按排序后的顺序加载，以得到确定性的输出。空规则根目录是错误。
+
+规则 id 来自每个规则文件相对于规则根目录的路径，并移除 `.yaml` 或 `.yml` 后缀。例如，当 `rules` 是规则根目录时，`rules/security/raw-html.yaml` 会变成 `security/raw-html`。规则 id 在 matcher-name normalization 后也必须唯一；该归一化会将 `/` 和 `-` 替换为 `_`。
+
+每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `package` 和 `description`，会拒绝未知顶层键，并且使用且只使用以下顶层模式之一：
+
+- `patterns`：结构化表达式匹配
+- `taint`：过程内污点建模，编译到 `taint` package
+
+`patterns` 必须是非空数组。未知键会在每个 schema 层级被拒绝：顶层规则键、`taint` 键、规则子句键，以及 `metavars` bucket 键。
+
+结构规则还可以添加可选顶层 `inside-expr`。它会过滤外层表达式、绑定外层元变量，然后使用内部 `patterns` 搜索捕获到的 `__TARGET__` 表达式子树。
+
+## 心智模型
+
+请针对单个 MoonBit 表达式子树的形状编写规则，而不是针对整个文件。
+
+`moongrep` 使用 `moonbitlang/parser` 解析源文件，从顶层函数、方法、let、test、view 和表达式 body 中收集表达式子树，并将结构规则应用到这些表达式子树。
+
+- `shape` 应该是能捕获你想标记内容的最小表达式片段。
+- `patterns` 下的多个条目是有序备选项。对于一个表达式和一条规则，第一个匹配的 pattern 获胜，并决定 `pattern_index`。
+- 同一规则中的所有 pattern 共享相同的 `package` 和 `description`。
+- `guard` 键目前会在 runtime AST mode 中被拒绝。
+- 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将 `__TARGET__` 捕获为表达式，则 `patterns` 会应用到该目标子树内的每个表达式。
+- `inside-expr` 元变量对内部 `patterns` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 `patterns` 使用。
+- 内部 pattern 不能重新声明来自 `inside-expr` 的名称。
+- `inside-expr` 规则的命中会记录上下文表达式的 `outer_loc`，以及内部匹配的 `loc`。
+
+对于污点规则：
+
+- `taint` 必须是映射，且包含非空 `sources` 和 `sinks` 数组。`sanitizers` 是可选的，默认值为空；如果出现，它必须是数组。
+- `taint.sources` 将匹配的调用结果标记为 tainted values。
+- 当由 `__SOURCE__` 标记的 receiver 或参数为 tainted 时，`taint.sinks` 会报告命中。
+- `taint.sanitizers` 不贡献返回污点，只在 `__SOURCE__` 解析到 storage path（例如标识符、字段或数组访问）时清除已存储的污点。如果同一调用也匹配 source 子句，source 返回污点仍会产生。
+- taint 子句的 `metavars` 遵循与结构 pattern 相同的 auto / `subtree` / `identifier` 规则。
+- taint 子句不支持 `guard`。
+- `__SOURCE__` 在 taint 规则中是保留名称，不能在 `metavars` 下声明。它只在 sink 和 sanitizer shape 中有效；source shape 不能包含它。
+- source、sink 和 sanitizer shape 必须是调用表达式。Sink 和 sanitizer shape 必须将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置。
+- YAML taint shape 只使用直接调用或方法调用语法。pipe 和 reverse-pipe 调用目前不能用 YAML taint 规则表达。
+- 未匹配的调用没有效果，因此污点不会通过任意 wrapper 或 helper 调用传播，除非这些调用匹配 source、sink 或 sanitizer 子句。
+- 如果一个调用同时匹配 sink 和 sanitizer，sink 会根据调用前的污点报告；sanitizer 效果只影响后续 storage 读取。
+- 污点分析只运行在函数定义和带 body 的 impl method 上。
+
+如果你需要精确的匹配器语义，请阅读 [RuleSpec_CN.md](RuleSpec_CN.md)。
+
+## 工作流
+
+### 1. 选择最小的有效 `shape`
+
+从一个已经长得像目标代码的具体源码片段开始，然后缩小它，直到只剩必要结构。
+
+好的起始 shape：
+
+```yaml
+patterns:
+  - shape: _conn.read_request()
+```
+
+```yaml
+patterns:
+  - shape: |
+      for counter = _start; counter < upper_limit; counter = counter + 1 {
+        body
+      }
+```
+
+`shape` 会作为单个 MoonBit 表达式片段解析。如果你粘贴整个文件，或只在模块作用域才有意义的片段，规则编译会失败。
+
+### 2. 决定哪些名称是字面量，哪些是元变量
+
+`shape` 中的名称默认都是字面量，即使它们看起来像占位符。
+
+这个规则：
+
+```yaml
+patterns:
+  - shape: _expr == _expr
+```
+
+**不会**创建元变量。它匹配两侧字面标识符名称 `_expr`。
+
+如果要让它成为元变量，需要显式声明：
+
+```yaml
+patterns:
+  - shape: _expr == _expr
+    metavars: [_expr]
+```
+
+数组形式声明 auto 元变量。Auto 会根据捕获到的第一个候选项决定绑定方式：简单标识符按归一化名称绑定，非标识符按结构绑定。
+
+内置例外是只由两个或更多下划线组成的名称，例如 `__`、`___` 和 `____`。它们是 `shape` 内的特殊忽略占位符，因此不能在 `metavars` 下声明。
+
+```yaml
+patterns:
+  - shape: foo(__)
+```
+
+当这些名称之一出现在支持的元变量位置时，它会匹配该位置上的任何内容，不绑定值，也不参与重复名称相等性检查。重复的忽略占位符是彼此独立的通配符。在不支持的位置，例如构造器名称，它们保持字面量。该规则独立于 MoonBit 自身对 `_` 的特殊处理。
+
+[RuleSpec_CN.md](RuleSpec_CN.md) 中记录的支持位置，是会计入已声明元变量校验的位置。运行时 pattern matching 仍可能递归进入嵌套 pattern 形式。如果声明的名称或全下划线忽略占位符出现在 array、constructor、record、map、constraint 或 special-constructor pattern 内，它可以在那里参与运行时匹配；这些嵌套出现本身不足以满足 used-metavar validation。
+
+如果编译提示声明的元变量未使用，常见原因是：
+
+- `shape` 和 `metavars` 中的拼写不完全一致
+- 该名称只出现在不计入声明元变量校验的位置
+
+精确的 validation-counted positions 列表见 [RuleSpec_CN.md](RuleSpec_CN.md)。
+
+### 3. 选择 auto、`subtree` 或 `identifier`
+
+当你希望候选代码决定某个名称应该表现为标识符还是结构捕获时，使用 auto 简写：
+
+```yaml
+patterns:
+  - shape: value + value
+    metavars: [value]
+```
+
+它可以通过标识符名称匹配 `item + item`，也可以通过结构表达式相等性匹配 `make() + make()`。它会拒绝 `item + make()` 这样的混合重复捕获，因为第二次出现不匹配第一次选择的绑定模式。
+
+当你想匹配并比较元变量位置上的完整 parser AST node 时，使用 `subtree`。重复使用 `subtree` 元变量意味着这些重复捕获必须根据运行时匹配器结构相等；对于表达式捕获，源码位置会被忽略。
+
+```yaml
+patterns:
+  - shape: _expr == _expr
+    metavars:
+      subtree: [_expr]
+```
+
+它适合支持的重复表达式形状，例如：
+
+- `x == x`
+- `user.profile.name == user.profile.name`
+- `make(value) == make(value)`
+
+当你想跨越不同位置比较源码层面名称时，使用 `identifier`；尤其适合 binder 位置和标识符使用位置之间的比较。
+
+```yaml
+patterns:
+  - shape: |
+      for counter = _start; counter < upper_limit; counter = counter + 1 {
+        body
+      }
+    metavars:
+      subtree: [_start, upper_limit, body]
+      identifier: [counter]
+```
+
+这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配，但原始 AST node 不同，因此 `identifier` 是合适工具。
+
+`identifier` 也适用于 parser AST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，而不是把它当作字面字符串。
+
+每个元变量名只声明一次。在映射形式中，一个名称必须只出现在一个 bucket 中；同一 bucket 内重复，或跨 `subtree` 和 `identifier` 重复，都是加载错误。在简写形式中，重复数组条目是加载错误。不存在 `auto` 映射 bucket；请写 `metavars: [name]`。
+
+### 3.5 当关注节点必须出现在更大上下文内时，使用 `inside-expr`
+
+当你想标记的内容只有在特定外层表达式内才有意义，并且你希望内部匹配继承外层捕获时，可以使用 `inside-expr`。
+
+```yaml
+package: moonbit-community/example
+description: |
+  Match a call only when it appears inside a specific wrapper.
+inside-expr:
+  shape: |
+    wrapper(prefix, __TARGET__)
+  metavars:
+    subtree: [prefix]
+patterns:
+  - shape: |
+      target.call(prefix)
+```
+
+`inside-expr` 的规则：
+
+- 它使用与一个结构 pattern 相同的 `shape` / `metavars` schema
+- 它必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
+- `__TARGET__` 是保留名称，不能在 `metavars` 下声明
+- 内部 `patterns` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
+- 内部 `patterns` 不能重新声明已经由 `inside-expr` 声明的名称
+
+### 4. 处理 shape matching 无法表达的逻辑
+
+当前 runtime AST matcher 不支持 YAML `guard` 表达式。如果一条规则需要额外逻辑，请先检查能否用更窄的 `shape`、`inside-expr`、auto 或 `identifier` 元变量表达。否则，该行为需要 MoonBit 实现工作之后，才能表示为 YAML 规则。
+
+### 5. 当消息共享时添加更多 `patterns`
+
+如果多个表面形式应该使用同一个规则 id、package 和 description，请把它们放在同一个规则文件中。
+
+```yaml
+package: moonbitlang/async/http
+description: |
+  These HTTP parser entrypoints accept messages where `Content-Length` and
+  `Transfer-Encoding` may coexist.
+patterns:
+  - shape: |
+      _conn.read_request()
+    metavars:
+      subtree: [_conn]
+  - shape: |
+      _client.end_request()
+    metavars:
+      subtree: [_client]
+```
+
+只有当规则 id、消息或归属应该不同时，才使用不同的规则文件。
+
+### 6. 运行扫描器
+
+在模块根目录下使用规则目录运行 `moongrep`：
+
+```bash
+moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
+```
+
+`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，扫描器使用 `.`。`--verbose` 会在 warning 和匹配结果之前打印目录遍历进度。
+
+## 完整示例
+
+### 重复 subtree 相等性
+
+```yaml
+package: moonbitlang/core
+description: |
+  Repeated subtree equality.
+patterns:
+  - shape: _expr == _expr
+    metavars:
+      subtree: [_expr]
+```
+
+为什么它能工作：
+
+- `_expr` 被声明为 subtree 元变量
+- 两次出现必须绑定到相等的 parser AST node，且该重复表达式形式被当前 equality helper 支持
+- 该规则可以匹配比简单名称更复杂的内容
+
+### Binder 和使用处必须共享同一个源码层面名称
+
+```yaml
+package: moonbitlang/core
+description: |
+  Counter-style `for` loop.
+patterns:
+  - shape: |
+      for counter = _start; counter < upper_limit; counter = counter + 1 {
+        body
+      }
+    metavars:
+      subtree: [_start, upper_limit, body]
+      identifier: [counter]
+```
+
+为什么它能工作：
+
+- `counter` 按归一化后的标识符名称比较，而不是按原始 AST 相等性比较
+- `_start`、`upper_limit` 和 `body` 按 parser AST node 匹配
+
+### 同一规则，多个 shape
+
+```yaml
+package: moonbitlang/async/process
+description: |
+  These helpers collect full child-process output into memory before returning.
+patterns:
+  - shape: _command.output_collect(_args)
+    metavars:
+      subtree: [_command, _args]
+  - shape: _command.stderr_collect(_args)
+    metavars:
+      subtree: [_command, _args]
+```
+
+为什么它能工作：
+
+- 每个 pattern 都是有序备选项
+- 任一形式都发出相同的规则元数据
+- 命中通过 `pattern_index` 记录匹配的是哪个备选项
+
+## 调试清单
+
+### 规则编译提示 `shape` 无效
+
+你的片段没有被 MoonBit 表达式 parser 接受。先将它缩减到一个有效的表达式大小 shape，然后小心地逐步补回结构。
+
+### 规则编译提示元变量未使用
+
+按顺序检查：
+
+- `shape` 和 `metavars` 之间的拼写完全一致
+- 名称出现在元变量可用的位置
+- 你在正确 bucket 中声明了它
+
+### 一个 `identifier` 规则看起来正确但从不命中
+
+被匹配节点可能并非每次出现都能归一化为简单标识符名称。请查看 [RuleSpec_CN.md](RuleSpec_CN.md) 中精确支持的归一化情况。
+
+### 带 `guard` 的规则加载失败
+
+这是当前实现中的预期行为。规则子句内的任何 `guard` 键都会在 runtime AST mode 中被拒绝。
+
+## 测试工作流
+
+修改规则或规则行为后：
+
+1. 在聚焦 fixture 上运行扫描器：
+   `moon run . -- scan --rules <rules-root> <fixture-root>`
+2. 在 `rule/` 下新增或更新聚焦测试
+3. 覆盖一个正例，以及至少一个容易回归的相近反例
+
+保持测试范围窄。好的规则测试会证明预期匹配，以及至少一个容易回归的非匹配场景。
