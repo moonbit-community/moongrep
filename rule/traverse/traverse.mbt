@@ -1,6 +1,6 @@
 ///|
 pub fn count_supported_name_in_expr(expr : @syntax.Expr, name : String) -> Int {
-  match @ident.normalize_identifier_name_from_expr(expr) {
+  match @id.normalize_identifier_name_from_expr(expr) {
     Some(found) => if found == name { 1 } else { 0 }
     None => count_supported_name_in_expr_children(expr, name)
   }
@@ -231,7 +231,7 @@ fn count_supported_name_in_accessor(
 
 ///|
 fn count_supported_name_in_var(v : @syntax.Var, name : String) -> Int {
-  match @ident.normalize_identifier_name_from_var(v) {
+  match @id.normalize_identifier_name_from_var(v) {
     Some(found) => if found == name { 1 } else { 0 }
     None => 0
   }
@@ -250,7 +250,7 @@ fn count_supported_name_in_binder(
   binder : @syntax.Binder,
   name : String,
 ) -> Int {
-  match @ident.normalize_identifier_name_from_binder(binder) {
+  match @id.normalize_identifier_name_from_binder(binder) {
     Some(found) => if found == name { 1 } else { 0 }
     None => 0
   }
@@ -258,7 +258,7 @@ fn count_supported_name_in_binder(
 
 ///|
 fn count_supported_name_in_label(label : @syntax.Label, name : String) -> Int {
-  match @ident.normalize_identifier_name_from_label(label) {
+  match @id.normalize_identifier_name_from_label(label) {
     Some(found) => if found == name { 1 } else { 0 }
     None => 0
   }
@@ -280,7 +280,7 @@ fn count_supported_name_in_pattern(
   pattern : @syntax.Pattern,
   name : String,
 ) -> Int {
-  match @ident.normalize_identifier_name_from_pattern(pattern) {
+  match @id.normalize_identifier_name_from_pattern(pattern) {
     Some(found) => if found == name { 1 } else { 0 }
     None =>
       match pattern {

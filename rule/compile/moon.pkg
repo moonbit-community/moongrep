@@ -1,5 +1,5 @@
 import {
-  "moonbit-community/moongrep/ident",
+  "moonbit-community/moongrep/rule/syntax_id" @id,
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/rule/prefilter",
   "moonbit-community/moongrep/rule/traverse",

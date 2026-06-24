@@ -186,7 +186,7 @@ fn collect_var_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match @ident.normalize_identifier_name_from_var(var_) {
+  match @id.normalize_identifier_name_from_var(var_) {
     Some(name) =>
       if !is_filter_placeholder(name, compiled) {
         push_literal(literals, name)
@@ -201,7 +201,7 @@ fn collect_binder_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match @ident.normalize_identifier_name_from_binder(binder) {
+  match @id.normalize_identifier_name_from_binder(binder) {
     Some(name) =>
       if !is_filter_placeholder(name, compiled) {
         push_literal(literals, name)
@@ -216,7 +216,7 @@ fn collect_label_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match @ident.normalize_identifier_name_from_label(label) {
+  match @id.normalize_identifier_name_from_label(label) {
     Some(name) =>
       if !is_filter_placeholder(name, compiled) {
         push_literal(literals, name)
