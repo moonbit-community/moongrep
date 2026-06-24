@@ -84,7 +84,7 @@ test "scan collects mbt hits and skips dependency, build, and VCS directories" {
     verbose: false,
   })
   inspect(result.hits.length(), content="1")
-  assert_true(result.hits[0].file.has_suffix("hit.mbt"))
+  assert_true(result.hits[0].finding.file.has_suffix("hit.mbt"))
 }
 
 ///|
@@ -279,7 +279,14 @@ test "render prints structural hit location and description" {
   @miniio.mkdir(rules_dir)
   @miniio.mkdir(scan_dir)
   write_rule_file(rules_dir, structural_target_rule())
-  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  let source =
+    #|fn sample {
+    #|  before()
+    #|  target()
+    #|  after()
+    #|}
+    #|
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", source)
   let result = collect_directory_hits({
     rules_root: Some(rules_dir),
     patterns: [],
@@ -289,6 +296,16 @@ test "render prints structural hit location and description" {
   let output = render_directory_scan_result(result)
   assert_true(output.contains("rule: example"))
   assert_true(output.contains("description:\n  Target call."))
+  assert_false(output.contains("\n>"))
+  assert_true(
+    output.contains(
+      [
+        "source:", "\u001B[90m1 | fn sample {\u001B[39m", "\u001B[90m2 |   before()\u001B[39m",
+        "\u001B[90m3 | \u001B[39m  target()", "\u001B[90m4 |   after()\u001B[39m",
+        "\u001B[90m5 | }\u001B[39m",
+      ].join("\n"),
+    ),
+  )
 }
 
 ///|
@@ -310,7 +327,45 @@ test "scan reports taint hits" {
     verbose: false,
   })
   inspect(result.hits.length(), content="1")
-  inspect(result.hits[0].rule_id, content="example")
+  inspect(result.hits[0].finding.rule_id, content="example")
+}
+
+///|
+test "render prints taint sink source context" {
+  let root = moongrep_tmp_root("moongrep-render-taint-context")
+  let rules_dir = "\{root}/rules"
+  let scan_dir = "\{root}/src"
+  @miniio.mkdir(rules_dir)
+  @miniio.mkdir(scan_dir)
+  write_rule_file(rules_dir, taint_user_rule())
+  let source =
+    #|fn sample {
+    #|  before()
+    #|  let x = get_user_input()
+    #|  sink(x)
+    #|  after()
+    #|}
+    #|
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", source)
+  let output = render_directory_scan_result(
+    collect_directory_hits({
+      rules_root: Some(rules_dir),
+      patterns: [],
+      scan_root: scan_dir,
+      verbose: false,
+    }),
+  )
+  assert_true(output.contains("description:\n  User input reaches sink."))
+  assert_false(output.contains("\n>"))
+  assert_true(
+    output.contains(
+      [
+        "source:", "\u001B[90m2 |   before()\u001B[39m", "\u001B[90m3 |   let x = get_user_input()\u001B[39m",
+        "\u001B[90m4 | \u001B[39m  sink(x)", "\u001B[90m5 |   after()\u001B[39m",
+        "\u001B[90m6 | }\u001B[39m",
+      ].join("\n"),
+    ),
+  )
 }
 
 ///|
@@ -353,12 +408,24 @@ test "scan applies anonymous cli pattern without rules directory" {
   let root = moongrep_tmp_root("moongrep-cli-pattern")
   let scan_dir = "\{root}/src"
   @miniio.mkdir(scan_dir)
-  @miniio.write_text_file("\{scan_dir}/hit.mbt", "fn sample { target() }\n")
+  let source =
+    #|fn sample {
+    #|  target()
+    #|}
+    #|
+  @miniio.write_text_file("\{scan_dir}/hit.mbt", source)
   match parse_cli_command(["scan", "--pattern", "target()", scan_dir]) {
     ("scan", Some(options), None) => {
       let result = collect_directory_hits(options)
       inspect(result.hits.length(), content="1")
-      inspect(result.hits[0].rule_id, content="target()")
+      inspect(result.hits[0].finding.rule_id, content="target()")
+      let output = render_directory_scan_result(result)
+      assert_false(output.contains("\n>"))
+      assert_true(
+        output.contains(
+          "source:\n\u001B[90m1 | fn sample {\u001B[39m\n\u001B[90m2 | \u001B[39m  target()\n\u001B[90m3 | }\u001B[39m",
+        ),
+      )
     }
     _ => fail("unexpected command")
   }

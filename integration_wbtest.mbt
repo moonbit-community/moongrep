@@ -33,7 +33,7 @@ test "integration applies compatible async structural rule" {
     verbose: false,
   })
   inspect(result.hits.length(), content="1")
-  inspect(result.hits[0].rule_id, content="example")
+  inspect(result.hits[0].finding.rule_id, content="example")
 }
 
 ///|
@@ -71,7 +71,7 @@ test "integration applies inside expr target traversal" {
   })
   inspect(result.skipped_files.length(), content="0")
   inspect(result.hits.length(), content="1")
-  assert_true(result.hits[0].outer_loc is Some(_))
+  assert_true(result.hits[0].finding.outer_loc is Some(_))
 }
 
 ///|

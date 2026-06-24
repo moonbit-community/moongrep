@@ -9,8 +9,26 @@ priv struct SkippedFile {
 ///|
 priv struct DirectoryScanResult {
   scan_trace : Array[String]
-  hits : Array[@rule_model.RuleFinding]
+  hits : Array[ScanHit]
   skipped_files : Array[SkippedFile]
+}
+
+///|
+priv struct ScanHit {
+  finding : @rule_model.RuleFinding
+  source_context : SourceContext
+}
+
+///|
+priv struct SourceContext {
+  lines : Array[SourceContextLine]
+}
+
+///|
+priv struct SourceContextLine {
+  line_number : Int
+  text : String
+  is_match : Bool
 }
 
 ///|
@@ -29,7 +47,7 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
     },
   )
   files.sort()
-  let hits : Array[@rule_model.RuleFinding] = []
+  let hits : Array[ScanHit] = []
   let skipped_files : Array[SkippedFile] = []
   for file in files {
     let source = @miniio.read_text_file(file)
@@ -56,13 +74,13 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
               file, node, impl_rules,
             )
             for hit in structural_hits {
-              hits.push(hit)
+              hits.push(make_scan_hit(source, hit))
             }
             let taint_hits = @rule_apply.apply_taint_rules_to_impl(
               file, node, impl_rules,
             )
             for hit in taint_hits {
-              hits.push(hit)
+              hits.push(make_scan_hit(source, hit))
             }
           }
         }
@@ -70,6 +88,50 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
     }
   }
   { scan_trace, hits, skipped_files }
+}
+
+///|
+fn make_scan_hit(source : String, finding : @rule_model.RuleFinding) -> ScanHit {
+  { finding, source_context: source_context_for_location(source, finding.loc) }
+}
+
+///|
+fn source_context_for_location(
+  source : String,
+  loc : @basic.Location,
+) -> SourceContext {
+  let split_lines = source.split("\n").to_array()
+  let line_count = source_context_line_count(source, split_lines.length())
+  if line_count == 0 ||
+    loc.start.lnum <= 0 ||
+    loc.end.lnum <= 0 ||
+    loc.end.lnum < loc.start.lnum {
+    return { lines: [] }
+  }
+  let start_line = if loc.start.lnum > 2 { loc.start.lnum - 2 } else { 1 }
+  let end_line = if loc.end.lnum + 2 < line_count {
+    loc.end.lnum + 2
+  } else {
+    line_count
+  }
+  let lines : Array[SourceContextLine] = []
+  for line_number in start_line..<=end_line {
+    lines.push({
+      line_number,
+      text: split_lines[line_number - 1].to_owned(),
+      is_match: line_number >= loc.start.lnum && line_number <= loc.end.lnum,
+    })
+  }
+  { lines, }
+}
+
+///|
+fn source_context_line_count(source : String, split_line_count : Int) -> Int {
+  if source.has_suffix("\n") && split_line_count > 0 {
+    split_line_count - 1
+  } else {
+    split_line_count
+  }
 }
 
 ///|
