@@ -4,23 +4,6 @@ This document records implementation details that are easy to miss when
 changing the `matching` package. It is for maintainers of the matcher and its
 callers, not for rule authors.
 
-## Package Boundary
-
-`matching` owns root-level AST shape matching for `@syntax.Expr` values.
-It does not parse rule text, validate rule schemas, traverse candidate ASTs, or
-apply findings. Those responsibilities live in sibling rule packages:
-
-- `rule/compile` parses shapes and builds `CompiledExprPattern`.
-- `rule/traverse` decides which expression subtrees are visited.
-- `rule/apply` calls this package for structural rules.
-- `rule/taint_lowering` calls this package only on call ASTs selected by the
-  taint engine.
-- `rule/prefilter` must stay aligned with this package's placeholder semantics
-  so it does not filter away files that the matcher could match.
-
-`match_expr_pattern` is intentionally a single-root match. If a caller wants to
-search descendants, it must pass each candidate subtree separately.
-
 ## Match State
 
 `match_expr_pattern` starts with a fresh `HashMap[String, BoundValue]`.
