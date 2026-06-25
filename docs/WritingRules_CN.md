@@ -108,7 +108,7 @@ patterns:
   - shape: foo(__)
 ```
 
-当这些名称之一出现在支持的元变量位置时，它会匹配该位置上的任何内容，不绑定值，也不参与重复名称相等性检查。重复的忽略占位符是彼此独立的通配符。在不支持的位置，例如构造器名称，它们保持字面量。该规则独立于 MoonBit 自身对 `_` 的特殊处理。
+当这些名称之一出现在支持的元变量位置时，它会匹配该位置上的任何内容，不绑定值，也不参与重复名称相等性检查。重复的忽略占位符是彼此独立的通配符。在不支持的位置，例如构造器名称，它们保持字面量。
 
 [RuleSpec_CN.md](RuleSpec_CN.md) 中记录的支持位置，是会计入已声明元变量校验的位置。运行时 pattern matching 仍可能递归进入嵌套 pattern 形式。如果声明的名称或全下划线忽略占位符出现在 array、constructor、record、map、constraint 或 special-constructor pattern 内，它可以在那里参与运行时匹配；这些嵌套出现本身不足以满足 used-metavar validation。
 

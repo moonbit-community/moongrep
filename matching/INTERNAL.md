@@ -40,15 +40,14 @@ Expression matching first calls `match_expr_placeholder`. If it returns
 
 Placeholder priority in expression positions is:
 
-1. parser holes match any candidate expression
-2. names made only of underscores, with length at least two, are ignore
+1. names made only of underscores, with length at least two, are ignore
    placeholders
-3. `target_metavar` and `source_metavar` bind a whole expression when present
+2. `target_metavar` and `source_metavar` bind a whole expression when present
    in `CompiledExprPattern`
-4. declared subtree metavars bind a whole syntactic value
-5. declared identifier metavars bind a normalized identifier string
-6. auto metavars choose structural or identifier mode from the first match
-7. undeclared names are literal AST names
+3. declared subtree metavars bind a whole syntactic value
+4. declared identifier metavars bind a normalized identifier string
+5. auto metavars choose structural or identifier mode from the first match
+6. undeclared names are literal AST names
 
 The same ignore/subtree/identifier/auto ordering is repeated for vars, binders,
 labels, and pattern variables, except `__TARGET__` and `__SOURCE__` are special
@@ -135,8 +134,7 @@ Notable exactness details:
 - argument kind and labels must match, unless a label is a declared placeholder
 - record/map trailing markers and open/closed flags are significant
 - `Unit(faked=...)` compares the `faked` flag
-- parser holes match any expression at pattern time, but captured holes compare
-  by hole kind when used in repeated structural bindings
+- parser holes are literal AST nodes and compare by hole kind
 - interpolation `Source(_)` nodes match by node kind only; parser token
   internals are not compared
 
