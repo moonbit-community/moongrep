@@ -5,5 +5,5 @@ import {
 }
 
 import {
-  "moonbitlang/parser/basic",
+  "moonbitlang/lexer/basic",
 } for "wbtest"

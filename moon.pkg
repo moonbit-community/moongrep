@@ -10,7 +10,7 @@ import {
   "moonbitlang/core/argparse",
   "moonbitlang/core/list",
   "moonbitlang/parser",
-  "moonbitlang/parser/basic",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/syntax",
 }
 

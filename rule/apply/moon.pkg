@@ -4,7 +4,7 @@ import {
   "moonbit-community/moongrep/rule/taint_lowering",
   "moonbit-community/moongrep/rule/traverse",
   "moonbit-community/moongrep/taint",
-  "moonbitlang/parser/basic",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/syntax",
   "moonbitlang/core/hashmap",
   "moonbitlang/core/list",

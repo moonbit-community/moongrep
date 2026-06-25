@@ -3,7 +3,7 @@ import {
 }
 
 import {
-  "moonbitlang/parser/basic",
-  "moonbitlang/parser/lexer",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/lexer",
   "moonbitlang/parser/handrolled_parser",
 } for "test"
