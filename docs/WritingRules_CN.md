@@ -12,7 +12,7 @@
 
 YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules` 或 `-r` 传给 `moongrep scan` CLI 的任意目录。以 `.yaml` 或 `.yml` 结尾的文件会在该根目录下递归发现；其他文件会被忽略。发现的文件会按排序后的顺序加载，以得到确定性的输出。空规则根目录是错误。
 
-规则 id 来自规则文件目录加 YAML `id`。例如，当 `rules` 是规则根目录时，`rules/security/raw.yaml` 中的 `id: raw-html` 会变成 `security/raw-html`。直接位于规则根目录下的文件只使用其 `id`。文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属由文件位置编码。规则 id 在 matcher-name normalization 后也必须唯一；该归一化会将 `/` 和 `-` 替换为 `_`。
+规则 id 来自规则文件目录加 YAML `id`。例如，当 `rules` 是规则根目录时，`rules/security/raw.yaml` 中的 `id: raw-html` 会变成 `security/raw-html`。直接位于规则根目录下的文件只使用其 `id`。文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属由文件位置编码。
 
 每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `id` 和 `description`，会拒绝未知顶层键，并且使用且只使用以下顶层模式之一：
 

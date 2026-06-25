@@ -31,7 +31,7 @@ using @traverse {count_supported_name_in_expr}
 pub fn compile_rules(
   raw_rules : Array[RawRuleSpec],
 ) -> Array[CompiledRule] raise {
-  ensure_unique_matcher_names(raw_rules)
+  ensure_unique_rule_ids(raw_rules)
   let compiled : Array[CompiledRule] = []
   for raw in raw_rules {
     compiled.push(compile_rule(raw))
@@ -249,31 +249,17 @@ fn compile_pattern_with_effective_metavars(
 }
 
 ///|
-fn ensure_unique_matcher_names(raw_rules : Array[RawRuleSpec]) -> Unit raise {
+fn ensure_unique_rule_ids(raw_rules : Array[RawRuleSpec]) -> Unit raise {
   let seen : Map[String, String] = {}
   for raw in raw_rules {
-    let normalized = normalized_matcher_name(raw.rule_id)
-    if seen.contains(normalized) {
+    if seen.contains(raw.rule_id) {
       raise RuleLoadError::InvalidRule(
         path=raw.path,
-        info="rule id \{raw.rule_id} conflicts with another rule after matcher name normalization",
+        info="rule id \{raw.rule_id} conflicts with another rule",
       )
     }
-    seen[normalized] = raw.rule_id
+    seen[raw.rule_id] = raw.rule_id
   }
-}
-
-///|
-fn normalized_matcher_name(rule_id : String) -> String {
-  let builder = StringBuilder()
-  for char in rule_id {
-    if char == '/' || char == '-' {
-      builder.write_char('_')
-    } else {
-      builder.write_char(char)
-    }
-  }
-  builder.to_string()
 }
 
 ///|

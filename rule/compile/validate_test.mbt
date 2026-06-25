@@ -166,44 +166,6 @@ test "validate compiles taint source target metadata" {
 }
 
 ///|
-test "validate rejects normalized rule id collisions" {
-  let hyphen_source =
-    #|id: a-b
-    #|description: |
-    #|  Repeated equality.
-    #|patterns:
-    #|  - shape: _expr == _expr
-    #|    metavars:
-    #|      subtree: [_expr]
-    #|
-  let underscore_source =
-    #|id: a_b
-    #|description: |
-    #|  Repeated equality.
-    #|patterns:
-    #|  - shape: _expr == _expr
-    #|    metavars:
-    #|      subtree: [_expr]
-    #|
-  let left = @model.RawRuleSpec::from_str(
-    "/tmp/rules/left.yaml", "/tmp/rules", hyphen_source,
-  )
-  let right = @model.RawRuleSpec::from_str(
-    "/tmp/rules/right.yaml", "/tmp/rules", underscore_source,
-  )
-  try ignore(compile_rules([left, right])) catch {
-    RuleLoadError::InvalidRule(path=_, info~) =>
-      inspect(
-        info,
-        content="rule id a_b conflicts with another rule after matcher name normalization",
-      )
-    _ => fail("expected RuleLoadError")
-  } noraise {
-    _ => fail("expected collision failure")
-  }
-}
-
-///|
 test "validate rejects reference rule guard in runtime AST mode" {
   let source =
     #|id: example

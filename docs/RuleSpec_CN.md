@@ -8,7 +8,7 @@
 
 本文档规定当前 YAML 规则文件格式、校验规则和匹配语义。
 
-关键词 "must"、"must not"、"may" 和 "currently" 描述的是规则作者今天可以依赖的行为。本规范有意避免描述源码布局、语法处理内部细节、具体数据类型或实现中的函数名。
+关键词 "must"、"must not"、"may" 和 "currently" 描述的是规则作者今天可以依赖的行为。
 
 规则使用 YAML 编写，但每个 `shape` 值都是 MoonBit 表面语法。扫描器匹配的是解析后的 MoonBit 表达式结构，而不是原始文本。因此，格式和注释不重要；表达式形式、操作符、字面量值、标签、被调用名称和参数结构是重要的，除非通配符或声明的元变量另有规定。
 
@@ -41,7 +41,7 @@ rules/security/raw.yaml with id: unsafe-html       -> security/unsafe-html
 rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-html
 ```
 
-规则 id 必须唯一。此外，将 `/` 和 `-` 替换为 `_` 后，两个 id 也不能变成相同字符串。
+规则 id 必须唯一。
 
 ## YAML Schema
 
@@ -481,7 +481,6 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - taint sink 或 sanitizer 没有且只有一个可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置
 - taint source、sink 或 sanitizer shape 不是直接调用或方法调用
-- 两个规则 id 在将 `/` 和 `-` 替换为 `_` 后冲突
 
 ## 示例
 
