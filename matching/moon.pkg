@@ -1,12 +1,12 @@
 import {
   "moonbit-community/moongrep/rule/syntax_id" @id,
-  "moonbitlang/parser/basic",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/syntax",
   "moonbitlang/core/hashmap",
   "moonbitlang/core/list",
 }
 
 import {
-  "moonbitlang/parser/lexer",
+  "moonbitlang/lexer",
   "moonbitlang/parser/handrolled_parser",
 } for "test"

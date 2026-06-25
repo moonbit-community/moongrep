@@ -2,7 +2,7 @@ import {
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/taint",
-  "moonbitlang/parser/basic",
+  "moonbitlang/lexer/basic",
 }
 
 import {
