@@ -26,9 +26,7 @@ let _embed_writingrules_md : String =
   #|`rules/security/raw.yaml` with `id: raw-html` becomes `security/raw-html` when
   #|`rules` is the rules root. A file directly under the rules root uses just its
   #|`id`. Filenames do not contribute to rule ids. The YAML `id` must be non-empty
-  #|and must not contain `/`; directory ownership is encoded by file location. Rule
-  #|ids must also be unique after matcher-name normalization, where `/` and `-` are
-  #|replaced with `_`.
+  #|and must not contain `/`; directory ownership is encoded by file location.
   #|
   #|Each YAML file must contain exactly one document, and that document must be a
   #|mapping. A complete rule file requires string `id` and `description` fields,

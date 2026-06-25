@@ -15,9 +15,7 @@ let _embed_rulespec_md : String =
   #|and matching semantics.
   #|
   #|The keywords "must", "must not", "may", and "currently" describe the behavior
-  #|rule authors can rely on today. This specification intentionally avoids
-  #|describing source layout, syntax-processing internals, concrete data types, or
-  #|function names from the implementation.
+  #|rule authors can rely on today.
   #|
   #|Rules are written as YAML, but every `shape` value is MoonBit surface syntax.
   #|The scanner matches parsed MoonBit expression structure, not raw text. As a
@@ -58,8 +56,7 @@ let _embed_rulespec_md : String =
   #|rules/security/nested/raw.yml with id: unsafe-html    -> security/nested/unsafe-html
   #|```
   #|
-  #|Rule ids must be unique. In addition, two ids must not become identical after
-  #|replacing `/` and `-` with `_`.
+  #|Rule ids must be unique.
   #|
   #|## YAML Schema
   #|
@@ -584,7 +581,6 @@ let _embed_rulespec_md : String =
   #|- a taint sink or sanitizer does not place `__SOURCE__` as the whole receiver
   #|  or whole argument value
   #|- a taint source, sink, or sanitizer shape is not a direct call or method call
-  #|- two rule ids conflict after replacing `/` and `-` with `_`
   #|
   #|## Examples
   #|
