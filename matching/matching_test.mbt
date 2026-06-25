@@ -83,6 +83,13 @@ test "undeclared double-underscore-prefixed identifier is literal" {
 }
 
 ///|
+test "expression hole is literal instead of wildcard" {
+  let pattern = parse_expr("_")
+  assert_false(expr_matches(pattern, parse_expr("value")))
+  assert_true(expr_matches(pattern, parse_expr("_")))
+}
+
+///|
 test "declared subtree metavar requires structural equality" {
   let pattern = parse_expr("__x + __x")
   let compiled : CompiledExprPattern = {

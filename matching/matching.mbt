@@ -2,8 +2,8 @@
 /// Returns whether `candidate` has the same AST shape as `pattern`.
 ///
 /// This convenience entry point does not enable declared metavars. It still
-/// treats parser holes and identifiers made entirely of two or more underscores
-/// as ignore placeholders.
+/// treats identifiers made entirely of two or more underscores as ignore
+/// placeholders.
 pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
   let compiled : CompiledExprPattern = {
     ast: pattern,
@@ -65,7 +65,7 @@ fn match_expr(
     None =>
       match (pattern, candidate) {
         (Ident(id=pid, ..), Ident(id=cid, ..)) => var_equal(pid, cid)
-        (Hole(..), _) => true
+        (Hole(kind=pk, ..), Hole(kind=ck, ..)) => hole_equal(pk, ck)
         (Constant(c=pc, ..), Constant(c=cc, ..)) => constant_equal(pc, cc)
         (
           ArrayAugmentedSet(op=pop, array=pa, index=pi, value=pv, ..),
@@ -206,7 +206,7 @@ fn match_expr(
         ) =>
           match_pattern(pp, cp, compiled, bindings) &&
           match_expr(pe, ce, compiled, bindings) &&
-          (is_faked_unit(pb) || match_expr(pb, cb, compiled, bindings))
+          (pb is Unit(faked=true, ..) || match_expr(pb, cb, compiled, bindings))
         (
           LetAnd(bindings=pb, body=pbody, ..),
           LetAnd(bindings=cb, body=cbody, ..),
@@ -414,16 +414,8 @@ fn match_expr(
 }
 
 ///|
-fn is_faked_unit(expr : @syntax.Expr) -> Bool {
-  match expr {
-    Unit(faked=true, ..) => true
-    _ => false
-  }
-}
-
-///|
-// Handles rule-pattern placeholders, including special identifiers and parser
-// holes, before the structural matcher falls back to literal AST comparison.
+// Handles rule-pattern placeholders before the structural matcher falls back to
+// literal AST comparison.
 fn match_expr_placeholder(
   pattern : @syntax.Expr,
   candidate : @syntax.Expr,
@@ -459,7 +451,6 @@ fn match_expr_placeholder(
           }
         None => None
       }
-    Hole(..) => Some(true)
     _ => None
   }
 }

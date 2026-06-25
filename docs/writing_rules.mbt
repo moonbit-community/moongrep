@@ -166,8 +166,7 @@ let _embed_writingrules_md : String =
   #|When one of these names appears in a supported metavar position, it matches
   #|anything there without binding a value or participating in repeated-name
   #|equality. Repeated ignore placeholders are independent wildcards. In
-  #|unsupported positions such as constructor names, they stay literal. This rule is
-  #|separate from MoonBit's own special handling of `_`.
+  #|unsupported positions such as constructor names, they stay literal. 
   #|
   #|The supported positions documented in [RuleSpec.md](RuleSpec.md) are the
   #|positions that count for declared-metavar validation. Runtime pattern matching

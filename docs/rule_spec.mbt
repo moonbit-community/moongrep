@@ -228,9 +228,6 @@ let _embed_rulespec_md : String =
   #|Only all-underscore names have this built-in behavior. A name such as `__x` is
   #|literal unless it is declared as a normal metavar.
   #|
-  #|MoonBit expression holes, such as `_` where parsed as an expression hole, also
-  #|match any expression at that position.
-  #|
   #|### `subtree`
   #|
   #|A `subtree` metavar captures the parsed syntax at its position. Repeating the
