@@ -160,11 +160,17 @@ fn is_filter_placeholder(
   compiled : @matching.CompiledExprPattern,
 ) -> Bool {
   is_underscore_placeholder(name) ||
+  is_pattern_placeholder(name) ||
   compiled.target_metavar == Some(name) ||
   compiled.source_metavar == Some(name) ||
   contains_string(compiled.expr_metavars, name) ||
   contains_string(compiled.identifier_metavars, name) ||
   contains_string(compiled.constant_metavars, name)
+}
+
+///|
+fn is_pattern_placeholder(name : String) -> Bool {
+  name.has_prefix("$pat:") && name.length() > "$pat:".length()
 }
 
 ///|

@@ -26,6 +26,26 @@ fn test_binder(name : String) -> @syntax.Binder {
 }
 
 ///|
+fn test_pattern_var(name : String) -> @syntax.Pattern {
+  Var(test_binder(name))
+}
+
+///|
+fn test_pattern_tuple(items : Array[@syntax.Pattern]) -> @syntax.Pattern {
+  Tuple(pats=@list.from_array(items), loc=test_loc())
+}
+
+///|
+fn test_match_pattern(pattern : @syntax.Pattern) -> @syntax.Expr {
+  Match(
+    expr=test_ident("input"),
+    cases=@list.from_array([{ pattern, guard_: None, body: test_ident("body") }]),
+    match_loc=test_loc(),
+    loc=test_loc(),
+  )
+}
+
+///|
 fn test_label(name : String) -> @syntax.Label {
   { name, loc: test_loc() }
 }
@@ -237,6 +257,62 @@ test "constant metavar matches only constant patterns" {
   )
   assert_false(
     match_expr_pattern(compiled, parse_expr("match value { item => item }"))
+    is Some(_),
+  )
+}
+
+///|
+test "pattern metavar captures whole pattern AST" {
+  let compiled : CompiledExprPattern = {
+    ast: test_match_pattern(test_pattern_var("$pat:item")),
+    expr_metavars: ["input", "body"],
+    identifier_metavars: [],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  match
+    match_expr_pattern(
+      compiled,
+      parse_expr("match value { Some(actual) => ok }"),
+    ) {
+    Some(result) =>
+      match result.bindings.get("item") {
+        Some(Pattern(Constr(constr~, ..))) =>
+          inspect(constr.name.name, content="Some")
+        _ => fail("expected pattern binding")
+      }
+    None => fail("expected match")
+  }
+}
+
+///|
+test "pattern metavar requires repeated pattern equality" {
+  let compiled : CompiledExprPattern = {
+    ast: test_match_pattern(
+      test_pattern_tuple([
+        test_pattern_var("$pat:item"),
+        test_pattern_var("$pat:item"),
+      ]),
+    ),
+    expr_metavars: ["input", "body"],
+    identifier_metavars: [],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(
+      compiled,
+      parse_expr("match value { (Some(actual), Some(actual)) => ok }"),
+    )
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(
+      compiled,
+      parse_expr("match value { (Some(actual), Some(other)) => ok }"),
+    )
     is Some(_),
   )
 }

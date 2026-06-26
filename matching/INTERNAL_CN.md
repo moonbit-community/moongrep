@@ -27,14 +27,15 @@
 5. 声明过的 constant metavar 只绑定 `Expr::Constant`
 6. 未声明的名字是字面 AST 名称
 
-对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，声明过的 constant metavar 也有特殊含义，并且只匹配 `Pattern::Constant`。`__TARGET__` 和
-`__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的 `__x` 是字面量：
-只有 `__` 或 `___` 这种拼写本身才是忽略占位符。
+对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$pat:<name>` 会绑定整个候选 `Pattern` AST，声明过的 constant metavar 只匹配
+`Pattern::Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
+`__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
+`__x` 是字面量：只有 `__` 或 `___` 这种拼写本身才是忽略占位符。
 
 ## 绑定种类
 
-`BoundValue` 存储三种值：用于完整表达式捕获的 `Expr`、用于归一化名称捕获的
-`Identifier`，以及用于解析后常量的 `Constant`。
+`BoundValue` 存储四种值：用于完整表达式捕获的 `Expr`、用于完整 pattern 捕获的
+`Pattern`、用于归一化名称捕获的 `Identifier`，以及用于解析后常量的 `Constant`。
 
 expression metavar 会捕获该位置上的候选表达式。重复使用时比较解析后的表达式结构，
 并忽略源码位置。
@@ -45,6 +46,9 @@ identifier metavar 会存储 `Identifier(String)`。Expr、var 和 pattern 值�
 constant metavar 会存储 `Constant(@syntax.Constant)`。表达式占位符只接受
 `Expr::Constant`，pattern 占位符只接受 `Pattern::Constant`，重复使用时通过
 `constant_equal` 比较。
+
+pattern metavar 会存储 `Pattern(@syntax.Pattern)`。重复使用时通过
+`pattern_equal_ignoring_loc` 比较捕获到的 pattern AST，因此源码位置不会影响相等性。
 
 ## 相等性忽略位置但并不完整
 

@@ -34,15 +34,30 @@ test "validate rejects reserved inline metavar names" {
 }
 
 ///|
-test "validate rejects unsupported inline metavar kind" {
+test "validate accepts inline pattern metavars" {
   let source =
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $pat:x
+    #|  - shape: match input { $pat:item => $exp:body }
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => inspect(rule.patterns.length(), content="1")
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects pattern metavar outside bare pattern position" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $pat:value + 1
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape contains unsupported metavar kind pat",
+    source, "patterns[0].shape uses $pat:value outside a bare pattern position",
   )
 }
 
