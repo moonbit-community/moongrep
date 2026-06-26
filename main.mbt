@@ -17,6 +17,8 @@ fn main {
       }
       ("docs-list", None, None) | ("docs-show", None, Some(_)) =>
         write_cli_output(render_docs_command(command))
+      ("dump-impl", None, Some(_)) | ("dump-expr", None, Some(_)) =>
+        write_cli_output(render_dump_command(command))
       _ => fail("invalid CLI command")
     }
   } catch {

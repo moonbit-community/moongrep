@@ -49,6 +49,29 @@ test "cli args reject ambiguous docs command" {
 }
 
 ///|
+test "cli args parse dump impl command" {
+  match parse_cli_command(["dump", "--impl", "fn answer { 42 }"]) {
+    ("dump-impl", None, Some(source)) =>
+      inspect(source, content="fn answer { 42 }")
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse dump expr command" {
+  match parse_cli_command(["dump", "--expr", "x + 1"]) {
+    ("dump-expr", None, Some(source)) => inspect(source, content="x + 1")
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args reject ambiguous dump command" {
+  expect_cli_usage(["dump"], 2)
+  expect_cli_usage(["dump", "--impl", "fn answer { 42 }", "--expr", "x + 1"], 2)
+}
+
+///|
 test "cli args parse rules root and default scan root" {
   match parse_cli_command(["scan", "--rules", "custom-rules"]) {
     ("scan", Some(options), None) => {

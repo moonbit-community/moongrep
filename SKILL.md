@@ -57,6 +57,30 @@ Symbolic links encountered during recursive source or rule traversal are
 followed. Files that fail to parse are reported as warnings and skipped; other
 files continue to be scanned.
 
+## Dump
+
+MoonBit AST JSON dumps are available through the `dump` subcommand:
+
+```bash
+moon runwasm moonbit-community/moongrep -- dump --impl 'fn answer { 42 }'
+moon runwasm moonbit-community/moongrep -- dump --expr 'x + 1'
+```
+
+Synopsis:
+
+```text
+moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
+```
+
+Use `--impl <impl>` to parse exactly one MoonBit top-level implementation item
+and print its AST JSON. Use `--expr <expr>` to parse a MoonBit expression and
+print its AST JSON. The options are mutually exclusive, and one of them is
+required.
+
+Usage errors, including missing both dump modes or combining `--impl` with
+`--expr`, print a message and exit with code 2. Parse or lexical failures print
+a message and exit with code 1.
+
 ## Document
 
 Embedded documentation is available through the `docs` subcommand:
