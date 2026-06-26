@@ -48,9 +48,7 @@ test "prefilter keeps unfilterable structural rule relevant" {
     #|id: example
     #|description: Any expression.
     #|patterns:
-    #|  - shape: _expr
-    #|    metavars:
-    #|      subtree: [_expr]
+    #|  - shape: $exp:_expr
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(rule_is_relevant_to_source(rule, "fn sample { anything() }\n"))
@@ -58,18 +56,36 @@ test "prefilter keeps unfilterable structural rule relevant" {
 }
 
 ///|
-test "prefilter treats auto metavars as placeholders" {
+test "prefilter treats inline expression metavars as placeholders" {
   let source =
     #|id: example
     #|description: Target call.
     #|patterns:
-    #|  - shape: sink(value)
-    #|    metavars: [value]
+    #|  - shape: sink($exp:value)
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(rule_is_relevant_to_source(rule, "fn sample { sink(actual) }\n"))
   assert_false(
     rule_is_relevant_to_source(rule, "fn sample { other(actual) }\n"),
+  )
+}
+
+///|
+test "prefilter treats inline metavars as placeholders" {
+  let source =
+    #|id: example
+    #|description: Target call.
+    #|patterns:
+    #|  - shape: sink($exp:value, label=$id:name)
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { sink(actual, label=user) }\n"),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { other(actual, label=user) }\n",
+    ),
   )
 }
 

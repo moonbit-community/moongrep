@@ -22,36 +22,25 @@
 1. 只由下划线组成且长度至少为 2 的名字，是忽略占位符
 2. `target_metavar` 和 `source_metavar` 在 `CompiledExprPattern`
    中存在时，会绑定整个表达式
-3. 声明过的 subtree metavar 绑定整个语法值
+3. 声明过的 expression metavar 绑定整个表达式值
 4. 声明过的 identifier metavar 绑定规范化后的标识符字符串
-5. auto metavar 根据第一次匹配选择结构模式或标识符模式
-6. 未声明的名字是字面 AST 名称
+5. 未声明的名字是字面 AST 名称
 
-对 var、binder、label 和 pattern variable 也会重复相同的
-ignore/subtree/identifier/auto 顺序，只是 `__TARGET__` 和 `__SOURCE__`
-只在整个表达式位置有特殊含义。例如，未声明的 `__x` 是字面量：只有 `__` 或
-`___` 这种拼写本身才是忽略占位符。
+对 var、binder、label 和 pattern variable，只有忽略占位符和声明过的
+identifier metavar 有特殊含义；其他名称都是字面量。`__TARGET__` 和
+`__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的 `__x` 是字面量：
+只有 `__` 或 `___` 这种拼写本身才是忽略占位符。
 
 ## 绑定种类
 
-`BoundValue` 会记录 metavar 被捕获时所在的语法位置：`Expr`、`Var`、`Binder`、
-`Pattern`、`Label` 或 `Identifier`。
+`BoundValue` 只存储两种值：用于完整表达式捕获的 `Expr`，以及用于归一化名称捕获的
+`Identifier`。
 
-subtree metavar 会捕获其位置上的非标识符值。重复使用时通过
-`bound_value_equal` 比较，所以绑定种类和该位置对应的结构相等性都必须匹配。
+expression metavar 会捕获该位置上的候选表达式。重复使用时比较解析后的表达式结构，
+并忽略源码位置。
 
 identifier metavar 会存储 `Identifier(String)`。Expr、var 和 pattern 值会在可能时经过
 `rule/syntax_id` 规范化。Binder 和 label 匹配直接使用候选名称，因为这些节点已经携带了用于比较的短名称。
-
-auto metavar 是有意设计的 first-match-wins：
-
-- 如果第一个候选值可以规范化为标识符，则绑定为 `Identifier(name)`，
-  之后的候选值也必须规范化为相同名称
-- 否则绑定为结构值，之后的候选值必须等于捕获到的结构值
-
-这就是为什么重复的 auto metavar 可以在循环计数器中匹配 `i`，也可以匹配
-`make() + make()`，但会拒绝 `item + make()` 和 `make() + item`
-这类混合的标识符/表达式对。
 
 ## 相等性忽略位置但并不完整
 
@@ -63,9 +52,8 @@ matcher 会忽略源码位置。它使用 `var_equal`、`type_equal`、`constant
 - `expr_equal_ignoring_loc` 支持常见表达式形状，例如 identifier、hole、
   constant、infix、call、dot call、field、method、constructor、array、
   tuple、group、sequence、`for` 和 `unit`
-- `pattern_equal` 只支持一部分 pattern 形状
 
-如果新增了 `match_expr` 分支，并且该节点可以被重复的 subtree metavar 捕获，
+如果新增了 `match_expr` 分支，并且该节点可以被重复的 expression metavar 捕获，
 也要同步更新相关的相等性辅助函数。否则，单次出现可能能匹配，但重复出现时即使 AST 看起来相同也会失败。
 
 `option_location_presence_equal` 只比较 async/location-like 字段是否存在，
@@ -103,7 +91,7 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `
 - parser hole 是字面 AST 节点，会按 hole kind 比较
 - interpolation 的 `Source(_)` 节点只按节点种类匹配；不会比较 parser token 内部结构
 
-除了 identifier 和 auto metavar 使用的显式标识符规范化之外，没有其他语义规范化。
+除了 identifier metavar 使用的显式标识符规范化之外，没有其他语义规范化。
 例如，语义等价但 AST 形状不同的代码不会匹配，除非差异被占位符吸收。
 
 ## 集成说明

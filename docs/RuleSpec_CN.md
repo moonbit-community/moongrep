@@ -73,7 +73,6 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 只接受这些键：
 
 - `shape`（必需）：包含一个 MoonBit 表达式片段的 YAML 字符串
-- `metavars`（可选）：YAML 映射或数组简写
 - `guard`（保留）：目前在所有位置都会被拒绝
 
 pattern object 中的未知键会被拒绝。
@@ -99,66 +98,58 @@ shape 是结构性的：
 
 ## 元变量
 
-shape 中的标识符默认都是字面量。只有在 `metavars` 下声明后，一个名称才会成为元变量；下面描述的内置通配符除外。
+shape 中的标识符和标签默认都是字面量。只有在 `shape` 内使用内联元变量语法时，一个名称才会成为元变量；下面描述的内置通配符除外。
 
 ### 语法
 
-`metavars` 可以是映射：
+使用 `$exp:name` 捕获表达式结构：
 
 ```yaml
-metavars:
-  subtree: [expr, body]
-  identifier: [name]
+patterns:
+  - shape: $exp:left == $exp:left
 ```
 
-映射形式只接受这些键：
-
-- `subtree`：可选的字符串数组
-- `identifier`：可选的字符串数组
-
-省略的 bucket 默认为空数组。bucket 值必须是数组，且每个条目都必须是字符串。同一个 bucket 内的重复名称会被拒绝。同一个名称不能同时出现在 `subtree` 和 `identifier` 中。
-
-不存在 `auto` 映射 bucket。下面是无效写法：
+使用 `$id:name` 捕获归一化后的标识符名称：
 
 ```yaml
-metavars:
-  auto: [x]
+patterns:
+  - shape: |
+      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+        $exp:body
+      }
 ```
 
-请使用数组简写声明 auto 元变量：
+只支持 `exp` 和 `id`。shape 中出现 `$pat:x` 或任何其他 kind 都是无效规则。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能把同一个 payload 同时用作 `$exp:name` 和 `$id:name`。
 
-```yaml
-metavars: [x, y]
-```
-
-每个简写条目都必须是字符串，重复名称会被拒绝。
+旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
 
 ### 保留名称
 
-这些名称在任何规则子句中都不能声明为元变量：
+这些名称不能用作内联元变量名：
 
 - 只由两个或更多下划线组成的名称，例如 `__`、`___` 或 `____`
 - `__TARGET__`
+- `__SOURCE__`
 
-在 taint 子句中，`__SOURCE__` 也是保留名称，不能被声明。
-
-`__SOURCE__` 在结构规则中没有内置含义。如果它没有被声明，也没有作为 taint sink 或 sanitizer 使用，它就只是一个字面名称。
+`__TARGET__` 和 `__SOURCE__` 保留已有内置含义。`__TARGET__` 只在 `inside-expr` 中有效；`__SOURCE__` 只在 taint sink 和 sanitizer shape 中有效。
 
 ### 元变量可以绑定的位置
 
-声明的元变量必须至少出现在一个可以绑定值的位置。当前可以绑定的位置包括：
+`$exp:name` 只在整个裸标识符表达式位置有效。它捕获该位置上的候选表达式。下面是有效写法：
 
-- 裸标识符表达式，例如 `value`
-- 简单变量目标，例如 `x = y` 左侧，或表达式语法中表示为变量的操作符 token
-- binder，例如函数参数、循环变量、`let mut` binder 或 lambda 参数
-- 简单变量模式，例如 `match value { item => ... }` 中的 `item`
-- 标签，例如方法名、字段名、带标签参数名或记录字段标签
+```yaml
+patterns:
+  - shape: sink($exp:value)
+```
 
-校验还会查看许多普通表达式容器，包括调用、字段访问、操作符、块、数组、元组、记录、循环、match、try/catch、lambda、插值和推导式。
+下面是无效写法，因为 pattern binder 不是表达式位置：
 
-模式校验有意比完整模式匹配更窄。直接变量模式以及 alias、tuple、`or` 和 range 模式内的名称会计入校验。只出现在 constructor、array、record、map、constraint 或 special-constructor 模式内部的名称，运行时仍可能参与匹配，但目前不能单独满足“声明的元变量已使用”校验。
+```yaml
+patterns:
+  - shape: match input { $exp:item => item }
+```
 
-如果声明的名称只出现在不能绑定的位置，该规则会因未使用的元变量而无效。
+如果需要匹配源码层面的名称，请使用 `$id:name`。它可以绑定简单变量目标、binder、裸标识符表达式、简单变量模式，以及方法名、字段名、带标签参数名和记录字段标签等标签。
 
 ### 内置通配符
 
@@ -180,17 +171,15 @@ patterns:
 
 只有全下划线名称具有这种内置行为。像 `__x` 这样的名称是字面量，除非它被声明为普通元变量。
 
-### `subtree`
+### `$exp`
 
-`subtree` 元变量捕获其所在位置的解析后语法。重复使用同一个 `subtree` 名称时，后续捕获必须具有相同的语法位置种类，并且解析后的结构相等；源码位置会被忽略。
+`$exp` 元变量捕获其所在位置的解析后表达式。重复使用同一个 `$exp` 名称时，后续捕获必须具有相等的表达式结构；源码位置会被忽略。
 
 示例：
 
 ```yaml
 patterns:
-  - shape: _expr == _expr
-    metavars:
-      subtree: [_expr]
+  - shape: $exp:expr == $exp:expr
 ```
 
 它可以匹配下面这样的例子：
@@ -208,25 +197,22 @@ x == y
 make(value) == make(other)
 ```
 
-当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`subtree` 通常不是合适选择。此时应使用 `identifier`。
+当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`$exp` 通常不是合适选择。此时应使用 `$id`。
 
-重复 `subtree` 相等性目前保证支持常见表达式形式，包括标识符、hole、常量、unit、中缀表达式、调用、方法调用、字段访问、方法引用、构造器表达式、分组表达式、块、数组字面量、元组字面量和 `for` 表达式。某些表达式和模式形式可以单次匹配，但尚不支持重复 `subtree` 相等性。如果重复 `subtree` 捕获使用了不支持的相等形式，该次匹配会失败，而不会产生命中。
+重复 `$exp` 相等性目前保证支持常见表达式形式，包括标识符、hole、常量、unit、中缀表达式、调用、方法调用、字段访问、方法引用、构造器表达式、分组表达式、块、数组字面量、元组字面量和 `for` 表达式。某些表达式形式可以单次匹配，但尚不支持重复相等性。如果重复 `$exp` 捕获使用了不支持的相等形式，该次匹配会失败，而不会产生命中。
 
-### `identifier`
+### `$id`
 
-`identifier` 元变量捕获归一化后的源码层面名称。重复使用同一个 `identifier` 名称时，每次出现都必须归一化为同一个字符串。
+`$id` 元变量捕获归一化后的源码层面名称。重复使用同一个 `$id` 名称时，每次出现都必须归一化为同一个字符串。
 
 当规则需要比较 binder 和后续使用时，这很有用：
 
 ```yaml
 patterns:
   - shape: |
-      for counter = _start; counter < upper_limit; counter = counter + 1 {
-        body
+      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+        $exp:body
       }
-    metavars:
-      subtree: [_start, upper_limit, body]
-      identifier: [counter]
 ```
 
 它可以匹配：
@@ -247,43 +233,6 @@ for i = 0; j < n; i = i + 1 {
 
 归一化目前适用于简单非限定变量名、binder、裸标识符表达式、简单变量模式和标签。限定名称不会为了此用途归一化为简单标识符。
 
-### Auto Metavars
-
-数组简写声明 auto 元变量：
-
-```yaml
-metavars: [value]
-```
-
-auto 元变量会根据它捕获的第一个候选项选择模式：
-
-- 如果候选项可以归一化为标识符，它表现得像 `identifier`
-- 否则它表现得像 `subtree`
-
-后续出现必须匹配第一次选择的模式和值。
-
-示例：
-
-```yaml
-patterns:
-  - shape: value + value
-    metavars: [value]
-```
-
-它可以同时匹配：
-
-```moonbit
-item + item
-make() + make()
-```
-
-它不会匹配混合或不相等的捕获：
-
-```moonbit
-item + make()
-make() + other()
-```
-
 ## 结构规则
 
 结构规则具有非空 `patterns` 数组。
@@ -293,9 +242,7 @@ id: repeated-equality
 description: |
   Repeated equality.
 patterns:
-  - shape: _expr == _expr
-    metavars:
-      subtree: [_expr]
+  - shape: $exp:expr == $exp:expr
 ```
 
 结构规则会应用到从源文件收集到的表达式子树。目前，结构匹配会搜索顶层表达式、函数、方法、顶层 `let` 定义、测试和 view 中的表达式主体。
@@ -320,9 +267,7 @@ id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
 inside-expr:
-  shape: wrapper(prefix, __TARGET__)
-  metavars:
-    subtree: [prefix]
+  shape: wrapper($exp:prefix, __TARGET__)
 patterns:
   - shape: target.call(prefix)
 ```
@@ -333,9 +278,9 @@ patterns:
 
 - `inside-expr.shape` 必须在可绑定位置包含且只包含一个 `__TARGET__`。
 - `__TARGET__` 必须占据一个完整表达式位置，例如完整调用参数、receiver 或块表达式。如果它只作为标签或其他非表达式值出现，就没有目标子树可供搜索。
-- `__TARGET__` 不能在 `metavars` 下声明。
+- `__TARGET__` 是保留名称，不能用作内联元变量名。
 - `patterns` 条目不能在可绑定位置包含 `__TARGET__`。
-- `inside-expr` 声明的元变量在匹配内部 `patterns` 时仍然可见。
+- `inside-expr` 声明的内联元变量在匹配内部 `patterns` 时仍然可见；内部 shape 使用普通 payload 名称引用它们。
 - 内部 `patterns` 不能重新声明已经从 `inside-expr` 可见的元变量名。
 
 运行时行为：
@@ -359,7 +304,7 @@ patterns:
 
 `taint` 内的未知键会被拒绝。
 
-每个数组条目都是 pattern object，包含 `shape`、可选 `metavars`，且不支持 `guard`。
+每个数组条目都是 pattern object，包含 `shape`，且不支持 `guard`。
 
 示例：
 
@@ -449,7 +394,7 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 规则根目录不包含 `.yaml` 或 `.yml` 文件
 - 规则文件包含零个 YAML 文档或多个 YAML 文档
 - 顶层 YAML 文档不是映射
-- 顶层、`taint` 内、pattern object 内或 `metavars` 映射内出现不支持的键
+- 顶层、`taint` 内或 pattern object 内出现不支持的键
 - 缺少必需键
 - `id`、`description` 或 `shape` 不是 YAML 字符串
 - `id` 为空或包含 `/`
@@ -463,15 +408,12 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `taint.sanitizers` 存在但不是数组
 - taint 子句条目不是映射
 - 任何 pattern object 中出现 `guard`
-- `metavars` 既不是映射也不是数组
-- `metavars` 映射 bucket 不是数组
-- `metavars` 映射 bucket 包含非字符串条目
-- `metavars` 简写包含非字符串条目
-- 元变量名在 bucket 或简写数组内重复
-- 元变量名同时出现在 `subtree` 和 `identifier` 中
-- 元变量声明使用保留名称
-- 声明的元变量从未出现在可绑定位置
+- 任何 pattern object 中出现 `metavars`
 - `shape` 不是一个有效的 MoonBit 表达式
+- shape 使用不支持的内联元变量 kind
+- shape 把同一个内联元变量名同时用作 `$exp` 和 `$id`
+- 内联元变量使用保留名称
+- `$exp:name` 出现在裸表达式位置之外
 - `inside-expr.shape` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目重新声明了已经由 `inside-expr` 声明的名称
@@ -489,12 +431,8 @@ id: collect-output
 description: |
   These helpers collect full child-process output before returning.
 patterns:
-  - shape: _command.output_collect(_args)
-    metavars:
-      subtree: [_command, _args]
-  - shape: _command.stderr_collect(_args)
-    metavars:
-      subtree: [_command, _args]
+  - shape: $exp:command.output_collect($exp:args)
+  - shape: $exp:command.stderr_collect($exp:args)
 ```
 
 两个备选项会产生相同的规则 id 和 description。报告的 pattern index 用于区分匹配的是哪个 shape。
@@ -504,18 +442,15 @@ patterns:
 ```yaml
 id: counter-loop
 description: |
-  Counter-style `for` loop.
+  C-style `for` loop.
 patterns:
   - shape: |
-      for counter = _start; counter < upper_limit; counter = counter + 1 {
-        body
+      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+        $exp:body
       }
-    metavars:
-      subtree: [_start, upper_limit, body]
-      identifier: [counter]
 ```
 
-`counter` 会在 binder、条件和更新位置之间按源码层面的名称比较。`_start`、`upper_limit` 和 `body` 是结构捕获。
+`counter` 会在 binder、条件和更新位置之间按源码层面的名称比较。`start`、`limit` 和 `body` 是表达式捕获。
 
 ### 限制上下文的结构匹配
 

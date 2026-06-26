@@ -5,9 +5,7 @@ fn valid_structural_rule_source() -> String {
     #|description: |
     #|  Repeated equality.
     #|patterns:
-    #|  - shape: _expr == _expr
-    #|    metavars:
-    #|      subtree: [_expr]
+    #|  - shape: $exp:_expr == $exp:_expr
     #|
   source
 }
@@ -51,10 +49,7 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
   match rule.definition {
     Structural(spec) => {
       inspect(spec.patterns.length(), content="1")
-      inspect(spec.patterns[0].shape, content="_expr == _expr")
-      debug_inspect(spec.patterns[0].subtree_metavars, content="[\"_expr\"]")
-      debug_inspect(spec.patterns[0].identifier_metavars, content="[]")
-      debug_inspect(spec.patterns[0].auto_metavars, content="[]")
+      inspect(spec.patterns[0].shape, content="$exp:_expr == $exp:_expr")
       assert_true(spec.inside_expr is None)
     }
     Taint(_) => fail("expected structural rule")
@@ -62,27 +57,20 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
 }
 
 ///|
-test "model parses auto metavar shorthand" {
+test "model preserves inline metavar shape text" {
   let source =
     #|id: example
     #|description: |
-    #|  Auto metavars.
+    #|  Inline metavars.
     #|patterns:
-    #|  - shape: counter + body
-    #|    metavars: [counter, body]
+    #|  - shape: $id:counter + $exp:body
     #|
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
-    Structural(spec) => {
-      debug_inspect(spec.patterns[0].subtree_metavars, content="[]")
-      debug_inspect(spec.patterns[0].identifier_metavars, content="[]")
-      debug_inspect(
-        spec.patterns[0].auto_metavars,
-        content="[\"counter\", \"body\"]",
-      )
-    }
+    Structural(spec) =>
+      inspect(spec.patterns[0].shape, content="$id:counter + $exp:body")
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -213,18 +201,16 @@ test "model rejects guard in runtime AST mode" {
 }
 
 ///|
-test "model rejects invalid metavar buckets" {
+test "model rejects yaml metavars key" {
   let source =
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: x
-    #|    metavars:
-    #|      subtree: [x]
-    #|      identifier: [x]
+    #|  - shape: $exp:x == $exp:x
+    #|    metavars: [x]
     #|
   expect_invalid_rule_info(
-    source, "patterns[0].metavars contains duplicate metavar x",
+    source, "patterns[0] contains unsupported key metavars",
   )
 }
 
@@ -303,62 +289,5 @@ test "model rejects malformed taint schema" {
     #|
   expect_invalid_rule_info(
     non_mapping_clause, "taint.sources[0] must be a mapping",
-  )
-}
-
-///|
-test "model rejects malformed metavars schema" {
-  let bucket_not_array =
-    #|id: example
-    #|description: Example.
-    #|patterns:
-    #|  - shape: x
-    #|    metavars:
-    #|      subtree: x
-    #|
-  expect_invalid_rule_info(
-    bucket_not_array, "patterns[0].metavars.subtree must be an array",
-  )
-  let bucket_non_string =
-    #|id: example
-    #|description: Example.
-    #|patterns:
-    #|  - shape: x
-    #|    metavars:
-    #|      subtree: [1]
-    #|
-  expect_invalid_rule_info(
-    bucket_non_string, "patterns[0].metavars.subtree[0] must be a string",
-  )
-  let auto_duplicate =
-    #|id: example
-    #|description: Example.
-    #|patterns:
-    #|  - shape: x
-    #|    metavars: [x, x]
-    #|
-  expect_invalid_rule_info(
-    auto_duplicate, "patterns[0].metavars contains duplicate metavar x",
-  )
-  let auto_non_string =
-    #|id: example
-    #|description: Example.
-    #|patterns:
-    #|  - shape: x
-    #|    metavars: [1]
-    #|
-  expect_invalid_rule_info(
-    auto_non_string, "patterns[0].metavars[0] must be a string",
-  )
-  let unsupported_auto_bucket =
-    #|id: example
-    #|description: Example.
-    #|patterns:
-    #|  - shape: x
-    #|    metavars:
-    #|      auto: [x]
-    #|
-  expect_invalid_rule_info(
-    unsupported_auto_bucket, "patterns[0].metavars contains unsupported key auto",
   )
 }

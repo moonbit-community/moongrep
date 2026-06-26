@@ -37,10 +37,10 @@ let _embed_writingrules_md : String =
   #|
   #|`patterns` must be a non-empty array.
   #|Unknown keys are rejected at every schema level: top-level rule keys, `taint`
-  #|keys, rule clause keys, and `metavars` bucket keys.
+  #|keys, and rule clause keys.
   #|
   #|Structural rules may also add an optional top-level `inside-expr` that filters
-  #|an outer expression, binds outer metavars, and then searches the captured
+  #|an outer expression, binds outer inline captures, and then searches the captured
   #|`__TARGET__` expression subtree with the inner `patterns`.
   #|
   #|## Mental Model
@@ -62,7 +62,8 @@ let _embed_writingrules_md : String =
   #|- If `inside-expr` is present, it runs first on the current expression. If it
   #|  captures `__TARGET__` as an expression, `patterns` are applied to every
   #|  expression inside that target subtree.
-  #|- `inside-expr` metavars stay visible to inner `patterns`; `__TARGET__` only
+  #|- Inline captures declared by `inside-expr` stay visible to inner `patterns`;
+  #|  `__TARGET__` only
   #|  selects the expression subtree to traverse and must not be used by inner
   #|  `patterns`.
   #|- Inner patterns must not redeclare names from `inside-expr`.
@@ -81,12 +82,12 @@ let _embed_writingrules_md : String =
   #|  when `__SOURCE__` resolves to a storage path such as an identifier, field, or
   #|  array access. If the same call also matches a source clause, source return
   #|  taint is still produced.
-  #|- taint clause `metavars` follow the same auto / `subtree` / `identifier`
-  #|  rules as structural patterns.
+  #|- taint clause shapes use the same inline `$exp:` / `$id:` syntax as
+  #|  structural patterns.
   #|- taint clauses do not support `guard`.
-  #|- `__SOURCE__` is reserved inside taint rules and must not be declared under
-  #|  `metavars`. It is only valid in sink and sanitizer shapes; source shapes must
-  #|  not contain it.
+  #|- `__SOURCE__` is reserved inside taint rules and must not be used as an inline
+  #|  metavar name. It is only valid in sink and sanitizer shapes; source shapes
+  #|  must not contain it.
   #|- source, sink, and sanitizer shapes must be call expressions. Sink and
   #|  sanitizer shapes must place `__SOURCE__` as the whole receiver or whole
   #|  argument value.
@@ -113,14 +114,14 @@ let _embed_writingrules_md : String =
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: _conn.read_request()
+  #|  - shape: $exp:conn.read_request()
   #|```
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for counter = _start; counter < upper_limit; counter = counter + 1 {
-  #|        body
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
   #|      }
   #|```
   #|
@@ -128,7 +129,7 @@ let _embed_writingrules_md : String =
   #|file or a fragment that only makes sense at module scope, rule compilation will
   #|fail.
   #|
-  #|### 2. Decide which names are literal and which are metavars
+  #|### 2. Mark metavars inline in `shape`
   #|
   #|Names in `shape` are literal by default, even if they look like placeholders.
   #|
@@ -142,21 +143,32 @@ let _embed_writingrules_md : String =
   #|does **not** create a metavariable. It matches the literal identifier name
   #|`_expr` on both sides.
   #|
-  #|To make it a metavar, declare it explicitly:
+  #|To capture an expression, write `$exp:name` directly in the shape:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: _expr == _expr
-  #|    metavars: [_expr]
+  #|  - shape: $exp:expr == $exp:expr
   #|```
   #|
-  #|The array form declares auto metavars. Auto chooses how to bind from the first
-  #|candidate it captures: simple identifiers bind by normalized name, while
-  #|non-identifiers bind structurally.
+  #|Use `$id:name` when the same source-level name must be consistent across
+  #|binders, identifier expressions, pattern variables, labels, or simple variable
+  #|targets:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: |
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
+  #|      }
+  #|```
+  #|
+  #|`$exp:` is expression-only. If you need a non-expression name, use `$id:` or
+  #|leave the name literal. `$pat:` and any other kind are compile errors.
+  #|
+  #|The old YAML `metavars` key is invalid.
   #|
   #|The built-in exceptions are names made only of two or more underscores, such as
-  #|`__`, `___`, and `____`. They are special ignore placeholders inside `shape`,
-  #|so you must not declare them under `metavars`.
+  #|`__`, `___`, and `____`. They are special ignore placeholders inside `shape`.
   #|
   #|```yaml
   #|patterns:
@@ -168,48 +180,15 @@ let _embed_writingrules_md : String =
   #|equality. Repeated ignore placeholders are independent wildcards. In
   #|unsupported positions such as constructor names, they stay literal. 
   #|
-  #|The supported positions documented in [RuleSpec.md](RuleSpec.md) are the
-  #|positions that count for declared-metavar validation. Runtime pattern matching
-  #|may still recurse through nested pattern forms. If a declared name or an
-  #|all-underscore ignore placeholder appears under array, constructor, record,
-  #|map, constraint, or special-constructor patterns, it can participate in runtime
-  #|matching there; those nested occurrences are not sufficient by themselves to
-  #|satisfy the used-metavar validation.
+  #|### 3. Choose `$exp` or `$id`
   #|
-  #|If compilation says a declared metavar is unused, the usual causes are:
-  #|
-  #|- a typo between `shape` and `metavars`
-  #|- the name only appears in a position that does not count for declared-metavar
-  #|  validation
-  #|
-  #|The exact validation-counted positions are listed in [RuleSpec.md](RuleSpec.md).
-  #|
-  #|### 3. Choose auto, `subtree`, or `identifier`
-  #|
-  #|Use auto shorthand when candidate code should decide whether a name behaves
-  #|like an identifier or a structural capture:
+  #|Use `$exp` when you want to match and compare a whole expression. Repeating an
+  #|`$exp` metavar means the repeated captures must be structurally equal according
+  #|to the runtime matcher, ignoring source locations.
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: value + value
-  #|    metavars: [value]
-  #|```
-  #|
-  #|This can match `item + item` by identifier name and `make() + make()` by
-  #|structural expression equality. It rejects mixed repeated captures such as
-  #|`item + make()` because the second occurrence does not match the first chosen
-  #|binding mode.
-  #|
-  #|Use `subtree` when you want to match and compare the full parser AST node at
-  #|the metavar position. Repeating a `subtree` metavar means the repeated captures
-  #|must be structurally equal according to the runtime matcher, ignoring source
-  #|locations for expression captures.
-  #|
-  #|```yaml
-  #|patterns:
-  #|  - shape: _expr == _expr
-  #|    metavars:
-  #|      subtree: [_expr]
+  #|  - shape: $exp:expr == $exp:expr
   #|```
   #|
   #|This is a good fit for supported repeated expression shapes such as:
@@ -218,34 +197,25 @@ let _embed_writingrules_md : String =
   #|- `user.profile.name == user.profile.name`
   #|- `make(value) == make(value)`
   #|
-  #|Use `identifier` when you want to compare source-level names across positions
-  #|that are not the same raw AST node kind, especially binder positions versus
-  #|identifier uses.
+  #|Use `$id` when you want to compare source-level names across positions that are
+  #|not the same raw AST node kind, especially binder positions versus identifier
+  #|uses.
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for counter = _start; counter < upper_limit; counter = counter + 1 {
-  #|        body
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
   #|      }
-  #|    metavars:
-  #|      subtree: [_start, upper_limit, body]
-  #|      identifier: [counter]
   #|```
   #|
   #|Here `counter` appears as both a binder and later identifier expressions. The
   #|same spelling should match, but the raw AST nodes are different, so
-  #|`identifier` is the right tool.
+  #|`$id` is the right tool.
   #|
-  #|`identifier` also works for simple assignment targets represented in the parser
+  #|`$id` also works for simple assignment targets represented in the parser
   #|AST as `Var`, so rules like `x = x + 1` can bind the left-hand target by
   #|normalized name instead of treating it as a literal string.
-  #|
-  #|Declare each metavar name exactly once. In mapping form, a name must appear in
-  #|only one bucket; duplicates within a bucket or across `subtree` and
-  #|`identifier` are load errors. In shorthand form, duplicate array entries are
-  #|load errors. There is no `auto` mapping bucket; write `metavars: [name]`
-  #|instead.
   #|
   #|### 3.5 Use `inside-expr` when the interesting node must appear inside a larger context
   #|
@@ -259,9 +229,7 @@ let _embed_writingrules_md : String =
   #|  Match a call only when it appears inside a specific wrapper.
   #|inside-expr:
   #|  shape: |
-  #|    wrapper(prefix, __TARGET__)
-  #|  metavars:
-  #|    subtree: [prefix]
+  #|    wrapper($exp:prefix, __TARGET__)
   #|patterns:
   #|  - shape: |
   #|      target.call(prefix)
@@ -269,20 +237,21 @@ let _embed_writingrules_md : String =
   #|
   #|Rules for `inside-expr`:
   #|
-  #|- it uses the same `shape` / `metavars` schema as one structural pattern
+  #|- it uses the same inline metavar syntax as one structural pattern
   #|- it must place exactly one supported `__TARGET__`; place it where a whole
   #|  expression is expected so runtime traversal can search that subtree
-  #|- `__TARGET__` is reserved and must not be declared under `metavars`
+  #|- `__TARGET__` is reserved and must not be used as an inline metavar name
   #|- inner `patterns` must not contain `__TARGET__`; the target placeholder
   #|  selects the subtree to search, but it is not a binding available to inner
   #|  shapes
-  #|- inner `patterns` must not redeclare names already declared by `inside-expr`
+  #|- inner `patterns` must not redeclare names already declared by `inside-expr`;
+  #|  reference outer captures with their plain payload name, such as `prefix`
   #|
   #|### 4. Handle logic that shape matching cannot express
   #|
   #|YAML `guard` expressions are not supported by the current runtime AST matcher.
   #|If a rule needs extra logic, first check whether a narrower `shape`,
-  #|`inside-expr`, auto, or `identifier` metavars can express it. Otherwise, the
+  #|`inside-expr`, `$exp`, or `$id` metavars can express it. Otherwise, the
   #|behavior needs MoonBit implementation work before it can be represented as a
   #|YAML rule.
   #|
@@ -298,13 +267,9 @@ let _embed_writingrules_md : String =
   #|  `Transfer-Encoding` may coexist.
   #|patterns:
   #|  - shape: |
-  #|      _conn.read_request()
-  #|    metavars:
-  #|      subtree: [_conn]
+  #|      $exp:conn.read_request()
   #|  - shape: |
-  #|      _client.end_request()
-  #|    metavars:
-  #|      subtree: [_client]
+  #|      $exp:client.end_request()
   #|```
   #|
   #|Use separate rule files only when the rule id, message, or ownership should be
@@ -324,21 +289,19 @@ let _embed_writingrules_md : String =
   #|
   #|## Worked Examples
   #|
-  #|### Repeated subtree equality
+  #|### Repeated expression equality
   #|
   #|```yaml
   #|id: repeated-equality
   #|description: |
-  #|  Repeated subtree equality.
+  #|  Repeated expression equality.
   #|patterns:
-  #|  - shape: _expr == _expr
-  #|    metavars:
-  #|      subtree: [_expr]
+  #|  - shape: $exp:expr == $exp:expr
   #|```
   #|
   #|Why it works:
   #|
-  #|- `_expr` is declared as a subtree metavar
+  #|- `expr` is declared inline as an `$exp` metavar
   #|- both occurrences must bind to equal parser AST nodes for a repeated expression
   #|  form supported by the current equality helper
   #|- the rule can match more than simple names
@@ -348,21 +311,18 @@ let _embed_writingrules_md : String =
   #|```yaml
   #|id: counter-loop
   #|description: |
-  #|  Counter-style `for` loop.
+  #|  C-style `for` loop.
   #|patterns:
   #|  - shape: |
-  #|      for counter = _start; counter < upper_limit; counter = counter + 1 {
-  #|        body
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
   #|      }
-  #|    metavars:
-  #|      subtree: [_start, upper_limit, body]
-  #|      identifier: [counter]
   #|```
   #|
   #|Why it works:
   #|
   #|- `counter` is compared by normalized identifier name, not by raw AST equality
-  #|- `_start`, `upper_limit`, and `body` are matched as parser AST nodes
+  #|- `start`, `limit`, and `body` are matched as parser AST nodes
   #|
   #|### Same rule, multiple shapes
   #|
@@ -371,12 +331,8 @@ let _embed_writingrules_md : String =
   #|description: |
   #|  These helpers collect full child-process output into memory before returning.
   #|patterns:
-  #|  - shape: _command.output_collect(_args)
-  #|    metavars:
-  #|      subtree: [_command, _args]
-  #|  - shape: _command.stderr_collect(_args)
-  #|    metavars:
-  #|      subtree: [_command, _args]
+  #|  - shape: $exp:command.output_collect($exp:args)
+  #|  - shape: $exp:command.stderr_collect($exp:args)
   #|```
   #|
   #|Why it works:
@@ -392,15 +348,16 @@ let _embed_writingrules_md : String =
   #|Your snippet is not accepted by the MoonBit expression parser. Reduce it to one
   #|valid expression-sized shape, then build back up carefully.
   #|
-  #|### Rule compilation says a metavar is unused
+  #|### Rule compilation rejects an inline metavar
   #|
   #|Check, in order:
   #|
-  #|- the spelling matches exactly between `shape` and `metavars`
-  #|- the name appears in a metavariable-capable position
-  #|- you declared it in the correct bucket
+  #|- the kind is exactly `$exp:` or `$id:`
+  #|- `$exp:` appears as a whole bare expression placeholder
+  #|- the same payload name is not used as both `$exp` and `$id`
+  #|- the payload is not a reserved name such as `__`, `__TARGET__`, or `__SOURCE__`
   #|
-  #|### An `identifier` rule looks right but never hits
+  #|### An `$id` rule looks right but never hits
   #|
   #|The matched node may not normalize to a simple identifier name in every
   #|occurrence. Review the exact supported normalization cases in

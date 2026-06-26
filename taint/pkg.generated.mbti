@@ -3,7 +3,7 @@ package "moonbit-community/moongrep/taint"
 
 import {
   "moonbitlang/core/debug",
-  "moonbitlang/parser/basic",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/syntax",
 }
 

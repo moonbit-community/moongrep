@@ -162,9 +162,8 @@ fn is_filter_placeholder(
   is_underscore_placeholder(name) ||
   compiled.target_metavar == Some(name) ||
   compiled.source_metavar == Some(name) ||
-  contains_string(compiled.subtree_metavars, name) ||
-  contains_string(compiled.identifier_metavars, name) ||
-  contains_string(compiled.auto_metavars, name)
+  contains_string(compiled.expr_metavars, name) ||
+  contains_string(compiled.identifier_metavars, name)
 }
 
 ///|

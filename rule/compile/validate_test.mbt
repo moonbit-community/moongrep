@@ -21,27 +21,54 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 }
 
 ///|
-test "validate rejects reserved metavar names" {
+test "validate rejects reserved inline metavar names" {
   let source =
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: x
-    #|    metavars:
-    #|      subtree: [__]
+    #|  - shape: $exp:__
     #|
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
   )
-  let auto_source =
+}
+
+///|
+test "validate rejects unsupported inline metavar kind" {
+  let source =
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: x
-    #|    metavars: [__]
+    #|  - shape: $pat:x
     #|
   expect_compile_invalid(
-    auto_source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
+    source, "patterns[0].shape contains unsupported metavar kind pat",
+  )
+}
+
+///|
+test "validate rejects expr metavar outside bare expression position" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $exp:item => item }
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses $exp:item outside a bare expression position",
+  )
+}
+
+///|
+test "validate rejects inline metavar kind conflicts" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $exp:value + $id:value
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape declares metavar value as both exp and id",
   )
 }
 
@@ -51,15 +78,13 @@ test "validate allows matcher-local-looking metavar names" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: file + hits + loc + __moongrep_value
-    #|    metavars:
-    #|      subtree: [file, hits, loc, __moongrep_value]
+    #|  - shape: $exp:file + $exp:hits + $exp:loc + $exp:__moongrep_value
     #|
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.patterns[0].source.subtree_metavars,
+        rule.patterns[0].compiled.expr_metavars,
         content="[\"file\", \"hits\", \"loc\", \"__moongrep_value\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -67,30 +92,14 @@ test "validate allows matcher-local-looking metavar names" {
 }
 
 ///|
-test "validate rejects unused metavars" {
-  let source =
-    #|id: example
-    #|description: Example.
-    #|patterns:
-    #|  - shape: x
-    #|    metavars:
-    #|      subtree: [missing]
-    #|
-  expect_compile_invalid(source, "patterns[0] declares unused metavar missing")
-}
-
-///|
-test "validate rejects redeclared inside expr auto metavars" {
+test "validate rejects redeclared inside expr metavars" {
   let source =
     #|id: example
     #|description: Example.
     #|inside-expr:
-    #|  shape: wrapper(prefix, __TARGET__)
-    #|  metavars: [prefix]
+    #|  shape: wrapper($exp:prefix, __TARGET__)
     #|patterns:
-    #|  - shape: target(prefix)
-    #|    metavars:
-    #|      subtree: [prefix]
+    #|  - shape: target($exp:prefix)
     #|
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar prefix because it is already visible from inside-expr",
@@ -173,12 +182,9 @@ test "validate rejects reference rule guard in runtime AST mode" {
     #|  C-style loop guard fixture.
     #|patterns:
     #|  - shape: |
-    #|      for counter = __; counter < upper_limit; counter = counter + 1 {
-    #|        body
+    #|      for $id:counter = __; $id:counter < $exp:upper_limit; $id:counter = $id:counter + 1 {
+    #|        $exp:body
     #|      }
-    #|    metavars:
-    #|      subtree: [upper_limit, body]
-    #|      identifier: [counter]
     #|    guard: |
     #|      @greptools.is_unused_var(upper_limit, counter)
     #|

@@ -27,9 +27,7 @@ test "apply structural rule matches repeated subtree once" {
     #|description: |
     #|  Repeated equality.
     #|patterns:
-    #|  - shape: _expr == _expr
-    #|    metavars:
-    #|      subtree: [_expr]
+    #|  - shape: $exp:_expr == $exp:_expr
     #|
   let source =
     #|fn sample {
@@ -48,19 +46,45 @@ test "apply structural rule matches repeated subtree once" {
 }
 
 ///|
-test "apply structural rule supports auto metavar shorthand" {
+test "apply structural rule supports inline expression metavars" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Repeated call value.
     #|patterns:
-    #|  - shape: value + value
-    #|    metavars: [value]
+    #|  - shape: $exp:value + $exp:value
     #|
   let source =
     #|fn sample {
     #|  make() + make();
     #|  make() + other()
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural rule supports inline identifier metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Consistent loop counter.
+    #|patterns:
+    #|  - shape: |
+    #|      for $id:counter = 0; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+    #|        $exp:body
+    #|      }
+    #|
+  let source =
+    #|fn sample {
+    #|  for i = 0; i < n; i = i + 1 { println(i) }
+    #|  for i = 0; j < n; i = i + 1 { println(i) }
     #|}
     #|
   let hits = apply_structural_rules(
@@ -105,9 +129,7 @@ test "apply structural rule supports inside expr inherited bindings" {
     #|description: |
     #|  Wrapped target call.
     #|inside-expr:
-    #|  shape: wrapper(prefix, __TARGET__)
-    #|  metavars:
-    #|    subtree: [prefix]
+    #|  shape: wrapper($exp:prefix, __TARGET__)
     #|patterns:
     #|  - shape: target.call(prefix)
     #|
@@ -127,14 +149,13 @@ test "apply structural rule supports inside expr inherited bindings" {
 }
 
 ///|
-test "apply structural rule inherits inside expr auto bindings" {
+test "apply structural rule inherits inside expr identifier bindings" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
     #|inside-expr:
-    #|  shape: wrapper(prefix, __TARGET__)
-    #|  metavars: [prefix]
+    #|  shape: wrapper($id:prefix, __TARGET__)
     #|patterns:
     #|  - shape: target.call(prefix)
     #|
@@ -302,18 +323,16 @@ test "apply taint rule reports source reaching sink" {
 }
 
 ///|
-test "apply taint rule supports auto metavar shorthand" {
+test "apply taint rule supports inline identifier metavars" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Repeated tagged source reaches matching sink.
     #|taint:
     #|  sources:
-    #|    - shape: tagged_source(tag, tag)
-    #|      metavars: [tag]
+    #|    - shape: tagged_source($id:tag, $id:tag)
     #|  sinks:
-    #|    - shape: tagged_sink(tag, tag, __SOURCE__)
-    #|      metavars: [tag]
+    #|    - shape: tagged_sink($id:tag, $id:tag, __SOURCE__)
     #|
   let source =
     #|fn sample {

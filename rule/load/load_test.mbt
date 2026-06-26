@@ -8,9 +8,7 @@ fn valid_structural_rule_source() -> String {
     #|description: |
     #|  Repeated equality.
     #|patterns:
-    #|  - shape: _expr == _expr
-    #|    metavars:
-    #|      subtree: [_expr]
+    #|  - shape: $exp:_expr == $exp:_expr
     #|
   source
 }

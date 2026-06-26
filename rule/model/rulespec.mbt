@@ -10,14 +10,10 @@ pub(all) suberror RuleLoadError {
 ///|
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
-/// `shape` must be a valid MoonBit expression. `subtree_metavars` bind AST
-/// subtrees, `identifier_metavars` bind normalized names, and `auto_metavars`
-/// choose either mode from the first matched candidate.
+/// `shape` must be a valid MoonBit expression. Inline `$exp:name` and
+/// `$id:name` placeholders in the shape are discovered during compilation.
 pub(all) struct RulePatternSpec {
   shape : String
-  subtree_metavars : Array[String]
-  identifier_metavars : Array[String]
-  auto_metavars : Array[String]
 }
 
 ///|

@@ -149,9 +149,7 @@ test "scan prefilter keeps unfilterable rules relevant" {
     #|description: |
     #|  Any expression.
     #|patterns:
-    #|  - shape: _expr
-    #|    metavars:
-    #|      subtree: [_expr]
+    #|  - shape: $exp:_expr
     #|
   write_rule_file(rules_dir, general_rule)
   @miniio.write_text_file("\{scan_dir}/bad.mbt", "fn sample {\n")
@@ -163,6 +161,28 @@ test "scan prefilter keeps unfilterable rules relevant" {
   })
   inspect(result.hits.length(), content="0")
   inspect(result.skipped_files.length(), content="1")
+}
+
+///|
+test "scan anonymous pattern supports inline expression metavars" {
+  let root = moongrep_tmp_root("moongrep-anonymous-inline-metavar")
+  let scan_dir = "\{root}/src"
+  @miniio.mkdir(scan_dir)
+  let source =
+    #|fn sample {
+    #|  make() + make();
+    #|  make() + other()
+    #|}
+    #|
+  @miniio.write_text_file("\{scan_dir}/sample.mbt", source)
+  let result = collect_directory_hits({
+    rules_root: None,
+    patterns: ["$exp:value + $exp:value"],
+    scan_root: scan_dir,
+    verbose: false,
+  })
+  inspect(result.hits.length(), content="1")
+  inspect(result.hits[0].finding.rule_id, content="$exp:value + $exp:value")
 }
 
 ///|

@@ -4,21 +4,18 @@ description: |
   Prefer matching only the specific error cases that can be recovered from.
 patterns:
   - shape: |
-      try expr catch {
-        _ => handler_expr
+      try __ catch {
+        _ => __
       }
-    metavars:
-      subtree: [expr, handler_expr]
   - shape: |
-      expr catch {
-        _ => handler_expr
+      __ catch {
+        _ => __
       }
-    metavars:
-      subtree: [expr, handler_expr]
   - shape: |
-      try expr catch {
-        allerror => handler_expr
+      try __ catch {
+        $id:allerror => __
       }
-    metavars:
-      subtree: [expr, handler_expr]
-      identifier: [allerror]
+  - shape: |
+      __ catch {
+        $id:allerror => __
+      }
