@@ -1,0 +1,12 @@
+id: example
+description: |
+  Attrs built with `inner_html(...)` carry raw DOM content.
+taint:
+  sources:
+    - shape: |
+        @html.Attrs::build().inner_html(__)
+  sinks:
+    - shape: |
+        @html.div(class=__, attrs=__SOURCE__, __)
+  sanitizers:
+    - shape: sanitize(__SOURCE__)

@@ -1,0 +1,141 @@
+## Directory scanning
+
+```mooncram
+$ cd "$TESTDIR"/.. && sh testdata/skip-dirs/run.sh "$TESTDIR"/moongrep.wasm
+moongrep scan: entering testdata/skip-dirs
+moongrep scan: skipping testdata/skip-dirs/.git
+moongrep scan: skipping testdata/skip-dirs/_build
+moongrep scan: skipping testdata/skip-dirs/target
+moongrep scan: file testdata/skip-dirs/hit.mbt
+moongrep scan: skipping testdata/skip-dirs/.mooncakes
+
+testdata/skip-dirs/hit.mbt:1:13-1:21
+rule: example
+description:
+  Target call.
+source:
+1 | fn sample { target() }
+```
+
+## Parse warnings
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/parse-warning
+warning: skipping testdata/parse-warning/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.
+
+testdata/parse-warning/hit.mbt:1:13-1:21
+rule: example
+description:
+  Target call.
+source:
+1 | fn sample { target() }
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/prefilter-irrelevant
+no match hits
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/general testdata/prefilter-general
+warning: skipping testdata/prefilter-general/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.
+
+no match hits
+```
+
+## Anonymous patterns
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$exp:value + $exp:value' testdata/inline-metavar
+testdata/inline-metavar/sample.mbt:2:3-2:18
+rule: $exp:value + $exp:value
+description:
+  Anonymous CLI pattern.
+source:
+\x1b[90m1 | fn sample {\x1b[39m (escaped)
+2 |   make() + make()
+\x1b[90m3 |   make() + other()\x1b[39m (escaped)
+\x1b[90m4 | }\x1b[39m (escaped)
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'target()' testdata/cli-pattern
+testdata/cli-pattern/hit.mbt:2:3-2:11
+rule: target()
+description:
+  Anonymous CLI pattern.
+source:
+\x1b[90m1 | fn sample {\x1b[39m (escaped)
+2 |   target()
+\x1b[90m3 | }\x1b[39m (escaped)
+```
+
+## Rule filtering
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter testdata/prefilter-impl
+testdata/prefilter-impl/hits.mbt:2:3-2:11
+rule: target
+description:
+  Target call.
+source:
+\x1b[90m1 | fn first {\x1b[39m (escaped)
+2 |   target()
+\x1b[90m3 | }\x1b[39m (escaped)
+\x1b[90m4 | \x1b[39m (escaped)
+
+testdata/prefilter-impl/hits.mbt:6:3-6:10
+rule: other
+description:
+  Other call.
+source:
+\x1b[90m4 | \x1b[39m (escaped)
+\x1b[90m5 | fn second {\x1b[39m (escaped)
+6 |   other()
+\x1b[90m7 | }\x1b[39m (escaped)
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/custom-rules
+testdata/custom-rules/hit.mbt:1:13-1:21
+rule: example
+description:
+  Target call.
+source:
+1 | fn sample { target() }
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/other testdata/custom-rules
+no match hits
+```
+
+## Rendering
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/render-structural
+testdata/render-structural/hit.mbt:3:3-3:11
+rule: example
+description:
+  Target call.
+source:
+\x1b[90m1 | fn sample {\x1b[39m (escaped)
+\x1b[90m2 |   before()\x1b[39m (escaped)
+3 |   target()
+\x1b[90m4 |   after()\x1b[39m (escaped)
+\x1b[90m5 | }\x1b[39m (escaped)
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/taint testdata/taint
+testdata/taint/hit.mbt:4:8-4:9
+rule: example
+description:
+  User input reaches sink.
+source:
+\x1b[90m2 |   before()\x1b[39m (escaped)
+\x1b[90m3 |   let x = get_user_input()\x1b[39m (escaped)
+4 |   sink(x)
+\x1b[90m5 |   after()\x1b[39m (escaped)
+\x1b[90m6 | }\x1b[39m (escaped)
+```

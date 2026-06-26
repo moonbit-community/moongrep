@@ -1,0 +1,5 @@
+id: example
+description: |
+  Any expression.
+patterns:
+  - shape: $exp:_expr

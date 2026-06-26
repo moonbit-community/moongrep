@@ -1,0 +1,28 @@
+## Integration scenarios
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/inside-expr-target/rules testdata/inside-expr-target/src
+testdata/inside-expr-target/src/hit.mbt:3:3-3:15
+rule: example
+outer_loc: testdata/inside-expr-target/src/hit.mbt:2:3-3:15
+description:
+  Local println shadows the builtin.
+source:
+\x1b[90m1 | fn sample {\x1b[39m (escaped)
+\x1b[90m2 |   let println = custom;\x1b[39m (escaped)
+3 |   println("x")
+\x1b[90m4 | }\x1b[39m (escaped)
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/html-attrs-taint-sanitizer/rules testdata/html-attrs-taint-sanitizer/src
+testdata/html-attrs-taint-sanitizer/src/hit.mbt:3:30-3:35
+rule: example
+description:
+  Attrs built with `inner_html(...)` carry raw DOM content.
+source:
+\x1b[90m1 | fn hit(raw, child) {\x1b[39m (escaped)
+\x1b[90m2 |   let attrs = @html.Attrs::build().inner_html(raw);\x1b[39m (escaped)
+3 |   @html.div(class="x", attrs=attrs, child)
+\x1b[90m4 | }\x1b[39m (escaped)
+```

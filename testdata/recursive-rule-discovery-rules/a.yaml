@@ -1,0 +1,5 @@
+id: example
+description: |
+  Repeated equality.
+patterns:
+  - shape: $exp:_expr == $exp:_expr
