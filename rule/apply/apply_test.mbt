@@ -97,6 +97,31 @@ test "apply structural rule supports inline identifier metavars" {
 }
 
 ///|
+test "apply structural rule supports inline constant metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Repeated constant value.
+    #|patterns:
+    #|  - shape: $const:value + $const:value
+    #|
+  let source =
+    #|fn sample {
+    #|  1 + 1;
+    #|  1 + 2;
+    #|  x + x
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule treats patterns as ordered alternatives" {
   let rule_source =
     #|id: example
@@ -270,6 +295,34 @@ test "apply structural rule visits top let definitions" {
     compile_rule_source(rule_source),
   )
   inspect(hits.length(), content="1")
+}
+
+///|
+test "apply taint rule supports inline constant metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Constant-tagged sink.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: sink($const:tag, __SOURCE__)
+    #|
+  let source =
+    #|fn sample {
+    #|  let x = get_user_input();
+    #|  sink(1, x);
+    #|  sink(tag, x)
+    #|}
+    #|
+  let hits = apply_taint_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
 }
 
 ///|

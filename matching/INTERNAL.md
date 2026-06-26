@@ -29,18 +29,20 @@ Placeholder priority in expression positions is:
    in `CompiledExprPattern`
 3. declared expression metavars bind a whole expression value
 4. declared identifier metavars bind a normalized identifier string
-5. undeclared names are literal AST names
+5. declared constant metavars bind only `Expr::Constant`
+6. undeclared names are literal AST names
 
-For vars, binders, labels, and pattern variables, only ignore placeholders and
-declared identifier metavars are special; everything else is literal.
+For vars, binders, and labels, only ignore placeholders and declared identifier
+metavars are special; everything else is literal. For pattern variables,
+declared constant metavars are also special and match only `Pattern::Constant`.
 `__TARGET__` and `__SOURCE__` are special only in whole expression positions.
 For example, undeclared `__x` is literal: only `__` or `___` are ignore
 placeholders by spelling alone.
 
 ## Binding Kinds
 
-`BoundValue` stores either `Expr` for whole-expression captures or
-`Identifier` for normalized name captures.
+`BoundValue` stores `Expr` for whole-expression captures, `Identifier` for
+normalized name captures, or `Constant` for parsed constants.
 
 Expression metavars capture the candidate expression at that position.
 Repeated uses compare the parsed expression structure, ignoring locations.
@@ -49,6 +51,10 @@ Identifier metavars store `Identifier(String)`. Expr, var, and pattern values
 go through `rule/syntax_id` normalization where possible. Binder and label
 matching uses the candidate name directly because those nodes already carry the
 short name being compared.
+
+Constant metavars store `Constant(@syntax.Constant)`. Expression placeholders
+accept only `Expr::Constant`, pattern placeholders accept only
+`Pattern::Constant`, and repeated uses compare with `constant_equal`.
 
 ## Equality Is Location-Insensitive but Not Complete
 

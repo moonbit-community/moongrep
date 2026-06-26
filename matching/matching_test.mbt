@@ -96,6 +96,7 @@ test "declared expression metavar requires structural equality" {
     ast: pattern,
     expr_metavars: ["__x"],
     identifier_metavars: [],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -112,6 +113,7 @@ test "identifier metavar compares binder and uses by normalized name" {
     ast: pattern,
     expr_metavars: ["limit", "body"],
     identifier_metavars: ["counter"],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -140,6 +142,7 @@ test "identifier metavar matches loop counter" {
     ast: pattern,
     expr_metavars: ["limit", "body"],
     identifier_metavars: ["counter"],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -166,6 +169,7 @@ test "expression metavar matches repeated call expression" {
     ast: pattern,
     expr_metavars: ["value"],
     identifier_metavars: [],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -184,6 +188,7 @@ test "expression metavar keeps structural equality" {
     ast: pattern,
     expr_metavars: ["value"],
     identifier_metavars: [],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -196,12 +201,54 @@ test "expression metavar keeps structural equality" {
 }
 
 ///|
+test "constant metavar requires repeated constant equality" {
+  let pattern = parse_expr("value + value")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: [],
+    identifier_metavars: [],
+    constant_metavars: ["value"],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(match_expr_pattern(compiled, parse_expr("1 + 1")) is Some(_))
+  assert_false(match_expr_pattern(compiled, parse_expr("1 + 2")) is Some(_))
+  assert_false(match_expr_pattern(compiled, parse_expr("x + x")) is Some(_))
+}
+
+///|
+test "constant metavar matches only constant patterns" {
+  let pattern = parse_expr("match input { lit => lit }")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: ["input"],
+    identifier_metavars: [],
+    constant_metavars: ["lit"],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("match value { 1 => 1 }"))
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("match value { 1 => 2 }"))
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("match value { item => item }"))
+    is Some(_),
+  )
+}
+
+///|
 test "identifier metavar matches pattern vars" {
   let pattern = parse_expr("match input { item => item }")
   let compiled : CompiledExprPattern = {
     ast: pattern,
     expr_metavars: ["input"],
     identifier_metavars: ["item"],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -222,6 +269,7 @@ test "identifier metavar matches labels" {
     ast: pattern,
     expr_metavars: ["record"],
     identifier_metavars: ["field"],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }

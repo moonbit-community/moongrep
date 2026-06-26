@@ -19,12 +19,14 @@ pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @syntax.Expr, @hash
 pub(all) enum BoundValue {
   Expr(@syntax.Expr)
   Identifier(String)
+  Constant(@syntax.Constant)
 }
 
 pub(all) struct CompiledExprPattern {
   ast : @syntax.Expr
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
+  constant_metavars : Array[String]
   target_metavar : String?
   source_metavar : String?
 }

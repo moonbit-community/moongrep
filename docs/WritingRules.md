@@ -158,8 +158,17 @@ patterns:
       }
 ```
 
-`$exp:` is expression-only. If you need a non-expression name, use `$id:` or
-leave the name literal. `$pat:` and any other kind are compile errors.
+Use `$const:name` when the same literal constant must be consistent and
+variables should not match:
+
+```yaml
+patterns:
+  - shape: $const:value + $const:value
+```
+
+`$exp:` is expression-only. `$const:` is valid only in constant expression or
+constant pattern positions. If you need a non-expression name, use `$id:` or leave the
+name literal. `$pat:` and any other kind are compile errors.
 
 The old YAML `metavars` key is invalid.
 
@@ -176,7 +185,7 @@ anything there without binding a value or participating in repeated-name
 equality. Repeated ignore placeholders are independent wildcards. In
 unsupported positions such as constructor names, they stay literal. 
 
-### 3. Choose `$exp` or `$id`
+### 3. Choose `$exp`, `$id`, or `$const`
 
 Use `$exp` when you want to match and compare a whole expression. Repeating an
 `$exp` metavar means the repeated captures must be structurally equal according
@@ -213,6 +222,10 @@ same spelling should match, but the raw AST nodes are different, so
 AST as `Var`, so rules like `x = x + 1` can bind the left-hand target by
 normalized name instead of treating it as a literal string.
 
+Use `$const` when the candidate must be a parsed MoonBit constant. Repeated
+`$const` captures compare constant kind and value, so `1 + 1` can match while
+`1 + 2` and `x + x` do not.
+
 ### 3.5 Use `inside-expr` when the interesting node must appear inside a larger context
 
 Reach for `inside-expr` when the thing you want to flag is only meaningful
@@ -247,7 +260,7 @@ Rules for `inside-expr`:
 
 YAML `guard` expressions are not supported by the current runtime AST matcher.
 If a rule needs extra logic, first check whether a narrower `shape`,
-`inside-expr`, `$exp`, or `$id` metavars can express it. Otherwise, the
+`inside-expr`, `$exp`, `$id`, or `$const` metavars can express it. Otherwise, the
 behavior needs MoonBit implementation work before it can be represented as a
 YAML rule.
 
@@ -348,9 +361,10 @@ valid expression-sized shape, then build back up carefully.
 
 Check, in order:
 
-- the kind is exactly `$exp:` or `$id:`
+- the kind is exactly `$exp:`, `$id:`, or `$const:`
 - `$exp:` appears as a whole bare expression placeholder
-- the same payload name is not used as both `$exp` and `$id`
+- `$const:` appears only where a constant expression or constant pattern can match
+- the same payload name is not used across multiple metavar kinds
 - the payload is not a reserved name such as `__`, `__TARGET__`, or `__SOURCE__`
 
 ### An `$id` rule looks right but never hits

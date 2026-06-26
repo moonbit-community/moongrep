@@ -2,8 +2,8 @@
 /// A compiled expression pattern.
 ///
 /// `ast` is the parsed pattern expression. `expr_metavars` bind whole
-/// expression AST nodes, and `identifier_metavars` bind normalized identifier
-/// strings.
+/// expression AST nodes, `identifier_metavars` bind normalized identifier
+/// strings, and `constant_metavars` bind literal constants.
 /// `target_metavar` and `source_metavar` are reserved bare-expression
 /// placeholders injected by the rules package for `__TARGET__` and
 /// `__SOURCE__`.
@@ -11,6 +11,7 @@ pub(all) struct CompiledExprPattern {
   ast : @syntax.Expr
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
+  constant_metavars : Array[String]
   target_metavar : String?
   source_metavar : String?
 }
@@ -19,10 +20,12 @@ pub(all) struct CompiledExprPattern {
 /// Values captured while matching a `CompiledExprPattern`.
 ///
 /// Expression metavars capture whole expressions. Identifier metavars capture
-/// the normalized name as `Identifier`.
+/// the normalized name as `Identifier`. Constant metavars capture parser
+/// constants.
 pub(all) enum BoundValue {
   Expr(@syntax.Expr)
   Identifier(String)
+  Constant(@syntax.Constant)
 }
 
 ///|

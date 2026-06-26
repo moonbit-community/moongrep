@@ -119,7 +119,7 @@ patterns:
       }
 ```
 
-只支持 `exp` 和 `id`。shape 中出现 `$pat:x` 或任何其他 kind 都是无效规则。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能把同一个 payload 同时用作 `$exp:name` 和 `$id:name`。
+只支持 `exp`、`id` 和 `const`。shape 中出现 `$pat:x` 或任何其他 kind 都是无效规则。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$exp:name`、`$id:name` 和 `$const:name` 使用同一个 payload。
 
 旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
 
@@ -150,6 +150,8 @@ patterns:
 ```
 
 如果需要匹配源码层面的名称，请使用 `$id:name`。它可以绑定简单变量目标、binder、裸标识符表达式、简单变量模式，以及方法名、字段名、带标签参数名和记录字段标签等标签。
+
+如果需要匹配字面常量，请使用 `$const:name`。它只在整个裸标识符表达式位置或简单 pattern variable 位置有效，并且只匹配解析后的 MoonBit 常量。重复使用同一个 `$const` 名称时，常量 kind 和存储值都必须相等。它不会匹配变量、构造器、标签、操作符、限定标识符或普通 binder。
 
 ### 内置通配符
 
@@ -232,6 +234,40 @@ for i = 0; j < n; i = i + 1 {
 ```
 
 归一化目前适用于简单非限定变量名、binder、裸标识符表达式、简单变量模式和标签。限定名称不会为了此用途归一化为简单标识符。
+
+### `$const`
+
+`$const` 元变量捕获解析后的 MoonBit 常量。在表达式位置，它匹配 `Expr::Constant`；在 pattern 位置，它匹配 `Pattern::Constant`。
+
+示例：
+
+```yaml
+patterns:
+  - shape: $const:value + $const:value
+```
+
+它可以匹配：
+
+```moonbit
+1 + 1
+"same" + "same"
+```
+
+它不会匹配：
+
+```moonbit
+1 + 2
+x + x
+```
+
+也支持 pattern 常量：
+
+```yaml
+patterns:
+  - shape: match input { $const:lit => lit }
+```
+
+内部 body 通过普通 payload 名称 `lit` 引用外层常量捕获。
 
 ## 结构规则
 
@@ -411,9 +447,10 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 任何 pattern object 中出现 `metavars`
 - `shape` 不是一个有效的 MoonBit 表达式
 - shape 使用不支持的内联元变量 kind
-- shape 把同一个内联元变量名同时用作 `$exp` 和 `$id`
+- shape 跨多个元变量 kind 使用同一个内联元变量名
 - 内联元变量使用保留名称
 - `$exp:name` 出现在裸表达式位置之外
+- `$const:name` 出现在常量表达式或常量 pattern 位置之外
 - `inside-expr.shape` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目重新声明了已经由 `inside-expr` 声明的名称

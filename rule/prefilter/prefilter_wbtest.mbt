@@ -90,6 +90,19 @@ test "prefilter treats inline metavars as placeholders" {
 }
 
 ///|
+test "prefilter treats inline constant metavars as placeholders" {
+  let source =
+    #|id: example
+    #|description: Target call.
+    #|patterns:
+    #|  - shape: sink($const:value)
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { sink(42) }\n"))
+  assert_false(rule_is_relevant_to_source(rule, "fn sample { other(42) }\n"))
+}
+
+///|
 test "prefilter ignores one digit int literals" {
   let one_digit_source =
     #|id: example
