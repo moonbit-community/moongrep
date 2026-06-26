@@ -186,12 +186,10 @@ fn collect_var_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match @id.normalize_identifier_name_from_var(var_) {
-    Some(name) =>
-      if !is_filter_placeholder(name, compiled) {
-        push_literal(literals, name)
-      }
-    None => ()
+  if @id.normalize_identifier_name_from_var(var_) is Some(name) {
+    if !is_filter_placeholder(name, compiled) {
+      push_literal(literals, name)
+    }
   }
 }
 
@@ -201,12 +199,10 @@ fn collect_binder_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match @id.normalize_identifier_name_from_binder(binder) {
-    Some(name) =>
-      if !is_filter_placeholder(name, compiled) {
-        push_literal(literals, name)
-      }
-    None => ()
+  if @id.normalize_identifier_name_from_binder(binder) is Some(name) {
+    if !is_filter_placeholder(name, compiled) {
+      push_literal(literals, name)
+    }
   }
 }
 
@@ -216,12 +212,10 @@ fn collect_label_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match @id.normalize_identifier_name_from_label(label) {
-    Some(name) =>
-      if !is_filter_placeholder(name, compiled) {
-        push_literal(literals, name)
-      }
-    None => ()
+  if @id.normalize_identifier_name_from_label(label) is Some(name) {
+    if !is_filter_placeholder(name, compiled) {
+      push_literal(literals, name)
+    }
   }
 }
 
@@ -281,9 +275,8 @@ fn collect_expr_literals(
     Assign(var_~, expr~, augmented_by~, ..) => {
       collect_var_literal(var_, compiled, literals)
       collect_expr_literals(expr, compiled, literals)
-      match augmented_by {
-        Some(op) => collect_var_literal(op, compiled, literals)
-        None => ()
+      if augmented_by is Some(op) {
+        collect_var_literal(op, compiled, literals)
       }
     }
     ArrayAugmentedSet(op~, array~, index~, value~, ..) => {
@@ -398,9 +391,8 @@ fn collect_expr_literals(
       collect_expr_literals(record, compiled, literals)
       collect_accessor_literals(accessor, compiled, literals)
       collect_expr_literals(field, compiled, literals)
-      match augmented_by {
-        Some(op) => collect_var_literal(op, compiled, literals)
-        None => ()
+      if augmented_by is Some(op) {
+        collect_var_literal(op, compiled, literals)
       }
     }
     Pipe(lhs~, rhs~, ..) | RevPipe(lhs~, rhs~, ..) | Implies(lhs~, rhs~, ..) => {
@@ -446,9 +438,8 @@ fn collect_optional_expr_literals(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match expr {
-    Some(expr) => collect_expr_literals(expr, compiled, literals)
-    None => ()
+  if expr is Some(expr) {
+    collect_expr_literals(expr, compiled, literals)
   }
 }
 
@@ -458,9 +449,8 @@ fn collect_optional_label_literal(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match label {
-    Some(label) => collect_label_literal(label, compiled, literals)
-    None => ()
+  if label is Some(label) {
+    collect_label_literal(label, compiled, literals)
   }
 }
 
@@ -530,9 +520,8 @@ fn collect_optional_binders_literals(
   literals : Array[String],
 ) -> Unit {
   for binder in binders {
-    match binder {
-      Some(binder) => collect_binder_literal(binder, compiled, literals)
-      None => ()
+    if binder is Some(binder) {
+      collect_binder_literal(binder, compiled, literals)
     }
   }
 }
@@ -556,9 +545,8 @@ fn collect_optional_case_list_literals(
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match cases {
-    Some(cases) => collect_case_literals(cases, compiled, literals)
-    None => ()
+  if cases is Some(cases) {
+    collect_case_literals(cases, compiled, literals)
   }
 }
 

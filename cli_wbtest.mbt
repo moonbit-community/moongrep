@@ -11,9 +11,10 @@ fn expect_cli_usage(argv : Array[String], exit_code : Int) -> Unit raise {
 
 ///|
 fn expect_rules_root(options : CliOptions, expected : String) -> Unit raise {
-  match options.rules_root {
-    Some(path) => inspect(path, content=expected)
-    None => fail("expected rules root")
+  if options.rules_root is Some(path) {
+    inspect(path, content=expected)
+  } else {
+    fail("expected rules root")
   }
 }
 

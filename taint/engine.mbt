@@ -174,9 +174,10 @@ fn eval_expr(
 
 ///|
 fn eval_path_like(expr : @syntax.Expr, state : TaintState) -> EvalResult {
-  match storage_path_from_expr(expr) {
-    Some(path) => normal_result(state, state_read_path(state, path))
-    None => normal_result(state, [])
+  if storage_path_from_expr(expr) is Some(path) {
+    normal_result(state, state_read_path(state, path))
+  } else {
+    normal_result(state, [])
   }
 }
 
@@ -189,21 +190,20 @@ fn eval_field_expr(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  match storage_path_from_expr(expr) {
-    Some(path) => normal_result(state, state_read_path(state, path))
-    None => {
-      let record_result = eval_expr(record, state, spec, findings)
-      if record_result.flow != FlowNormal {
-        return record_result
-      }
-      match segment_from_accessor(accessor) {
-        Some(segment) =>
-          normal_result(
-            record_result.state,
-            tree_project(record_result.value, [segment]),
-          )
-        None => normal_result(record_result.state, [])
-      }
+  if storage_path_from_expr(expr) is Some(path) {
+    normal_result(state, state_read_path(state, path))
+  } else {
+    let record_result = eval_expr(record, state, spec, findings)
+    if record_result.flow != FlowNormal {
+      return record_result
+    }
+    if segment_from_accessor(accessor) is Some(segment) {
+      normal_result(
+        record_result.state,
+        tree_project(record_result.value, [segment]),
+      )
+    } else {
+      normal_result(record_result.state, [])
     }
   }
 }
@@ -221,22 +221,17 @@ fn eval_array_get_expr(
   if index_result.flow != FlowNormal {
     return index_result
   }
-  match storage_path_from_expr(expr) {
-    Some(path) =>
-      normal_result(
-        index_result.state,
-        state_read_path(index_result.state, path),
-      )
-    None => {
-      let array_result = eval_expr(array, index_result.state, spec, findings)
-      if array_result.flow != FlowNormal {
-        return array_result
-      }
-      normal_result(
-        array_result.state,
-        tree_project(array_result.value, [segment_from_index_expr(index)]),
-      )
+  if storage_path_from_expr(expr) is Some(path) {
+    normal_result(index_result.state, state_read_path(index_result.state, path))
+  } else {
+    let array_result = eval_expr(array, index_result.state, spec, findings)
+    if array_result.flow != FlowNormal {
+      return array_result
     }
+    normal_result(
+      array_result.state,
+      tree_project(array_result.value, [segment_from_index_expr(index)]),
+    )
   }
 }
 
@@ -357,13 +352,13 @@ fn eval_assign(
   if rhs_result.flow != FlowNormal {
     return rhs_result
   }
-  match storage_path_from_var(var_) {
-    Some(path) =>
-      normal_result(
-        state_write_path(rhs_result.state, path, rhs_result.value),
-        rhs_result.value,
-      )
-    None => rhs_result
+  if storage_path_from_var(var_) is Some(path) {
+    normal_result(
+      state_write_path(rhs_result.state, path, rhs_result.value),
+      rhs_result.value,
+    )
+  } else {
+    rhs_result
   }
 }
 
@@ -685,18 +680,17 @@ fn apply_call_transfer(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  match (spec.custom_transfer_call)(info) {
-    Some(transfer) => {
-      let mut next = state
-      for path in transfer.killed_paths {
-        next = state_kill_path(next, path)
-      }
-      for finding in transfer.findings {
-        findings.push(finding)
-      }
-      normal_result(next, transfer.return_taint)
+  if (spec.custom_transfer_call)(info) is Some(transfer) {
+    let mut next = state
+    for path in transfer.killed_paths {
+      next = state_kill_path(next, path)
     }
-    None => apply_declared_call_transfer(info, state, spec, findings)
+    for finding in transfer.findings {
+      findings.push(finding)
+    }
+    normal_result(next, transfer.return_taint)
+  } else {
+    apply_declared_call_transfer(info, state, spec, findings)
   }
 }
 
@@ -746,63 +740,51 @@ fn apply_declared_call_transfer(
               ),
             )
           PropagateArgToReturn(index) =>
-            match argument_at(info.arguments, index) {
-              Some(arg) => return_taint = tree_merge(return_taint, arg.taint)
-              None => ()
+            if argument_at(info.arguments, index) is Some(arg) {
+              return_taint = tree_merge(return_taint, arg.taint)
             }
           PropagateReceiverToReturn =>
             return_taint = tree_merge(return_taint, info.receiver_taint)
           PropagateArgSubpathToReturn(index, path) =>
-            match argument_at(info.arguments, index) {
-              Some(arg) =>
-                return_taint = tree_merge(
-                  return_taint,
-                  tree_project(arg.taint, path),
-                )
-              None => ()
+            if argument_at(info.arguments, index) is Some(arg) {
+              return_taint = tree_merge(
+                return_taint,
+                tree_project(arg.taint, path),
+              )
             }
           KillArg(index) =>
-            match argument_at(info.arguments, index) {
-              Some(arg) =>
-                match arg.path {
-                  Some(path) => next = state_kill_path(next, path)
-                  None => ()
-                }
-              None => ()
+            if argument_at(info.arguments, index) is Some(arg) &&
+              arg.path is Some(path) {
+              next = state_kill_path(next, path)
             }
           KillReceiver =>
-            match info.receiver_path {
-              Some(path) => next = state_kill_path(next, path)
-              None => ()
+            if info.receiver_path is Some(path) {
+              next = state_kill_path(next, path)
             }
           // Argument sinks point at the argument expression. Receiver sinks
           // point at the whole call while keeping the receiver as the value
           // site, because receiver syntax has no standalone call-site location.
           ReportSinkArg(sink_id, index) =>
-            match argument_at(info.arguments, index) {
-              Some(arg) =>
-                push_sink_finding_if_tainted(
-                  spec.rule_id,
-                  sink_id,
-                  arg.loc,
-                  arg.site,
-                  arg.taint,
-                  findings,
-                )
-              None => ()
+            if argument_at(info.arguments, index) is Some(arg) {
+              push_sink_finding_if_tainted(
+                spec.rule_id,
+                sink_id,
+                arg.loc,
+                arg.site,
+                arg.taint,
+                findings,
+              )
             }
           ReportSinkReceiver(sink_id) =>
-            match info.receiver_site {
-              Some(site) =>
-                push_sink_finding_if_tainted(
-                  spec.rule_id,
-                  sink_id,
-                  info.loc,
-                  site,
-                  info.receiver_taint,
-                  findings,
-                )
-              None => ()
+            if info.receiver_site is Some(site) {
+              push_sink_finding_if_tainted(
+                spec.rule_id,
+                sink_id,
+                info.loc,
+                site,
+                info.receiver_taint,
+                findings,
+              )
             }
         }
       }
@@ -819,16 +801,18 @@ fn call_matches(info : CallInfo, matcher : CallMatcher) -> Bool {
   match matcher {
     AnyCall => true
     CalleeName(name) =>
-      match info.callee_name {
-        Some(found) => found == name
-        None => false
+      if info.callee_name is Some(found) {
+        found == name
+      } else {
+        false
       }
     MethodName(name) =>
       match info.kind {
         DotApply | Pipe =>
-          match info.callee_name {
-            Some(found) => found == name
-            None => false
+          if info.callee_name is Some(found) {
+            found == name
+          } else {
+            false
           }
         _ => false
       }
@@ -914,9 +898,10 @@ fn tree_shift(prefix : Array[PathSegment], tree : TaintTree) -> TaintTree {
 
 ///|
 fn site_for_expr(expr : @syntax.Expr, path : StoragePath?) -> ValueSite {
-  match path {
-    Some(path) => Path(path)
-    None => Expr(expr.loc(), None)
+  if path is Some(path) {
+    Path(path)
+  } else {
+    Expr(expr.loc(), None)
   }
 }
 
@@ -1089,9 +1074,10 @@ fn eval_if(
     return cond_result
   }
   let then_result = eval_expr(ifso, cond_result.state, spec, findings)
-  let else_result = match ifnot {
-    Some(expr) => eval_expr(expr, cond_result.state, spec, findings)
-    None => normal_result(cond_result.state, [])
+  let else_result = if ifnot is Some(expr) {
+    eval_expr(expr, cond_result.state, spec, findings)
+  } else {
+    normal_result(cond_result.state, [])
   }
   if then_result.flow != FlowNormal && else_result.flow == FlowNormal {
     return else_result
@@ -1131,16 +1117,15 @@ fn eval_match(
       scrutinee_result.value,
       scrutinee_result.state,
     )
-    let case_result = match case.guard_ {
-      Some(guard_expr) => {
-        let guard_result = eval_expr(guard_expr, bound, spec, findings)
-        if guard_result.flow == FlowNormal {
-          eval_expr(case.body, guard_result.state, spec, findings)
-        } else {
-          guard_result
-        }
+    let case_result = if case.guard_ is Some(guard_expr) {
+      let guard_result = eval_expr(guard_expr, bound, spec, findings)
+      if guard_result.flow == FlowNormal {
+        eval_expr(case.body, guard_result.state, spec, findings)
+      } else {
+        guard_result
       }
-      None => eval_expr(case.body, bound, spec, findings)
+    } else {
+      eval_expr(case.body, bound, spec, findings)
     }
     if case_result.flow == FlowNormal {
       normal_states.push(case_result.state)
@@ -1189,16 +1174,14 @@ fn eval_try(
       branch_value = tree_merge(branch_value, result.value)
     }
   }
-  match try_else {
-    Some(cases) =>
-      for case in cases.to_array() {
-        let result = eval_expr(case.body, body_result.state, spec, findings)
-        if result.flow == FlowNormal {
-          branch_states.push(result.state)
-          branch_value = tree_merge(branch_value, result.value)
-        }
+  if try_else is Some(cases) {
+    for case in cases.to_array() {
+      let result = eval_expr(case.body, body_result.state, spec, findings)
+      if result.flow == FlowNormal {
+        branch_states.push(result.state)
+        branch_value = tree_merge(branch_value, result.value)
       }
-    None => ()
+    }
   }
   normal_result(state_merge_all(branch_states), branch_value)
 }
@@ -1217,16 +1200,15 @@ fn eval_catch_cases(
   let mut exit_value = raised.value
   for case in catch_.to_array() {
     let bound = bind_pattern(case.pattern, raised.value, raised.state)
-    let case_result = match case.guard_ {
-      Some(guard_expr) => {
-        let guard_result = eval_expr(guard_expr, bound, spec, findings)
-        if guard_result.flow == FlowNormal {
-          eval_expr(case.body, guard_result.state, spec, findings)
-        } else {
-          guard_result
-        }
+    let case_result = if case.guard_ is Some(guard_expr) {
+      let guard_result = eval_expr(guard_expr, bound, spec, findings)
+      if guard_result.flow == FlowNormal {
+        eval_expr(case.body, guard_result.state, spec, findings)
+      } else {
+        guard_result
       }
-      None => eval_expr(case.body, bound, spec, findings)
+    } else {
+      eval_expr(case.body, bound, spec, findings)
     }
     if case_result.flow == FlowNormal {
       normal_states.push(case_result.state)
@@ -1282,15 +1264,14 @@ fn eval_while(
     current = joined
     iteration = iteration + 1
   }
-  match while_else {
-    Some(expr) => {
-      let else_result = eval_expr(expr, current, spec, findings)
-      if else_result.flow != FlowNormal {
-        return else_result
-      }
-      normal_result(state_merge(current, else_result.state), else_result.value)
+  if while_else is Some(expr) {
+    let else_result = eval_expr(expr, current, spec, findings)
+    if else_result.flow != FlowNormal {
+      return else_result
     }
-    None => normal_result(current, [])
+    normal_result(state_merge(current, else_result.state), else_result.value)
+  } else {
+    normal_result(current, [])
   }
 }
 
@@ -1318,15 +1299,12 @@ fn eval_for(
       result.value,
     )
   }
-  match condition {
-    Some(expr) => {
-      let result = eval_expr(expr, current, spec, findings)
-      if result.flow != FlowNormal {
-        return result
-      }
-      current = result.state
+  if condition is Some(expr) {
+    let result = eval_expr(expr, current, spec, findings)
+    if result.flow != FlowNormal {
+      return result
     }
-    None => ()
+    current = result.state
   }
   let mut iteration = 0
   // `for` uses the same bounded fixpoint strategy as `while`. The optional
@@ -1361,15 +1339,14 @@ fn eval_for(
     current = joined
     iteration = iteration + 1
   }
-  match for_else {
-    Some(expr) => {
-      let else_result = eval_expr(expr, current, spec, findings)
-      if else_result.flow != FlowNormal {
-        return else_result
-      }
-      normal_result(state_merge(current, else_result.state), else_result.value)
+  if for_else is Some(expr) {
+    let else_result = eval_expr(expr, current, spec, findings)
+    if else_result.flow != FlowNormal {
+      return else_result
     }
-    None => normal_result(current, [])
+    normal_result(state_merge(current, else_result.state), else_result.value)
+  } else {
+    normal_result(current, [])
   }
 }
 
@@ -1403,14 +1380,12 @@ fn eval_for_each(
     )
   }
   for binder in binders.to_array() {
-    match binder {
-      Some(binder) =>
-        current = state_write_path(
-          current,
-          { root: binder.name, segments: [] },
-          tree_project(collection_result.value, [AnyIndex]),
-        )
-      None => ()
+    if binder is Some(binder) {
+      current = state_write_path(
+        current,
+        { root: binder.name, segments: [] },
+        tree_project(collection_result.value, [AnyIndex]),
+      )
     }
   }
   let mut iteration = 0
@@ -1445,15 +1420,14 @@ fn eval_for_each(
     current = joined
     iteration = iteration + 1
   }
-  match else_block {
-    Some(expr) => {
-      let else_result = eval_expr(expr, current, spec, findings)
-      if else_result.flow != FlowNormal {
-        return else_result
-      }
-      normal_result(state_merge(current, else_result.state), else_result.value)
+  if else_block is Some(expr) {
+    let else_result = eval_expr(expr, current, spec, findings)
+    if else_result.flow != FlowNormal {
+      return else_result
     }
-    None => normal_result(current, [])
+    normal_result(state_merge(current, else_result.state), else_result.value)
+  } else {
+    normal_result(current, [])
   }
 }
 
@@ -1476,13 +1450,11 @@ fn eval_unknown_expr(
       eval_children([array, index, value], state, spec, findings)
     ArrayGetSlice(array~, start_index~, end_index~, ..) => {
       let children : Array[@syntax.Expr] = [array]
-      match start_index {
-        Some(expr) => children.push(expr)
-        None => ()
+      if start_index is Some(expr) {
+        children.push(expr)
       }
-      match end_index {
-        Some(expr) => children.push(expr)
-        None => ()
+      if end_index is Some(expr) {
+        children.push(expr)
       }
       eval_children(children, state, spec, findings)
     }
@@ -1490,9 +1462,8 @@ fn eval_unknown_expr(
       eval_children([expr, body], state, spec, findings)
     Guard(cond~, otherwise~, body~, ..) => {
       let children : Array[@syntax.Expr] = [cond]
-      match otherwise {
-        Some(expr) => children.push(expr)
-        None => ()
+      if otherwise is Some(expr) {
+        children.push(expr)
       }
       children.push(body)
       eval_children(children, state, spec, findings)

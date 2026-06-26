@@ -139,9 +139,8 @@ fn load_scan_rules(
   options : CliOptions,
 ) -> Array[@rule_model.RawRuleSpec] raise {
   let raw_rules : Array[@rule_model.RawRuleSpec] = []
-  match options.rules_root {
-    Some(rules_root) => raw_rules.append(@rule_load.load_rules(rules_root))
-    None => ()
+  if options.rules_root is Some(rules_root) {
+    raw_rules.append(@rule_load.load_rules(rules_root))
   }
   for index in 0..<options.patterns.length() {
     raw_rules.push(anonymous_pattern_rule(options.patterns[index], index))
@@ -216,9 +215,8 @@ fn collect_source_files(
 
 ///|
 fn push_scan_trace(scan_trace : Array[String]?, message : String) -> Unit {
-  match scan_trace {
-    Some(lines) => lines.push(message)
-    None => ()
+  if scan_trace is Some(lines) {
+    lines.push(message)
   }
 }
 

@@ -60,356 +60,352 @@ fn match_expr(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match match_expr_placeholder(pattern, candidate, compiled, bindings) {
-    Some(result) => result
-    None =>
-      match (pattern, candidate) {
-        (Ident(id=pid, ..), Ident(id=cid, ..)) => var_equal(pid, cid)
-        (Hole(kind=pk, ..), Hole(kind=ck, ..)) => hole_equal(pk, ck)
-        (Constant(c=pc, ..), Constant(c=cc, ..)) => constant_equal(pc, cc)
-        (
-          ArrayAugmentedSet(op=pop, array=pa, index=pi, value=pv, ..),
-          ArrayAugmentedSet(op=cop, array=ca, index=ci, value=cv, ..),
-        ) =>
-          match_var(pop, cop, compiled, bindings) &&
-          match_expr(pa, ca, compiled, bindings) &&
-          match_expr(pi, ci, compiled, bindings) &&
-          match_expr(pv, cv, compiled, bindings)
-        (ArrayGet(array=pa, index=pi, ..), ArrayGet(array=ca, index=ci, ..)) =>
-          match_expr(pa, ca, compiled, bindings) &&
-          match_expr(pi, ci, compiled, bindings)
-        (
-          ArrayGetSlice(array=pa, start_index=ps, end_index=pe, ..),
-          ArrayGetSlice(array=ca, start_index=cs, end_index=ce, ..),
-        ) =>
-          match_expr(pa, ca, compiled, bindings) &&
-          option_match(ps, cs, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          option_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
-        (
-          ArraySet(array=pa, index=pi, value=pv, ..),
-          ArraySet(array=ca, index=ci, value=cv, ..),
-        ) =>
-          match_expr(pa, ca, compiled, bindings) &&
-          match_expr(pi, ci, compiled, bindings) &&
-          match_expr(pv, cv, compiled, bindings)
-        (ArraySpread(elems=pe, ..), ArraySpread(elems=ce, ..)) =>
-          list_match(pe, ce, (p, c) => {
-            match_spreadable_elem(p, c, compiled, bindings)
-          })
-        (As(expr=pe, trait_=pt, ..), As(expr=ce, trait_=ct, ..)) =>
-          type_name_equal(pt, ct) && match_expr(pe, ce, compiled, bindings)
-        (
-          Assign(var_=pv, expr=pe, augmented_by=pa, ..),
-          Assign(var_=cv, expr=ce, augmented_by=ca, ..),
-        ) =>
-          match_var(pv, cv, compiled, bindings) &&
-          option_match(pa, ca, (p, c) => match_var(p, c, compiled, bindings)) &&
-          match_expr(pe, ce, compiled, bindings)
-        (Break(arg=pa, label=pl, ..), Break(arg=ca, label=cl, ..)) =>
-          option_match(pa, ca, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-        (Constraint(expr=pe, ty=pt, ..), Constraint(expr=ce, ty=ct, ..)) =>
-          type_equal(pt, ct) && match_expr(pe, ce, compiled, bindings)
-        (Continue(args=pa, label=pl, ..), Continue(args=ca, label=cl, ..)) =>
-          list_match(pa, ca, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-        (Defer(expr=pe, body=pb, ..), Defer(expr=ce, body=cb, ..)) =>
-          match_expr(pe, ce, compiled, bindings) &&
-          match_expr(pb, cb, compiled, bindings)
-        (Infix(op=pop, lhs=pl, rhs=pr, ..), Infix(op=cop, lhs=cl, rhs=cr, ..)) =>
-          match_var(pop, cop, compiled, bindings) &&
-          match_expr(pl, cl, compiled, bindings) &&
-          match_expr(pr, cr, compiled, bindings)
-        (Apply(func=pf, args=pa, ..), Apply(func=cf, args=ca, ..)) =>
-          match_expr(pf, cf, compiled, bindings) &&
-          list_match(pa, ca, (p, c) => match_argument(p, c, compiled, bindings))
-        (
-          DotApply(self=ps, method_name=pm, args=pa, return_self=prs, ..),
-          DotApply(self=cs, method_name=cm, args=ca, return_self=crs, ..),
-        ) =>
-          prs == crs &&
-          match_expr(ps, cs, compiled, bindings) &&
-          match_label(pm, cm, compiled, bindings) &&
-          list_match(pa, ca, (p, c) => match_argument(p, c, compiled, bindings))
-        (Field(record=pr, accessor=pa, ..), Field(record=cr, accessor=ca, ..)) =>
-          match_expr(pr, cr, compiled, bindings) &&
-          match_accessor(pa, ca, compiled, bindings)
-        (
-          ForEach(
-            binders=pb,
-            expr=pe,
-            init=pi,
-            continue_block=pcont,
-            body=pbody,
-            else_block=pelse,
-            where_clause=pwhere,
-            label=pl,
-            ..
-          ),
-          ForEach(
-            binders=cb,
-            expr=ce,
-            init=ci,
-            continue_block=ccont,
-            body=cbody,
-            else_block=celse,
-            where_clause=cwhere,
-            label=cl,
-            ..
-          ),
-        ) =>
-          list_match(pb, cb, (p, c) => {
-            option_match(p, c, (p, c) => match_binder(p, c, compiled, bindings))
-          }) &&
-          match_expr(pe, ce, compiled, bindings) &&
-          list_match(pi, ci, (p, c) => {
-            match_binder_expr_pair(p, c, compiled, bindings)
-          }) &&
-          list_match(pcont, ccont, (p, c) => {
-            match_binder_expr_pair(p, c, compiled, bindings)
-          }) &&
-          match_expr(pbody, cbody, compiled, bindings) &&
-          option_match(pelse, celse, (p, c) => {
-            match_expr(p, c, compiled, bindings)
-          }) &&
-          option_match(pwhere, cwhere, (p, c) => {
-            match_where_clause(p, c, compiled, bindings)
-          }) &&
-          option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-        (Function(func=pf, ..), Function(func=cf, ..)) =>
-          match_func(pf, cf, compiled, bindings)
-        (
-          Guard(cond=pc, otherwise=po, body=pb, ..),
-          Guard(cond=cc, otherwise=co, body=cb, ..),
-        ) =>
-          match_expr(pc, cc, compiled, bindings) &&
-          option_match(po, co, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          match_expr(pb, cb, compiled, bindings)
-        (If(cond=pc, ifso=ps, ifnot=pn, ..), If(cond=cc, ifso=cs, ifnot=cn, ..)) =>
-          match_expr(pc, cc, compiled, bindings) &&
-          match_expr(ps, cs, compiled, bindings) &&
-          option_match(pn, cn, (p, c) => match_expr(p, c, compiled, bindings))
-        (Interp(elems=pe, ..), Interp(elems=ce, ..)) =>
-          list_match(pe, ce, (p, c) => {
-            match_interp_elem(p, c, compiled, bindings)
-          })
-        (Is(expr=pe, pat=pp, ..), Is(expr=ce, pat=cp, ..)) =>
-          match_expr(pe, ce, compiled, bindings) &&
-          match_pattern(pp, cp, compiled, bindings)
-        (
-          Method(type_name=pt, method_name=pm, ..),
-          Method(type_name=ct, method_name=cm, ..),
-        ) => type_name_equal(pt, ct) && match_label(pm, cm, compiled, bindings)
-        (
-          Let(pattern=pp, expr=pe, body=pb, ..),
-          Let(pattern=cp, expr=ce, body=cb, ..),
-        ) =>
-          match_pattern(pp, cp, compiled, bindings) &&
-          match_expr(pe, ce, compiled, bindings) &&
-          (pb is Unit(faked=true, ..) || match_expr(pb, cb, compiled, bindings))
-        (
-          LetAnd(bindings=pb, body=pbody, ..),
-          LetAnd(bindings=cb, body=cbody, ..),
-        ) =>
-          list_match(pb, cb, (p, c) => {
-            match_let_and_binding(p, c, compiled, bindings)
-          }) &&
-          match_expr(pbody, cbody, compiled, bindings)
-        (
-          LetFn(name=pn, func=pf, body=pb, ..),
-          LetFn(name=cn, func=cf, body=cb, ..),
-        ) =>
-          match_binder(pn, cn, compiled, bindings) &&
-          match_func(pf, cf, compiled, bindings) &&
-          match_expr(pb, cb, compiled, bindings)
-        (
-          LetMut(binder=pb, ty=pt, expr=pe, body=pbody, ..),
-          LetMut(binder=cb, ty=ct, expr=ce, body=cbody, ..),
-        ) =>
-          match_binder(pb, cb, compiled, bindings) &&
-          option_match(pt, ct, type_equal) &&
-          match_expr(pe, ce, compiled, bindings) &&
-          match_expr(pbody, cbody, compiled, bindings)
-        (Map(elems=pe, ..), Map(elems=ce, ..)) =>
-          list_match(pe, ce, (p, c) => {
-            match_map_expr_elem(p, c, compiled, bindings)
-          })
-        (Match(expr=pe, cases=pc, ..), Match(expr=ce, cases=cc, ..)) =>
-          match_expr(pe, ce, compiled, bindings) &&
-          list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings))
-        (Constr(constr=pc, ..), Constr(constr=cc, ..)) =>
-          constructor_equal(pc, cc)
-        (MultilineString(elems=pe, ..), MultilineString(elems=ce, ..)) =>
-          list_match(pe, ce, (p, c) => {
-            match_multiline_string_elem(p, c, compiled, bindings)
-          })
-        (
-          Mutate(record=pr, accessor=pa, field=pf, augmented_by=paug, ..),
-          Mutate(record=cr, accessor=ca, field=cf, augmented_by=caug, ..),
-        ) =>
-          match_expr(pr, cr, compiled, bindings) &&
-          match_accessor(pa, ca, compiled, bindings) &&
-          match_expr(pf, cf, compiled, bindings) &&
-          option_match(paug, caug, (p, c) => match_var(p, c, compiled, bindings))
-        (Pipe(lhs=pl, rhs=pr, ..), Pipe(lhs=cl, rhs=cr, ..)) =>
-          match_expr(pl, cl, compiled, bindings) &&
-          match_expr(pr, cr, compiled, bindings)
-        (RevPipe(lhs=pl, rhs=pr, ..), RevPipe(lhs=cl, rhs=cr, ..)) =>
-          match_expr(pl, cl, compiled, bindings) &&
-          match_expr(pr, cr, compiled, bindings)
-        (Implies(lhs=pl, rhs=pr, ..), Implies(lhs=cl, rhs=cr, ..)) =>
-          match_expr(pl, cl, compiled, bindings) &&
-          match_expr(pr, cr, compiled, bindings)
-        (
-          IsLexMatch(expr=pe, strategy=ps, pat=pp, ..),
-          IsLexMatch(expr=ce, strategy=cs, pat=cp, ..),
-        ) =>
-          match_expr(pe, ce, compiled, bindings) &&
-          option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
-          list_match(pp, cp, (p, c) => {
-            match_lex_top_pattern(p, c, compiled, bindings)
-          })
-        (
-          LexMatch(strategy=ps, expr=pe, cases=pc, ..),
-          LexMatch(strategy=cs, expr=ce, cases=cc, ..),
-        ) =>
-          option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
-          match_expr(pe, ce, compiled, bindings) &&
-          list_match(pc, cc, (p, c) => match_lex_case(p, c, compiled, bindings))
-        (
-          ListComprehension(kind=pk, guard_=pg, body=pb, ..),
-          ListComprehension(kind=ck, guard_=cg, body=cb, ..),
-        ) =>
-          match_list_comprehension_kind(pk, ck, compiled, bindings) &&
-          option_match(pg, cg, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          match_expr(pb, cb, compiled, bindings)
-        (ProofAssert(expr=pe, ..), ProofAssert(expr=ce, ..)) =>
-          match_expr(pe, ce, compiled, bindings)
-        (ProofLet(binder=pb, expr=pe, ..), ProofLet(binder=cb, expr=ce, ..)) =>
-          match_binder(pb, cb, compiled, bindings) &&
-          match_expr(pe, ce, compiled, bindings)
-        (
-          Quantifier(kind=pk, binder=pb, binder_ty=pt, body=pe, ..),
-          Quantifier(kind=ck, binder=cb, binder_ty=ct, body=ce, ..),
-        ) =>
-          predicate_quantifier_kind_equal(pk, ck) &&
-          match_binder(pb, cb, compiled, bindings) &&
-          type_equal(pt, ct) &&
-          match_expr(pe, ce, compiled, bindings)
-        (
-          RegexMatch(expr=pe, pat=pp, bindings=pb, ..),
-          RegexMatch(expr=ce, pat=cp, bindings=cb, ..),
-        ) =>
-          match_expr(pe, ce, compiled, bindings) &&
-          match_regex_pattern(pp, cp, compiled, bindings) &&
-          list_match(pb, cb, (p, c) => {
-            match_regex_binding(p, c, compiled, bindings)
-          })
-        (Raise(err_value=pe, ..), Raise(err_value=ce, ..)) =>
-          match_expr(pe, ce, compiled, bindings)
-        (
-          Record(type_name=pt, fields=pf, trailing=ptr, ..),
-          Record(type_name=ct, fields=cf, trailing=ctr, ..),
-        ) =>
-          option_match(pt, ct, type_name_equal) &&
-          trailing_mark_equal(ptr, ctr) &&
-          list_match(pf, cf, (p, c) => match_field_def(p, c, compiled, bindings))
-        (
-          RecordUpdate(type_name=pt, record=pr, fields=pf, ..),
-          RecordUpdate(type_name=ct, record=cr, fields=cf, ..),
-        ) =>
-          option_match(pt, ct, type_name_equal) &&
-          match_expr(pr, cr, compiled, bindings) &&
-          list_match(pf, cf, (p, c) => match_field_def(p, c, compiled, bindings))
-        (Return(return_value=pv, ..), Return(return_value=cv, ..)) =>
-          option_match(pv, cv, (p, c) => match_expr(p, c, compiled, bindings))
-        (Array(exprs=pe, ..), Array(exprs=ce, ..)) =>
-          list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
-        (Tuple(exprs=pe, ..), Tuple(exprs=ce, ..)) =>
-          list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
-        (Group(expr=pe, group=pg, ..), Group(expr=ce, group=cg, ..)) =>
-          group_equal(pg, cg) && match_expr(pe, ce, compiled, bindings)
-        (
-          Sequence(exprs=pe, last_expr=pl, ..),
-          Sequence(exprs=ce, last_expr=cl, ..),
-        ) =>
-          list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          match_expr(pl, cl, compiled, bindings)
-        (StaticAssert(asserts=pa, body=pb), StaticAssert(asserts=ca, body=cb)) =>
-          list_match(pa, ca, static_assertion_equal) &&
-          match_expr(pb, cb, compiled, bindings)
-        (
-          TemplateWriting(expr=pe, template=pt, ..),
-          TemplateWriting(expr=ce, template=ct, ..),
-        ) =>
-          match_expr(pe, ce, compiled, bindings) &&
-          match_expr(pt, ct, compiled, bindings)
-        (
-          For(
-            binders=pb,
-            condition=pc,
-            continue_block=pcont,
-            body=pbody,
-            for_else=pelse,
-            where_clause=pwhere,
-            label=plabel,
-            ..
-          ),
-          For(
-            binders=cb,
-            condition=cc,
-            continue_block=ccont,
-            body=cbody,
-            for_else=celse,
-            where_clause=cwhere,
-            label=clabel,
-            ..
-          ),
-        ) =>
-          list_match(pb, cb, (p, c) => {
-            match_binder_expr_pair(p, c, compiled, bindings)
-          }) &&
-          option_match(pc, cc, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          list_match(pcont, ccont, (p, c) => {
-            match_binder_expr_pair(p, c, compiled, bindings)
-          }) &&
-          match_expr(pbody, cbody, compiled, bindings) &&
-          option_match(pelse, celse, (p, c) => {
-            match_expr(p, c, compiled, bindings)
-          }) &&
-          option_match(pwhere, cwhere, (p, c) => {
-            match_where_clause(p, c, compiled, bindings)
-          }) &&
-          option_match(plabel, clabel, (p, c) => {
-            match_label(p, c, compiled, bindings)
-          })
-        (Unit(faked=pf, ..), Unit(faked=cf, ..)) => pf == cf
-        (TryOperator(body=pb, kind=pk, ..), TryOperator(body=cb, kind=ck, ..)) =>
-          try_operator_kind_equal(pk, ck) &&
-          match_expr(pb, cb, compiled, bindings)
-        (
-          Try(body=pb, catch_=pc, try_else=pelse, has_try=phas, ..),
-          Try(body=cb, catch_=cc, try_else=celse, has_try=chas, ..),
-        ) =>
-          phas == chas &&
-          match_expr(pb, cb, compiled, bindings) &&
-          list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings)) &&
-          option_match(pelse, celse, (p, c) => {
-            list_match(p, c, (p, c) => match_case(p, c, compiled, bindings))
-          })
-        (Unary(op=po, expr=pe, ..), Unary(op=co, expr=ce, ..)) =>
-          match_var(po, co, compiled, bindings) &&
-          match_expr(pe, ce, compiled, bindings)
-        (
-          While(loop_cond=pc, loop_body=pb, while_else=pe, label=pl, ..),
-          While(loop_cond=cc, loop_body=cb, while_else=ce, label=cl, ..),
-        ) =>
-          match_expr(pc, cc, compiled, bindings) &&
-          match_expr(pb, cb, compiled, bindings) &&
-          option_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
-          option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-        _ => false
-      }
+  if match_expr_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    result
+  } else {
+    match (pattern, candidate) {
+      (Ident(id=pid, ..), Ident(id=cid, ..)) => var_equal(pid, cid)
+      (Hole(kind=pk, ..), Hole(kind=ck, ..)) => hole_equal(pk, ck)
+      (Constant(c=pc, ..), Constant(c=cc, ..)) => constant_equal(pc, cc)
+      (
+        ArrayAugmentedSet(op=pop, array=pa, index=pi, value=pv, ..),
+        ArrayAugmentedSet(op=cop, array=ca, index=ci, value=cv, ..),
+      ) =>
+        match_var(pop, cop, compiled, bindings) &&
+        match_expr(pa, ca, compiled, bindings) &&
+        match_expr(pi, ci, compiled, bindings) &&
+        match_expr(pv, cv, compiled, bindings)
+      (ArrayGet(array=pa, index=pi, ..), ArrayGet(array=ca, index=ci, ..)) =>
+        match_expr(pa, ca, compiled, bindings) &&
+        match_expr(pi, ci, compiled, bindings)
+      (
+        ArrayGetSlice(array=pa, start_index=ps, end_index=pe, ..),
+        ArrayGetSlice(array=ca, start_index=cs, end_index=ce, ..),
+      ) =>
+        match_expr(pa, ca, compiled, bindings) &&
+        option_match(ps, cs, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        option_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
+      (
+        ArraySet(array=pa, index=pi, value=pv, ..),
+        ArraySet(array=ca, index=ci, value=cv, ..),
+      ) =>
+        match_expr(pa, ca, compiled, bindings) &&
+        match_expr(pi, ci, compiled, bindings) &&
+        match_expr(pv, cv, compiled, bindings)
+      (ArraySpread(elems=pe, ..), ArraySpread(elems=ce, ..)) =>
+        list_match(pe, ce, (p, c) => {
+          match_spreadable_elem(p, c, compiled, bindings)
+        })
+      (As(expr=pe, trait_=pt, ..), As(expr=ce, trait_=ct, ..)) =>
+        type_name_equal(pt, ct) && match_expr(pe, ce, compiled, bindings)
+      (
+        Assign(var_=pv, expr=pe, augmented_by=pa, ..),
+        Assign(var_=cv, expr=ce, augmented_by=ca, ..),
+      ) =>
+        match_var(pv, cv, compiled, bindings) &&
+        option_match(pa, ca, (p, c) => match_var(p, c, compiled, bindings)) &&
+        match_expr(pe, ce, compiled, bindings)
+      (Break(arg=pa, label=pl, ..), Break(arg=ca, label=cl, ..)) =>
+        option_match(pa, ca, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
+      (Constraint(expr=pe, ty=pt, ..), Constraint(expr=ce, ty=ct, ..)) =>
+        type_equal(pt, ct) && match_expr(pe, ce, compiled, bindings)
+      (Continue(args=pa, label=pl, ..), Continue(args=ca, label=cl, ..)) =>
+        list_match(pa, ca, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
+      (Defer(expr=pe, body=pb, ..), Defer(expr=ce, body=cb, ..)) =>
+        match_expr(pe, ce, compiled, bindings) &&
+        match_expr(pb, cb, compiled, bindings)
+      (Infix(op=pop, lhs=pl, rhs=pr, ..), Infix(op=cop, lhs=cl, rhs=cr, ..)) =>
+        match_var(pop, cop, compiled, bindings) &&
+        match_expr(pl, cl, compiled, bindings) &&
+        match_expr(pr, cr, compiled, bindings)
+      (Apply(func=pf, args=pa, ..), Apply(func=cf, args=ca, ..)) =>
+        match_expr(pf, cf, compiled, bindings) &&
+        list_match(pa, ca, (p, c) => match_argument(p, c, compiled, bindings))
+      (
+        DotApply(self=ps, method_name=pm, args=pa, return_self=prs, ..),
+        DotApply(self=cs, method_name=cm, args=ca, return_self=crs, ..),
+      ) =>
+        prs == crs &&
+        match_expr(ps, cs, compiled, bindings) &&
+        match_label(pm, cm, compiled, bindings) &&
+        list_match(pa, ca, (p, c) => match_argument(p, c, compiled, bindings))
+      (Field(record=pr, accessor=pa, ..), Field(record=cr, accessor=ca, ..)) =>
+        match_expr(pr, cr, compiled, bindings) &&
+        match_accessor(pa, ca, compiled, bindings)
+      (
+        ForEach(
+          binders=pb,
+          expr=pe,
+          init=pi,
+          continue_block=pcont,
+          body=pbody,
+          else_block=pelse,
+          where_clause=pwhere,
+          label=pl,
+          ..
+        ),
+        ForEach(
+          binders=cb,
+          expr=ce,
+          init=ci,
+          continue_block=ccont,
+          body=cbody,
+          else_block=celse,
+          where_clause=cwhere,
+          label=cl,
+          ..
+        ),
+      ) =>
+        list_match(pb, cb, (p, c) => {
+          option_match(p, c, (p, c) => match_binder(p, c, compiled, bindings))
+        }) &&
+        match_expr(pe, ce, compiled, bindings) &&
+        list_match(pi, ci, (p, c) => {
+          match_binder_expr_pair(p, c, compiled, bindings)
+        }) &&
+        list_match(pcont, ccont, (p, c) => {
+          match_binder_expr_pair(p, c, compiled, bindings)
+        }) &&
+        match_expr(pbody, cbody, compiled, bindings) &&
+        option_match(pelse, celse, (p, c) => {
+          match_expr(p, c, compiled, bindings)
+        }) &&
+        option_match(pwhere, cwhere, (p, c) => {
+          match_where_clause(p, c, compiled, bindings)
+        }) &&
+        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
+      (Function(func=pf, ..), Function(func=cf, ..)) =>
+        match_func(pf, cf, compiled, bindings)
+      (
+        Guard(cond=pc, otherwise=po, body=pb, ..),
+        Guard(cond=cc, otherwise=co, body=cb, ..),
+      ) =>
+        match_expr(pc, cc, compiled, bindings) &&
+        option_match(po, co, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        match_expr(pb, cb, compiled, bindings)
+      (If(cond=pc, ifso=ps, ifnot=pn, ..), If(cond=cc, ifso=cs, ifnot=cn, ..)) =>
+        match_expr(pc, cc, compiled, bindings) &&
+        match_expr(ps, cs, compiled, bindings) &&
+        option_match(pn, cn, (p, c) => match_expr(p, c, compiled, bindings))
+      (Interp(elems=pe, ..), Interp(elems=ce, ..)) =>
+        list_match(pe, ce, (p, c) => match_interp_elem(p, c, compiled, bindings))
+      (Is(expr=pe, pat=pp, ..), Is(expr=ce, pat=cp, ..)) =>
+        match_expr(pe, ce, compiled, bindings) &&
+        match_pattern(pp, cp, compiled, bindings)
+      (
+        Method(type_name=pt, method_name=pm, ..),
+        Method(type_name=ct, method_name=cm, ..),
+      ) => type_name_equal(pt, ct) && match_label(pm, cm, compiled, bindings)
+      (
+        Let(pattern=pp, expr=pe, body=pb, ..),
+        Let(pattern=cp, expr=ce, body=cb, ..),
+      ) =>
+        match_pattern(pp, cp, compiled, bindings) &&
+        match_expr(pe, ce, compiled, bindings) &&
+        (pb is Unit(faked=true, ..) || match_expr(pb, cb, compiled, bindings))
+      (LetAnd(bindings=pb, body=pbody, ..), LetAnd(bindings=cb, body=cbody, ..)) =>
+        list_match(pb, cb, (p, c) => {
+          match_let_and_binding(p, c, compiled, bindings)
+        }) &&
+        match_expr(pbody, cbody, compiled, bindings)
+      (
+        LetFn(name=pn, func=pf, body=pb, ..),
+        LetFn(name=cn, func=cf, body=cb, ..),
+      ) =>
+        match_binder(pn, cn, compiled, bindings) &&
+        match_func(pf, cf, compiled, bindings) &&
+        match_expr(pb, cb, compiled, bindings)
+      (
+        LetMut(binder=pb, ty=pt, expr=pe, body=pbody, ..),
+        LetMut(binder=cb, ty=ct, expr=ce, body=cbody, ..),
+      ) =>
+        match_binder(pb, cb, compiled, bindings) &&
+        option_match(pt, ct, type_equal) &&
+        match_expr(pe, ce, compiled, bindings) &&
+        match_expr(pbody, cbody, compiled, bindings)
+      (Map(elems=pe, ..), Map(elems=ce, ..)) =>
+        list_match(pe, ce, (p, c) => {
+          match_map_expr_elem(p, c, compiled, bindings)
+        })
+      (Match(expr=pe, cases=pc, ..), Match(expr=ce, cases=cc, ..)) =>
+        match_expr(pe, ce, compiled, bindings) &&
+        list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings))
+      (Constr(constr=pc, ..), Constr(constr=cc, ..)) =>
+        constructor_equal(pc, cc)
+      (MultilineString(elems=pe, ..), MultilineString(elems=ce, ..)) =>
+        list_match(pe, ce, (p, c) => {
+          match_multiline_string_elem(p, c, compiled, bindings)
+        })
+      (
+        Mutate(record=pr, accessor=pa, field=pf, augmented_by=paug, ..),
+        Mutate(record=cr, accessor=ca, field=cf, augmented_by=caug, ..),
+      ) =>
+        match_expr(pr, cr, compiled, bindings) &&
+        match_accessor(pa, ca, compiled, bindings) &&
+        match_expr(pf, cf, compiled, bindings) &&
+        option_match(paug, caug, (p, c) => match_var(p, c, compiled, bindings))
+      (Pipe(lhs=pl, rhs=pr, ..), Pipe(lhs=cl, rhs=cr, ..)) =>
+        match_expr(pl, cl, compiled, bindings) &&
+        match_expr(pr, cr, compiled, bindings)
+      (RevPipe(lhs=pl, rhs=pr, ..), RevPipe(lhs=cl, rhs=cr, ..)) =>
+        match_expr(pl, cl, compiled, bindings) &&
+        match_expr(pr, cr, compiled, bindings)
+      (Implies(lhs=pl, rhs=pr, ..), Implies(lhs=cl, rhs=cr, ..)) =>
+        match_expr(pl, cl, compiled, bindings) &&
+        match_expr(pr, cr, compiled, bindings)
+      (
+        IsLexMatch(expr=pe, strategy=ps, pat=pp, ..),
+        IsLexMatch(expr=ce, strategy=cs, pat=cp, ..),
+      ) =>
+        match_expr(pe, ce, compiled, bindings) &&
+        option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
+        list_match(pp, cp, (p, c) => {
+          match_lex_top_pattern(p, c, compiled, bindings)
+        })
+      (
+        LexMatch(strategy=ps, expr=pe, cases=pc, ..),
+        LexMatch(strategy=cs, expr=ce, cases=cc, ..),
+      ) =>
+        option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
+        match_expr(pe, ce, compiled, bindings) &&
+        list_match(pc, cc, (p, c) => match_lex_case(p, c, compiled, bindings))
+      (
+        ListComprehension(kind=pk, guard_=pg, body=pb, ..),
+        ListComprehension(kind=ck, guard_=cg, body=cb, ..),
+      ) =>
+        match_list_comprehension_kind(pk, ck, compiled, bindings) &&
+        option_match(pg, cg, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        match_expr(pb, cb, compiled, bindings)
+      (ProofAssert(expr=pe, ..), ProofAssert(expr=ce, ..)) =>
+        match_expr(pe, ce, compiled, bindings)
+      (ProofLet(binder=pb, expr=pe, ..), ProofLet(binder=cb, expr=ce, ..)) =>
+        match_binder(pb, cb, compiled, bindings) &&
+        match_expr(pe, ce, compiled, bindings)
+      (
+        Quantifier(kind=pk, binder=pb, binder_ty=pt, body=pe, ..),
+        Quantifier(kind=ck, binder=cb, binder_ty=ct, body=ce, ..),
+      ) =>
+        predicate_quantifier_kind_equal(pk, ck) &&
+        match_binder(pb, cb, compiled, bindings) &&
+        type_equal(pt, ct) &&
+        match_expr(pe, ce, compiled, bindings)
+      (
+        RegexMatch(expr=pe, pat=pp, bindings=pb, ..),
+        RegexMatch(expr=ce, pat=cp, bindings=cb, ..),
+      ) =>
+        match_expr(pe, ce, compiled, bindings) &&
+        match_regex_pattern(pp, cp, compiled, bindings) &&
+        list_match(pb, cb, (p, c) => {
+          match_regex_binding(p, c, compiled, bindings)
+        })
+      (Raise(err_value=pe, ..), Raise(err_value=ce, ..)) =>
+        match_expr(pe, ce, compiled, bindings)
+      (
+        Record(type_name=pt, fields=pf, trailing=ptr, ..),
+        Record(type_name=ct, fields=cf, trailing=ctr, ..),
+      ) =>
+        option_match(pt, ct, type_name_equal) &&
+        trailing_mark_equal(ptr, ctr) &&
+        list_match(pf, cf, (p, c) => match_field_def(p, c, compiled, bindings))
+      (
+        RecordUpdate(type_name=pt, record=pr, fields=pf, ..),
+        RecordUpdate(type_name=ct, record=cr, fields=cf, ..),
+      ) =>
+        option_match(pt, ct, type_name_equal) &&
+        match_expr(pr, cr, compiled, bindings) &&
+        list_match(pf, cf, (p, c) => match_field_def(p, c, compiled, bindings))
+      (Return(return_value=pv, ..), Return(return_value=cv, ..)) =>
+        option_match(pv, cv, (p, c) => match_expr(p, c, compiled, bindings))
+      (Array(exprs=pe, ..), Array(exprs=ce, ..)) =>
+        list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
+      (Tuple(exprs=pe, ..), Tuple(exprs=ce, ..)) =>
+        list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
+      (Group(expr=pe, group=pg, ..), Group(expr=ce, group=cg, ..)) =>
+        group_equal(pg, cg) && match_expr(pe, ce, compiled, bindings)
+      (
+        Sequence(exprs=pe, last_expr=pl, ..),
+        Sequence(exprs=ce, last_expr=cl, ..),
+      ) =>
+        list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        match_expr(pl, cl, compiled, bindings)
+      (StaticAssert(asserts=pa, body=pb), StaticAssert(asserts=ca, body=cb)) =>
+        list_match(pa, ca, static_assertion_equal) &&
+        match_expr(pb, cb, compiled, bindings)
+      (
+        TemplateWriting(expr=pe, template=pt, ..),
+        TemplateWriting(expr=ce, template=ct, ..),
+      ) =>
+        match_expr(pe, ce, compiled, bindings) &&
+        match_expr(pt, ct, compiled, bindings)
+      (
+        For(
+          binders=pb,
+          condition=pc,
+          continue_block=pcont,
+          body=pbody,
+          for_else=pelse,
+          where_clause=pwhere,
+          label=plabel,
+          ..
+        ),
+        For(
+          binders=cb,
+          condition=cc,
+          continue_block=ccont,
+          body=cbody,
+          for_else=celse,
+          where_clause=cwhere,
+          label=clabel,
+          ..
+        ),
+      ) =>
+        list_match(pb, cb, (p, c) => {
+          match_binder_expr_pair(p, c, compiled, bindings)
+        }) &&
+        option_match(pc, cc, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        list_match(pcont, ccont, (p, c) => {
+          match_binder_expr_pair(p, c, compiled, bindings)
+        }) &&
+        match_expr(pbody, cbody, compiled, bindings) &&
+        option_match(pelse, celse, (p, c) => {
+          match_expr(p, c, compiled, bindings)
+        }) &&
+        option_match(pwhere, cwhere, (p, c) => {
+          match_where_clause(p, c, compiled, bindings)
+        }) &&
+        option_match(plabel, clabel, (p, c) => {
+          match_label(p, c, compiled, bindings)
+        })
+      (Unit(faked=pf, ..), Unit(faked=cf, ..)) => pf == cf
+      (TryOperator(body=pb, kind=pk, ..), TryOperator(body=cb, kind=ck, ..)) =>
+        try_operator_kind_equal(pk, ck) &&
+        match_expr(pb, cb, compiled, bindings)
+      (
+        Try(body=pb, catch_=pc, try_else=pelse, has_try=phas, ..),
+        Try(body=cb, catch_=cc, try_else=celse, has_try=chas, ..),
+      ) =>
+        phas == chas &&
+        match_expr(pb, cb, compiled, bindings) &&
+        list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings)) &&
+        option_match(pelse, celse, (p, c) => {
+          list_match(p, c, (p, c) => match_case(p, c, compiled, bindings))
+        })
+      (Unary(op=po, expr=pe, ..), Unary(op=co, expr=ce, ..)) =>
+        match_var(po, co, compiled, bindings) &&
+        match_expr(pe, ce, compiled, bindings)
+      (
+        While(loop_cond=pc, loop_body=pb, while_else=pe, label=pl, ..),
+        While(loop_cond=cc, loop_body=cb, while_else=ce, label=cl, ..),
+      ) =>
+        match_expr(pc, cc, compiled, bindings) &&
+        match_expr(pb, cb, compiled, bindings) &&
+        option_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
+        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
+      _ => false
+    }
   }
 }
 
@@ -424,28 +420,29 @@ fn match_expr_placeholder(
 ) -> Bool? {
   match pattern {
     Ident(id~, ..) =>
-      match @id.normalize_identifier_name_from_var(id) {
-        Some(name) =>
-          if is_ignore_placeholder(name) {
-            Some(true)
-          } else if is_special_expr_metavar(compiled, name) ||
-            contains_name(compiled.expr_metavars, name) {
-            Some(bind_value(bindings, name, Expr(candidate)))
-          } else if contains_name(compiled.identifier_metavars, name) {
-            match @id.normalize_identifier_name_from_expr(candidate) {
-              Some(candidate_name) =>
-                Some(bind_value(bindings, name, Identifier(candidate_name)))
-              None => Some(false)
-            }
-          } else if contains_name(compiled.constant_metavars, name) {
-            match candidate {
-              Constant(c~, ..) => Some(bind_value(bindings, name, Constant(c)))
-              _ => Some(false)
-            }
+      if @id.normalize_identifier_name_from_var(id) is Some(name) {
+        if is_ignore_placeholder(name) {
+          Some(true)
+        } else if is_special_expr_metavar(compiled, name) ||
+          contains_name(compiled.expr_metavars, name) {
+          Some(bind_value(bindings, name, Expr(candidate)))
+        } else if contains_name(compiled.identifier_metavars, name) {
+          if @id.normalize_identifier_name_from_expr(candidate)
+            is Some(candidate_name) {
+            Some(bind_value(bindings, name, Identifier(candidate_name)))
           } else {
-            None
+            Some(false)
           }
-        None => None
+        } else if contains_name(compiled.constant_metavars, name) {
+          match candidate {
+            Constant(c~, ..) => Some(bind_value(bindings, name, Constant(c)))
+            _ => Some(false)
+          }
+        } else {
+          None
+        }
+      } else {
+        None
       }
     _ => None
   }
@@ -584,10 +581,11 @@ fn match_pattern(
       if is_ignore_placeholder(name) {
         true
       } else if contains_name(compiled.identifier_metavars, name) {
-        match @id.normalize_identifier_name_from_pattern(candidate) {
-          Some(candidate_name) =>
-            bind_value(bindings, name, Identifier(candidate_name))
-          None => false
+        if @id.normalize_identifier_name_from_pattern(candidate)
+          is Some(candidate_name) {
+          bind_value(bindings, name, Identifier(candidate_name))
+        } else {
+          false
         }
       } else if contains_name(compiled.constant_metavars, name) {
         match candidate {
@@ -999,20 +997,21 @@ fn match_var(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match @id.normalize_identifier_name_from_var(pattern) {
-    Some(name) =>
-      if is_ignore_placeholder(name) {
-        true
-      } else if contains_name(compiled.identifier_metavars, name) {
-        match @id.normalize_identifier_name_from_var(candidate) {
-          Some(candidate_name) =>
-            bind_value(bindings, name, Identifier(candidate_name))
-          None => false
-        }
+  if @id.normalize_identifier_name_from_var(pattern) is Some(name) {
+    if is_ignore_placeholder(name) {
+      true
+    } else if contains_name(compiled.identifier_metavars, name) {
+      if @id.normalize_identifier_name_from_var(candidate)
+        is Some(candidate_name) {
+        bind_value(bindings, name, Identifier(candidate_name))
       } else {
-        var_equal(pattern, candidate)
+        false
       }
-    None => var_equal(pattern, candidate)
+    } else {
+      var_equal(pattern, candidate)
+    }
+  } else {
+    var_equal(pattern, candidate)
   }
 }
 
@@ -1056,12 +1055,11 @@ fn bind_value(
   name : String,
   value : BoundValue,
 ) -> Bool {
-  match bindings.get(name) {
-    Some(existing) => bound_value_equal(existing, value)
-    None => {
-      bindings[name] = value
-      true
-    }
+  if bindings.get(name) is Some(existing) {
+    bound_value_equal(existing, value)
+  } else {
+    bindings[name] = value
+    true
   }
 }
 

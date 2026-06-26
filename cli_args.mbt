@@ -93,9 +93,10 @@ fn all_cli_values(
   values : Map[String, Array[String]],
   name : String,
 ) -> Array[String] {
-  match values.get(name) {
-    Some(items) => items
-    None => []
+  if values.get(name) is Some(items) {
+    items
+  } else {
+    []
   }
 }
 
@@ -140,9 +141,11 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
       exit_code=2,
     )
   }
-  let scan_root = match last_cli_value(scan_matches.values, "scan-root") {
-    Some(path) => path
-    None => "."
+  let scan_root = if last_cli_value(scan_matches.values, "scan-root")
+    is Some(path) {
+    path
+  } else {
+    "."
   }
   { rules_root, patterns, scan_root, verbose }
 }

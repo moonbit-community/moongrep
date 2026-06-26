@@ -10,17 +10,15 @@ fn render_docs_list() -> String {
 
 ///|
 fn render_doc_body(name : String) -> String raise {
-  match
-    @docs.docs.search_by(doc => {
+  if @docs.docs.search_by(doc => {
       let (doc_name, _, _) = doc
       doc_name == name
-    }) {
-    Some(index) => {
-      let (_, _, body) = @docs.docs[index]
-      body
-    }
-    None =>
-      raise CliError::Usage(message="unknown document: \{name}", exit_code=2)
+    })
+    is Some(index) {
+    let (_, _, body) = @docs.docs[index]
+    body
+  } else {
+    raise CliError::Usage(message="unknown document: \{name}", exit_code=2)
   }
 }
 
