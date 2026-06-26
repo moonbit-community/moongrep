@@ -144,9 +144,10 @@ patterns:
       }
 ```
 
-Only `exp` and `id` are supported. A shape containing `$pat:x` or any other
-kind is invalid. A name may be declared once per shape kind; using the same
-payload as both `$exp:name` and `$id:name` in one shape is invalid.
+Only `exp`, `id`, and `const` are supported. A shape containing `$pat:x` or
+any other kind is invalid. A name may be repeated within one kind, but using
+the same payload across `$exp:name`, `$id:name`, and `$const:name` in one shape
+is invalid.
 
 The old YAML `metavars` key is not supported. Pattern objects that contain it
 are rejected as using an unsupported key.
@@ -184,6 +185,10 @@ patterns:
 Use `$id:name` for source-level names. It can bind simple variable targets,
 binders, bare identifier expressions, simple variable patterns, and labels such
 as method names, field names, labelled argument names, and record field labels.
+
+Use `$const:name` for literal constants. It is valid only as a whole bare
+identifier expression or as a simple pattern variable position, and it matches
+only parsed MoonBit constants. 
 
 ### Built-In Wildcards
 
@@ -282,6 +287,44 @@ for i = 0; j < n; i = i + 1 {
 Normalization currently succeeds for simple unqualified variable names,
 binders, bare identifier expressions, simple variable patterns, and labels.
 Qualified names do not normalize to simple identifiers for this purpose.
+
+### `$const`
+
+A `$const` metavar captures a parsed MoonBit constant. In expression position,
+it matches `Expr::Constant`; in pattern position, it matches `Pattern::Constant`.
+It compares the parser AST constant kind and value only; it does not type-check
+or normalize equivalent values.
+
+Example:
+
+```yaml
+patterns:
+  - shape: $const:value + $const:value
+```
+
+This can match:
+
+```moonbit
+1 + 1
+"same" + "same"
+```
+
+It does not match:
+
+```moonbit
+1 + 2
+x + x
+```
+
+Pattern constants are also supported:
+
+```yaml
+patterns:
+  - shape: match input { $const:lit => lit }
+```
+
+The inner body references the outer constant capture with the plain payload
+name, `lit`.
 
 ## Structural Rules
 
@@ -491,9 +534,10 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - `metavars` appears in any pattern object
 - `shape` is not valid as one MoonBit expression
 - a shape uses an unsupported inline metavar kind
-- a shape uses the same inline metavar name as both `$exp` and `$id`
+- a shape uses the same inline metavar name across multiple metavar kinds
 - an inline metavar uses a reserved name
 - `$exp:name` appears outside a bare expression position
+- `$const:name` appears outside a constant expression or constant pattern position
 - `inside-expr.shape` does not contain exactly one binding-capable
   `__TARGET__`
 - a structural `patterns` entry contains binding-capable `__TARGET__`

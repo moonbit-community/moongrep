@@ -9,6 +9,7 @@ pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
     ast: pattern,
     expr_metavars: [],
     identifier_metavars: [],
+    constant_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -436,6 +437,11 @@ fn match_expr_placeholder(
                 Some(bind_value(bindings, name, Identifier(candidate_name)))
               None => Some(false)
             }
+          } else if contains_name(compiled.constant_metavars, name) {
+            match candidate {
+              Constant(c~, ..) => Some(bind_value(bindings, name, Constant(c)))
+              _ => Some(false)
+            }
           } else {
             None
           }
@@ -582,6 +588,11 @@ fn match_pattern(
           Some(candidate_name) =>
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
+        }
+      } else if contains_name(compiled.constant_metavars, name) {
+        match candidate {
+          Constant(c~, ..) => bind_value(bindings, name, Constant(c))
+          _ => false
         }
       } else {
         match candidate {
@@ -1059,6 +1070,7 @@ fn bound_value_equal(left : BoundValue, right : BoundValue) -> Bool {
   match (left, right) {
     (Expr(left), Expr(right)) => expr_equal_ignoring_loc(left, right)
     (Identifier(left), Identifier(right)) => left == right
+    (Constant(left), Constant(right)) => constant_equal(left, right)
     _ => false
   }
 }

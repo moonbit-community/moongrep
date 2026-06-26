@@ -68,7 +68,7 @@ test "validate rejects inline metavar kind conflicts" {
     #|  - shape: $exp:value + $id:value
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar value as both exp and id",
+    source, "patterns[0].shape declares metavar value as multiple inline metavar kinds",
   )
 }
 
@@ -92,6 +92,77 @@ test "validate allows matcher-local-looking metavar names" {
 }
 
 ///|
+test "validate records inline constant metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $const:value + $const:value
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.constant_metavars,
+        content="[\"value\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects constant metavar kind conflicts" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $const:value + $exp:value
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape declares metavar value as multiple inline metavar kinds",
+  )
+}
+
+///|
+test "validate rejects const metavar in labels" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($const:value=actual)
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses $const:value outside a constant expression or pattern position",
+  )
+}
+
+///|
+test "validate rejects const metavar in qualified identifiers" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: "@pkg.$const:value"
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses $const:value in an unsupported qualified identifier position",
+  )
+}
+
+///|
+test "validate rejects const metavar in ordinary binders" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: let mut $const:value = 1
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses $const:value outside a constant expression or pattern position",
+  )
+}
+
+///|
 test "validate rejects redeclared inside expr metavars" {
   let source =
     #|id: example
@@ -104,6 +175,38 @@ test "validate rejects redeclared inside expr metavars" {
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar prefix because it is already visible from inside-expr",
   )
+}
+
+///|
+test "validate inside expr constant metavars are visible and cannot be redeclared" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($const:lit, __TARGET__)
+    #|patterns:
+    #|  - shape: target($const:lit)
+    #|
+  expect_compile_invalid(
+    source, "patterns[0] cannot declare metavar lit because it is already visible from inside-expr",
+  )
+  let visible_source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($const:lit, __TARGET__)
+    #|patterns:
+    #|  - shape: target(lit)
+    #|
+  let rules = compile_one(visible_source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.constant_metavars,
+        content="[\"lit\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
 }
 
 ///|

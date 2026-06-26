@@ -98,6 +98,14 @@ fn compile_structural_rule(
     Some(pattern) => pattern.compiled.identifier_metavars
     None => []
   }
+  let outer_constant = match inside_expr {
+    Some(pattern) => pattern.compiled.constant_metavars
+    None => []
+  }
+  let outer_metavars = concat_arrays(
+    concat_arrays(outer_expr, outer_identifier),
+    outer_constant,
+  )
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
     let context = "patterns[\{index}]"
@@ -111,25 +119,19 @@ fn compile_structural_rule(
       path,
       context,
       compiled_shape.expr_metavars,
-      outer_expr,
-    )
-    ensure_not_redeclared_from_inside_expr(
-      path,
-      context,
-      compiled_shape.expr_metavars,
-      outer_identifier,
+      outer_metavars,
     )
     ensure_not_redeclared_from_inside_expr(
       path,
       context,
       compiled_shape.identifier_metavars,
-      outer_expr,
+      outer_metavars,
     )
     ensure_not_redeclared_from_inside_expr(
       path,
       context,
-      compiled_shape.identifier_metavars,
-      outer_identifier,
+      compiled_shape.constant_metavars,
+      outer_metavars,
     )
     let ast = compiled_shape.ast
     if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
@@ -144,6 +146,7 @@ fn compile_structural_rule(
         ast,
         concat_arrays(outer_expr, compiled_shape.expr_metavars),
         concat_arrays(outer_identifier, compiled_shape.identifier_metavars),
+        concat_arrays(outer_constant, compiled_shape.constant_metavars),
         target_metavar=None,
         source_metavar=None,
       ),
@@ -246,6 +249,7 @@ fn compile_pattern(
     compiled_shape.ast,
     compiled_shape.expr_metavars,
     compiled_shape.identifier_metavars,
+    compiled_shape.constant_metavars,
     target_metavar~,
     source_metavar~,
   )
@@ -257,6 +261,7 @@ fn compile_pattern_with_effective_metavars(
   ast : @syntax.Expr,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
+  constant_metavars : Array[String],
   target_metavar~ : String?,
   source_metavar~ : String?,
 ) -> CompiledRulePattern {
@@ -266,6 +271,7 @@ fn compile_pattern_with_effective_metavars(
       ast,
       expr_metavars,
       identifier_metavars,
+      constant_metavars,
       target_metavar,
       source_metavar,
     },
