@@ -90,17 +90,20 @@ fn compile_structural_rule(
   // Metavars from `inside-expr` remain visible while matching each target
   // expression. Inner patterns cannot redeclare them because that would make
   // binding consistency ambiguous.
-  let outer_expr = match inside_expr {
-    Some(pattern) => pattern.compiled.expr_metavars
-    None => []
+  let outer_expr = if inside_expr is Some(pattern) {
+    pattern.compiled.expr_metavars
+  } else {
+    []
   }
-  let outer_identifier = match inside_expr {
-    Some(pattern) => pattern.compiled.identifier_metavars
-    None => []
+  let outer_identifier = if inside_expr is Some(pattern) {
+    pattern.compiled.identifier_metavars
+  } else {
+    []
   }
-  let outer_constant = match inside_expr {
-    Some(pattern) => pattern.compiled.constant_metavars
-    None => []
+  let outer_constant = if inside_expr is Some(pattern) {
+    pattern.compiled.constant_metavars
+  } else {
+    []
   }
   let outer_metavars = concat_arrays(
     concat_arrays(outer_expr, outer_identifier),
@@ -363,13 +366,13 @@ fn require_source_target(
       info="\{context}.shape must contain exactly one __SOURCE__ placeholder",
     )
   }
-  match whole_source_target(ast) {
-    Some(target) => target
-    None =>
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context}.shape must place __SOURCE__ as the whole receiver or argument value",
-      )
+  if whole_source_target(ast) is Some(target) {
+    target
+  } else {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.shape must place __SOURCE__ as the whole receiver or argument value",
+    )
   }
 }
 

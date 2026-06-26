@@ -149,30 +149,29 @@ fn apply_structural_rule_to_expr(
         hits,
       )
     Some(inside) =>
-      match @matching.match_expr_pattern(inside.compiled, expr) {
-        Some(outer_match) =>
-          match outer_match.bindings.get("__TARGET__") {
-            Some(Expr(target)) => {
-              // The context rule can bind a larger expression than the final
-              // hit. Search supported expressions under `__TARGET__`, while
-              // carrying any bindings established by the outer match.
-              let target_exprs : Array[@syntax.Expr] = []
-              collect_exprs(target, target_exprs)
-              for target_expr in target_exprs {
-                apply_patterns_at_expr(
-                  file,
-                  rule,
-                  structural.patterns,
-                  target_expr,
-                  Some(expr.loc()),
-                  Some(outer_match.bindings),
-                  hits,
-                )
-              }
+      if @matching.match_expr_pattern(inside.compiled, expr)
+        is Some(outer_match) {
+        match outer_match.bindings.get("__TARGET__") {
+          Some(Expr(target)) => {
+            // The context rule can bind a larger expression than the final
+            // hit. Search supported expressions under `__TARGET__`, while
+            // carrying any bindings established by the outer match.
+            let target_exprs : Array[@syntax.Expr] = []
+            collect_exprs(target, target_exprs)
+            for target_expr in target_exprs {
+              apply_patterns_at_expr(
+                file,
+                rule,
+                structural.patterns,
+                target_expr,
+                Some(expr.loc()),
+                Some(outer_match.bindings),
+                hits,
+              )
             }
-            _ => ()
           }
-        None => ()
+          _ => ()
+        }
       }
   }
 }
@@ -188,16 +187,15 @@ fn apply_patterns_at_expr(
   hits : Array[RuleFinding],
 ) -> Unit {
   for index in 0..<patterns.length() {
-    let matched = match initial_bindings {
-      Some(bindings) =>
-        @matching.match_expr_pattern_with_bindings(
-          patterns[index].compiled,
-          expr,
-          bindings,
-        )
-        is Some(_)
-      None =>
-        @matching.match_expr_pattern(patterns[index].compiled, expr) is Some(_)
+    let matched = if initial_bindings is Some(bindings) {
+      @matching.match_expr_pattern_with_bindings(
+        patterns[index].compiled,
+        expr,
+        bindings,
+      )
+      is Some(_)
+    } else {
+      @matching.match_expr_pattern(patterns[index].compiled, expr) is Some(_)
     }
     if matched {
       hits.push({

@@ -65,9 +65,10 @@ fn impl_kind_name(node : @syntax.Impl) -> String {
 fn paths_from_parameters(
   params : @list.List[@syntax.Parameter]?,
 ) -> Array[StoragePath] {
-  match params {
-    Some(items) => paths_from_parameter_list(items)
-    None => []
+  if params is Some(items) {
+    paths_from_parameter_list(items)
+  } else {
+    []
   }
 }
 
@@ -77,9 +78,8 @@ fn paths_from_parameter_list(
 ) -> Array[StoragePath] {
   let paths : Array[StoragePath] = []
   for parameter in params.to_array() {
-    match binder_from_parameter(parameter) {
-      Some(binder) => paths.push({ root: binder.name, segments: [] })
-      None => ()
+    if binder_from_parameter(parameter) is Some(binder) {
+      paths.push({ root: binder.name, segments: [] })
     }
   }
   paths
@@ -98,9 +98,10 @@ fn binder_from_parameter(parameter : @syntax.Parameter) -> @syntax.Binder? {
 
 ///|
 fn storage_path_from_var(var_ : @syntax.Var) -> StoragePath? {
-  match @id.normalize_identifier_name_from_var(var_) {
-    Some(name) => Some({ root: name, segments: [] })
-    None => None
+  if @id.normalize_identifier_name_from_var(var_) is Some(name) {
+    Some({ root: name, segments: [] })
+  } else {
+    None
   }
 }
 
@@ -109,15 +110,16 @@ fn storage_path_from_expr(expr : @syntax.Expr) -> StoragePath? {
   match expr {
     Ident(id~, ..) => storage_path_from_var(id)
     Field(record~, accessor~, ..) =>
-      match storage_path_from_expr(record) {
-        Some(path) => path_with_segment(path, segment_from_accessor(accessor))
-        None => None
+      if storage_path_from_expr(record) is Some(path) {
+        path_with_segment(path, segment_from_accessor(accessor))
+      } else {
+        None
       }
     ArrayGet(array~, index~, ..) =>
-      match storage_path_from_expr(array) {
-        Some(path) =>
-          Some(append_path_segment(path, segment_from_index_expr(index)))
-        None => None
+      if storage_path_from_expr(array) is Some(path) {
+        Some(append_path_segment(path, segment_from_index_expr(index)))
+      } else {
+        None
       }
     Group(expr~, ..) | Constraint(expr~, ..) => storage_path_from_expr(expr)
     _ => None
@@ -138,9 +140,10 @@ fn path_with_segment(
   path : StoragePath,
   segment : PathSegment?,
 ) -> StoragePath? {
-  match segment {
-    Some(segment) => Some(append_path_segment(path, segment))
-    None => None
+  if segment is Some(segment) {
+    Some(append_path_segment(path, segment))
+  } else {
+    None
   }
 }
 

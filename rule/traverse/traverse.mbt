@@ -1,8 +1,13 @@
 ///|
 pub fn count_supported_name_in_expr(expr : @syntax.Expr, name : String) -> Int {
-  match @id.normalize_identifier_name_from_expr(expr) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => count_supported_name_in_expr_children(expr, name)
+  if @id.normalize_identifier_name_from_expr(expr) is Some(found) {
+    if found == name {
+      1
+    } else {
+      0
+    }
+  } else {
+    count_supported_name_in_expr_children(expr, name)
   }
 }
 
@@ -231,17 +236,23 @@ fn count_supported_name_in_accessor(
 
 ///|
 fn count_supported_name_in_var(v : @syntax.Var, name : String) -> Int {
-  match @id.normalize_identifier_name_from_var(v) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => 0
+  if @id.normalize_identifier_name_from_var(v) is Some(found) {
+    if found == name {
+      1
+    } else {
+      0
+    }
+  } else {
+    0
   }
 }
 
 ///|
 fn count_supported_name_in_optional_var(v : @syntax.Var?, name : String) -> Int {
-  match v {
-    Some(v) => count_supported_name_in_var(v, name)
-    None => 0
+  if v is Some(v) {
+    count_supported_name_in_var(v, name)
+  } else {
+    0
   }
 }
 
@@ -250,17 +261,27 @@ fn count_supported_name_in_binder(
   binder : @syntax.Binder,
   name : String,
 ) -> Int {
-  match @id.normalize_identifier_name_from_binder(binder) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => 0
+  if @id.normalize_identifier_name_from_binder(binder) is Some(found) {
+    if found == name {
+      1
+    } else {
+      0
+    }
+  } else {
+    0
   }
 }
 
 ///|
 fn count_supported_name_in_label(label : @syntax.Label, name : String) -> Int {
-  match @id.normalize_identifier_name_from_label(label) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None => 0
+  if @id.normalize_identifier_name_from_label(label) is Some(found) {
+    if found == name {
+      1
+    } else {
+      0
+    }
+  } else {
+    0
   }
 }
 
@@ -269,9 +290,10 @@ fn count_supported_name_in_optional_label(
   label : @syntax.Label?,
   name : String,
 ) -> Int {
-  match label {
-    Some(label) => count_supported_name_in_label(label, name)
-    None => 0
+  if label is Some(label) {
+    count_supported_name_in_label(label, name)
+  } else {
+    0
   }
 }
 
@@ -280,22 +302,26 @@ fn count_supported_name_in_pattern(
   pattern : @syntax.Pattern,
   name : String,
 ) -> Int {
-  match @id.normalize_identifier_name_from_pattern(pattern) {
-    Some(found) => if found == name { 1 } else { 0 }
-    None =>
-      match pattern {
-        Alias(pat~, alias_~, ..) =>
-          count_supported_name_in_pattern(pat, name) +
-          count_supported_name_in_binder(alias_, name)
-        Tuple(pats~, ..) => count_supported_name_in_patterns(pats, name)
-        Or(pat1~, pat2~, ..) =>
-          count_supported_name_in_pattern(pat1, name) +
-          count_supported_name_in_pattern(pat2, name)
-        Range(lhs~, rhs~, ..) =>
-          count_supported_name_in_pattern(lhs, name) +
-          count_supported_name_in_pattern(rhs, name)
-        _ => 0
-      }
+  if @id.normalize_identifier_name_from_pattern(pattern) is Some(found) {
+    if found == name {
+      1
+    } else {
+      0
+    }
+  } else {
+    match pattern {
+      Alias(pat~, alias_~, ..) =>
+        count_supported_name_in_pattern(pat, name) +
+        count_supported_name_in_binder(alias_, name)
+      Tuple(pats~, ..) => count_supported_name_in_patterns(pats, name)
+      Or(pat1~, pat2~, ..) =>
+        count_supported_name_in_pattern(pat1, name) +
+        count_supported_name_in_pattern(pat2, name)
+      Range(lhs~, rhs~, ..) =>
+        count_supported_name_in_pattern(lhs, name) +
+        count_supported_name_in_pattern(rhs, name)
+      _ => 0
+    }
   }
 }
 
@@ -331,9 +357,10 @@ fn count_supported_name_in_optional_expr(
   expr : @syntax.Expr?,
   name : String,
 ) -> Int {
-  match expr {
-    Some(expr) => count_supported_name_in_expr(expr, name)
-    None => 0
+  if expr is Some(expr) {
+    count_supported_name_in_expr(expr, name)
+  } else {
+    0
   }
 }
 
@@ -342,9 +369,10 @@ fn count_supported_name_in_optional_where_clause(
   clause : @syntax.WhereClause?,
   name : String,
 ) -> Int {
-  match clause {
-    Some(clause) => count_supported_name_in_where_clause(clause, name)
-    None => 0
+  if clause is Some(clause) {
+    count_supported_name_in_where_clause(clause, name)
+  } else {
+    0
   }
 }
 
@@ -377,9 +405,8 @@ fn count_supported_name_in_optional_binders(
 ) -> Int {
   let mut total = 0
   for binder in binders {
-    match binder {
-      Some(binder) => total += count_supported_name_in_binder(binder, name)
-      None => ()
+    if binder is Some(binder) {
+      total += count_supported_name_in_binder(binder, name)
     }
   }
   total
@@ -511,9 +538,8 @@ fn count_supported_name_in_regex_bindings(
   for binding in bindings {
     let (label, binder) = binding
     total += count_supported_name_in_label(label, name)
-    match binder {
-      Some(binder) => total += count_supported_name_in_binder(binder, name)
-      None => ()
+    if binder is Some(binder) {
+      total += count_supported_name_in_binder(binder, name)
     }
   }
   total
@@ -561,9 +587,10 @@ fn count_supported_name_in_optional_cases(
   cases : @list.List[@syntax.Case]?,
   name : String,
 ) -> Int {
-  match cases {
-    Some(cases) => count_supported_name_in_cases(cases, name)
-    None => 0
+  if cases is Some(cases) {
+    count_supported_name_in_cases(cases, name)
+  } else {
+    0
   }
 }
 
@@ -772,9 +799,8 @@ pub fn collect_exprs(expr : @syntax.Expr, exprs : Array[@syntax.Expr]) -> Unit {
     Try(body~, catch_~, try_else~, ..) => {
       collect_exprs(body, exprs)
       collect_case_exprs(catch_, exprs)
-      match try_else {
-        Some(cases) => collect_case_exprs(cases, exprs)
-        None => ()
+      if try_else is Some(cases) {
+        collect_case_exprs(cases, exprs)
       }
     }
     TryOperator(body~, ..) => collect_exprs(body, exprs)
@@ -857,9 +883,8 @@ fn collect_optional_expr(
   expr : @syntax.Expr?,
   exprs : Array[@syntax.Expr],
 ) -> Unit {
-  match expr {
-    Some(expr) => collect_exprs(expr, exprs)
-    None => ()
+  if expr is Some(expr) {
+    collect_exprs(expr, exprs)
   }
 }
 
@@ -868,9 +893,8 @@ fn collect_optional_where_clause_exprs(
   clause : @syntax.WhereClause?,
   exprs : Array[@syntax.Expr],
 ) -> Unit {
-  match clause {
-    Some(clause) => collect_field_def_exprs(clause.fields, exprs)
-    None => ()
+  if clause is Some(clause) {
+    collect_field_def_exprs(clause.fields, exprs)
   }
 }
 

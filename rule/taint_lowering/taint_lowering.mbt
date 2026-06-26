@@ -64,13 +64,9 @@ fn transfer_compiled_taint_call(
     if @matching.match_expr_pattern(sanitizer.pattern.compiled, call.ast)
       is Some(_) {
       matched = true
-      match target_value(call, sanitizer.target) {
-        Some(target) =>
-          match target.path {
-            Some(path) => killed_paths.push(path)
-            None => ()
-          }
-        None => ()
+      if target_value(call, sanitizer.target) is Some(target) &&
+        target.path is Some(path) {
+        killed_paths.push(path)
       }
     }
   }
@@ -78,20 +74,17 @@ fn transfer_compiled_taint_call(
     let sink = taint_rule.sinks[index]
     if @matching.match_expr_pattern(sink.pattern.compiled, call.ast) is Some(_) {
       matched = true
-      match target_value(call, sink.target) {
-        Some(target) => {
-          let origins = origins_from_taint_tree(target.taint)
-          if origins.length() > 0 {
-            findings.push({
-              rule_id,
-              sink_id: "sink:\{index}",
-              sink_loc: target.loc,
-              sink_site: target.site,
-              origins,
-            })
-          }
+      if target_value(call, sink.target) is Some(target) {
+        let origins = origins_from_taint_tree(target.taint)
+        if origins.length() > 0 {
+          findings.push({
+            rule_id,
+            sink_id: "sink:\{index}",
+            sink_loc: target.loc,
+            sink_site: target.site,
+            origins,
+          })
         }
-        None => ()
       }
     }
   }
@@ -106,41 +99,36 @@ fn transfer_compiled_taint_call(
 fn target_value(call : @taint.CallInfo, target : TaintTarget) -> TargetValue? {
   match target {
     Receiver =>
-      match call.receiver_site {
-        Some(site) =>
-          Some({
-            loc: call.loc,
-            site,
-            path: call.receiver_path,
-            taint: call.receiver_taint,
-          })
-        None => None
+      if call.receiver_site is Some(site) {
+        Some({
+          loc: call.loc,
+          site,
+          path: call.receiver_path,
+          taint: call.receiver_taint,
+        })
+      } else {
+        None
       }
     PositionalArg(index) =>
-      match call_argument_at(call.arguments, index) {
-        Some(arg) =>
+      if call_argument_at(call.arguments, index) is Some(arg) {
+        Some({ loc: arg.loc, site: arg.site, path: arg.path, taint: arg.taint })
+      } else {
+        None
+      }
+    LabelledArg(label~, index~) =>
+      if call_argument_at(call.arguments, index) is Some(arg) {
+        if arg.label == Some(label) {
           Some({
             loc: arg.loc,
             site: arg.site,
             path: arg.path,
             taint: arg.taint,
           })
-        None => None
-      }
-    LabelledArg(label~, index~) =>
-      match call_argument_at(call.arguments, index) {
-        Some(arg) =>
-          if arg.label == Some(label) {
-            Some({
-              loc: arg.loc,
-              site: arg.site,
-              path: arg.path,
-              taint: arg.taint,
-            })
-          } else {
-            None
-          }
-        None => None
+        } else {
+          None
+        }
+      } else {
+        None
       }
   }
 }
