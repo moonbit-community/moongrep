@@ -1,0 +1,5 @@
+id: target
+description: |
+  Target call.
+patterns:
+  - shape: target()

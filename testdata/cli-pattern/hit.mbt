@@ -1,0 +1,3 @@
+fn sample {
+  target()
+}

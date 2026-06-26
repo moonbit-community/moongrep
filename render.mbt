@@ -59,7 +59,7 @@ fn render_scan_hit(hit : ScanHit) -> String {
 fn render_source_context_line(line : SourceContextLine) -> String {
   let prefix = "\{line.line_number} | "
   if line.is_match {
-    render_gray(prefix) + line.text
+    prefix + line.text
   } else {
     render_gray(prefix + line.text)
   }
