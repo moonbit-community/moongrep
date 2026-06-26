@@ -579,7 +579,9 @@ fn match_pattern(
   match pattern {
     Var(binder) => {
       let name = binder.name
-      if is_ignore_placeholder(name) {
+      if parse_pattern_metavar_name(name) is Some(meta_name) {
+        bind_value(bindings, meta_name, Pattern(candidate))
+      } else if is_ignore_placeholder(name) {
         true
       } else if contains_name(compiled.identifier_metavars, name) {
         if @id.normalize_identifier_name_from_pattern(candidate)
@@ -1112,6 +1114,7 @@ fn bound_value_equal(left : BoundValue, right : BoundValue) -> Bool {
     (Expr(left), Expr(right)) => expr_equal_ignoring_loc(left, right)
     (Identifier(left), Identifier(right)) => left == right
     (Constant(left), Constant(right)) => constant_equal(left, right)
+    (Pattern(left), Pattern(right)) => pattern_equal_ignoring_loc(left, right)
     _ => false
   }
 }
@@ -1180,6 +1183,107 @@ fn expr_equal_ignoring_loc(left : @syntax.Expr, right : @syntax.Expr) -> Bool {
     (Unit(faked=left, ..), Unit(faked=right, ..)) => left == right
     _ => false
   }
+}
+
+///|
+fn pattern_equal_ignoring_loc(
+  left : @syntax.Pattern,
+  right : @syntax.Pattern,
+) -> Bool {
+  match (left, right) {
+    (Var(left), Var(right)) => binder_equal(left, right)
+    (Any(..), Any(..)) => true
+    (Alias(pat=lp, alias_=la, ..), Alias(pat=rp, alias_=ra, ..)) =>
+      pattern_equal_ignoring_loc(lp, rp) && binder_equal(la, ra)
+    (Array(pats=left, ..), Array(pats=right, ..)) =>
+      array_patterns_equal(left, right)
+    (Constant(c=left, ..), Constant(c=right, ..)) => constant_equal(left, right)
+    (
+      Constr(constr=lc, args=la, is_open=lo, ..),
+      Constr(constr=rc, args=ra, is_open=ro, ..),
+    ) =>
+      lo == ro &&
+      constructor_equal(lc, rc) &&
+      option_match(la, ra, (left, right) => {
+        list_match(left, right, constr_pat_arg_equal)
+      })
+    (Constraint(pat=lp, ty=lt, ..), Constraint(pat=rp, ty=rt, ..)) =>
+      type_equal(lt, rt) && pattern_equal_ignoring_loc(lp, rp)
+    (Map(elems=le, is_closed=lc, ..), Map(elems=re, is_closed=rc, ..)) =>
+      lc == rc && list_match(le, re, map_pat_elem_equal)
+    (Or(pat1=ll, pat2=lr, ..), Or(pat1=rl, pat2=rr, ..)) =>
+      pattern_equal_ignoring_loc(ll, rl) && pattern_equal_ignoring_loc(lr, rr)
+    (Range(lhs=ll, rhs=lr, kind=lk, ..), Range(lhs=rl, rhs=rr, kind=rk, ..)) =>
+      range_kind_equal(lk, rk) &&
+      pattern_equal_ignoring_loc(ll, rl) &&
+      pattern_equal_ignoring_loc(lr, rr)
+    (Record(fields=lf, is_closed=lc, ..), Record(fields=rf, is_closed=rc, ..)) =>
+      lc == rc && list_match(lf, rf, field_pat_equal)
+    (
+      SpecialConstr(binder=lb, args=la, ..),
+      SpecialConstr(binder=rb, args=ra, ..),
+    ) => binder_equal(lb, rb) && list_match(la, ra, constr_pat_arg_equal)
+    (Tuple(pats=left, ..), Tuple(pats=right, ..)) =>
+      list_match(left, right, pattern_equal_ignoring_loc)
+    _ => false
+  }
+}
+
+///|
+fn array_patterns_equal(
+  left : @syntax.ArrayPatterns,
+  right : @syntax.ArrayPatterns,
+) -> Bool {
+  match (left, right) {
+    (Closed(left), Closed(right)) =>
+      list_match(left, right, array_pattern_equal)
+    (Open(ll, lr, lb), Open(rl, rr, rb)) =>
+      dot_dot_binder_equal(lb, rb) &&
+      list_match(ll, rl, array_pattern_equal) &&
+      list_match(lr, rr, array_pattern_equal)
+    _ => false
+  }
+}
+
+///|
+fn array_pattern_equal(
+  left : @syntax.ArrayPattern,
+  right : @syntax.ArrayPattern,
+) -> Bool {
+  match (left, right) {
+    (BytesSpread(bytes=left, ..), BytesSpread(bytes=right, ..)) => left == right
+    (ConstSpread(binder=lb, pkg=lp, ..), ConstSpread(binder=rb, pkg=rp, ..)) =>
+      lp == rp && binder_equal(lb, rb)
+    (Pattern(left), Pattern(right)) => pattern_equal_ignoring_loc(left, right)
+    (StringSpread(str=left, ..), StringSpread(str=right, ..)) => left == right
+    _ => false
+  }
+}
+
+///|
+fn constr_pat_arg_equal(
+  left : @syntax.ConstrPatArg,
+  right : @syntax.ConstrPatArg,
+) -> Bool {
+  argument_kind_equal(left.kind, right.kind) &&
+  pattern_equal_ignoring_loc(left.pat, right.pat)
+}
+
+///|
+fn map_pat_elem_equal(
+  left : @syntax.MapPatElem,
+  right : @syntax.MapPatElem,
+) -> Bool {
+  left.match_absent == right.match_absent &&
+  constant_equal(left.key, right.key) &&
+  pattern_equal_ignoring_loc(left.pat, right.pat)
+}
+
+///|
+fn field_pat_equal(left : @syntax.FieldPat, right : @syntax.FieldPat) -> Bool {
+  left.is_pun == right.is_pun &&
+  label_equal(left.label, right.label) &&
+  pattern_equal_ignoring_loc(left.pattern, right.pattern)
 }
 
 ///|
@@ -1616,6 +1720,16 @@ fn is_special_expr_metavar(
   name : String,
 ) -> Bool {
   compiled.target_metavar == Some(name) || compiled.source_metavar == Some(name)
+}
+
+///|
+fn parse_pattern_metavar_name(raw : String) -> String? {
+  let prefix = "$pat:"
+  if raw.has_prefix(prefix) && raw.length() > prefix.length() {
+    Some(raw[prefix.length():].to_owned())
+  } else {
+    None
+  }
 }
 
 ///|

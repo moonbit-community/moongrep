@@ -34,15 +34,17 @@ Placeholder priority in expression positions is:
 
 For vars, binders, and labels, only ignore placeholders and declared identifier
 metavars are special; everything else is literal. For pattern variables,
-declared constant metavars are also special and match only `Pattern::Constant`.
-`__TARGET__` and `__SOURCE__` are special only in whole expression positions.
-For example, undeclared `__x` is literal: only `__` or `___` are ignore
-placeholders by spelling alone.
+`$pat:<name>` binds the whole candidate `Pattern` AST, declared constant
+metavars match only `Pattern::Constant`, and declared identifier metavars
+capture normalized pattern names. `__TARGET__` and `__SOURCE__` are special only
+in whole expression positions. For example, undeclared `__x` is literal: only
+`__` or `___` are ignore placeholders by spelling alone.
 
 ## Binding Kinds
 
-`BoundValue` stores `Expr` for whole-expression captures, `Identifier` for
-normalized name captures, or `Constant` for parsed constants.
+`BoundValue` stores `Expr` for whole-expression captures, `Pattern` for
+whole-pattern captures, `Identifier` for normalized name captures, or `Constant`
+for parsed constants.
 
 Expression metavars capture the candidate expression at that position.
 Repeated uses compare the parsed expression structure, ignoring locations.
@@ -55,6 +57,10 @@ short name being compared.
 Constant metavars store `Constant(@syntax.Constant)`. Expression placeholders
 accept only `Expr::Constant`, pattern placeholders accept only
 `Pattern::Constant`, and repeated uses compare with `constant_equal`.
+
+Pattern metavars store `Pattern(@syntax.Pattern)`. Repeated uses compare the
+captured pattern AST with `pattern_equal_ignoring_loc`, so source locations do
+not affect equality.
 
 ## Equality Is Location-Insensitive but Not Complete
 

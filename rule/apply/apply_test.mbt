@@ -171,6 +171,30 @@ test "apply structural rule supports inline constant metavars" {
 }
 
 ///|
+test "apply structural rule supports inline pattern metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Repeated pattern shape.
+    #|patterns:
+    #|  - shape: match $exp:value { ($pat:item, $pat:item) => $exp:body }
+    #|
+  let source =
+    #|fn sample {
+    #|  match value { (Some(actual), Some(actual)) => ok };
+    #|  match value { (Some(actual), Some(other)) => ok }
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule treats patterns as ordered alternatives" {
   let rule_source =
     #|id: example

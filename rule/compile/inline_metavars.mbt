@@ -792,6 +792,9 @@ fn register_inline_metavar(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> Unit raise {
+  if kind == "pat" {
+    reject_inline_metavar_position(path, context, kind, name)
+  }
   if kind != "exp" && kind != "id" && kind != "const" {
     raise RuleLoadError::InvalidRule(
       path~,
@@ -850,6 +853,11 @@ fn reject_inline_metavar_position(
     raise RuleLoadError::InvalidRule(
       path~,
       info="\{context}.shape uses $exp:\{name} outside a bare expression position",
+    )
+  } else if kind == "pat" {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.shape uses $pat:\{name} outside a bare pattern position",
     )
   } else {
     raise RuleLoadError::InvalidRule(
@@ -1351,6 +1359,19 @@ fn rewrite_pattern_var_binder(
     Some((kind, meta_name)) => {
       if kind == "exp" {
         reject_inline_metavar_position(path, context, kind, meta_name)
+      } else if kind == "pat" {
+        validate_declared_metavar(path, context, meta_name, true)
+        ensure_no_other_metavar_kind(
+          path, context, meta_name, expr_metavars, identifier_metavars,
+        )
+        ensure_no_other_metavar_kind(
+          path,
+          context,
+          meta_name,
+          constant_metavars,
+          [],
+        )
+        return { name: "$pat:\{meta_name}", loc: binder.loc }
       }
       register_inline_metavar(
         path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,

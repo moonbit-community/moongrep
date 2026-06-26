@@ -20,6 +20,7 @@ pub(all) enum BoundValue {
   Expr(@syntax.Expr)
   Identifier(String)
   Constant(@syntax.Constant)
+  Pattern(@syntax.Pattern)
 }
 
 pub(all) struct CompiledExprPattern {
