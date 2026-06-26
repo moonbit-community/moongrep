@@ -55,12 +55,18 @@ test "normalizes supported identifier positions" {
 }
 
 ///|
-test "qualified long identifiers are not normalized" {
+test "qualified long identifiers include their package qualifier" {
   let qualified : @syntax.Var = {
     loc: sample_loc(),
     name: Dot(pkg="pkg", id="target"),
   }
   let expr = @syntax.Expr::Ident(id=qualified, loc=sample_loc())
-  debug_inspect(normalize_identifier_name_from_var(qualified), content="None")
-  debug_inspect(normalize_identifier_name_from_expr(expr), content="None")
+  debug_inspect(
+    normalize_identifier_name_from_var(qualified),
+    content="Some(\"@pkg.target\")",
+  )
+  debug_inspect(
+    normalize_identifier_name_from_expr(expr),
+    content="Some(\"@pkg.target\")",
+  )
 }

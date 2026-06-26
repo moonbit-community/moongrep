@@ -65,7 +65,8 @@ fn match_expr(
     result
   } else {
     match (pattern, candidate) {
-      (Ident(id=pid, ..), Ident(id=cid, ..)) => var_equal(pid, cid)
+      (Ident(id=pid, ..), Ident(id=cid, ..)) =>
+        match_var(pid, cid, compiled, bindings)
       (Hole(kind=pk, ..), Hole(kind=ck, ..)) => hole_equal(pk, ck)
       (Constant(c=pc, ..), Constant(c=cc, ..)) => constant_equal(pc, cc)
       (
@@ -234,7 +235,7 @@ fn match_expr(
         match_expr(pe, ce, compiled, bindings) &&
         list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings))
       (Constr(constr=pc, ..), Constr(constr=cc, ..)) =>
-        constructor_equal(pc, cc)
+        match_constructor(pc, cc, compiled, bindings)
       (MultilineString(elems=pe, ..), MultilineString(elems=ce, ..)) =>
         list_match(pe, ce, (p, c) => {
           match_multiline_string_elem(p, c, compiled, bindings)
@@ -625,7 +626,7 @@ fn match_pattern(
       match candidate {
         Constr(constr=cc, args=ca, is_open=co, ..) =>
           po == co &&
-          constructor_equal(pc, cc) &&
+          match_constructor(pc, cc, compiled, bindings) &&
           option_match(pa, ca, (p, c) => {
             list_match(p, c, (p, c) => {
               match_constr_pat_arg(p, c, compiled, bindings)
@@ -997,21 +998,38 @@ fn match_var(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  if @id.normalize_identifier_name_from_var(pattern) is Some(name) {
-    if is_ignore_placeholder(name) {
-      true
-    } else if contains_name(compiled.identifier_metavars, name) {
-      if @id.normalize_identifier_name_from_var(candidate)
-        is Some(candidate_name) {
-        bind_value(bindings, name, Identifier(candidate_name))
-      } else {
-        false
-      }
-    } else {
-      var_equal(pattern, candidate)
-    }
-  } else {
-    var_equal(pattern, candidate)
+  match_long_ident(pattern.name, candidate.name, compiled, bindings)
+}
+
+///|
+fn match_long_ident(
+  pattern : @syntax.LongIdent,
+  candidate : @syntax.LongIdent,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern, candidate) {
+    (Ident(name=pattern_name), _) =>
+      match_identifier_name(
+        pattern_name,
+        normalized_long_ident(candidate),
+        normalized_long_ident(candidate),
+        compiled,
+        bindings,
+      )
+    (
+      Dot(pkg=pattern_pkg, id=pattern_id),
+      Dot(pkg=candidate_pkg, id=candidate_id),
+    ) =>
+      pattern_pkg == candidate_pkg &&
+      match_identifier_name(
+        pattern_id,
+        candidate_id,
+        normalized_long_ident(candidate),
+        compiled,
+        bindings,
+      )
+    _ => false
   }
 }
 
@@ -1023,13 +1041,13 @@ fn match_binder(
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   let name = pattern.name
-  if is_ignore_placeholder(name) {
-    true
-  } else if contains_name(compiled.identifier_metavars, name) {
-    bind_value(bindings, name, Identifier(candidate.name))
-  } else {
-    binder_equal(pattern, candidate)
-  }
+  match_identifier_name(
+    name,
+    candidate.name,
+    candidate.name,
+    compiled,
+    bindings,
+  )
 }
 
 ///|
@@ -1040,12 +1058,37 @@ fn match_label(
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   let name = pattern.name
-  if is_ignore_placeholder(name) {
+  match_identifier_name(
+    name,
+    candidate.name,
+    candidate.name,
+    compiled,
+    bindings,
+  )
+}
+
+///|
+fn match_identifier_name(
+  pattern_name : String,
+  literal_candidate_name : String,
+  bound_candidate_name : String,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  if is_ignore_placeholder(pattern_name) {
     true
-  } else if contains_name(compiled.identifier_metavars, name) {
-    bind_value(bindings, name, Identifier(candidate.name))
+  } else if contains_name(compiled.identifier_metavars, pattern_name) {
+    bind_value(bindings, pattern_name, Identifier(bound_candidate_name))
   } else {
-    label_equal(pattern, candidate)
+    pattern_name == literal_candidate_name
+  }
+}
+
+///|
+fn normalized_long_ident(long_ident : @syntax.LongIdent) -> String {
+  match long_ident {
+    Ident(name~) => name
+    Dot(pkg~, id~) => "@\{pkg}.\{id}"
   }
 }
 
@@ -1214,6 +1257,99 @@ fn long_ident_equal(
 ///|
 fn type_name_equal(left : @syntax.TypeName, right : @syntax.TypeName) -> Bool {
   left.is_object == right.is_object && long_ident_equal(left.name, right.name)
+}
+
+///|
+fn match_type_name(
+  pattern : @syntax.TypeName,
+  candidate : @syntax.TypeName,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  pattern.is_object == candidate.is_object &&
+  match_long_ident(pattern.name, candidate.name, compiled, bindings)
+}
+
+///|
+fn match_constructor(
+  pattern : @syntax.Constructor,
+  candidate : @syntax.Constructor,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  let pattern_name = pattern.name.name
+  if contains_name(compiled.identifier_metavars, pattern_name) {
+    let extra_matches = match pattern.extra_info {
+      NoExtraInfo => true
+      _ =>
+        match_constructor_extra_info(
+          pattern.extra_info,
+          candidate.extra_info,
+          compiled,
+          bindings,
+        )
+    }
+    extra_matches &&
+    bind_value(
+      bindings,
+      pattern_name,
+      Identifier(normalized_constructor(candidate)),
+    )
+  } else if is_ignore_placeholder(pattern_name) {
+    true
+  } else {
+    constr_name_equal(pattern.name, candidate.name) &&
+    match_constructor_extra_info(
+      pattern.extra_info,
+      candidate.extra_info,
+      compiled,
+      bindings,
+    )
+  }
+}
+
+///|
+fn match_constructor_extra_info(
+  pattern : @syntax.ConstructorExtraInfo,
+  candidate : @syntax.ConstructorExtraInfo,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern, candidate) {
+    (NoExtraInfo, NoExtraInfo) => true
+    (Package(left), Package(right)) => left == right
+    (TypeName(left), TypeName(right)) =>
+      match_type_name(left, right, compiled, bindings)
+    (
+      TypeNameWithConstrPackage(type_name=left_type, pkg=left_pkg),
+      TypeNameWithConstrPackage(type_name=right_type, pkg=right_pkg),
+    ) =>
+      left_pkg == right_pkg &&
+      match_type_name(left_type, right_type, compiled, bindings)
+    _ => false
+  }
+}
+
+///|
+fn normalized_constructor(constr : @syntax.Constructor) -> String {
+  let name = constr.name.name
+  match constr.extra_info {
+    NoExtraInfo => name
+    Package(pkg) => "@\{pkg}.\{name}"
+    TypeName(type_name) => "\{normalized_type_name(type_name)}::\{name}"
+    TypeNameWithConstrPackage(type_name~, pkg~) =>
+      "\{normalized_type_name(type_name)}::@\{pkg}.\{name}"
+  }
+}
+
+///|
+fn normalized_type_name(type_name : @syntax.TypeName) -> String {
+  let name = normalized_long_ident(type_name.name)
+  if type_name.is_object {
+    "object \{name}"
+  } else {
+    name
+  }
 }
 
 ///|

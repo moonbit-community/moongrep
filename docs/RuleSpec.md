@@ -183,8 +183,9 @@ patterns:
 ```
 
 Use `$id:name` for source-level names. It can bind simple variable targets,
-binders, bare identifier expressions, simple variable patterns, and labels such
-as method names, field names, labelled argument names, and record field labels.
+binders, bare identifier expressions, qualified function names, constructor
+identities, simple variable patterns, and labels such as method names, field
+names, labelled argument names, and record field labels.
 
 Use `$const:name` for literal constants. It is valid only as a whole bare
 identifier expression or as a simple pattern variable position, and it matches
@@ -284,9 +285,11 @@ for i = 0; j < n; i = i + 1 {
 }
 ```
 
-Normalization currently succeeds for simple unqualified variable names,
-binders, bare identifier expressions, simple variable patterns, and labels.
-Qualified names do not normalize to simple identifiers for this purpose.
+Normalization currently succeeds for simple and qualified variable names,
+binders, bare identifier expressions, constructor identities, simple variable
+patterns, and labels. Qualified function names normalize as `@pkg.name`.
+Qualified constructor identities include their extra info, such as `@pkg.Ctor`,
+`Type::Ctor`, `@pkg.Type::Ctor`, or `@pkg.Type::@other.Ctor`.
 
 ### `$const`
 

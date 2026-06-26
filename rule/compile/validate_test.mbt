@@ -111,6 +111,63 @@ test "validate records inline constant metavars" {
 }
 
 ///|
+test "validate records constructor identifier metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $id:Ctor($exp:value)
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"Ctor\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate records constructor extra info identifier metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $id:TypeName::$id:Ctor
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"TypeName\", \"Ctor\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate records qualified function identifier metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: "@pkg.$id:callee($exp:value)"
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"callee\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate rejects constant metavar kind conflicts" {
   let source =
     #|id: example

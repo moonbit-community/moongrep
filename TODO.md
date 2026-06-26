@@ -1,15 +1,5 @@
 # TODO
 
-## $id can't match qualified function name
-
-- Example: `$id:callee($exp:arg)` does not match `@int.abs(x)`.
-- Root cause: `@int.abs` parses as `LongIdent::Dot(pkg="int", id="abs")`,
-  while `$id` normalization currently only accepts simple `LongIdent::Ident`
-  names and returns `None` for qualified names.
-- Consider extending identifier normalization to support qualified names, for
-  example by normalizing `Dot(pkg, id)` to a stable string such as `@pkg.id`,
-  then update matcher tests and rule docs accordingly.
-
 ## Current Limitations
 
 - Matching is AST based and location preserving. Reported locations are exactly

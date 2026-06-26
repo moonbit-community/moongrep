@@ -283,6 +283,120 @@ test "identifier metavar matches labels" {
 }
 
 ///|
+test "identifier metavar matches qualified function names" {
+  let pattern = parse_expr("callee(callee)")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: [],
+    identifier_metavars: ["callee"],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("@int.abs(@int.abs)")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("@int.abs(abs)")) is Some(_),
+  )
+}
+
+///|
+test "qualified identifier metavar keeps literal package" {
+  let pattern = parse_expr("@int.callee(callee)")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: [],
+    identifier_metavars: ["callee"],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("@int.abs(@int.abs)")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("@float.abs(@float.abs)"))
+    is Some(_),
+  )
+}
+
+///|
+test "identifier metavar matches constructor identity with extra info" {
+  let pattern = parse_expr("Ctor(Ctor)")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: [],
+    identifier_metavars: ["Ctor"],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("@pkg.Actual(@pkg.Actual)"))
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("@pkg.Actual(Actual)")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("@pkg.Actual(@other.Actual)"))
+    is Some(_),
+  )
+}
+
+///|
+test "identifier metavar matches constructor type extra info" {
+  let pattern = parse_expr("TypeName::Ctor(Ctor)")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: [],
+    identifier_metavars: ["TypeName", "Ctor"],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(
+      compiled,
+      parse_expr("@pkg.Option::Some(@pkg.Option::Some)"),
+    )
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("@pkg.Option::Some(Option::Some)"))
+    is Some(_),
+  )
+}
+
+///|
+test "identifier metavar matches constructor patterns" {
+  let pattern = parse_expr("match input { Ctor => Ctor }")
+  let compiled : CompiledExprPattern = {
+    ast: pattern,
+    expr_metavars: ["input"],
+    identifier_metavars: ["Ctor"],
+    constant_metavars: [],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(
+      compiled,
+      parse_expr("match value { @pkg.Actual => @pkg.Actual }"),
+    )
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(
+      compiled,
+      parse_expr("match value { @pkg.Actual => Actual }"),
+    )
+    is Some(_),
+  )
+}
+
+///|
 test "structural matcher compares scalar AST fields" {
   assert_false(expr_matches(parse_expr("a + b"), parse_expr("a - b")))
   assert_false(expr_matches(parse_expr("f(label=a)"), parse_expr("f(other=a)")))

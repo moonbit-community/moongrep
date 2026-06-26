@@ -182,8 +182,7 @@ patterns:
 
 When one of these names appears in a supported metavar position, it matches
 anything there without binding a value or participating in repeated-name
-equality. Repeated ignore placeholders are independent wildcards. In
-unsupported positions such as constructor names, they stay literal. 
+equality. Repeated ignore placeholders are independent wildcards.
 
 ### 3. Choose `$exp`, `$id`, or `$const`
 
@@ -221,6 +220,11 @@ same spelling should match, but the raw AST nodes are different, so
 `$id` also works for simple assignment targets represented in the parser
 AST as `Var`, so rules like `x = x + 1` can bind the left-hand target by
 normalized name instead of treating it as a literal string.
+
+`$id` can also compare qualified function names and constructor identities. A
+qualified function such as `@int.abs` normalizes to `@int.abs`; a qualified
+constructor includes its extra info, such as `@pkg.Ctor` or
+`@pkg.Type::Ctor`.
 
 Use `$const` when the candidate must be a parsed MoonBit constant. Repeated
 `$const` captures compare constant kind and value, so `1 + 1` can match while
@@ -369,9 +373,9 @@ Check, in order:
 
 ### An `$id` rule looks right but never hits
 
-The matched node may not normalize to a simple identifier name in every
-occurrence. Review the exact supported normalization cases in
-[RuleSpec.md](RuleSpec.md).
+The repeated captures may normalize to different source-level names. For
+example, `abs` and `@int.abs` are different normalized identifiers. Review the
+exact supported normalization cases in [RuleSpec.md](RuleSpec.md).
 
 ### A rule with `guard` fails to load
 
