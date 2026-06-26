@@ -451,6 +451,13 @@ fn rewrite_expr(
         match_loc~,
         loc~,
       )
+    Constr(constr~, loc~) =>
+      @syntax.Expr::Constr(
+        constr=rewrite_constructor(
+          constr, path, context, expr_metavars, identifier_metavars, constant_metavars,
+        ),
+        loc~,
+      )
     Method(type_name~, method_name~, loc~) =>
       @syntax.Expr::Method(
         type_name~,
@@ -672,10 +679,21 @@ fn rewrite_expr_var(
           { name: @syntax.LongIdent::Ident(name=meta_name), loc: var_.loc }
         }
       }
-    Dot(id~, ..) => {
-      reject_qualified_inline_metavar(path, context, id)
-      var_
-    }
+    Dot(pkg~, id~) =>
+      match parse_inline_metavar(id) {
+        None => var_
+        Some((kind, meta_name)) => {
+          if kind == "exp" {
+            reject_inline_metavar_position(path, context, kind, meta_name)
+          } else if kind == "const" {
+            reject_qualified_inline_metavar(path, context, id)
+          }
+          register_inline_metavar(
+            path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,
+          )
+          { name: @syntax.LongIdent::Dot(pkg~, id=meta_name), loc: var_.loc }
+        }
+      }
   }
 }
 
@@ -702,10 +720,19 @@ fn rewrite_var(
           { name: @syntax.LongIdent::Ident(name=meta_name), loc: var_.loc }
         }
       }
-    Dot(id~, ..) => {
-      reject_qualified_inline_metavar(path, context, id)
-      var_
-    }
+    Dot(pkg~, id~) =>
+      match parse_inline_metavar(id) {
+        None => var_
+        Some((kind, meta_name)) => {
+          if kind == "exp" || kind == "const" {
+            reject_inline_metavar_position(path, context, kind, meta_name)
+          }
+          register_inline_metavar(
+            path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,
+          )
+          { name: @syntax.LongIdent::Dot(pkg~, id=meta_name), loc: var_.loc }
+        }
+      }
   }
 }
 
@@ -852,6 +879,146 @@ fn reject_qualified_inline_metavar(
         )
       }
     None => ()
+  }
+}
+
+///|
+fn rewrite_constructor(
+  constr : @syntax.Constructor,
+  path : String,
+  context : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+) -> @syntax.Constructor raise {
+  let extra_info = rewrite_constructor_extra_info(
+    constr.extra_info,
+    path,
+    context,
+    expr_metavars,
+    identifier_metavars,
+    constant_metavars,
+  )
+  let name = rewrite_constr_name(
+    constr.name,
+    path,
+    context,
+    expr_metavars,
+    identifier_metavars,
+    constant_metavars,
+  )
+  { name, extra_info, loc: constr.loc }
+}
+
+///|
+fn rewrite_constr_name(
+  name : @syntax.ConstrName,
+  path : String,
+  context : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+) -> @syntax.ConstrName raise {
+  match parse_inline_metavar(name.name) {
+    None => name
+    Some((kind, meta_name)) => {
+      if kind == "exp" || kind == "const" {
+        reject_inline_metavar_position(path, context, kind, meta_name)
+      }
+      register_inline_metavar(
+        path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,
+      )
+      { name: meta_name, loc: name.loc }
+    }
+  }
+}
+
+///|
+fn rewrite_constructor_extra_info(
+  extra_info : @syntax.ConstructorExtraInfo,
+  path : String,
+  context : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+) -> @syntax.ConstructorExtraInfo raise {
+  match extra_info {
+    NoExtraInfo | Package(_) => extra_info
+    TypeName(type_name) =>
+      TypeName(
+        rewrite_type_name(
+          type_name, path, context, expr_metavars, identifier_metavars, constant_metavars,
+        ),
+      )
+    TypeNameWithConstrPackage(type_name~, pkg~) =>
+      TypeNameWithConstrPackage(
+        type_name=rewrite_type_name(
+          type_name, path, context, expr_metavars, identifier_metavars, constant_metavars,
+        ),
+        pkg~,
+      )
+  }
+}
+
+///|
+fn rewrite_type_name(
+  type_name : @syntax.TypeName,
+  path : String,
+  context : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+) -> @syntax.TypeName raise {
+  {
+    name: rewrite_type_long_ident(
+      type_name.name,
+      path,
+      context,
+      expr_metavars,
+      identifier_metavars,
+      constant_metavars,
+    ),
+    is_object: type_name.is_object,
+    loc: type_name.loc,
+  }
+}
+
+///|
+fn rewrite_type_long_ident(
+  long_ident : @syntax.LongIdent,
+  path : String,
+  context : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+) -> @syntax.LongIdent raise {
+  match long_ident {
+    Ident(name~) =>
+      match parse_inline_metavar(name) {
+        None => long_ident
+        Some((kind, meta_name)) => {
+          if kind == "exp" || kind == "const" {
+            reject_inline_metavar_position(path, context, kind, meta_name)
+          }
+          register_inline_metavar(
+            path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,
+          )
+          Ident(name=meta_name)
+        }
+      }
+    Dot(pkg~, id~) =>
+      match parse_inline_metavar(id) {
+        None => long_ident
+        Some((kind, meta_name)) => {
+          if kind == "exp" || kind == "const" {
+            reject_inline_metavar_position(path, context, kind, meta_name)
+          }
+          register_inline_metavar(
+            path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,
+          )
+          Dot(pkg~, id=meta_name)
+        }
+      }
   }
 }
 
@@ -1131,7 +1298,9 @@ fn rewrite_pattern(
       )
     Constr(constr~, args~, is_open~, loc~) =>
       @syntax.Pattern::Constr(
-        constr~,
+        constr=rewrite_constructor(
+          constr, path, context, expr_metavars, identifier_metavars, constant_metavars,
+        ),
         args=rewrite_optional_constr_pat_args(
           args, path, context, expr_metavars, identifier_metavars, constant_metavars,
         ),

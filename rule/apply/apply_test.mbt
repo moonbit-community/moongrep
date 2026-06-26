@@ -97,6 +97,55 @@ test "apply structural rule supports inline identifier metavars" {
 }
 
 ///|
+test "apply structural rule supports qualified inline identifier metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Qualified callee.
+    #|patterns:
+    #|  - shape: $id:callee($id:callee)
+    #|
+  let source =
+    #|fn sample {
+    #|  @int.abs(@int.abs);
+    #|  @int.abs(abs)
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural rule supports constructor identity metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Constructor identity.
+    #|patterns:
+    #|  - shape: $id:Ctor($id:Ctor)
+    #|
+  let source =
+    #|fn sample {
+    #|  @pkg.Actual(@pkg.Actual);
+    #|  @pkg.Actual(Actual);
+    #|  @pkg.Actual(@other.Actual)
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule supports inline constant metavars" {
   let rule_source =
     #|id: example
