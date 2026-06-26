@@ -70,10 +70,24 @@ let docs_command : @argparse.Command = @argparse.Command(
 )
 
 ///|
+let dump_command : @argparse.Command = Command(
+  "dump",
+  about="Parse a MoonBit impl or expression and print AST JSON.",
+  options=[
+    OptionArg(
+      "impl",
+      action=Set,
+      about="MoonBit top-level implementation item to parse.",
+    ),
+    OptionArg("expr", action=Set, about="MoonBit expression to parse."),
+  ],
+)
+
+///|
 let moongrep_command : @argparse.Command = @argparse.Command(
   "moongrep",
   about="Scan MoonBit source files with structural and taint rules.",
-  subcommands=[scan_command, docs_command],
+  subcommands=[scan_command, docs_command, dump_command],
   subcommand_required=true,
 )
 
@@ -131,6 +145,28 @@ fn docs_cli_command(
 }
 
 ///|
+fn dump_cli_command(
+  dump_matches : @argparse.Matches,
+) -> (String, CliOptions?, String?) raise {
+  let impl_source = last_cli_value(dump_matches.values, "impl")
+  let expr_source = last_cli_value(dump_matches.values, "expr")
+  match (impl_source, expr_source) {
+    (Some(source), None) => ("dump-impl", None, Some(source))
+    (None, Some(source)) => ("dump-expr", None, Some(source))
+    (Some(_), Some(_)) =>
+      raise CliError::Usage(
+        message="dump --impl cannot be combined with --expr",
+        exit_code=2,
+      )
+    (None, None) =>
+      raise CliError::Usage(
+        message="missing dump --impl or --expr",
+        exit_code=2,
+      )
+  }
+}
+
+///|
 fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
   let rules_root = last_cli_value(scan_matches.values, "rules")
@@ -173,6 +209,7 @@ fn parse_cli_command(
     Some(("scan", scan_matches)) =>
       ("scan", Some(scan_cli_options(scan_matches)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
+    Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)
   }
 }

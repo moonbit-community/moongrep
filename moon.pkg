@@ -8,9 +8,12 @@ import {
   "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
   "moonbit-community/miniio",
   "moonbitlang/core/argparse",
+  "moonbitlang/core/json",
   "moonbitlang/core/list",
   "moonbitlang/parser",
+  "moonbitlang/parser/handrolled_parser",
   "moonbitlang/lexer/basic",
+  "moonbitlang/lexer",
   "moonbitlang/parser/syntax",
 }
 
