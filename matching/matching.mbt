@@ -7,9 +7,8 @@
 pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: [],
+    expr_metavars: [],
     identifier_metavars: [],
-    auto_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -429,7 +428,7 @@ fn match_expr_placeholder(
           if is_ignore_placeholder(name) {
             Some(true)
           } else if is_special_expr_metavar(compiled, name) ||
-            contains_name(compiled.subtree_metavars, name) {
+            contains_name(compiled.expr_metavars, name) {
             Some(bind_value(bindings, name, Expr(candidate)))
           } else if contains_name(compiled.identifier_metavars, name) {
             match @id.normalize_identifier_name_from_expr(candidate) {
@@ -437,15 +436,6 @@ fn match_expr_placeholder(
                 Some(bind_value(bindings, name, Identifier(candidate_name)))
               None => Some(false)
             }
-          } else if contains_name(compiled.auto_metavars, name) {
-            Some(
-              bind_auto_value(
-                bindings,
-                name,
-                @id.normalize_identifier_name_from_expr(candidate),
-                Expr(candidate),
-              ),
-            )
           } else {
             None
           }
@@ -587,21 +577,12 @@ fn match_pattern(
       let name = binder.name
       if is_ignore_placeholder(name) {
         true
-      } else if contains_name(compiled.subtree_metavars, name) {
-        bind_value(bindings, name, Pattern(candidate))
       } else if contains_name(compiled.identifier_metavars, name) {
         match @id.normalize_identifier_name_from_pattern(candidate) {
           Some(candidate_name) =>
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
         }
-      } else if contains_name(compiled.auto_metavars, name) {
-        bind_auto_value(
-          bindings,
-          name,
-          @id.normalize_identifier_name_from_pattern(candidate),
-          Pattern(candidate),
-        )
       } else {
         match candidate {
           Var(candidate_binder) => binder_equal(binder, candidate_binder)
@@ -1011,21 +992,12 @@ fn match_var(
     Some(name) =>
       if is_ignore_placeholder(name) {
         true
-      } else if contains_name(compiled.subtree_metavars, name) {
-        bind_value(bindings, name, Var(candidate))
       } else if contains_name(compiled.identifier_metavars, name) {
         match @id.normalize_identifier_name_from_var(candidate) {
           Some(candidate_name) =>
             bind_value(bindings, name, Identifier(candidate_name))
           None => false
         }
-      } else if contains_name(compiled.auto_metavars, name) {
-        bind_auto_value(
-          bindings,
-          name,
-          @id.normalize_identifier_name_from_var(candidate),
-          Var(candidate),
-        )
       } else {
         var_equal(pattern, candidate)
       }
@@ -1043,17 +1015,8 @@ fn match_binder(
   let name = pattern.name
   if is_ignore_placeholder(name) {
     true
-  } else if contains_name(compiled.subtree_metavars, name) {
-    bind_value(bindings, name, Binder(candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
     bind_value(bindings, name, Identifier(candidate.name))
-  } else if contains_name(compiled.auto_metavars, name) {
-    bind_auto_value(
-      bindings,
-      name,
-      @id.normalize_identifier_name_from_binder(candidate),
-      Binder(candidate),
-    )
   } else {
     binder_equal(pattern, candidate)
   }
@@ -1069,47 +1032,10 @@ fn match_label(
   let name = pattern.name
   if is_ignore_placeholder(name) {
     true
-  } else if contains_name(compiled.subtree_metavars, name) {
-    bind_value(bindings, name, Label(candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
     bind_value(bindings, name, Identifier(candidate.name))
-  } else if contains_name(compiled.auto_metavars, name) {
-    bind_auto_value(
-      bindings,
-      name,
-      @id.normalize_identifier_name_from_label(candidate),
-      Label(candidate),
-    )
   } else {
     label_equal(pattern, candidate)
-  }
-}
-
-///|
-fn bind_auto_value(
-  bindings : @hashmap.HashMap[String, BoundValue],
-  name : String,
-  normalized_identifier : String?,
-  structural_value : BoundValue,
-) -> Bool {
-  match bindings.get(name) {
-    Some(Identifier(existing)) =>
-      match normalized_identifier {
-        Some(candidate) => existing == candidate
-        None => false
-      }
-    Some(existing) => bound_value_equal(existing, structural_value)
-    None =>
-      match normalized_identifier {
-        Some(candidate) => {
-          bindings[name] = Identifier(candidate)
-          true
-        }
-        None => {
-          bindings[name] = structural_value
-          true
-        }
-      }
   }
 }
 
@@ -1132,10 +1058,6 @@ fn bind_value(
 fn bound_value_equal(left : BoundValue, right : BoundValue) -> Bool {
   match (left, right) {
     (Expr(left), Expr(right)) => expr_equal_ignoring_loc(left, right)
-    (Var(left), Var(right)) => var_equal(left, right)
-    (Binder(left), Binder(right)) => binder_equal(left, right)
-    (Pattern(left), Pattern(right)) => pattern_equal(left, right)
-    (Label(left), Label(right)) => label_equal(left, right)
     (Identifier(left), Identifier(right)) => left == right
     _ => false
   }
@@ -1249,20 +1171,6 @@ fn binder_expr_pair_equal(
   let (right_binder, right_expr) = right
   binder_equal(left_binder, right_binder) &&
   expr_equal_ignoring_loc(left_expr, right_expr)
-}
-
-///|
-fn pattern_equal(left : @syntax.Pattern, right : @syntax.Pattern) -> Bool {
-  match (left, right) {
-    (Var(left), Var(right)) => binder_equal(left, right)
-    (Any(..), Any(..)) => true
-    (Constant(c=left, ..), Constant(c=right, ..)) => constant_equal(left, right)
-    (Tuple(pats=left, ..), Tuple(pats=right, ..)) =>
-      list_match(left, right, pattern_equal)
-    (Or(pat1=ll, pat2=lr, ..), Or(pat1=rl, pat2=rr, ..)) =>
-      pattern_equal(ll, rl) && pattern_equal(lr, rr)
-    _ => false
-  }
 }
 
 ///|

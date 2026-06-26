@@ -90,13 +90,12 @@ test "expression hole is literal instead of wildcard" {
 }
 
 ///|
-test "declared subtree metavar requires structural equality" {
+test "declared expression metavar requires structural equality" {
   let pattern = parse_expr("__x + __x")
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: ["__x"],
+    expr_metavars: ["__x"],
     identifier_metavars: [],
-    auto_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -111,9 +110,8 @@ test "identifier metavar compares binder and uses by normalized name" {
   )
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: ["limit", "body"],
+    expr_metavars: ["limit", "body"],
     identifier_metavars: ["counter"],
-    auto_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -134,15 +132,14 @@ test "identifier metavar compares binder and uses by normalized name" {
 }
 
 ///|
-test "auto metavar chooses identifier mode for loop counter" {
+test "identifier metavar matches loop counter" {
   let pattern = parse_expr(
     "for counter = 0; counter < limit; counter = counter + 1 { body }",
   )
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: ["limit", "body"],
-    identifier_metavars: [],
-    auto_metavars: ["counter"],
+    expr_metavars: ["limit", "body"],
+    identifier_metavars: ["counter"],
     target_metavar: None,
     source_metavar: None,
   }
@@ -163,13 +160,12 @@ test "auto metavar chooses identifier mode for loop counter" {
 }
 
 ///|
-test "auto metavar chooses structural mode for repeated call expression" {
+test "expression metavar matches repeated call expression" {
   let pattern = parse_expr("value + value")
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: [],
+    expr_metavars: ["value"],
     identifier_metavars: [],
-    auto_metavars: ["value"],
     target_metavar: None,
     source_metavar: None,
   }
@@ -182,13 +178,12 @@ test "auto metavar chooses structural mode for repeated call expression" {
 }
 
 ///|
-test "auto metavar keeps the first chosen binding kind" {
+test "expression metavar keeps structural equality" {
   let pattern = parse_expr("value + value")
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: [],
+    expr_metavars: ["value"],
     identifier_metavars: [],
-    auto_metavars: ["value"],
     target_metavar: None,
     source_metavar: None,
   }
@@ -201,13 +196,12 @@ test "auto metavar keeps the first chosen binding kind" {
 }
 
 ///|
-test "auto metavar matches pattern vars by identifier mode" {
+test "identifier metavar matches pattern vars" {
   let pattern = parse_expr("match input { item => item }")
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: ["input"],
-    identifier_metavars: [],
-    auto_metavars: ["item"],
+    expr_metavars: ["input"],
+    identifier_metavars: ["item"],
     target_metavar: None,
     source_metavar: None,
   }
@@ -222,13 +216,12 @@ test "auto metavar matches pattern vars by identifier mode" {
 }
 
 ///|
-test "auto metavar matches labels by identifier mode" {
+test "identifier metavar matches labels" {
   let pattern = parse_expr("record.field + record.field")
   let compiled : CompiledExprPattern = {
     ast: pattern,
-    subtree_metavars: ["record"],
-    identifier_metavars: [],
-    auto_metavars: ["field"],
+    expr_metavars: ["record"],
+    identifier_metavars: ["field"],
     target_metavar: None,
     source_metavar: None,
   }

@@ -93,7 +93,6 @@ let _embed_rulespec_md : String =
   #|Only these keys are accepted:
   #|
   #|- `shape` (required): YAML string containing one MoonBit expression snippet
-  #|- `metavars` (optional): YAML mapping or array shorthand
   #|- `guard` (reserved): currently rejected everywhere
   #|
   #|Unknown keys inside a pattern object are rejected.
@@ -126,84 +125,69 @@ let _embed_rulespec_md : String =
   #|
   #|## Metavariables
   #|
-  #|Identifiers in a shape are literal by default. A name becomes a metavariable
-  #|only when it is declared under `metavars`, except for the built-in wildcard
-  #|forms described below.
+  #|Identifiers and labels in a shape are literal by default. A name becomes a
+  #|metavariable only when it uses inline metavar syntax inside `shape`, except for
+  #|the built-in wildcard forms described below.
   #|
   #|### Syntax
   #|
-  #|`metavars` may be a mapping:
+  #|Use `$exp:name` for an expression structural capture:
   #|
   #|```yaml
-  #|metavars:
-  #|  subtree: [expr, body]
-  #|  identifier: [name]
+  #|patterns:
+  #|  - shape: $exp:left == $exp:left
   #|```
   #|
-  #|Mapping form accepts only these keys:
-  #|
-  #|- `subtree`: optional array of strings
-  #|- `identifier`: optional array of strings
-  #|
-  #|Omitted buckets default to empty arrays. Bucket values must be arrays, and
-  #|every item must be a string. Duplicate names within one bucket are rejected. A
-  #|name must not appear in both `subtree` and `identifier`.
-  #|
-  #|There is no `auto` mapping bucket. This is invalid:
+  #|Use `$id:name` for a normalized identifier capture:
   #|
   #|```yaml
-  #|metavars:
-  #|  auto: [x]
+  #|patterns:
+  #|  - shape: |
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
+  #|      }
   #|```
   #|
-  #|Use array shorthand for auto metavars:
+  #|Only `exp` and `id` are supported. A shape containing `$pat:x` or any other
+  #|kind is invalid. A name may be declared once per shape kind; using the same
+  #|payload as both `$exp:name` and `$id:name` in one shape is invalid.
   #|
-  #|```yaml
-  #|metavars: [x, y]
-  #|```
-  #|
-  #|Each shorthand entry must be a string, and duplicate names are rejected.
+  #|The old YAML `metavars` key is not supported. Pattern objects that contain it
+  #|are rejected as using an unsupported key.
   #|
   #|### Reserved Names
   #|
-  #|These names must not be declared as metavars in any rule clause:
+  #|These names must not be used as inline metavar names:
   #|
   #|- any name made only of two or more underscores, such as `__`, `___`, or
   #|  `____`
   #|- `__TARGET__`
+  #|- `__SOURCE__`
   #|
-  #|In taint clauses, `__SOURCE__` is also reserved and must not be declared.
-  #|
-  #|`__SOURCE__` has no built-in meaning in structural rules. If it is not declared
-  #|and is not being used by a taint sink or sanitizer, it is just a literal name.
+  #|`__TARGET__` and `__SOURCE__` keep their existing built-in meanings. `__TARGET__`
+  #|is only valid in `inside-expr`; `__SOURCE__` is only valid in taint sink and
+  #|sanitizer shapes.
   #|
   #|### Where Metavars Can Bind
   #|
-  #|A declared metavar must appear at least once in a position that can bind a
-  #|value. Binding-capable positions currently include:
+  #|`$exp:name` is valid only as a whole bare identifier expression. It captures the
+  #|candidate expression at that position. This is valid:
   #|
-  #|- a bare identifier expression, such as `value`
-  #|- a simple variable target, such as the left side of `x = y` or an operator
-  #|  token represented as a variable in expression syntax
-  #|- a binder, such as a function parameter, loop variable, `let mut` binder, or
-  #|  lambda parameter
-  #|- a simple variable pattern, such as `item` in `match value { item => ... }`
-  #|- a label, such as a method name, field name, labelled argument name, or record
-  #|  field label
+  #|```yaml
+  #|patterns:
+  #|  - shape: sink($exp:value)
+  #|```
   #|
-  #|Validation also looks through many ordinary expression containers, including
-  #|calls, field accesses, operators, blocks, arrays, tuples, records, loops,
-  #|matches, try/catch, lambdas, interpolations, and comprehensions.
+  #|This is invalid because a pattern binder is not an expression position:
   #|
-  #|Pattern validation is intentionally narrower than full pattern matching. Names
-  #|inside direct variable patterns and inside alias, tuple, `or`, and range
-  #|patterns count for validation. Names that appear only inside constructor,
-  #|array, record, map, constraint, or special-constructor patterns may still
-  #|participate in runtime matching, but they do not currently satisfy the
-  #|"declared metavar is used" validation by themselves.
+  #|```yaml
+  #|patterns:
+  #|  - shape: match input { $exp:item => item }
+  #|```
   #|
-  #|If a declared name appears only in positions that cannot bind, the rule is
-  #|invalid as an unused metavar.
+  #|Use `$id:name` for source-level names. It can bind simple variable targets,
+  #|binders, bare identifier expressions, simple variable patterns, and labels such
+  #|as method names, field names, labelled argument names, and record field labels.
   #|
   #|### Built-In Wildcards
   #|
@@ -226,21 +210,19 @@ let _embed_rulespec_md : String =
   #|The example above can match `pair(left, right)`.
   #|
   #|Only all-underscore names have this built-in behavior. A name such as `__x` is
-  #|literal unless it is declared as a normal metavar.
+  #|literal unless it uses inline syntax such as `$exp:__x`.
   #|
-  #|### `subtree`
+  #|### `$exp`
   #|
-  #|A `subtree` metavar captures the parsed syntax at its position. Repeating the
-  #|same `subtree` name requires later captures to have the same kind of syntactic
-  #|position and equal parsed structure, ignoring source locations.
+  #|An `$exp` metavar captures the parsed expression at its position. Repeating the
+  #|same `$exp` name requires later captures to have equal parsed expression
+  #|structure, ignoring source locations.
   #|
   #|Example:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: _expr == _expr
-  #|    metavars:
-  #|      subtree: [_expr]
+  #|  - shape: $exp:expr == $exp:expr
   #|```
   #|
   #|This can match examples such as:
@@ -258,36 +240,31 @@ let _embed_rulespec_md : String =
   #|make(value) == make(other)
   #|```
   #|
-  #|`subtree` is usually not the right choice when the same source-level name
-  #|appears in different syntactic roles, such as once as a binder and later as an
-  #|identifier expression. Use `identifier` for that.
+  #|`$exp` is not the right choice when the same source-level name appears in
+  #|different syntactic roles, such as once as a binder and later as an identifier
+  #|expression. Use `$id` for that.
   #|
-  #|Repeated `subtree` equality is currently guaranteed for common expression
-  #|forms, including identifiers, holes, constants, unit, infix expressions, calls,
-  #|method calls, field access, method references, constructor expressions,
-  #|grouped expressions, blocks, array literals, tuple literals, and `for`
-  #|expressions. Some expression and pattern forms can be matched once but are not
-  #|yet supported for repeated `subtree` equality. If a repeated `subtree` capture
-  #|uses an unsupported equality form, that match fails rather than producing a
-  #|hit.
+  #|Repeated `$exp` equality is currently guaranteed for common expression forms,
+  #|including identifiers, holes, constants, unit, infix expressions, calls, method
+  #|calls, field access, method references, constructor expressions, grouped
+  #|expressions, blocks, array literals, tuple literals, and `for` expressions.
+  #|Some expression forms can be matched once but are not yet supported for
+  #|repeated equality. If a repeated `$exp` capture uses an unsupported equality
+  #|form, that match fails rather than producing a hit.
   #|
-  #|### `identifier`
+  #|### `$id`
   #|
-  #|An `identifier` metavar captures a normalized source-level name. Repeating the
-  #|same `identifier` name requires every occurrence to normalize to the same
-  #|string.
+  #|An `$id` metavar captures a normalized source-level name. Repeating the same
+  #|`$id` name requires every occurrence to normalize to the same string.
   #|
   #|This is useful when a rule compares a binder with later uses:
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for counter = _start; counter < upper_limit; counter = counter + 1 {
-  #|        body
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
   #|      }
-  #|    metavars:
-  #|      subtree: [_start, upper_limit, body]
-  #|      identifier: [counter]
   #|```
   #|
   #|This can match:
@@ -310,44 +287,6 @@ let _embed_rulespec_md : String =
   #|binders, bare identifier expressions, simple variable patterns, and labels.
   #|Qualified names do not normalize to simple identifiers for this purpose.
   #|
-  #|### Auto Metavars
-  #|
-  #|The array shorthand declares auto metavars:
-  #|
-  #|```yaml
-  #|metavars: [value]
-  #|```
-  #|
-  #|An auto metavar chooses its mode from the first candidate it captures:
-  #|
-  #|- if the candidate can normalize as an identifier, it behaves like
-  #|  `identifier`
-  #|- otherwise it behaves like `subtree`
-  #|
-  #|Later occurrences must match the first chosen mode and value.
-  #|
-  #|Example:
-  #|
-  #|```yaml
-  #|patterns:
-  #|  - shape: value + value
-  #|    metavars: [value]
-  #|```
-  #|
-  #|This can match both:
-  #|
-  #|```moonbit
-  #|item + item
-  #|make() + make()
-  #|```
-  #|
-  #|It does not match mixed or unequal captures:
-  #|
-  #|```moonbit
-  #|item + make()
-  #|make() + other()
-  #|```
-  #|
   #|## Structural Rules
   #|
   #|A structural rule has a non-empty `patterns` array.
@@ -357,9 +296,7 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  Repeated equality.
   #|patterns:
-  #|  - shape: _expr == _expr
-  #|    metavars:
-  #|      subtree: [_expr]
+  #|  - shape: $exp:expr == $exp:expr
   #|```
   #|
   #|Structural rules are applied to expression subtrees collected from source
@@ -389,9 +326,7 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  Match a target call only inside wrapper(...).
   #|inside-expr:
-  #|  shape: wrapper(prefix, __TARGET__)
-  #|  metavars:
-  #|    subtree: [prefix]
+  #|  shape: wrapper($exp:prefix, __TARGET__)
   #|patterns:
   #|  - shape: target.call(prefix)
   #|```
@@ -405,11 +340,11 @@ let _embed_rulespec_md : String =
   #|- `__TARGET__` must occupy a whole expression position, such as a whole call
   #|  argument, receiver, or block expression. If it appears only as a label or
   #|  other non-expression value, no target subtree can be searched.
-  #|- `__TARGET__` must not be declared under `metavars`.
+  #|- `__TARGET__` is reserved and must not be used as an inline metavar name.
   #|- Entries in `patterns` must not contain `__TARGET__` in a binding-capable
   #|  position.
-  #|- Metavars declared by `inside-expr` remain visible when matching the inner
-  #|  `patterns`.
+  #|- Inline metavars declared by `inside-expr` remain visible when matching the
+  #|  inner `patterns`; inner shapes reference them with the plain payload name.
   #|- Inner `patterns` must not redeclare a metavar name that is already visible
   #|  from `inside-expr`.
   #|
@@ -437,8 +372,7 @@ let _embed_rulespec_md : String =
   #|
   #|Unknown keys inside `taint` are rejected.
   #|
-  #|Each array entry is a pattern object with `shape`, optional `metavars`, and no
-  #|supported `guard`.
+  #|Each array entry is a pattern object with `shape` and no supported `guard`.
   #|
   #|Example:
   #|
@@ -543,8 +477,8 @@ let _embed_rulespec_md : String =
   #|- the rules root contains no `.yaml` or `.yml` files
   #|- a rule file contains zero YAML documents or more than one YAML document
   #|- the top-level YAML document is not a mapping
-  #|- an unsupported key appears at the top level, inside `taint`, inside a pattern
-  #|  object, or inside a `metavars` mapping
+  #|- an unsupported key appears at the top level, inside `taint`, or inside a
+  #|  pattern object
   #|- a required key is missing
   #|- `id`, `description`, or `shape` is not a YAML string
   #|- `id` is empty or contains `/`
@@ -558,15 +492,12 @@ let _embed_rulespec_md : String =
   #|- `taint.sanitizers` is present but is not an array
   #|- a taint clause entry is not a mapping
   #|- `guard` appears in any pattern object
-  #|- `metavars` is neither a mapping nor an array
-  #|- a `metavars` mapping bucket is not an array
-  #|- a `metavars` mapping bucket contains a non-string entry
-  #|- `metavars` shorthand contains a non-string entry
-  #|- a metavar name is duplicated within a bucket or shorthand array
-  #|- a metavar name appears in both `subtree` and `identifier`
-  #|- a metavar declaration uses a reserved name
-  #|- a declared metavar never appears in a binding-capable position
+  #|- `metavars` appears in any pattern object
   #|- `shape` is not valid as one MoonBit expression
+  #|- a shape uses an unsupported inline metavar kind
+  #|- a shape uses the same inline metavar name as both `$exp` and `$id`
+  #|- an inline metavar uses a reserved name
+  #|- `$exp:name` appears outside a bare expression position
   #|- `inside-expr.shape` does not contain exactly one binding-capable
   #|  `__TARGET__`
   #|- a structural `patterns` entry contains binding-capable `__TARGET__`
@@ -588,12 +519,8 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  These helpers collect full child-process output before returning.
   #|patterns:
-  #|  - shape: _command.output_collect(_args)
-  #|    metavars:
-  #|      subtree: [_command, _args]
-  #|  - shape: _command.stderr_collect(_args)
-  #|    metavars:
-  #|      subtree: [_command, _args]
+  #|  - shape: $exp:command.output_collect($exp:args)
+  #|  - shape: $exp:command.stderr_collect($exp:args)
   #|```
   #|
   #|Both alternatives emit the same rule id and description. The reported pattern
@@ -604,19 +531,16 @@ let _embed_rulespec_md : String =
   #|```yaml
   #|id: counter-loop
   #|description: |
-  #|  Counter-style `for` loop.
+  #|  C-style `for` loop.
   #|patterns:
   #|  - shape: |
-  #|      for counter = _start; counter < upper_limit; counter = counter + 1 {
-  #|        body
+  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
+  #|        $exp:body
   #|      }
-  #|    metavars:
-  #|      subtree: [_start, upper_limit, body]
-  #|      identifier: [counter]
   #|```
   #|
   #|`counter` is compared by source-level name across binder, condition, and update
-  #|positions. `_start`, `upper_limit`, and `body` are structural captures.
+  #|positions. `start`, `limit`, and `body` are expression captures.
   #|
   #|### Context-Restricted Structural Match
   #|

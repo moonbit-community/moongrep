@@ -27,40 +27,28 @@ Placeholder priority in expression positions is:
    placeholders
 2. `target_metavar` and `source_metavar` bind a whole expression when present
    in `CompiledExprPattern`
-3. declared subtree metavars bind a whole syntactic value
+3. declared expression metavars bind a whole expression value
 4. declared identifier metavars bind a normalized identifier string
-5. auto metavars choose structural or identifier mode from the first match
-6. undeclared names are literal AST names
+5. undeclared names are literal AST names
 
-The same ignore/subtree/identifier/auto ordering is repeated for vars, binders,
-labels, and pattern variables, except `__TARGET__` and `__SOURCE__` are special
-only in whole expression positions. For example, undeclared `__x` is literal:
-only `__` or `___` are ignore placeholders by spelling alone.
+For vars, binders, labels, and pattern variables, only ignore placeholders and
+declared identifier metavars are special; everything else is literal.
+`__TARGET__` and `__SOURCE__` are special only in whole expression positions.
+For example, undeclared `__x` is literal: only `__` or `___` are ignore
+placeholders by spelling alone.
 
 ## Binding Kinds
 
-`BoundValue` tracks the syntactic position where a metavar was captured:
-`Expr`, `Var`, `Binder`, `Pattern`, `Label`, or `Identifier`.
+`BoundValue` stores either `Expr` for whole-expression captures or
+`Identifier` for normalized name captures.
 
-Subtree metavars capture the non-identifier value for their position. Repeated
-uses compare with `bound_value_equal`, so both the binding kind and the
-position-specific structural equality must match.
+Expression metavars capture the candidate expression at that position.
+Repeated uses compare the parsed expression structure, ignoring locations.
 
 Identifier metavars store `Identifier(String)`. Expr, var, and pattern values
 go through `rule/syntax_id` normalization where possible. Binder and label
 matching uses the candidate name directly because those nodes already carry the
 short name being compared.
-
-Auto metavars are deliberately first-match-wins:
-
-- if the first candidate can be normalized to an identifier, the binding is
-  `Identifier(name)`, and future candidates must normalize to the same name
-- otherwise the binding is structural, and future candidates must be equal to
-  the captured structural value
-
-This is why a repeated auto metavar can match `i` across a loop counter, and can
-also match `make() + make()`, but it rejects mixed identifier/expression pairs
-such as `item + make()` and `make() + item`.
 
 ## Equality Is Location-Insensitive but Not Complete
 
@@ -74,10 +62,9 @@ root matcher:
 - `expr_equal_ignoring_loc` supports common expression shapes such as
   identifiers, holes, constants, infix, calls, dot calls, fields, methods,
   constructors, arrays, tuples, groups, sequences, `for`, and `unit`
-- `pattern_equal` supports only a subset of pattern shapes
 
 If a new `match_expr` branch is added and that node can be captured by a
-repeated subtree metavar, update the relevant equality helper too. Otherwise a
+repeated expression metavar, update the relevant equality helper too. Otherwise a
 single occurrence may match while repeated occurrences fail even when the ASTs
 look identical.
 
@@ -122,8 +109,8 @@ Notable exactness details:
   internals are not compared
 
 There is no semantic normalization beyond the explicit identifier normalization
-used for identifier and auto metavars. For example, equivalent code with a
-different AST shape does not match unless a placeholder absorbs the difference.
+used for identifier metavars. For example, equivalent code with a different AST
+shape does not match unless a placeholder absorbs the difference.
 
 ## Integration Notes
 

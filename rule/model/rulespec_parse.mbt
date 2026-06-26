@@ -154,9 +154,7 @@ fn parse_rule_clause_map(
   path : String,
   clause_context : String,
 ) -> RulePatternSpec raise {
-  ensure_allowed_keys(path, clause_context, clause_map, [
-    "shape", "metavars", "guard",
-  ])
+  ensure_allowed_keys(path, clause_context, clause_map, ["shape", "guard"])
   if clause_map.contains("guard") {
     raise invalid_rule(
       path~,
@@ -164,119 +162,7 @@ fn parse_rule_clause_map(
     )
   }
   let shape = expect_yaml_string(clause_map, path, "shape")
-  let (subtree_metavars, identifier_metavars, auto_metavars) = expect_metavars(
-    clause_map, path, clause_context,
-  )
-  { shape, subtree_metavars, identifier_metavars, auto_metavars }
-}
-
-///|
-fn expect_metavars(
-  map : Map[String, @yaml.Yaml],
-  path : String,
-  clause_context : String,
-) -> (Array[String], Array[String], Array[String]) raise {
-  match map.get("metavars") {
-    Some(Map(meta_map)) => {
-      ensure_allowed_keys(path, "\{clause_context}.metavars", meta_map, [
-        "subtree", "identifier",
-      ])
-      let subtree = expect_metavar_bucket(
-        meta_map, path, clause_context, "subtree",
-      )
-      let identifier = expect_metavar_bucket(
-        meta_map, path, clause_context, "identifier",
-      )
-      ensure_metavar_buckets_disjoint(path, clause_context, subtree, identifier)
-      (subtree, identifier, [])
-    }
-    Some(Array(values)) =>
-      ([], [], expect_auto_metavars(values, path, clause_context))
-    Some(_) =>
-      raise invalid_rule(
-        path~,
-        info="\{clause_context}.metavars must be a mapping or array",
-      )
-    None => ([], [], [])
-  }
-}
-
-///|
-fn expect_auto_metavars(
-  values : Array[@yaml.Yaml],
-  path : String,
-  clause_context : String,
-) -> Array[String] raise {
-  let metavars : Array[String] = []
-  for index in 0..<values.length() {
-    guard values[index] is String(meta_name) else {
-      raise invalid_rule(
-        path~,
-        info="\{clause_context}.metavars[\{index}] must be a string",
-      )
-    }
-    if array_contains(metavars, meta_name) {
-      raise invalid_rule(
-        path~,
-        info="\{clause_context}.metavars contains duplicate metavar \{meta_name}",
-      )
-    }
-    metavars.push(meta_name)
-  }
-  metavars
-}
-
-///|
-fn expect_metavar_bucket(
-  map : Map[String, @yaml.Yaml],
-  path : String,
-  clause_context : String,
-  bucket : String,
-) -> Array[String] raise {
-  match map.get(bucket) {
-    None => []
-    Some(Array(values)) => {
-      let metavars : Array[String] = []
-      for index in 0..<values.length() {
-        guard values[index] is String(meta_name) else {
-          raise invalid_rule(
-            path~,
-            info="\{clause_context}.metavars.\{bucket}[\{index}] must be a string",
-          )
-        }
-        if array_contains(metavars, meta_name) {
-          raise invalid_rule(
-            path~,
-            info="\{clause_context}.metavars.\{bucket} contains duplicate metavar \{meta_name}",
-          )
-        }
-        metavars.push(meta_name)
-      }
-      metavars
-    }
-    Some(_) =>
-      raise invalid_rule(
-        path~,
-        info="\{clause_context}.metavars.\{bucket} must be an array",
-      )
-  }
-}
-
-///|
-fn ensure_metavar_buckets_disjoint(
-  path : String,
-  clause_context : String,
-  subtree : Array[String],
-  identifier : Array[String],
-) -> Unit raise {
-  for name in identifier {
-    if array_contains(subtree, name) {
-      raise invalid_rule(
-        path~,
-        info="\{clause_context}.metavars contains duplicate metavar \{name}",
-      )
-    }
-  }
+  { shape, }
 }
 
 ///|
