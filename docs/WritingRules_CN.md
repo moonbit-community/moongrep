@@ -32,7 +32,8 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - `shape` 应该是能捕获你想标记内容的最小表达式片段。
 - `patterns` 下的多个条目是有序备选项。对于一个表达式和一条规则，第一个匹配的 pattern 获胜，并决定 `pattern_index`。
 - 同一规则中的所有 pattern 共享相同的规则 id 和 `description`。
-- `guard` 键目前会在 runtime AST mode 中被拒绝。
+- 结构规则的 pattern object 可以使用 `guard`，在 shape 匹配后用正则过滤
+  `id` 和 `const` 捕获。
 - 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将 `__TARGET__` 捕获为表达式，则 `patterns` 会应用到该目标子树内的每个表达式。
 - `inside-expr` 声明的内联捕获对内部 `patterns` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 `patterns` 使用。
 - 内部 pattern 不能重新声明来自 `inside-expr` 的名称。
@@ -192,9 +193,24 @@ patterns:
 - 内部 `patterns` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
 - 内部 `patterns` 不能重新声明已经由 `inside-expr` 声明的名称；请使用普通 payload 名称引用外层捕获，例如 `prefix`
 
-### 4. 处理 shape matching 无法表达的逻辑
+### 4. 使用 `guard` 过滤 id 和 const
 
-当前 runtime AST matcher 不支持 YAML `guard` 表达式。如果一条规则需要额外逻辑，请先检查能否用更窄的 `shape`、`inside-expr`，或 `exp`、`id`、`const`、`pat` 元变量表达。否则，该行为需要 MoonBit 实现工作之后，才能表示为 YAML 规则。
+当 shape 正确，但某个 `id` 或 `const` 捕获还需要正则过滤时，使用 `guard`：
+
+```yaml
+patterns:
+  - shape: $(callee:id)($(value:const))
+    guard:
+      callee: "^@html\\.render$"
+      value: "danger|raw"
+```
+
+Guard 键是不带 `$` 的捕获名。值是正则字符串，使用包含匹配语义；如果需要整串
+匹配，请写 `^...$`。`id` guard 看到的是归一化名称，例如 `name` 或
+`@pkg.name`。`const` guard 看到的是 parser 常量值，例如 `"raw"` 对应 `raw`，
+`42` 对应 `42`，`true` 对应 `true`。
+
+Guard 不能过滤 `exp` 或 `pat` 捕获，taint 子句也不支持 `guard`。
 
 ### 5. 当消息共享时添加更多 `patterns`
 
@@ -300,7 +316,9 @@ patterns:
 
 ### 带 `guard` 的规则加载失败
 
-这是当前实现中的预期行为。规则子句内的任何 `guard` 键都会在 runtime AST mode 中被拒绝。
+请检查 `guard` 是否位于结构规则的 `patterns` 或 `inside-expr` 对象下，是否是
+映射，并且每个键都引用了该 pattern 可见的 `id` 或 `const` 捕获。taint 子句中
+仍然会拒绝 `guard`。
 
 ## 测试工作流
 

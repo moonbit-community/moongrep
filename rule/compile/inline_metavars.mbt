@@ -4,6 +4,7 @@ priv struct InlineMetavarShape {
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
+  pattern_metavars : Array[String]
 }
 
 ///|
@@ -27,6 +28,7 @@ fn compile_inline_metavar_shape(
     cleaned_expr_metavars,
     cleaned_identifier_metavars,
     cleaned_constant_metavars,
+    pattern_metavars,
   ) = cleanup_temporary_pattern_metavars(
     expr_metavars, identifier_metavars, constant_metavars,
   )
@@ -35,6 +37,7 @@ fn compile_inline_metavar_shape(
     expr_metavars: cleaned_expr_metavars,
     identifier_metavars: cleaned_identifier_metavars,
     constant_metavars: cleaned_constant_metavars,
+    pattern_metavars,
   }
 }
 
@@ -90,12 +93,15 @@ fn cleanup_temporary_pattern_metavars(
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
-) -> (Array[String], Array[String], Array[String]) {
+) -> (Array[String], Array[String], Array[String], Array[String]) {
   let pattern_metavars : Array[String] = []
   let cleaned_identifier_metavars : Array[String] = []
   for name in identifier_metavars {
     match parse_temporary_pattern_metavar_marker(name) {
-      Some(pattern_name) => pattern_metavars.push(pattern_name)
+      Some(pattern_name) =>
+        if !array_contains(pattern_metavars, pattern_name) {
+          pattern_metavars.push(pattern_name)
+        }
       None => cleaned_identifier_metavars.push(name)
     }
   }
@@ -103,6 +109,7 @@ fn cleanup_temporary_pattern_metavars(
     filter_out_temporary_pattern_metavars(expr_metavars, pattern_metavars),
     cleaned_identifier_metavars,
     filter_out_temporary_pattern_metavars(constant_metavars, pattern_metavars),
+    pattern_metavars,
   )
 }
 

@@ -68,16 +68,17 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ### Pattern Objects
 
-`patterns` 中的条目、`inside-expr` 以及 taint `sources`、`sinks` 和 `sanitizers` 中的条目使用相同的对象 schema。
+结构规则中的 `patterns` 条目和 `inside-expr` 使用以下对象 schema。
 
 只接受这些键：
 
 - `shape`（必需）：包含一个 MoonBit 表达式片段的 YAML 字符串
-- `guard`（保留）：目前在所有位置都会被拒绝
+- `guard`（可选）：从捕获名到正则字符串的 YAML 映射
 
 pattern object 中的未知键会被拒绝。
 
-`guard` 目前不受支持。任何 pattern object 中包含 `guard` 的规则都是无效规则。
+对于 taint `sources`、`sinks` 和 `sanitizers`，同样使用 `shape` 键，但
+`guard` 会被拒绝。
 
 ## Shapes
 
@@ -289,6 +290,31 @@ patterns:
 
 重复使用同一个 `pat` 名称时，捕获到的 pattern 必须结构相等。
 
+## Guard
+
+结构规则的 pattern object 可以包含可选的 `guard` 映射。guard 的键是不带
+`$` 的捕获名，值是正则字符串：
+
+```yaml
+patterns:
+  - shape: $(callee:id)($(value:const))
+    guard:
+      callee: "^@html\\.render$"
+      value: "danger|raw"
+```
+
+只有 `id` 和 `const` 捕获可以被 guard 过滤。guard 键如果引用 `exp` 捕获、
+`pat` 捕获或未知名称，会在规则编译时报错。内部 `patterns` 可以 guard 由
+`inside-expr` 建立的 `id` 和 `const` 捕获。
+
+Guard 会在结构 AST 匹配成功后检查。单个 pattern object 中的所有 guard 都必须
+匹配，即 AND 语义。正则使用包含匹配语义；如果需要整串匹配，请使用 `^...$`
+这样的锚点。
+
+对于 `id` 捕获，正则看到的是归一化后的标识符字符串，例如 `name` 或
+`@pkg.name`。对于 `const` 捕获，正则看到的是 parser 常量值：字符串常量不含引号，
+数字常量保留源码文本，布尔值为 `true` 或 `false`。
+
 ## 结构规则
 
 结构规则具有非空 `patterns` 数组。
@@ -342,6 +368,7 @@ patterns:
 运行时行为：
 
 - 当前表达式首先与 `inside-expr` 匹配
+- 如果存在 `inside-expr.guard`，它也必须匹配外层 pattern 建立的绑定
 - 如果匹配成功，会搜索由 `__TARGET__` 捕获的子树
 - 捕获子树中的每个表达式都会被 `patterns` 检查
 - 内部 pattern 匹配会带着 `inside-expr` 已建立的绑定开始
@@ -360,7 +387,8 @@ patterns:
 
 `taint` 内的未知键会被拒绝。
 
-每个数组条目都是 pattern object，包含 `shape`，且不支持 `guard`。
+每个数组条目都是包含 `shape` 的 pattern object；taint 子句中会拒绝
+`guard`。
 
 示例：
 
@@ -463,7 +491,8 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `taint.sources` 或 `taint.sinks` 缺失、不是数组或为空
 - `taint.sanitizers` 存在但不是数组
 - taint 子句条目不是映射
-- 任何 pattern object 中出现 `guard`
+- 结构规则的 `guard` 存在但不是映射，或 guard 值不是字符串
+- taint 子句中出现 `guard`
 - 任何 pattern object 中出现 `metavars`
 - `shape` 不是一个有效的 MoonBit 表达式
 - shape 使用不支持的内联元变量 kind
@@ -472,6 +501,8 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `$(name:exp)` 出现在裸表达式位置之外
 - `$(name:const)` 出现在常量表达式或常量 pattern 位置之外
 - `$(name:pat)` 出现在裸 pattern 位置之外
+- guard 键引用未知捕获、`exp` 捕获或 `pat` 捕获
+- guard 正则无效
 - `inside-expr.shape` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目重新声明了已经由 `inside-expr` 声明的名称
@@ -523,6 +554,22 @@ patterns:
 ```
 
 该规则首先寻找 `unsafe(...)`，然后只在 `__TARGET__` 捕获的表达式内搜索 `sink(...)`。
+
+### 带 Guard 的结构匹配
+
+```yaml
+id: guarded-render
+description: |
+  Raw-looking constants rendered through html.
+patterns:
+  - shape: $(callee:id)($(value:const))
+    guard:
+      callee: "^@html\\.render$"
+      value: "danger|raw"
+```
+
+shape 会捕获任意单参数且参数为常量的调用。guard 随后只保留归一化 callee 为
+`@html.render`，且常量值包含 `danger` 或 `raw` 的调用。
 
 ### Taint Source、Sink 和 Sanitizer
 

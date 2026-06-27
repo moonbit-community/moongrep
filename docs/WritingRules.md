@@ -54,7 +54,8 @@ bodies, and applies structural rules to those expression subtrees.
   expression and one rule, the first matching pattern wins and determines
   `pattern_index`.
 - All patterns in one rule share the same rule id and `description`.
-- `guard` keys are currently rejected in runtime AST mode.
+- Structural pattern objects may use `guard` to regex-filter `id` and `const`
+  captures after shape matching.
 - If `inside-expr` is present, it runs first on the current expression. If it
   captures `__TARGET__` as an expression, `patterns` are applied to every
   expression inside that target subtree.
@@ -268,13 +269,27 @@ Rules for `inside-expr`:
 - inner `patterns` must not redeclare names already declared by `inside-expr`;
   reference outer captures with their plain payload name, such as `prefix`
 
-### 4. Handle logic that shape matching cannot express
+### 4. Use `guard` for id and const filters
 
-YAML `guard` expressions are not supported by the current runtime AST matcher.
-If a rule needs extra logic, first check whether a narrower `shape`,
-`inside-expr`, or `exp`, `id`, `const`, or `pat` metavars can express it. Otherwise, the
-behavior needs MoonBit implementation work before it can be represented as a
-YAML rule.
+Use `guard` when the shape is right but an `id` or `const` capture needs a
+regex filter:
+
+```yaml
+patterns:
+  - shape: $(callee:id)($(value:const))
+    guard:
+      callee: "^@html\\.render$"
+      value: "danger|raw"
+```
+
+Guard keys are capture names without `$`. Values are regex strings with
+contains semantics; use `^...$` for whole-value matching. `id` guards see
+normalized names such as `name` or `@pkg.name`. `const` guards see parser
+constant values, such as `raw` for `"raw"`, `42` for `42`, and `true` for
+`true`.
+
+Guards cannot filter `exp` or `pat` captures, and taint clauses do not support
+`guard`.
 
 ### 5. Add more `patterns` when the message is shared
 
@@ -388,8 +403,9 @@ exact supported normalization cases in [RuleSpec.md](RuleSpec.md).
 
 ### A rule with `guard` fails to load
 
-That is expected in the current implementation. Any `guard` key inside a rule
-clause is rejected in runtime AST mode.
+Check that `guard` is under a structural `patterns` or `inside-expr` object,
+that it is a mapping, and that every key names an `id` or `const` capture
+visible to that pattern. `guard` is still rejected in taint clauses.
 
 ## Testing Workflow
 

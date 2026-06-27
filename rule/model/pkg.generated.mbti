@@ -4,6 +4,7 @@ package "moonbit-community/moongrep/rule/model"
 import {
   "moonbit-community/moongrep/matching",
   "moonbitlang/core/debug",
+  "moonbitlang/core/string",
   "moonbitlang/lexer/basic",
 }
 
@@ -27,9 +28,17 @@ pub(all) enum CompiledRuleDefinition {
   Taint(CompiledTaintRule)
 }
 
+pub(all) struct CompiledRuleGuard {
+  name : String
+  capture_kind : RuleGuardCaptureKind
+  regex_source : String
+  regex : @string.Regex
+}
+
 pub(all) struct CompiledRulePattern {
   source : RulePatternSpec
   compiled : @matching.CompiledExprPattern
+  guards : Array[CompiledRuleGuard]
 }
 
 pub(all) struct CompiledStructuralRule {
@@ -79,8 +88,14 @@ pub(all) struct RuleFinding {
   outer_loc : @basic.Location?
 }
 
+pub(all) enum RuleGuardCaptureKind {
+  IdentifierGuard
+  ConstantGuard
+}
+
 pub(all) struct RulePatternSpec {
   shape : String
+  guards : Map[String, String]
 }
 
 pub(all) struct RulePrefilter {

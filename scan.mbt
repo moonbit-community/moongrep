@@ -157,7 +157,10 @@ fn anonymous_pattern_rule(
     path: pattern,
     rule_id: pattern,
     description: "Anonymous CLI pattern.",
-    definition: Structural({ inside_expr: None, patterns: [{ shape: pattern }] }),
+    definition: Structural({
+      inside_expr: None,
+      patterns: [{ shape: pattern, guards: {} }],
+    }),
   }
 }
 

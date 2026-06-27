@@ -12,9 +12,11 @@ pub(all) suberror RuleLoadError {
 ///
 /// `shape` must be a valid MoonBit expression. Inline `$(name:exp)`,
 /// `$(name:id)`, `$(name:const)`, and `$(name:pat)` placeholders in the shape
-/// are discovered during compilation.
+/// are discovered during compilation. `guard`, when present, maps id or const
+/// capture names to regex strings.
 pub(all) struct RulePatternSpec {
   shape : String
+  guards : Map[String, String]
 }
 
 ///|
@@ -67,10 +69,28 @@ pub(all) struct RawRuleSpec {
 /// A parsed and compiled pattern clause.
 ///
 /// `source` preserves the user-facing YAML clause for diagnostics and metadata.
-/// `compiled` is the matcher-ready AST representation.
+/// `compiled` is the matcher-ready AST representation. `guards` are evaluated
+/// after structural matching succeeds.
 pub(all) struct CompiledRulePattern {
   source : RulePatternSpec
   compiled : @matching.CompiledExprPattern
+  guards : Array[CompiledRuleGuard]
+}
+
+///|
+/// The kind of bound value a compiled guard reads.
+pub(all) enum RuleGuardCaptureKind {
+  IdentifierGuard
+  ConstantGuard
+}
+
+///|
+/// A compiled regex filter for one id or const capture.
+pub(all) struct CompiledRuleGuard {
+  name : String
+  capture_kind : RuleGuardCaptureKind
+  regex_source : String
+  regex : Regex
 }
 
 ///|

@@ -110,6 +110,19 @@ $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/
 no match hits
 ```
 
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/guard testdata/guard
+testdata/guard/hit.mbt:2:3-2:22
+rule: guarded-render
+description:
+  Guarded render call.
+source:
+\x1b[90m1 | fn sample {\x1b[39m (escaped)
+2 |   @html.render("raw")
+\x1b[90m3 |   @html.render("safe")\x1b[39m (escaped)
+\x1b[90m4 |   render("raw")\x1b[39m (escaped)
+```
+
 ## Rendering
 
 ```mooncram

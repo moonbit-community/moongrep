@@ -1,6 +1,7 @@
 ///|
 using @model {
   type CompiledRule,
+  type CompiledRuleGuard,
   type CompiledRulePattern,
   type CompiledStructuralRule,
   type CompiledTaintRule,
@@ -149,8 +150,7 @@ fn apply_structural_rule_to_expr(
         hits,
       )
     Some(inside) =>
-      if @matching.match_expr_pattern(inside.compiled, expr)
-        is Some(outer_match) {
+      if match_rule_pattern(inside, expr, None) is Some(outer_match) {
         match outer_match.bindings.get("__TARGET__") {
           Some(Expr(target)) => {
             // The context rule can bind a larger expression than the final
@@ -187,17 +187,7 @@ fn apply_patterns_at_expr(
   hits : Array[RuleFinding],
 ) -> Unit {
   for index in 0..<patterns.length() {
-    let matched = if initial_bindings is Some(bindings) {
-      @matching.match_expr_pattern_with_bindings(
-        patterns[index].compiled,
-        expr,
-        bindings,
-      )
-      is Some(_)
-    } else {
-      @matching.match_expr_pattern(patterns[index].compiled, expr) is Some(_)
-    }
-    if matched {
+    if match_rule_pattern(patterns[index], expr, initial_bindings) is Some(_) {
       hits.push({
         file,
         rule_id: rule.rule_id,
@@ -208,5 +198,74 @@ fn apply_patterns_at_expr(
       })
       return
     }
+  }
+}
+
+///|
+fn match_rule_pattern(
+  pattern : CompiledRulePattern,
+  expr : @syntax.Expr,
+  initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
+) -> @matching.ExprMatch? {
+  let matched = if initial_bindings is Some(bindings) {
+    @matching.match_expr_pattern_with_bindings(pattern.compiled, expr, bindings)
+  } else {
+    @matching.match_expr_pattern(pattern.compiled, expr)
+  }
+  match matched {
+    Some(result) =>
+      if guards_match(pattern.guards, result.bindings) {
+        Some(result)
+      } else {
+        None
+      }
+    None => None
+  }
+}
+
+///|
+fn guards_match(
+  guards : Array[CompiledRuleGuard],
+  bindings : @hashmap.HashMap[String, @matching.BoundValue],
+) -> Bool {
+  for guard_entry in guards {
+    match guard_entry.capture_kind {
+      @model.RuleGuardCaptureKind::IdentifierGuard =>
+        match bindings.get(guard_entry.name) {
+          Some(Identifier(value)) =>
+            if guard_entry.regex.execute(value) is None {
+              return false
+            }
+          _ => return false
+        }
+      @model.RuleGuardCaptureKind::ConstantGuard =>
+        match bindings.get(guard_entry.name) {
+          Some(Constant(value)) =>
+            if guard_entry.regex.execute(constant_guard_value(value)) is None {
+              return false
+            }
+          _ => return false
+        }
+    }
+  }
+  true
+}
+
+///|
+fn constant_guard_value(constant : @syntax.Constant) -> String {
+  match constant {
+    BigInt(value)
+    | Byte(value)
+    | Bytes(value)
+    | Char(value)
+    | Double(value)
+    | Float(value)
+    | Int(value)
+    | Int64(value)
+    | Regex(value)
+    | String(value)
+    | UInt(value)
+    | UInt64(value) => value
+    Bool(value) => value.to_string()
   }
 }
