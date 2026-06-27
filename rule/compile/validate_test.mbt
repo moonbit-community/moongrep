@@ -70,7 +70,7 @@ test "validate accepts inline pattern metavars" {
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      inspect(rule.patterns.length(), content="1")
+      assert_eq(rule.patterns.length(), 1)
       debug_inspect(
         rule.patterns[0].compiled.expr_metavars,
         content="[\"body\"]",
@@ -388,7 +388,7 @@ test "validate compiles taint source target metadata" {
   let rules = compile_one(source)
   match rules[0].definition {
     Taint(rule) => {
-      inspect(rule.sinks.length(), content="2")
+      assert_eq(rule.sinks.length(), 2)
       assert_true(rule.sinks[0].target is PositionalArg(0))
       assert_true(rule.sinks[1].target is Receiver)
     }
@@ -466,7 +466,7 @@ test "validate allows inner guard to reference inside expr id and const captures
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      inspect(rule.patterns[0].guards.length(), content="2")
+      assert_eq(rule.patterns[0].guards.length(), 2)
       debug_inspect(
         rule.patterns[0].compiled.identifier_metavars,
         content="[\"name\"]",

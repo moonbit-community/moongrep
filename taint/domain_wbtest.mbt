@@ -57,10 +57,7 @@ test "domain kill removes exact subtree only" {
     )
     |> state_write_path(test_path("x", [Field("b")]), single_tree("b"))
   let killed = state_kill_path(state, test_path("x", [Field("a")]))
-  inspect(
-    state_read_path(killed, test_path("x", [Field("a")])).length(),
-    content="0",
-  )
+  assert_eq(state_read_path(killed, test_path("x", [Field("a")])).length(), 0)
   debug_inspect(
     origin_ids(state_read_path(killed, test_path("x", [Field("b")]))),
     content="[\"b\"]",

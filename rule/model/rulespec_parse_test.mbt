@@ -48,9 +48,9 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
   inspect(rule.description, content="Repeated equality.\n")
   match rule.definition {
     Structural(spec) => {
-      inspect(spec.patterns.length(), content="1")
+      assert_eq(spec.patterns.length(), 1)
       inspect(spec.patterns[0].shape, content="$(_expr:exp) == $(_expr:exp)")
-      inspect(spec.patterns[0].guards.length(), content="0")
+      assert_eq(spec.patterns[0].guards.length(), 0)
       assert_true(spec.inside_expr is None)
     }
     Taint(_) => fail("expected structural rule")
@@ -121,9 +121,9 @@ test "model parses taint rule and defaults sanitizers to empty" {
   )
   match rule.definition {
     Taint(spec) => {
-      inspect(spec.sources.length(), content="1")
-      inspect(spec.sinks.length(), content="1")
-      inspect(spec.sanitizers.length(), content="0")
+      assert_eq(spec.sources.length(), 1)
+      assert_eq(spec.sinks.length(), 1)
+      assert_eq(spec.sanitizers.length(), 0)
     }
     Structural(_) => fail("expected taint rule")
   }

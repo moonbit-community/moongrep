@@ -53,7 +53,7 @@ test "taint engine reports entry parameter source reaching sink argument" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
   inspect(result.findings[0].sink_id, content="sink:0")
   inspect(result.findings[0].origins[0].origin_id, content="entry:input")
 }
@@ -75,7 +75,7 @@ test "taint engine sanitizer kills argument path before later sink" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="0")
+  assert_eq(result.findings.length(), 0)
 }
 
 ///|
@@ -97,7 +97,7 @@ test "taint engine reports tainted receiver reaching method sink" {
       },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
   inspect(result.findings[0].sink_id, content="sink:receiver")
 }
 
@@ -117,7 +117,7 @@ test "taint engine analyzes impl method bodies" {
     ]),
   )
   inspect(result.function_name, content="output")
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -156,7 +156,7 @@ test "taint engine keeps field paths precise" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
   inspect(result.findings[0].origins[0].origin_id, content="entry:secret")
 }
 
@@ -177,7 +177,7 @@ test "taint engine projects tuple element taint through let binding" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -197,7 +197,7 @@ test "taint engine joins branch states before following sink" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -216,7 +216,7 @@ test "taint engine does not continue sequence after return" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="0")
+  assert_eq(result.findings.length(), 0)
 }
 
 ///|
@@ -234,7 +234,7 @@ test "taint engine propagates unknown call argument taint to return by default" 
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -256,7 +256,7 @@ test "taint engine can disable unknown call return propagation" {
       unknown_call_policy=NoEffect,
     ),
   )
-  inspect(result.findings.length(), content="0")
+  assert_eq(result.findings.length(), 0)
 }
 
 ///|
@@ -274,7 +274,7 @@ test "taint engine treats reverse pipe as argument zero" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -295,7 +295,7 @@ test "taint engine analyzes normal match cases after early-return cases" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -317,7 +317,7 @@ test "taint engine binds raised value in catch pattern" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
 }
 
 ///|
@@ -335,5 +335,5 @@ test "taint engine does not execute call transfer after argument return" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
-  inspect(result.findings.length(), content="0")
+  assert_eq(result.findings.length(), 0)
 }

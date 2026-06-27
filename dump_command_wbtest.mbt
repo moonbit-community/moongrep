@@ -17,7 +17,7 @@ test "dump expr renders parser json" {
 ///|
 test "dump impl rejects empty source" {
   try render_dump_impl_json("") catch {
-    CliError::Usage(exit_code~, ..) => inspect(exit_code, content="1")
+    CliError::Usage(exit_code~, ..) => assert_eq(exit_code, 1)
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected dump parse error")
