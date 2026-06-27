@@ -45,8 +45,8 @@ test "traverse counts foreach init continue and where clause expressions" {
     label=None,
     loc=test_loc(),
   )
-  inspect(count_supported_name_in_expr(expr, "__TARGET__"), content="3")
+  assert_eq(count_supported_name_in_expr(expr, "__TARGET__"), 3)
   let collected : Array[@syntax.Expr] = []
   collect_exprs(expr, collected)
-  inspect(collected.length(), content="6")
+  assert_eq(collected.length(), 6)
 }

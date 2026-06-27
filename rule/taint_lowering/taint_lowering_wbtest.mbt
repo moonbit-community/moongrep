@@ -52,7 +52,7 @@ test "taint lowering preserves internal source and sink ids" {
     parse_single_taint_impl(source),
     lower_compiled_taint_rule(rule, taint_rule),
   )
-  inspect(result.findings.length(), content="1")
+  assert_eq(result.findings.length(), 1)
   inspect(result.findings[0].sink_id, content="sink:0")
   inspect(result.findings[0].origins[0].origin_id, content="source:0")
 }

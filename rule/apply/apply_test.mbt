@@ -40,9 +40,9 @@ test "apply structural rule matches repeated subtree once" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
-  inspect(hits[0].pattern_index, content="0")
+  assert_eq(hits[0].pattern_index, 0)
 }
 
 ///|
@@ -65,7 +65,7 @@ test "apply structural rule supports inline expression metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -92,7 +92,7 @@ test "apply structural rule supports inline identifier metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -116,7 +116,7 @@ test "apply structural rule supports qualified inline identifier metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -141,7 +141,7 @@ test "apply structural rule supports constructor identity metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -166,7 +166,7 @@ test "apply structural rule supports inline constant metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -192,7 +192,7 @@ test "apply structural id guard filters matches" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -221,7 +221,7 @@ test "apply structural const guard filters strings numbers and bools" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="3")
+  assert_eq(hits.length(), 3)
 }
 
 ///|
@@ -248,7 +248,7 @@ test "apply structural multiple guards use and semantics" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
 }
 
 ///|
@@ -278,7 +278,7 @@ test "apply inside expr and inner guards filter inherited bindings" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
@@ -302,7 +302,7 @@ test "apply structural rule supports inline pattern metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -327,9 +327,9 @@ test "apply structural rule treats patterns as ordered alternatives" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="2")
-  inspect(hits[0].pattern_index, content="0")
-  inspect(hits[1].pattern_index, content="1")
+  assert_eq(hits.length(), 2)
+  assert_eq(hits[0].pattern_index, 0)
+  assert_eq(hits[1].pattern_index, 1)
 }
 
 ///|
@@ -354,7 +354,7 @@ test "apply structural rule supports inside expr inherited bindings" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
@@ -380,7 +380,7 @@ test "apply structural rule inherits inside expr identifier bindings" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
@@ -408,7 +408,7 @@ test "inside expr traverses guard target children" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
@@ -433,7 +433,7 @@ test "inside expr traverses reverse pipe target children" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
@@ -458,7 +458,7 @@ test "inside expr traverses list comprehension target children" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
@@ -479,7 +479,7 @@ test "apply structural rule visits top let definitions" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
 }
 
 ///|
@@ -506,7 +506,7 @@ test "apply taint rule supports inline constant metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
@@ -529,7 +529,7 @@ test "apply structural rule matches let pattern header with omitted body" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
 }
 
 ///|
@@ -555,9 +555,9 @@ test "apply taint rule reports source reaching sink" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
-  inspect(hits[0].pattern_index, content="0")
+  assert_eq(hits[0].pattern_index, 0)
 }
 
 ///|
@@ -585,9 +585,9 @@ test "apply taint rule supports inline identifier metavars" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="1")
+  assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
-  inspect(hits[0].pattern_index, content="0")
+  assert_eq(hits[0].pattern_index, 0)
 }
 
 ///|
@@ -614,7 +614,7 @@ test "apply taint rule sanitizer suppresses nested source sink" {
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="0")
+  assert_eq(hits.length(), 0)
 }
 
 ///|
@@ -644,8 +644,8 @@ test "apply taint rule reports receiver and root call targets with sink indexes"
     parse_impls(source),
     compile_rule_source(rule_source),
   )
-  inspect(hits.length(), content="3")
-  inspect(hits[0].pattern_index, content="0")
-  inspect(hits[1].pattern_index, content="1")
-  inspect(hits[2].pattern_index, content="2")
+  assert_eq(hits.length(), 3)
+  assert_eq(hits[0].pattern_index, 0)
+  assert_eq(hits[1].pattern_index, 1)
+  assert_eq(hits[2].pattern_index, 2)
 }

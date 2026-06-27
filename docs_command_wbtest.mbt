@@ -19,7 +19,7 @@ test "docs show returns matching document body" {
 ///|
 test "docs show rejects unknown document name" {
   try render_doc_body("MissingDoc") catch {
-    CliError::Usage(exit_code~, ..) => inspect(exit_code, content="2")
+    CliError::Usage(exit_code~, ..) => assert_eq(exit_code, 2)
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected docs usage error")
