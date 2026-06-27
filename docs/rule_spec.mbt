@@ -131,27 +131,27 @@ let _embed_rulespec_md : String =
   #|
   #|### Syntax
   #|
-  #|Use `$exp:name` for an expression structural capture:
+  #|Use `$(name:exp)` for an expression structural capture:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: $exp:left == $exp:left
+  #|  - shape: $(left:exp) == $(left:exp)
   #|```
   #|
-  #|Use `$id:name` for a normalized identifier capture:
+  #|Use `$(name:id)` for a normalized identifier capture:
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-  #|        $exp:body
+  #|      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+  #|        $(body:exp)
   #|      }
   #|```
   #|
-  #|Only `exp`, `id`, and `const` are supported. A shape containing `$pat:x` or
-  #|any other kind is invalid. A name may be repeated within one kind, but using
-  #|the same payload across `$exp:name`, `$id:name`, and `$const:name` in one shape
-  #|is invalid.
+  #|Only `exp`, `id`, `const`, and `pat` are supported. A name may be repeated
+  #|within one kind, but using the same payload across multiple kinds such as
+  #|`$(name:exp)`, `$(name:id)`, `$(name:const)`, and `$(name:pat)` in one shape is
+  #|invalid.
   #|
   #|The old YAML `metavars` key is not supported. Pattern objects that contain it
   #|are rejected as using an unsupported key.
@@ -171,29 +171,37 @@ let _embed_rulespec_md : String =
   #|
   #|### Where Metavars Can Bind
   #|
-  #|`$exp:name` is valid only as a whole bare identifier expression. It captures the
+  #|`$(name:exp)` is valid only as a whole bare identifier expression. It captures the
   #|candidate expression at that position. This is valid:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: sink($exp:value)
+  #|  - shape: sink($(value:exp))
   #|```
   #|
   #|This is invalid because a pattern binder is not an expression position:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: match input { $exp:item => item }
+  #|  - shape: match input { $(item:exp) => item }
   #|```
   #|
-  #|Use `$id:name` for source-level names. It can bind simple variable targets,
+  #|Use `$(name:id)` for source-level names. It can bind simple variable targets,
   #|binders, bare identifier expressions, qualified function names, constructor
   #|identities, simple variable patterns, and labels such as method names, field
   #|names, labelled argument names, and record field labels.
   #|
-  #|Use `$const:name` for literal constants. It is valid only as a whole bare
+  #|Use `$(name:const)` for literal constants. It is valid only as a whole bare
   #|identifier expression or as a simple pattern variable position, and it matches
   #|only parsed MoonBit constants. 
+  #|
+  #|Use `$(name:pat)` for a whole pattern AST capture. It is valid only as a simple
+  #|pattern variable position:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: match input { $(item:pat) => item }
+  #|```
   #|
   #|### Built-In Wildcards
   #|
@@ -216,19 +224,19 @@ let _embed_rulespec_md : String =
   #|The example above can match `pair(left, right)`.
   #|
   #|Only all-underscore names have this built-in behavior. A name such as `__x` is
-  #|literal unless it uses inline syntax such as `$exp:__x`.
+  #|literal unless it uses inline syntax such as `$(__x:exp)`.
   #|
-  #|### `$exp`
+  #|### `exp`
   #|
-  #|An `$exp` metavar captures the parsed expression at its position. Repeating the
-  #|same `$exp` name requires later captures to have equal parsed expression
+  #|An `exp` metavar captures the parsed expression at its position. Repeating the
+  #|same `exp` name requires later captures to have equal parsed expression
   #|structure, ignoring source locations.
   #|
   #|Example:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: $exp:expr == $exp:expr
+  #|  - shape: $(expr:exp) == $(expr:exp)
   #|```
   #|
   #|This can match examples such as:
@@ -246,30 +254,30 @@ let _embed_rulespec_md : String =
   #|make(value) == make(other)
   #|```
   #|
-  #|`$exp` is not the right choice when the same source-level name appears in
+  #|`exp` is not the right choice when the same source-level name appears in
   #|different syntactic roles, such as once as a binder and later as an identifier
-  #|expression. Use `$id` for that.
+  #|expression. Use `id` for that.
   #|
-  #|Repeated `$exp` equality is currently guaranteed for common expression forms,
+  #|Repeated `exp` equality is currently guaranteed for common expression forms,
   #|including identifiers, holes, constants, unit, infix expressions, calls, method
   #|calls, field access, method references, constructor expressions, grouped
   #|expressions, blocks, array literals, tuple literals, and `for` expressions.
   #|Some expression forms can be matched once but are not yet supported for
-  #|repeated equality. If a repeated `$exp` capture uses an unsupported equality
+  #|repeated equality. If a repeated `exp` capture uses an unsupported equality
   #|form, that match fails rather than producing a hit.
   #|
-  #|### `$id`
+  #|### `id`
   #|
-  #|An `$id` metavar captures a normalized source-level name. Repeating the same
-  #|`$id` name requires every occurrence to normalize to the same string.
+  #|An `id` metavar captures a normalized source-level name. Repeating the same
+  #|`id` name requires every occurrence to normalize to the same string.
   #|
   #|This is useful when a rule compares a binder with later uses:
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-  #|        $exp:body
+  #|      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+  #|        $(body:exp)
   #|      }
   #|```
   #|
@@ -295,9 +303,9 @@ let _embed_rulespec_md : String =
   #|Qualified constructor identities include their extra info, such as `@pkg.Ctor`,
   #|`Type::Ctor`, `@pkg.Type::Ctor`, or `@pkg.Type::@other.Ctor`.
   #|
-  #|### `$const`
+  #|### `const`
   #|
-  #|A `$const` metavar captures a parsed MoonBit constant. In expression position,
+  #|A `const` metavar captures a parsed MoonBit constant. In expression position,
   #|it matches `Expr::Constant`; in pattern position, it matches `Pattern::Constant`.
   #|It compares the parser AST constant kind and value only; it does not type-check
   #|or normalize equivalent values.
@@ -306,7 +314,7 @@ let _embed_rulespec_md : String =
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: $const:value + $const:value
+  #|  - shape: $(value:const) + $(value:const)
   #|```
   #|
   #|This can match:
@@ -327,8 +335,23 @@ let _embed_rulespec_md : String =
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: match input { $const:lit => lit }
+  #|  - shape: match input { $(lit:const) => lit }
   #|```
+  #|
+  #|### `pat`
+  #|
+  #|A `pat` metavar captures the whole candidate `Pattern` AST. It is valid only in
+  #|a simple pattern variable position.
+  #|
+  #|Example:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: match input { $(item:pat) => body }
+  #|```
+  #|
+  #|Repeating the same `pat` name requires the captured patterns to be structurally
+  #|equal.
   #|
   #|The inner body references the outer constant capture with the plain payload
   #|name, `lit`.
@@ -342,7 +365,7 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  Repeated equality.
   #|patterns:
-  #|  - shape: $exp:expr == $exp:expr
+  #|  - shape: $(expr:exp) == $(expr:exp)
   #|```
   #|
   #|Structural rules are applied to expression subtrees collected from source
@@ -372,7 +395,7 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  Match a target call only inside wrapper(...).
   #|inside-expr:
-  #|  shape: wrapper($exp:prefix, __TARGET__)
+  #|  shape: wrapper($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: target.call(prefix)
   #|```
@@ -543,8 +566,9 @@ let _embed_rulespec_md : String =
   #|- a shape uses an unsupported inline metavar kind
   #|- a shape uses the same inline metavar name across multiple metavar kinds
   #|- an inline metavar uses a reserved name
-  #|- `$exp:name` appears outside a bare expression position
-  #|- `$const:name` appears outside a constant expression or constant pattern position
+  #|- `$(name:exp)` appears outside a bare expression position
+  #|- `$(name:const)` appears outside a constant expression or constant pattern position
+  #|- `$(name:pat)` appears outside a bare pattern position
   #|- `inside-expr.shape` does not contain exactly one binding-capable
   #|  `__TARGET__`
   #|- a structural `patterns` entry contains binding-capable `__TARGET__`
@@ -566,8 +590,8 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  These helpers collect full child-process output before returning.
   #|patterns:
-  #|  - shape: $exp:command.output_collect($exp:args)
-  #|  - shape: $exp:command.stderr_collect($exp:args)
+  #|  - shape: $(command:exp).output_collect($(args:exp))
+  #|  - shape: $(command:exp).stderr_collect($(args:exp))
   #|```
   #|
   #|Both alternatives emit the same rule id and description. The reported pattern
@@ -581,8 +605,8 @@ let _embed_rulespec_md : String =
   #|  C-style `for` loop.
   #|patterns:
   #|  - shape: |
-  #|      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-  #|        $exp:body
+  #|      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+  #|        $(body:exp)
   #|      }
   #|```
   #|

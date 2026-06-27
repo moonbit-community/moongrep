@@ -27,7 +27,7 @@ test "apply structural rule matches repeated subtree once" {
     #|description: |
     #|  Repeated equality.
     #|patterns:
-    #|  - shape: $exp:_expr == $exp:_expr
+    #|  - shape: $(_expr:exp) == $(_expr:exp)
     #|
   let source =
     #|fn sample {
@@ -52,7 +52,7 @@ test "apply structural rule supports inline expression metavars" {
     #|description: |
     #|  Repeated call value.
     #|patterns:
-    #|  - shape: $exp:value + $exp:value
+    #|  - shape: $(value:exp) + $(value:exp)
     #|
   let source =
     #|fn sample {
@@ -77,8 +77,8 @@ test "apply structural rule supports inline identifier metavars" {
     #|  Consistent loop counter.
     #|patterns:
     #|  - shape: |
-    #|      for $id:counter = 0; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-    #|        $exp:body
+    #|      for $(counter:id) = 0; $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+    #|        $(body:exp)
     #|      }
     #|
   let source =
@@ -103,7 +103,7 @@ test "apply structural rule supports qualified inline identifier metavars" {
     #|description: |
     #|  Qualified callee.
     #|patterns:
-    #|  - shape: $id:callee($id:callee)
+    #|  - shape: $(callee:id)($(callee:id))
     #|
   let source =
     #|fn sample {
@@ -127,7 +127,7 @@ test "apply structural rule supports constructor identity metavars" {
     #|description: |
     #|  Constructor identity.
     #|patterns:
-    #|  - shape: $id:Ctor($id:Ctor)
+    #|  - shape: $(Ctor:id)($(Ctor:id))
     #|
   let source =
     #|fn sample {
@@ -152,7 +152,7 @@ test "apply structural rule supports inline constant metavars" {
     #|description: |
     #|  Repeated constant value.
     #|patterns:
-    #|  - shape: $const:value + $const:value
+    #|  - shape: $(value:const) + $(value:const)
     #|
   let source =
     #|fn sample {
@@ -177,7 +177,7 @@ test "apply structural rule supports inline pattern metavars" {
     #|description: |
     #|  Repeated pattern shape.
     #|patterns:
-    #|  - shape: match $exp:value { ($pat:item, $pat:item) => $exp:body }
+    #|  - shape: match $(value:exp) { ($(item:pat), $(item:pat)) => $(body:exp) }
     #|
   let source =
     #|fn sample {
@@ -227,7 +227,7 @@ test "apply structural rule supports inside expr inherited bindings" {
     #|description: |
     #|  Wrapped target call.
     #|inside-expr:
-    #|  shape: wrapper($exp:prefix, __TARGET__)
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
     #|  - shape: target.call(prefix)
     #|
@@ -253,7 +253,7 @@ test "apply structural rule inherits inside expr identifier bindings" {
     #|description: |
     #|  Wrapped target call.
     #|inside-expr:
-    #|  shape: wrapper($id:prefix, __TARGET__)
+    #|  shape: wrapper($(prefix:id), __TARGET__)
     #|patterns:
     #|  - shape: target.call(prefix)
     #|
@@ -380,7 +380,7 @@ test "apply taint rule supports inline constant metavars" {
     #|  sources:
     #|    - shape: get_user_input()
     #|  sinks:
-    #|    - shape: sink($const:tag, __SOURCE__)
+    #|    - shape: sink($(tag:const), __SOURCE__)
     #|
   let source =
     #|fn sample {
@@ -456,9 +456,9 @@ test "apply taint rule supports inline identifier metavars" {
     #|  Repeated tagged source reaches matching sink.
     #|taint:
     #|  sources:
-    #|    - shape: tagged_source($id:tag, $id:tag)
+    #|    - shape: tagged_source($(tag:id), $(tag:id))
     #|  sinks:
-    #|    - shape: tagged_sink($id:tag, $id:tag, __SOURCE__)
+    #|    - shape: tagged_sink($(tag:id), $(tag:id), __SOURCE__)
     #|
   let source =
     #|fn sample {

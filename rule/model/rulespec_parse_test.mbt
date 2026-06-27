@@ -5,7 +5,7 @@ fn valid_structural_rule_source() -> String {
     #|description: |
     #|  Repeated equality.
     #|patterns:
-    #|  - shape: $exp:_expr == $exp:_expr
+    #|  - shape: $(_expr:exp) == $(_expr:exp)
     #|
   source
 }
@@ -49,7 +49,7 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
   match rule.definition {
     Structural(spec) => {
       inspect(spec.patterns.length(), content="1")
-      inspect(spec.patterns[0].shape, content="$exp:_expr == $exp:_expr")
+      inspect(spec.patterns[0].shape, content="$(_expr:exp) == $(_expr:exp)")
       assert_true(spec.inside_expr is None)
     }
     Taint(_) => fail("expected structural rule")
@@ -63,14 +63,14 @@ test "model preserves inline metavar shape text" {
     #|description: |
     #|  Inline metavars.
     #|patterns:
-    #|  - shape: $id:counter + $exp:body
+    #|  - shape: $(counter:id) + $(body:exp)
     #|
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
     Structural(spec) =>
-      inspect(spec.patterns[0].shape, content="$id:counter + $exp:body")
+      inspect(spec.patterns[0].shape, content="$(counter:id) + $(body:exp)")
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -206,7 +206,7 @@ test "model rejects yaml metavars key" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $exp:x == $exp:x
+    #|  - shape: $(x:exp) == $(x:exp)
     #|    metavars: [x]
     #|
   expect_invalid_rule_info(

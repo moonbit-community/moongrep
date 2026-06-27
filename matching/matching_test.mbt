@@ -264,7 +264,7 @@ test "constant metavar matches only constant patterns" {
 ///|
 test "pattern metavar captures whole pattern AST" {
   let compiled : CompiledExprPattern = {
-    ast: test_match_pattern(test_pattern_var("$pat:item")),
+    ast: test_match_pattern(test_pattern_var("$(item:pat)")),
     expr_metavars: ["input", "body"],
     identifier_metavars: [],
     constant_metavars: [],
@@ -291,8 +291,8 @@ test "pattern metavar requires repeated pattern equality" {
   let compiled : CompiledExprPattern = {
     ast: test_match_pattern(
       test_pattern_tuple([
-        test_pattern_var("$pat:item"),
-        test_pattern_var("$pat:item"),
+        test_pattern_var("$(item:pat)"),
+        test_pattern_var("$(item:pat)"),
       ]),
     ),
     expr_metavars: ["input", "body"],

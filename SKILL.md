@@ -38,8 +38,8 @@ Pass `--verbose` to print the directory traversal progress before warnings and
 match results.
 
 Each match result prints the source line covered by the finding plus up to two
-lines of surrounding source context. Extra surrounding lines are rendered in
-gray, and source line-number prefixes are rendered in gray.
+lines of surrounding source context. Surrounding context lines are rendered in
+gray; matched source lines are rendered without gray styling.
 
 If `scan-root` is omitted, `moongrep` scans the current directory:
 

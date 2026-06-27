@@ -27,7 +27,7 @@
 5. 声明过的 constant metavar 只绑定 `Expr::Constant`
 6. 未声明的名字是字面 AST 名称
 
-对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$pat:<name>` 会绑定整个候选 `Pattern` AST，声明过的 constant metavar 只匹配
+对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$(name:pat)` 会绑定整个候选 `Pattern` AST，声明过的 constant metavar 只匹配
 `Pattern::Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
 `__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
 `__x` 是字面量：只有 `__` 或 `___` 这种拼写本身才是忽略占位符。

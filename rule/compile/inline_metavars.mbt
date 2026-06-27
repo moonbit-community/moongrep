@@ -23,20 +23,101 @@ fn compile_inline_metavar_shape(
     identifier_metavars,
     constant_metavars,
   )
-  { ast, expr_metavars, identifier_metavars, constant_metavars }
+  let (
+    cleaned_expr_metavars,
+    cleaned_identifier_metavars,
+    cleaned_constant_metavars,
+  ) = cleanup_temporary_pattern_metavars(
+    expr_metavars, identifier_metavars, constant_metavars,
+  )
+  {
+    ast,
+    expr_metavars: cleaned_expr_metavars,
+    identifier_metavars: cleaned_identifier_metavars,
+    constant_metavars: cleaned_constant_metavars,
+  }
 }
 
 ///|
-fn parse_inline_metavar(raw : String) -> (String, String)? {
+fn parse_inline_metavar(
+  raw : String,
+  path : String,
+  context : String,
+) -> (String, String)? raise {
   if !raw.has_prefix("$") {
     return None
   }
-  for index in 1..<raw.length() {
+  if !raw.has_prefix("$(") || !raw.has_suffix(")") {
+    let name = if raw.length() > 1 { raw[1:].to_owned() } else { "value" }
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.shape uses untyped inline metavar \{raw}; use explicit typed syntax like $(\{name}:exp)",
+    )
+  }
+  let end = raw.length() - 1
+  for index in 2..<end {
     if raw[index] == ':' {
-      return Some((raw[1:index].to_owned(), raw[index + 1:].to_owned()))
+      return Some((raw[index + 1:end].to_owned(), raw[2:index].to_owned()))
     }
   }
-  None
+  raise RuleLoadError::InvalidRule(
+    path~,
+    info="\{context}.shape has invalid inline metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
+  )
+}
+
+///|
+fn inline_metavar_text(kind : String, name : String) -> String {
+  "$(" + name + ":" + kind + ")"
+}
+
+///|
+fn temporary_pattern_metavar_marker(name : String) -> String {
+  inline_metavar_text("pat", name)
+}
+
+///|
+fn parse_temporary_pattern_metavar_marker(raw : String) -> String? {
+  if raw.has_prefix("$(") && raw.has_suffix(":pat)") {
+    Some(raw[2:raw.length() - ":pat)".length()].to_owned())
+  } else {
+    None
+  }
+}
+
+///|
+fn cleanup_temporary_pattern_metavars(
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+) -> (Array[String], Array[String], Array[String]) {
+  let pattern_metavars : Array[String] = []
+  let cleaned_identifier_metavars : Array[String] = []
+  for name in identifier_metavars {
+    match parse_temporary_pattern_metavar_marker(name) {
+      Some(pattern_name) => pattern_metavars.push(pattern_name)
+      None => cleaned_identifier_metavars.push(name)
+    }
+  }
+  (
+    filter_out_temporary_pattern_metavars(expr_metavars, pattern_metavars),
+    cleaned_identifier_metavars,
+    filter_out_temporary_pattern_metavars(constant_metavars, pattern_metavars),
+  )
+}
+
+///|
+fn filter_out_temporary_pattern_metavars(
+  items : Array[String],
+  pattern_metavars : Array[String],
+) -> Array[String] {
+  let result : Array[String] = []
+  for item in items {
+    if !array_contains(pattern_metavars, item) {
+      result.push(item)
+    }
+  }
+  result
 }
 
 ///|
@@ -670,7 +751,7 @@ fn rewrite_expr_var(
 ) -> @syntax.Var raise {
   match var_.name {
     Ident(name~) =>
-      match parse_inline_metavar(name) {
+      match parse_inline_metavar(name, path, context) {
         None => var_
         Some((kind, meta_name)) => {
           register_inline_metavar(
@@ -680,7 +761,7 @@ fn rewrite_expr_var(
         }
       }
     Dot(pkg~, id~) =>
-      match parse_inline_metavar(id) {
+      match parse_inline_metavar(id, path, context) {
         None => var_
         Some((kind, meta_name)) => {
           if kind == "exp" {
@@ -708,7 +789,7 @@ fn rewrite_var(
 ) -> @syntax.Var raise {
   match var_.name {
     Ident(name~) =>
-      match parse_inline_metavar(name) {
+      match parse_inline_metavar(name, path, context) {
         None => var_
         Some((kind, meta_name)) => {
           if kind == "exp" || kind == "const" {
@@ -721,7 +802,7 @@ fn rewrite_var(
         }
       }
     Dot(pkg~, id~) =>
-      match parse_inline_metavar(id) {
+      match parse_inline_metavar(id, path, context) {
         None => var_
         Some((kind, meta_name)) => {
           if kind == "exp" || kind == "const" {
@@ -745,7 +826,7 @@ fn rewrite_binder(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Binder raise {
-  match parse_inline_metavar(binder.name) {
+  match parse_inline_metavar(binder.name, path, context) {
     None => binder
     Some((kind, meta_name)) => {
       if kind == "exp" || kind == "const" {
@@ -768,7 +849,7 @@ fn rewrite_label(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Label raise {
-  match parse_inline_metavar(label.name) {
+  match parse_inline_metavar(label.name, path, context) {
     None => label
     Some((kind, meta_name)) => {
       if kind == "exp" || kind == "const" {
@@ -852,17 +933,17 @@ fn reject_inline_metavar_position(
   if kind == "exp" {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses $exp:\{name} outside a bare expression position",
+      info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a bare expression position",
     )
   } else if kind == "pat" {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses $pat:\{name} outside a bare pattern position",
+      info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a bare pattern position",
     )
   } else {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses $const:\{name} outside a constant expression or pattern position",
+      info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a constant expression or pattern position",
     )
   }
 }
@@ -873,17 +954,17 @@ fn reject_qualified_inline_metavar(
   context : String,
   id : String,
 ) -> Unit raise {
-  match parse_inline_metavar(id) {
+  match parse_inline_metavar(id, path, context) {
     Some((kind, name)) =>
       if kind == "exp" {
         raise RuleLoadError::InvalidRule(
           path~,
-          info="\{context}.shape uses $exp:\{name} outside a bare expression position",
+          info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a bare expression position",
         )
       } else {
         raise RuleLoadError::InvalidRule(
           path~,
-          info="\{context}.shape uses $\{kind}:\{name} in an unsupported qualified identifier position",
+          info="\{context}.shape uses \{inline_metavar_text(kind, name)} in an unsupported qualified identifier position",
         )
       }
     None => ()
@@ -927,7 +1008,7 @@ fn rewrite_constr_name(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.ConstrName raise {
-  match parse_inline_metavar(name.name) {
+  match parse_inline_metavar(name.name, path, context) {
     None => name
     Some((kind, meta_name)) => {
       if kind == "exp" || kind == "const" {
@@ -1002,7 +1083,7 @@ fn rewrite_type_long_ident(
 ) -> @syntax.LongIdent raise {
   match long_ident {
     Ident(name~) =>
-      match parse_inline_metavar(name) {
+      match parse_inline_metavar(name, path, context) {
         None => long_ident
         Some((kind, meta_name)) => {
           if kind == "exp" || kind == "const" {
@@ -1015,7 +1096,7 @@ fn rewrite_type_long_ident(
         }
       }
     Dot(pkg~, id~) =>
-      match parse_inline_metavar(id) {
+      match parse_inline_metavar(id, path, context) {
         None => long_ident
         Some((kind, meta_name)) => {
           if kind == "exp" || kind == "const" {
@@ -1354,24 +1435,30 @@ fn rewrite_pattern_var_binder(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Binder raise {
-  match parse_inline_metavar(binder.name) {
+  match parse_inline_metavar(binder.name, path, context) {
     None => binder
     Some((kind, meta_name)) => {
       if kind == "exp" {
         reject_inline_metavar_position(path, context, kind, meta_name)
       } else if kind == "pat" {
         validate_declared_metavar(path, context, meta_name, true)
-        ensure_no_other_metavar_kind(
-          path, context, meta_name, expr_metavars, identifier_metavars,
-        )
-        ensure_no_other_metavar_kind(
-          path,
-          context,
-          meta_name,
-          constant_metavars,
-          [],
-        )
-        return { name: "$pat:\{meta_name}", loc: binder.loc }
+        let marker = temporary_pattern_metavar_marker(meta_name)
+        if !array_contains(identifier_metavars, marker) {
+          ensure_no_other_metavar_kind(
+            path, context, meta_name, expr_metavars, identifier_metavars,
+          )
+          ensure_no_other_metavar_kind(
+            path,
+            context,
+            meta_name,
+            constant_metavars,
+            [],
+          )
+          expr_metavars.push(meta_name)
+          identifier_metavars.push(marker)
+          constant_metavars.push(meta_name)
+        }
+        return { name: inline_metavar_text("pat", meta_name), loc: binder.loc }
       }
       register_inline_metavar(
         path, context, kind, meta_name, expr_metavars, identifier_metavars, constant_metavars,

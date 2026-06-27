@@ -170,7 +170,15 @@ fn is_filter_placeholder(
 
 ///|
 fn is_pattern_placeholder(name : String) -> Bool {
-  name.has_prefix("$pat:") && name.length() > "$pat:".length()
+  if name.has_prefix("$(") && name.has_suffix(")") {
+    let end = name.length() - 1
+    for index in 2..<end {
+      if name[index] == ':' && name[index + 1:end].to_owned() == "pat" {
+        return index > 2
+      }
+    }
+  }
+  false
 }
 
 ///|

@@ -4,7 +4,7 @@
 /// `ast` is the parsed pattern expression. `expr_metavars` bind whole
 /// expression AST nodes, `identifier_metavars` bind normalized identifier
 /// strings, and `constant_metavars` bind literal constants. Pattern metavars
-/// are represented directly in `ast` as `$pat:<name>` pattern variables and
+/// are represented directly in `ast` as `$(name:pat)` pattern variables and
 /// bind whole pattern AST nodes.
 /// `target_metavar` and `source_metavar` are reserved bare-expression
 /// placeholders injected by the rules package for `__TARGET__` and

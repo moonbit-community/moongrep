@@ -5,11 +5,11 @@ version = "0.1.7"
 preferred_target = "wasm"
 
 import {
-  "moonbitlang/parser@0.3.6",
+  "moonbitlang/parser@0.3.7",
   "moonbit-community/yaml@0.0.4",
   "moonbit-community/miniio@0.2.1",
   "moonbit-community/chalk@0.0.1",
-  "moonbitlang/lexer@0.3.6",
+  "moonbitlang/lexer@0.3.7",
 }
 
 readme = "README.mbt.md"
