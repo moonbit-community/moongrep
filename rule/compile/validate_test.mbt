@@ -397,20 +397,85 @@ test "validate compiles taint source target metadata" {
 }
 
 ///|
-test "validate rejects reference rule guard in runtime AST mode" {
+test "validate rejects unknown guard key" {
   let source =
     #|id: example
-    #|description: |
-    #|  C-style loop guard fixture.
+    #|description: Example.
     #|patterns:
-    #|  - shape: |
-    #|      for $(counter:id) = __; $(counter:id) < $(upper_limit:exp); $(counter:id) = $(counter:id) + 1 {
-    #|        $(body:exp)
-    #|      }
-    #|    guard: |
-    #|      @greptools.is_unused_var(upper_limit, counter)
+    #|  - shape: $(name:id)
+    #|    guard:
+    #|      other: "^safe_"
     #|
   expect_compile_invalid(
-    source, "patterns[0].guard is not supported in runtime AST mode",
+    source, "patterns[0].guard.other references unknown metavar",
   )
+}
+
+///|
+test "validate rejects guard on exp and pat metavars" {
+  let exp_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|    guard:
+    #|      value: "^safe_"
+    #|
+  expect_compile_invalid(
+    exp_source, "patterns[0].guard.value cannot reference exp metavar value",
+  )
+  let pat_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $(item:pat) => body }
+    #|    guard:
+    #|      item: "^Some"
+    #|
+  expect_compile_invalid(
+    pat_source, "patterns[0].guard.item cannot reference pat metavar item",
+  )
+}
+
+///|
+test "validate rejects invalid guard regex" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(name:id)
+    #|    guard:
+    #|      name: "("
+    #|
+  expect_compile_invalid(source, "patterns[0].guard.name has invalid regex")
+}
+
+///|
+test "validate allows inner guard to reference inside expr id and const captures" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|patterns:
+    #|  - shape: call(name, lit)
+    #|    guard:
+    #|      name: "^safe_"
+    #|      lit: "^ok$"
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      inspect(rule.patterns[0].guards.length(), content="2")
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+      debug_inspect(
+        rule.patterns[0].compiled.constant_metavars,
+        content="[\"lit\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
 }

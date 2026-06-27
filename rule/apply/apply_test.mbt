@@ -171,6 +171,118 @@ test "apply structural rule supports inline constant metavars" {
 }
 
 ///|
+test "apply structural id guard filters matches" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Safe call.
+    #|patterns:
+    #|  - shape: $(callee:id)()
+    #|    guard:
+    #|      callee: "^safe_"
+    #|
+  let source =
+    #|fn sample {
+    #|  safe_call();
+    #|  unsafe_call()
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural const guard filters strings numbers and bools" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Selected constants.
+    #|patterns:
+    #|  - shape: sink($(value:const))
+    #|    guard:
+    #|      value: "^(danger|42|true)$"
+    #|
+  let source =
+    #|fn sample {
+    #|  sink("danger");
+    #|  sink(42);
+    #|  sink(true);
+    #|  sink("safe");
+    #|  sink(false)
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="3")
+}
+
+///|
+test "apply structural multiple guards use and semantics" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Safe tagged call.
+    #|patterns:
+    #|  - shape: $(callee:id)($(value:const))
+    #|    guard:
+    #|      callee: "^safe_"
+    #|      value: "^ok$"
+    #|
+  let source =
+    #|fn sample {
+    #|  safe_call("ok");
+    #|  safe_call("bad");
+    #|  danger_call("ok")
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+}
+
+///|
+test "apply inside expr and inner guards filter inherited bindings" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Guarded wrapper.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    name: "^safe_"
+    #|patterns:
+    #|  - shape: call(name)
+    #|    guard:
+    #|      name: "_ok$"
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(safe_ok, call(safe_ok));
+    #|  wrapper(unsafe_ok, call(unsafe_ok));
+    #|  wrapper(safe_bad, call(safe_bad))
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  inspect(hits.length(), content="1")
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
 test "apply structural rule supports inline pattern metavars" {
   let rule_source =
     #|id: example

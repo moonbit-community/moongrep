@@ -1,0 +1,8 @@
+id: guarded-render
+description: |
+  Guarded render call.
+patterns:
+  - shape: $(callee:id)($(value:const))
+    guard:
+      callee: "^@html\\.render$"
+      value: "danger|raw"

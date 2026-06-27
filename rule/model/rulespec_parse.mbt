@@ -74,6 +74,7 @@ fn expect_structural_rule(
     expect_yaml_array(doc, path, "patterns"),
     path,
     "patterns",
+    allow_guard=true,
   )
   if patterns.is_empty() {
     raise invalid_rule(path~, info="patterns must not be empty")
@@ -90,7 +91,9 @@ fn expect_inside_expr(
   match doc.get("inside-expr") {
     None => None
     Some(Map(clause_map)) =>
-      Some(parse_rule_clause_map(clause_map, path, "inside-expr"))
+      Some(
+        parse_rule_clause_map(clause_map, path, "inside-expr", allow_guard=true),
+      )
     Some(_) => raise invalid_rule(path~, info="inside-expr must be a mapping")
   }
 }
@@ -110,6 +113,7 @@ fn expect_taint_rule(
     expect_yaml_array(taint_map, path, "sources"),
     path,
     "taint.sources",
+    allow_guard=false,
   )
   if sources.is_empty() {
     raise invalid_rule(path~, info="taint.sources must not be empty")
@@ -118,6 +122,7 @@ fn expect_taint_rule(
     expect_yaml_array(taint_map, path, "sinks"),
     path,
     "taint.sinks",
+    allow_guard=false,
   )
   if sinks.is_empty() {
     raise invalid_rule(path~, info="taint.sinks must not be empty")
@@ -125,7 +130,12 @@ fn expect_taint_rule(
   let sanitizers = match taint_map.get("sanitizers") {
     None => []
     Some(Array(values)) =>
-      parse_rule_clause_array(values, path, "taint.sanitizers")
+      parse_rule_clause_array(
+        values,
+        path,
+        "taint.sanitizers",
+        allow_guard=false,
+      )
     Some(_) => raise invalid_rule(path~, info="sanitizers must be an array")
   }
   { sources, sinks, sanitizers }
@@ -136,6 +146,7 @@ fn parse_rule_clause_array(
   clauses_yaml : Array[@yaml.Yaml],
   path : String,
   context : String,
+  allow_guard~ : Bool,
 ) -> Array[RulePatternSpec] raise {
   let clauses : Array[RulePatternSpec] = []
   for index in 0..<clauses_yaml.length() {
@@ -143,7 +154,9 @@ fn parse_rule_clause_array(
     guard clauses_yaml[index] is Map(clause_map) else {
       raise invalid_rule(path~, info="\{clause_context} must be a mapping")
     }
-    clauses.push(parse_rule_clause_map(clause_map, path, clause_context))
+    clauses.push(
+      parse_rule_clause_map(clause_map, path, clause_context, allow_guard~),
+    )
   }
   clauses
 }
@@ -153,16 +166,48 @@ fn parse_rule_clause_map(
   clause_map : Map[String, @yaml.Yaml],
   path : String,
   clause_context : String,
+  allow_guard~ : Bool,
 ) -> RulePatternSpec raise {
   ensure_allowed_keys(path, clause_context, clause_map, ["shape", "guard"])
-  if clause_map.contains("guard") {
+  if clause_map.contains("guard") && !allow_guard {
     raise invalid_rule(
       path~,
-      info="\{clause_context}.guard is not supported in runtime AST mode",
+      info="\{clause_context}.guard is not supported for taint rules",
     )
   }
   let shape = expect_yaml_string(clause_map, path, "shape")
-  { shape, }
+  let guards = parse_guard_map(clause_map, path, clause_context)
+  { shape, guards }
+}
+
+///|
+fn parse_guard_map(
+  clause_map : Map[String, @yaml.Yaml],
+  path : String,
+  clause_context : String,
+) -> Map[String, String] raise {
+  match clause_map.get("guard") {
+    None => {}
+    Some(Map(guard_map)) => {
+      let guards : Map[String, String] = {}
+      for key, value in guard_map {
+        match value {
+          String(regex_source) => guards[key] = regex_source
+          _ =>
+            raise invalid_rule(
+              path~,
+              info="\{clause_context}.guard.\{key} must be a string",
+            )
+        }
+      }
+      guards
+    }
+    Some(_) =>
+      raise invalid_rule(
+        path~,
+        info="\{clause_context}.guard must be a mapping",
+      )
+  }
 }
 
 ///|

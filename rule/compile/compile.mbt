@@ -2,6 +2,7 @@
 using @model {
   type CompiledRule,
   type CompiledRuleDefinition,
+  type CompiledRuleGuard,
   type CompiledRulePattern,
   type CompiledStructuralRule,
   type CompiledTaintRule,
@@ -10,6 +11,7 @@ using @model {
   type CompiledTaintSource,
   type RawRuleSpec,
   type RuleLoadError,
+  type RuleGuardCaptureKind,
   type RulePatternSpec,
   type StructuralRuleSpec,
   type TaintRuleSpec,
@@ -61,6 +63,7 @@ fn compile_structural_rule(
   path : String,
   spec : StructuralRuleSpec,
 ) -> CompiledStructuralRule raise {
+  let outer_pattern_names : Array[String] = []
   let inside_expr = match spec.inside_expr {
     None => None
     Some(pattern) => {
@@ -77,10 +80,15 @@ fn compile_structural_rule(
           info="inside-expr.shape must contain exactly one __TARGET__ placeholder in a supported expression position",
         )
       }
+      for name in compiled_shape.pattern_metavars {
+        outer_pattern_names.push(name)
+      }
       Some(
         compile_pattern(
           pattern,
           compiled_shape,
+          path,
+          "inside-expr",
           target_metavar=Some("__TARGET__"),
           source_metavar=None,
         ),
@@ -106,8 +114,8 @@ fn compile_structural_rule(
     []
   }
   let outer_metavars = concat_arrays(
-    concat_arrays(outer_expr, outer_identifier),
-    outer_constant,
+    concat_arrays(concat_arrays(outer_expr, outer_identifier), outer_constant),
+    outer_pattern_names,
   )
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
@@ -136,6 +144,12 @@ fn compile_structural_rule(
       compiled_shape.constant_metavars,
       outer_metavars,
     )
+    ensure_not_redeclared_from_inside_expr(
+      path,
+      context,
+      compiled_shape.pattern_metavars,
+      outer_metavars,
+    )
     let ast = compiled_shape.ast
     if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
@@ -146,10 +160,13 @@ fn compile_structural_rule(
     patterns.push(
       compile_pattern_with_effective_metavars(
         pattern,
+        path,
+        context,
         ast,
         concat_arrays(outer_expr, compiled_shape.expr_metavars),
         concat_arrays(outer_identifier, compiled_shape.identifier_metavars),
         concat_arrays(outer_constant, compiled_shape.constant_metavars),
+        concat_arrays(outer_pattern_names, compiled_shape.pattern_metavars),
         target_metavar=None,
         source_metavar=None,
       ),
@@ -184,6 +201,8 @@ fn compile_taint_rule(
       pattern: compile_pattern(
         pattern,
         compiled_shape,
+        path,
+        context,
         target_metavar=None,
         source_metavar=None,
       ),
@@ -207,6 +226,8 @@ fn compile_taint_rule(
       pattern: compile_pattern(
         pattern,
         compiled_shape,
+        path,
+        context,
         target_metavar=None,
         source_metavar=Some("__SOURCE__"),
       ),
@@ -231,6 +252,8 @@ fn compile_taint_rule(
       pattern: compile_pattern(
         pattern,
         compiled_shape,
+        path,
+        context,
         target_metavar=None,
         source_metavar=Some("__SOURCE__"),
       ),
@@ -244,15 +267,20 @@ fn compile_taint_rule(
 fn compile_pattern(
   pattern : RulePatternSpec,
   compiled_shape : InlineMetavarShape,
+  path : String,
+  context : String,
   target_metavar~ : String?,
   source_metavar~ : String?,
-) -> CompiledRulePattern {
+) -> CompiledRulePattern raise {
   compile_pattern_with_effective_metavars(
     pattern,
+    path,
+    context,
     compiled_shape.ast,
     compiled_shape.expr_metavars,
     compiled_shape.identifier_metavars,
     compiled_shape.constant_metavars,
+    compiled_shape.pattern_metavars,
     target_metavar~,
     source_metavar~,
   )
@@ -261,13 +289,25 @@ fn compile_pattern(
 ///|
 fn compile_pattern_with_effective_metavars(
   pattern : RulePatternSpec,
+  path : String,
+  context : String,
   ast : @syntax.Expr,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
+  pattern_metavars : Array[String],
   target_metavar~ : String?,
   source_metavar~ : String?,
-) -> CompiledRulePattern {
+) -> CompiledRulePattern raise {
+  let guards = compile_guards(
+    pattern.guards,
+    path,
+    context,
+    expr_metavars,
+    identifier_metavars,
+    constant_metavars,
+    pattern_metavars,
+  )
   {
     source: pattern,
     compiled: {
@@ -278,6 +318,67 @@ fn compile_pattern_with_effective_metavars(
       target_metavar,
       source_metavar,
     },
+    guards,
+  }
+}
+
+///|
+fn compile_guards(
+  raw_guards : Map[String, String],
+  path : String,
+  context : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+  pattern_metavars : Array[String],
+) -> Array[CompiledRuleGuard] raise {
+  let guards : Array[CompiledRuleGuard] = []
+  for name, regex_source in raw_guards {
+    let capture_kind = guard_capture_kind(
+      path, context, name, expr_metavars, identifier_metavars, constant_metavars,
+      pattern_metavars,
+    )
+    let regex = Regex::Regex(regex_source) catch {
+      _ =>
+        raise RuleLoadError::InvalidRule(
+          path~,
+          info="\{context}.guard.\{name} has invalid regex",
+        )
+    }
+    guards.push({ name, capture_kind, regex_source, regex })
+  }
+  guards
+}
+
+///|
+fn guard_capture_kind(
+  path : String,
+  context : String,
+  name : String,
+  expr_metavars : Array[String],
+  identifier_metavars : Array[String],
+  constant_metavars : Array[String],
+  pattern_metavars : Array[String],
+) -> RuleGuardCaptureKind raise {
+  if array_contains(identifier_metavars, name) {
+    IdentifierGuard
+  } else if array_contains(constant_metavars, name) {
+    ConstantGuard
+  } else if array_contains(expr_metavars, name) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.guard.\{name} cannot reference exp metavar \{name}",
+    )
+  } else if array_contains(pattern_metavars, name) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.guard.\{name} cannot reference pat metavar \{name}",
+    )
+  } else {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.guard.\{name} references unknown metavar",
+    )
   }
 }
 

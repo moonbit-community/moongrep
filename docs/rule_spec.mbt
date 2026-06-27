@@ -87,18 +87,17 @@ let _embed_rulespec_md : String =
   #|
   #|### Pattern Objects
   #|
-  #|The same object schema is used for entries in `patterns`, for `inside-expr`,
-  #|and for entries in taint `sources`, `sinks`, and `sanitizers`.
+  #|Structural entries in `patterns` and `inside-expr` use this object schema.
   #|
   #|Only these keys are accepted:
   #|
   #|- `shape` (required): YAML string containing one MoonBit expression snippet
-  #|- `guard` (reserved): currently rejected everywhere
+  #|- `guard` (optional): YAML mapping from capture name to regex string
   #|
   #|Unknown keys inside a pattern object are rejected.
   #|
-  #|`guard` is not supported today. A rule containing `guard` in any pattern object
-  #|is invalid.
+  #|For taint `sources`, `sinks`, and `sanitizers`, the same `shape` key is used but
+  #|`guard` is rejected.
   #|
   #|## Shapes
   #|
@@ -356,6 +355,34 @@ let _embed_rulespec_md : String =
   #|The inner body references the outer constant capture with the plain payload
   #|name, `lit`.
   #|
+  #|## Guards
+  #|
+  #|Structural pattern objects may include an optional `guard` map. A guard key is a
+  #|capture name without `$`, and the value is a regex string:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: $(callee:id)($(value:const))
+  #|    guard:
+  #|      callee: "^@html\\.render$"
+  #|      value: "danger|raw"
+  #|```
+  #|
+  #|Only `id` and `const` captures can be guarded. A guard key that refers to an
+  #|`exp` capture, a `pat` capture, or an unknown name is rejected during rule
+  #|compilation. Inner `patterns` may guard `id` and `const` captures established by
+  #|`inside-expr`.
+  #|
+  #|Guards are checked after the structural AST match succeeds. All guards in a
+  #|single pattern object must match; this is AND semantics. Regex matching uses
+  #|contains semantics. Use anchors such as `^...$` when the whole capture value
+  #|must match.
+  #|
+  #|For `id` captures, the regex sees the normalized identifier string, such as
+  #|`name` or `@pkg.name`. For `const` captures, the regex sees the parser constant
+  #|value: string constants without quotes, numeric constants as their source text,
+  #|and booleans as `true` or `false`.
+  #|
   #|## Structural Rules
   #|
   #|A structural rule has a non-empty `patterns` array.
@@ -420,6 +447,8 @@ let _embed_rulespec_md : String =
   #|Runtime behavior:
   #|
   #|- the current expression is first matched against `inside-expr`
+  #|- if `inside-expr.guard` is present, it must match the bindings established by
+  #|  that outer pattern
   #|- if it matches, the subtree captured by `__TARGET__` is searched
   #|- each expression inside that captured subtree is checked against `patterns`
   #|- inner pattern matching starts with the bindings established by
@@ -441,7 +470,8 @@ let _embed_rulespec_md : String =
   #|
   #|Unknown keys inside `taint` are rejected.
   #|
-  #|Each array entry is a pattern object with `shape` and no supported `guard`.
+  #|Each array entry is a pattern object with `shape`; `guard` is rejected in taint
+  #|clauses.
   #|
   #|Example:
   #|
@@ -560,7 +590,9 @@ let _embed_rulespec_md : String =
   #|- `taint.sources` or `taint.sinks` is missing, not an array, or empty
   #|- `taint.sanitizers` is present but is not an array
   #|- a taint clause entry is not a mapping
-  #|- `guard` appears in any pattern object
+  #|- structural `guard` is present but is not a mapping, or a guard value is not a
+  #|  string
+  #|- `guard` appears in any taint clause
   #|- `metavars` appears in any pattern object
   #|- `shape` is not valid as one MoonBit expression
   #|- a shape uses an unsupported inline metavar kind
@@ -569,6 +601,8 @@ let _embed_rulespec_md : String =
   #|- `$(name:exp)` appears outside a bare expression position
   #|- `$(name:const)` appears outside a constant expression or constant pattern position
   #|- `$(name:pat)` appears outside a bare pattern position
+  #|- a guard key references an unknown, `exp`, or `pat` capture
+  #|- a guard regex is invalid
   #|- `inside-expr.shape` does not contain exactly one binding-capable
   #|  `__TARGET__`
   #|- a structural `patterns` entry contains binding-capable `__TARGET__`
@@ -627,6 +661,23 @@ let _embed_rulespec_md : String =
   #|
   #|The rule first finds `unsafe(...)`, then searches only the expression captured
   #|by `__TARGET__` for `sink(...)`.
+  #|
+  #|### Guarded Structural Match
+  #|
+  #|```yaml
+  #|id: guarded-render
+  #|description: |
+  #|  Raw-looking constants rendered through html.
+  #|patterns:
+  #|  - shape: $(callee:id)($(value:const))
+  #|    guard:
+  #|      callee: "^@html\\.render$"
+  #|      value: "danger|raw"
+  #|```
+  #|
+  #|The shape captures any one-argument call with a constant argument. The guards
+  #|then keep only calls whose normalized callee is `@html.render` and whose
+  #|constant value contains `danger` or `raw`.
   #|
   #|### Taint Source, Sink, and Sanitizer
   #|

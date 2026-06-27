@@ -50,6 +50,7 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
     Structural(spec) => {
       inspect(spec.patterns.length(), content="1")
       inspect(spec.patterns[0].shape, content="$(_expr:exp) == $(_expr:exp)")
+      inspect(spec.patterns[0].guards.length(), content="0")
       assert_true(spec.inside_expr is None)
     }
     Taint(_) => fail("expected structural rule")
@@ -187,7 +188,38 @@ test "model rejects invalid id schema" {
 }
 
 ///|
-test "model rejects guard in runtime AST mode" {
+test "model parses structural guard map" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    name: "^safe_"
+    #|patterns:
+    #|  - shape: $(callee:id)($(value:const))
+    #|    guard:
+    #|      callee: "^@html\\.render$"
+    #|      value: "danger|raw"
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) => {
+      guard spec.inside_expr is Some(inside_expr) else {
+        fail("expected inside-expr")
+      }
+      inspect(inside_expr.guards["name"], content="^safe_")
+      inspect(spec.patterns[0].guards["callee"], content="^@html\\.render$")
+      inspect(spec.patterns[0].guards["value"], content="danger|raw")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "model rejects malformed structural guard schema" {
   let source =
     #|id: example
     #|description: Example.
@@ -195,8 +227,17 @@ test "model rejects guard in runtime AST mode" {
     #|  - shape: x
     #|    guard: x
     #|
+  expect_invalid_rule_info(source, "patterns[0].guard must be a mapping")
+  let non_string_value =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(name:id)
+    #|    guard:
+    #|      name: 1
+    #|
   expect_invalid_rule_info(
-    source, "patterns[0].guard is not supported in runtime AST mode",
+    non_string_value, "patterns[0].guard.name must be a string",
   )
 }
 
@@ -289,5 +330,19 @@ test "model rejects malformed taint schema" {
     #|
   expect_invalid_rule_info(
     non_mapping_clause, "taint.sources[0] must be a mapping",
+  )
+  let taint_guard =
+    #|id: example
+    #|description: Example.
+    #|taint:
+    #|  sources:
+    #|    - shape: source()
+    #|      guard:
+    #|        name: x
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|
+  expect_invalid_rule_info(
+    taint_guard, "taint.sources[0].guard is not supported for taint rules",
   )
 }
