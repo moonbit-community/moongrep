@@ -11,6 +11,16 @@ fn parse_shape(
     enable_metavar=true,
   )
   if lex_result.errors.length() != 0 {
+    for error_entry in lex_result.errors {
+      match error_entry {
+        (_, _, @lexer.LexicalError::InvalidMetavarSyntax(raw)) =>
+          raise RuleLoadError::InvalidRule(
+            path~,
+            info=invalid_metavar_syntax_message(context, raw),
+          )
+        _ => ()
+      }
+    }
     raise RuleLoadError::InvalidRule(
       path~,
       info="\{context}.shape has lexical errors",
@@ -24,4 +34,44 @@ fn parse_shape(
     )
   }
   expr
+}
+
+///|
+fn invalid_metavar_syntax_message(context : String, raw : String) -> String {
+  match legacy_metavar_replacement(raw) {
+    Some((old, replacement)) =>
+      "\{context}.shape uses legacy inline metavar syntax \{old}; use \{replacement}"
+    None =>
+      "\{context}.shape has invalid metavar syntax \{raw}; use explicit typed syntax like $(value:exp)"
+  }
+}
+
+///|
+fn legacy_metavar_replacement(raw : String) -> (String, String)? {
+  let (prefix, start) = if raw.has_prefix(".$") {
+    (".", 2)
+  } else if raw.has_prefix("$") {
+    ("", 1)
+  } else {
+    return None
+  }
+  let has_post_label = raw.has_suffix("~")
+  let end = if has_post_label { raw.length() - 1 } else { raw.length() }
+  if end <= start {
+    return None
+  }
+  for index in start..<end {
+    if raw[index] == ':' {
+      let kind = raw[start:index]
+      let name = raw[index + 1:end]
+      if kind.length() == 0 || name.length() == 0 {
+        return None
+      }
+      let kind_text = kind.to_owned()
+      let name_text = name.to_owned()
+      let suffix = if has_post_label { "~" } else { "" }
+      return Some((raw, "\{prefix}$(\{name_text}:\{kind_text})\{suffix}"))
+    }
+  }
+  None
 }

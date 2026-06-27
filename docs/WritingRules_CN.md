@@ -44,7 +44,7 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - `taint.sources` 将匹配的调用结果标记为 tainted values。
 - 当由 `__SOURCE__` 标记的 receiver 或参数为 tainted 时，`taint.sinks` 会报告命中。
 - `taint.sanitizers` 不贡献返回污点，只在 `__SOURCE__` 解析到 storage path（例如标识符、字段或数组访问）时清除已存储的污点。如果同一调用也匹配 source 子句，source 返回污点仍会产生。
-- taint 子句 shape 使用与结构 pattern 相同的内联 `$exp:` / `$id:` 语法。
+- taint 子句 shape 使用与结构 pattern 相同的内联 `$(name:kind)` 语法。
 - taint 子句不支持 `guard`。
 - `__SOURCE__` 在 taint 规则中是保留名称，不能用作内联元变量名。它只在 sink 和 sanitizer shape 中有效；source shape 不能包含它。
 - source、sink 和 sanitizer shape 必须是调用表达式。Sink 和 sanitizer shape 必须将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置。
@@ -65,14 +65,14 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 ```yaml
 patterns:
-  - shape: $exp:conn.read_request()
+  - shape: $(conn:exp).read_request()
 ```
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
@@ -91,31 +91,31 @@ patterns:
 
 **不会**创建元变量。它匹配两侧字面标识符名称 `_expr`。
 
-如果要捕获一个表达式，请直接在 shape 中写 `$exp:name`：
+如果要捕获一个表达式，请直接在 shape 中写 `$(name:exp)`：
 
 ```yaml
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
-当同一个源码层面的名称必须在 binder、标识符表达式、pattern 变量、标签或简单变量目标之间保持一致时，请使用 `$id:name`：
+当同一个源码层面的名称必须在 binder、标识符表达式、pattern 变量、标签或简单变量目标之间保持一致时，请使用 `$(name:id)`：
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
-当同一个字面常量必须保持一致，并且变量不应该匹配时，请使用 `$const:name`：
+当同一个字面常量必须保持一致，并且变量不应该匹配时，请使用 `$(name:const)`：
 
 ```yaml
 patterns:
-  - shape: $const:value + $const:value
+  - shape: $(value:const) + $(value:const)
 ```
 
-`$exp:` 只能出现在表达式位置。`$const:` 只在常量表达式或常量 pattern 位置有效。如果需要非表达式名称，请使用 `$id:`，或者让该名称保持字面量。`$pat:` 和任何其他 kind 都是编译错误。
+`exp` kind 只能出现在表达式位置。`const` kind 只在常量表达式或常量 pattern 位置有效。`pat` kind 只在简单 pattern variable 位置有效。如果需要非表达式源码名称，请使用 `id`，或者让该名称保持字面量。任何其他 kind 都是编译错误。
 
 旧的 YAML `metavars` 键无效。
 
@@ -128,13 +128,13 @@ patterns:
 
 当这些名称之一出现在支持的元变量位置时，它会匹配该位置上的任何内容，不绑定值，也不参与重复名称相等性检查。重复的忽略占位符是彼此独立的通配符。
 
-### 3. 选择 `$exp`、`$id` 或 `$const`
+### 3. 选择 `exp`、`id`、`const` 或 `pat`
 
-当你想匹配并比较完整表达式时，使用 `$exp`。重复使用同一个 `$exp` 元变量意味着这些捕获必须根据运行时 matcher 的结构相等规则相等；源码位置会被忽略。
+当你想匹配并比较完整表达式时，使用 `exp`。重复使用同一个 `exp` 元变量意味着这些捕获必须根据运行时 matcher 的结构相等规则相等；源码位置会被忽略。
 
 ```yaml
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
 它适合支持的重复表达式形状，例如：
@@ -143,23 +143,30 @@ patterns:
 - `user.profile.name == user.profile.name`
 - `make(value) == make(value)`
 
-当你想跨越不同位置比较源码层面名称时，使用 `$id`；尤其适合 binder 位置和标识符使用位置之间的比较。
+当你想跨越不同位置比较源码层面名称时，使用 `id`；尤其适合 binder 位置和标识符使用位置之间的比较。
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
-这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配，但原始 AST node 不同，因此 `$id` 是合适工具。
+这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配，但原始 AST node 不同，因此 `id` 是合适工具。
 
-`$id` 也适用于 parser AST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，而不是把它当作字面字符串。
+`id` 也适用于 parser AST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，而不是把它当作字面字符串。
 
-`$id` 也可以比较限定函数名和构造器 identity。像 `@int.abs` 这样的限定函数名会归一化为 `@int.abs`；限定构造器会包含 extra info，例如 `@pkg.Ctor` 或 `@pkg.Type::Ctor`。
+`id` 也可以比较限定函数名和构造器 identity。像 `@int.abs` 这样的限定函数名会归一化为 `@int.abs`；限定构造器会包含 extra info，例如 `@pkg.Ctor` 或 `@pkg.Type::Ctor`。
 
-当候选必须是解析后的 MoonBit 常量时，使用 `$const`。重复的 `$const` 捕获会比较常量 kind 和值，因此 `1 + 1` 可以匹配，而 `1 + 2` 和 `x + x` 不会匹配。
+当候选必须是解析后的 MoonBit 常量时，使用 `const`。重复的 `const` 捕获会比较常量 kind 和值，因此 `1 + 1` 可以匹配，而 `1 + 2` 和 `x + x` 不会匹配。
+
+当候选必须是整个 pattern AST 时，使用 `pat`：
+
+```yaml
+patterns:
+  - shape: match input { $(item:pat) => body }
+```
 
 ### 3.5 当关注节点必须出现在更大上下文内时，使用 `inside-expr`
 
@@ -171,7 +178,7 @@ description: |
   Match a call only when it appears inside a specific wrapper.
 inside-expr:
   shape: |
-    wrapper($exp:prefix, __TARGET__)
+    wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: |
       target.call(prefix)
@@ -187,7 +194,7 @@ patterns:
 
 ### 4. 处理 shape matching 无法表达的逻辑
 
-当前 runtime AST matcher 不支持 YAML `guard` 表达式。如果一条规则需要额外逻辑，请先检查能否用更窄的 `shape`、`inside-expr`、`$exp`、`$id` 或 `$const` 元变量表达。否则，该行为需要 MoonBit 实现工作之后，才能表示为 YAML 规则。
+当前 runtime AST matcher 不支持 YAML `guard` 表达式。如果一条规则需要额外逻辑，请先检查能否用更窄的 `shape`、`inside-expr`，或 `exp`、`id`、`const`、`pat` 元变量表达。否则，该行为需要 MoonBit 实现工作之后，才能表示为 YAML 规则。
 
 ### 5. 当消息共享时添加更多 `patterns`
 
@@ -200,9 +207,9 @@ description: |
   `Transfer-Encoding` may coexist.
 patterns:
   - shape: |
-      $exp:conn.read_request()
+      $(conn:exp).read_request()
   - shape: |
-      $exp:client.end_request()
+      $(client:exp).end_request()
 ```
 
 只有当规则 id、消息或归属应该不同时，才使用不同的规则文件。
@@ -219,19 +226,19 @@ moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 
 ## 完整示例
 
-### 重复 `$exp` 相等性
+### 重复 `exp` 相等性
 
 ```yaml
 id: repeated-equality
 description: |
   Repeated expression equality.
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
 为什么它能工作：
 
-- `expr` 被声明为 `$exp` 元变量
+- `expr` 被声明为 `exp` 元变量
 - 两次出现必须绑定到相等的表达式 AST node，且该重复表达式形式被当前 equality helper 支持
 - 该规则可以匹配比简单名称更复杂的内容
 
@@ -243,8 +250,8 @@ description: |
   C-style `for` loop.
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
@@ -260,8 +267,8 @@ id: collect-output
 description: |
   These helpers collect full child-process output into memory before returning.
 patterns:
-  - shape: $exp:command.output_collect($exp:args)
-  - shape: $exp:command.stderr_collect($exp:args)
+  - shape: $(command:exp).output_collect($(args:exp))
+  - shape: $(command:exp).stderr_collect($(args:exp))
 ```
 
 为什么它能工作：
@@ -280,13 +287,14 @@ patterns:
 
 按顺序检查：
 
-- `$exp:` 只出现在完整的裸表达式位置
-- `$const:` 只出现在可匹配常量表达式或常量 pattern 的位置
-- 非表达式名称使用 `$id:`，或者保持字面量
-- 没有使用 `$pat:` 或其他不支持的 kind
+- `$(name:exp)` 只出现在完整的裸表达式位置
+- `$(name:const)` 只出现在可匹配常量表达式或常量 pattern 的位置
+- `$(name:pat)` 只出现在完整的裸 pattern 位置
+- 非表达式源码名称使用 `$(name:id)`，或者保持字面量
+- 没有使用不支持的 kind
 - 没有跨多个元变量 kind 使用同一个名称
 
-### 一个 `$id` 规则看起来正确但从不命中
+### 一个 `id` 规则看起来正确但从不命中
 
 重复捕获可能归一化为不同的源码层面名称。例如，`abs` 和 `@int.abs` 是不同的归一化标识符。请查看 [RuleSpec_CN.md](RuleSpec_CN.md) 中精确支持的归一化情况。
 

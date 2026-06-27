@@ -26,10 +26,36 @@ test "validate rejects reserved inline metavar names" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $exp:__
+    #|  - shape: $(__:exp)
     #|
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
+  )
+}
+
+///|
+test "validate rejects legacy inline metavar syntax" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $exp:value
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses legacy inline metavar syntax $exp:value; use $(value:exp)",
+  )
+}
+
+///|
+test "validate rejects untyped inline metavar syntax" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $value
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses untyped inline metavar $value; use explicit typed syntax like $(value:exp)",
   )
 }
 
@@ -39,13 +65,34 @@ test "validate accepts inline pattern metavars" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: match input { $pat:item => $exp:body }
+    #|  - shape: match input { $(item:pat) => $(body:exp) }
     #|
   let rules = compile_one(source)
   match rules[0].definition {
-    Structural(rule) => inspect(rule.patterns.length(), content="1")
+    Structural(rule) => {
+      inspect(rule.patterns.length(), content="1")
+      debug_inspect(
+        rule.patterns[0].compiled.expr_metavars,
+        content="[\"body\"]",
+      )
+      debug_inspect(rule.patterns[0].compiled.identifier_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.constant_metavars, content="[]")
+    }
     Taint(_) => fail("expected structural rule")
   }
+}
+
+///|
+test "validate rejects pattern metavar kind conflicts" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $(item:pat) => $(item:id) }
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape declares metavar item as multiple inline metavar kinds",
+  )
 }
 
 ///|
@@ -54,10 +101,10 @@ test "validate rejects pattern metavar outside bare pattern position" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $pat:value + 1
+    #|  - shape: $(value:pat) + 1
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $pat:value outside a bare pattern position",
+    source, "patterns[0].shape uses $(value:pat) outside a bare pattern position",
   )
 }
 
@@ -67,10 +114,10 @@ test "validate rejects expr metavar outside bare expression position" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: match input { $exp:item => item }
+    #|  - shape: match input { $(item:exp) => item }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $exp:item outside a bare expression position",
+    source, "patterns[0].shape uses $(item:exp) outside a bare expression position",
   )
 }
 
@@ -80,7 +127,7 @@ test "validate rejects inline metavar kind conflicts" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $exp:value + $id:value
+    #|  - shape: $(value:exp) + $(value:id)
     #|
   expect_compile_invalid(
     source, "patterns[0].shape declares metavar value as multiple inline metavar kinds",
@@ -93,7 +140,7 @@ test "validate allows matcher-local-looking metavar names" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $exp:file + $exp:hits + $exp:loc + $exp:__moongrep_value
+    #|  - shape: $(file:exp) + $(hits:exp) + $(loc:exp) + $(__moongrep_value:exp)
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -112,7 +159,7 @@ test "validate records inline constant metavars" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $const:value + $const:value
+    #|  - shape: $(value:const) + $(value:const)
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -131,7 +178,7 @@ test "validate records constructor identifier metavars" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $id:Ctor($exp:value)
+    #|  - shape: $(Ctor:id)($(value:exp))
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -150,7 +197,7 @@ test "validate records constructor extra info identifier metavars" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $id:TypeName::$id:Ctor
+    #|  - shape: $(TypeName:id)::$(Ctor:id)
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -169,7 +216,7 @@ test "validate records qualified function identifier metavars" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: "@pkg.$id:callee($exp:value)"
+    #|  - shape: "@pkg.$(callee:id)($(value:exp))"
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -188,7 +235,7 @@ test "validate rejects constant metavar kind conflicts" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $const:value + $exp:value
+    #|  - shape: $(value:const) + $(value:exp)
     #|
   expect_compile_invalid(
     source, "patterns[0].shape declares metavar value as multiple inline metavar kinds",
@@ -201,10 +248,10 @@ test "validate rejects const metavar in labels" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: sink($const:value=actual)
+    #|  - shape: sink($(value:const)=actual)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $const:value outside a constant expression or pattern position",
+    source, "patterns[0].shape uses $(value:const) outside a constant expression or pattern position",
   )
 }
 
@@ -214,10 +261,10 @@ test "validate rejects const metavar in qualified identifiers" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: "@pkg.$const:value"
+    #|  - shape: "@pkg.$(value:const)"
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $const:value in an unsupported qualified identifier position",
+    source, "patterns[0].shape uses $(value:const) in an unsupported qualified identifier position",
   )
 }
 
@@ -227,10 +274,10 @@ test "validate rejects const metavar in ordinary binders" {
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: let mut $const:value = 1
+    #|  - shape: let mut $(value:const) = 1
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $const:value outside a constant expression or pattern position",
+    source, "patterns[0].shape uses $(value:const) outside a constant expression or pattern position",
   )
 }
 
@@ -240,9 +287,9 @@ test "validate rejects redeclared inside expr metavars" {
     #|id: example
     #|description: Example.
     #|inside-expr:
-    #|  shape: wrapper($exp:prefix, __TARGET__)
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target($exp:prefix)
+    #|  - shape: target($(prefix:exp))
     #|
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar prefix because it is already visible from inside-expr",
@@ -255,9 +302,9 @@ test "validate inside expr constant metavars are visible and cannot be redeclare
     #|id: example
     #|description: Example.
     #|inside-expr:
-    #|  shape: wrapper($const:lit, __TARGET__)
+    #|  shape: wrapper($(lit:const), __TARGET__)
     #|patterns:
-    #|  - shape: target($const:lit)
+    #|  - shape: target($(lit:const))
     #|
   expect_compile_invalid(
     source, "patterns[0] cannot declare metavar lit because it is already visible from inside-expr",
@@ -266,7 +313,7 @@ test "validate inside expr constant metavars are visible and cannot be redeclare
     #|id: example
     #|description: Example.
     #|inside-expr:
-    #|  shape: wrapper($const:lit, __TARGET__)
+    #|  shape: wrapper($(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: target(lit)
     #|
@@ -357,8 +404,8 @@ test "validate rejects reference rule guard in runtime AST mode" {
     #|  C-style loop guard fixture.
     #|patterns:
     #|  - shape: |
-    #|      for $id:counter = __; $id:counter < $exp:upper_limit; $id:counter = $id:counter + 1 {
-    #|        $exp:body
+    #|      for $(counter:id) = __; $(counter:id) < $(upper_limit:exp); $(counter:id) = $(counter:id) + 1 {
+    #|        $(body:exp)
     #|      }
     #|    guard: |
     #|      @greptools.is_unused_var(upper_limit, counter)

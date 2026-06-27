@@ -34,7 +34,7 @@ Placeholder priority in expression positions is:
 
 For vars, binders, and labels, only ignore placeholders and declared identifier
 metavars are special; everything else is literal. For pattern variables,
-`$pat:<name>` binds the whole candidate `Pattern` AST, declared constant
+`$(name:pat)` binds the whole candidate `Pattern` AST, declared constant
 metavars match only `Pattern::Constant`, and declared identifier metavars
 capture normalized pattern names. `__TARGET__` and `__SOURCE__` are special only
 in whole expression positions. For example, undeclared `__x` is literal: only

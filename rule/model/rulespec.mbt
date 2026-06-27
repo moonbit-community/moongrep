@@ -10,9 +10,9 @@ pub(all) suberror RuleLoadError {
 ///|
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
-/// `shape` must be a valid MoonBit expression. Inline `$exp:name`,
-/// `$id:name`, and `$const:name` placeholders in the shape are discovered
-/// during compilation.
+/// `shape` must be a valid MoonBit expression. Inline `$(name:exp)`,
+/// `$(name:id)`, `$(name:const)`, and `$(name:pat)` placeholders in the shape
+/// are discovered during compilation.
 pub(all) struct RulePatternSpec {
   shape : String
 }

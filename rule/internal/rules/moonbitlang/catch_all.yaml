@@ -13,9 +13,9 @@ patterns:
       }
   - shape: |
       try __ catch {
-        $id:allerror => __
+        $(allerror:id) => __
       }
   - shape: |
       __ catch {
-        $id:allerror => __
+        $(allerror:id) => __
       }

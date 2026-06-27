@@ -1724,12 +1724,18 @@ fn is_special_expr_metavar(
 
 ///|
 fn parse_pattern_metavar_name(raw : String) -> String? {
-  let prefix = "$pat:"
-  if raw.has_prefix(prefix) && raw.length() > prefix.length() {
-    Some(raw[prefix.length():].to_owned())
-  } else {
-    None
+  if raw.has_prefix("$(") && raw.has_suffix(")") {
+    let end = raw.length() - 1
+    for index in 2..<end {
+      if raw[index] == ':' && raw[index + 1:end].to_owned() == "pat" {
+        let name = raw[2:index]
+        if name.length() > 0 {
+          return Some(name.to_owned())
+        }
+      }
+    }
   }
+  None
 }
 
 ///|

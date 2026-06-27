@@ -78,7 +78,7 @@ For taint rules:
   when `__SOURCE__` resolves to a storage path such as an identifier, field, or
   array access. If the same call also matches a source clause, source return
   taint is still produced.
-- taint clause shapes use the same inline `$exp:` / `$id:` syntax as
+- taint clause shapes use the same inline `$(name:kind)` syntax as
   structural patterns.
 - taint clauses do not support `guard`.
 - `__SOURCE__` is reserved inside taint rules and must not be used as an inline
@@ -110,14 +110,14 @@ Good starting shapes:
 
 ```yaml
 patterns:
-  - shape: $exp:conn.read_request()
+  - shape: $(conn:exp).read_request()
 ```
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
@@ -139,36 +139,37 @@ patterns:
 does **not** create a metavariable. It matches the literal identifier name
 `_expr` on both sides.
 
-To capture an expression, write `$exp:name` directly in the shape:
+To capture an expression, write `$(name:exp)` directly in the shape:
 
 ```yaml
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
-Use `$id:name` when the same source-level name must be consistent across
+Use `$(name:id)` when the same source-level name must be consistent across
 binders, identifier expressions, pattern variables, labels, or simple variable
 targets:
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
-Use `$const:name` when the same literal constant must be consistent and
+Use `$(name:const)` when the same literal constant must be consistent and
 variables should not match:
 
 ```yaml
 patterns:
-  - shape: $const:value + $const:value
+  - shape: $(value:const) + $(value:const)
 ```
 
-`$exp:` is expression-only. `$const:` is valid only in constant expression or
-constant pattern positions. If you need a non-expression name, use `$id:` or leave the
-name literal. `$pat:` and any other kind are compile errors.
+The `exp` kind is expression-only. The `const` kind is valid only in constant
+expression or constant pattern positions. The `pat` kind is valid only in a
+simple pattern variable position. If you need a non-expression source name, use
+`id` or leave the name literal. Any other kind is a compile error.
 
 The old YAML `metavars` key is invalid.
 
@@ -184,15 +185,15 @@ When one of these names appears in a supported metavar position, it matches
 anything there without binding a value or participating in repeated-name
 equality. Repeated ignore placeholders are independent wildcards.
 
-### 3. Choose `$exp`, `$id`, or `$const`
+### 3. Choose `exp`, `id`, `const`, or `pat`
 
-Use `$exp` when you want to match and compare a whole expression. Repeating an
-`$exp` metavar means the repeated captures must be structurally equal according
+Use `exp` when you want to match and compare a whole expression. Repeating an
+`exp` metavar means the repeated captures must be structurally equal according
 to the runtime matcher, ignoring source locations.
 
 ```yaml
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
 This is a good fit for supported repeated expression shapes such as:
@@ -201,34 +202,41 @@ This is a good fit for supported repeated expression shapes such as:
 - `user.profile.name == user.profile.name`
 - `make(value) == make(value)`
 
-Use `$id` when you want to compare source-level names across positions that are
+Use `id` when you want to compare source-level names across positions that are
 not the same raw AST node kind, especially binder positions versus identifier
 uses.
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
 Here `counter` appears as both a binder and later identifier expressions. The
 same spelling should match, but the raw AST nodes are different, so
-`$id` is the right tool.
+`id` is the right tool.
 
-`$id` also works for simple assignment targets represented in the parser
+`id` also works for simple assignment targets represented in the parser
 AST as `Var`, so rules like `x = x + 1` can bind the left-hand target by
 normalized name instead of treating it as a literal string.
 
-`$id` can also compare qualified function names and constructor identities. A
+`id` can also compare qualified function names and constructor identities. A
 qualified function such as `@int.abs` normalizes to `@int.abs`; a qualified
 constructor includes its extra info, such as `@pkg.Ctor` or
 `@pkg.Type::Ctor`.
 
-Use `$const` when the candidate must be a parsed MoonBit constant. Repeated
-`$const` captures compare constant kind and value, so `1 + 1` can match while
+Use `const` when the candidate must be a parsed MoonBit constant. Repeated
+`const` captures compare constant kind and value, so `1 + 1` can match while
 `1 + 2` and `x + x` do not.
+
+Use `pat` when the candidate must be a whole pattern AST:
+
+```yaml
+patterns:
+  - shape: match input { $(item:pat) => body }
+```
 
 ### 3.5 Use `inside-expr` when the interesting node must appear inside a larger context
 
@@ -242,7 +250,7 @@ description: |
   Match a call only when it appears inside a specific wrapper.
 inside-expr:
   shape: |
-    wrapper($exp:prefix, __TARGET__)
+    wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: |
       target.call(prefix)
@@ -264,7 +272,7 @@ Rules for `inside-expr`:
 
 YAML `guard` expressions are not supported by the current runtime AST matcher.
 If a rule needs extra logic, first check whether a narrower `shape`,
-`inside-expr`, `$exp`, `$id`, or `$const` metavars can express it. Otherwise, the
+`inside-expr`, or `exp`, `id`, `const`, or `pat` metavars can express it. Otherwise, the
 behavior needs MoonBit implementation work before it can be represented as a
 YAML rule.
 
@@ -280,9 +288,9 @@ description: |
   `Transfer-Encoding` may coexist.
 patterns:
   - shape: |
-      $exp:conn.read_request()
+      $(conn:exp).read_request()
   - shape: |
-      $exp:client.end_request()
+      $(client:exp).end_request()
 ```
 
 Use separate rule files only when the rule id, message, or ownership should be
@@ -309,12 +317,12 @@ id: repeated-equality
 description: |
   Repeated expression equality.
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
 Why it works:
 
-- `expr` is declared inline as an `$exp` metavar
+- `expr` is declared inline as an `exp` metavar
 - both occurrences must bind to equal parser AST nodes for a repeated expression
   form supported by the current equality helper
 - the rule can match more than simple names
@@ -327,8 +335,8 @@ description: |
   C-style `for` loop.
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
@@ -344,8 +352,8 @@ id: collect-output
 description: |
   These helpers collect full child-process output into memory before returning.
 patterns:
-  - shape: $exp:command.output_collect($exp:args)
-  - shape: $exp:command.stderr_collect($exp:args)
+  - shape: $(command:exp).output_collect($(args:exp))
+  - shape: $(command:exp).stderr_collect($(args:exp))
 ```
 
 Why it works:
@@ -365,13 +373,14 @@ valid expression-sized shape, then build back up carefully.
 
 Check, in order:
 
-- the kind is exactly `$exp:`, `$id:`, or `$const:`
-- `$exp:` appears as a whole bare expression placeholder
-- `$const:` appears only where a constant expression or constant pattern can match
+- the kind annotation is exactly `exp`, `id`, `const`, or `pat`
+- `$(name:exp)` appears as a whole bare expression placeholder
+- `$(name:const)` appears only where a constant expression or constant pattern can match
+- `$(name:pat)` appears only as a whole bare pattern placeholder
 - the same payload name is not used across multiple metavar kinds
 - the payload is not a reserved name such as `__`, `__TARGET__`, or `__SOURCE__`
 
-### An `$id` rule looks right but never hits
+### An `id` rule looks right but never hits
 
 The repeated captures may normalize to different source-level names. For
 example, `abs` and `@int.abs` are different normalized identifiers. Review the

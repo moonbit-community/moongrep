@@ -102,24 +102,24 @@ shape 中的标识符和标签默认都是字面量。只有在 `shape` 内使�
 
 ### 语法
 
-使用 `$exp:name` 捕获表达式结构：
+使用 `$(name:exp)` 捕获表达式结构：
 
 ```yaml
 patterns:
-  - shape: $exp:left == $exp:left
+  - shape: $(left:exp) == $(left:exp)
 ```
 
-使用 `$id:name` 捕获归一化后的标识符名称：
+使用 `$(name:id)` 捕获归一化后的标识符名称：
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
-只支持 `exp`、`id` 和 `const`。shape 中出现 `$pat:x` 或任何其他 kind 都是无效规则。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$exp:name`、`$id:name` 和 `$const:name` 使用同一个 payload。
+只支持 `exp`、`id`、`const` 和 `pat`。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$(name:exp)`、`$(name:id)`、`$(name:const)` 和 `$(name:pat)` 等多个 kind 使用同一个 payload。
 
 旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
 
@@ -135,23 +135,30 @@ patterns:
 
 ### 元变量可以绑定的位置
 
-`$exp:name` 只在整个裸标识符表达式位置有效。它捕获该位置上的候选表达式。下面是有效写法：
+`$(name:exp)` 只在整个裸标识符表达式位置有效。它捕获该位置上的候选表达式。下面是有效写法：
 
 ```yaml
 patterns:
-  - shape: sink($exp:value)
+  - shape: sink($(value:exp))
 ```
 
 下面是无效写法，因为 pattern binder 不是表达式位置：
 
 ```yaml
 patterns:
-  - shape: match input { $exp:item => item }
+  - shape: match input { $(item:exp) => item }
 ```
 
-如果需要匹配源码层面的名称，请使用 `$id:name`。它可以绑定简单变量目标、binder、裸标识符表达式、限定函数名、构造器 identity、简单变量模式，以及方法名、字段名、带标签参数名和记录字段标签等标签。
+如果需要匹配源码层面的名称，请使用 `$(name:id)`。它可以绑定简单变量目标、binder、裸标识符表达式、限定函数名、构造器 identity、简单变量模式，以及方法名、字段名、带标签参数名和记录字段标签等标签。
 
-如果需要匹配字面常量，请使用 `$const:name`。它只在整个裸标识符表达式位置或简单 pattern variable 位置有效，并且只匹配解析后的 MoonBit 常量。重复使用同一个 `$const` 名称时，常量 kind 和存储值都必须相等。它不会匹配变量、构造器、标签、操作符、限定标识符或普通 binder。
+如果需要匹配字面常量，请使用 `$(name:const)`。它只在整个裸标识符表达式位置或简单 pattern variable 位置有效，并且只匹配解析后的 MoonBit 常量。重复使用同一个 `const` kind 名称时，常量 kind 和存储值都必须相等。它不会匹配变量、构造器、标签、操作符、限定标识符或普通 binder。
+
+如果需要捕获整个 pattern AST，请使用 `$(name:pat)`。它只在简单 pattern variable 位置有效：
+
+```yaml
+patterns:
+  - shape: match input { $(item:pat) => item }
+```
 
 ### 内置通配符
 
@@ -171,17 +178,17 @@ patterns:
 
 上面的例子可以匹配 `pair(left, right)`。
 
-只有全下划线名称具有这种内置行为。像 `__x` 这样的名称是字面量，除非它被声明为普通元变量。
+只有全下划线名称具有这种内置行为。像 `__x` 这样的名称是字面量，除非它使用 `$(__x:exp)` 这样的内联语法。
 
-### `$exp`
+### `exp`
 
-`$exp` 元变量捕获其所在位置的解析后表达式。重复使用同一个 `$exp` 名称时，后续捕获必须具有相等的表达式结构；源码位置会被忽略。
+`exp` 元变量捕获其所在位置的解析后表达式。重复使用同一个 `exp` 名称时，后续捕获必须具有相等的表达式结构；源码位置会被忽略。
 
 示例：
 
 ```yaml
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
 它可以匹配下面这样的例子：
@@ -199,21 +206,21 @@ x == y
 make(value) == make(other)
 ```
 
-当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`$exp` 通常不是合适选择。此时应使用 `$id`。
+当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`exp` 通常不是合适选择。此时应使用 `id`。
 
-重复 `$exp` 相等性目前保证支持常见表达式形式，包括标识符、hole、常量、unit、中缀表达式、调用、方法调用、字段访问、方法引用、构造器表达式、分组表达式、块、数组字面量、元组字面量和 `for` 表达式。某些表达式形式可以单次匹配，但尚不支持重复相等性。如果重复 `$exp` 捕获使用了不支持的相等形式，该次匹配会失败，而不会产生命中。
+重复 `exp` 相等性目前保证支持常见表达式形式，包括标识符、hole、常量、unit、中缀表达式、调用、方法调用、字段访问、方法引用、构造器表达式、分组表达式、块、数组字面量、元组字面量和 `for` 表达式。某些表达式形式可以单次匹配，但尚不支持重复相等性。如果重复 `exp` 捕获使用了不支持的相等形式，该次匹配会失败，而不会产生命中。
 
-### `$id`
+### `id`
 
-`$id` 元变量捕获归一化后的源码层面名称。重复使用同一个 `$id` 名称时，每次出现都必须归一化为同一个字符串。限定函数名会归一化为 `@pkg.name`。限定构造器 identity 会包含 extra info，例如 `@pkg.Ctor`、`Type::Ctor`、`@pkg.Type::Ctor` 或 `@pkg.Type::@other.Ctor`。
+`id` 元变量捕获归一化后的源码层面名称。重复使用同一个 `id` 名称时，每次出现都必须归一化为同一个字符串。限定函数名会归一化为 `@pkg.name`。限定构造器 identity 会包含 extra info，例如 `@pkg.Ctor`、`Type::Ctor`、`@pkg.Type::Ctor` 或 `@pkg.Type::@other.Ctor`。
 
 当规则需要比较 binder 和后续使用时，这很有用：
 
 ```yaml
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 
@@ -233,17 +240,17 @@ for i = 0; j < n; i = i + 1 {
 }
 ```
 
-归一化目前适用于简单非限定变量名、binder、裸标识符表达式、简单变量模式和标签。限定名称不会为了此用途归一化为简单标识符。
+归一化目前适用于简单和限定变量名、binder、裸标识符表达式、构造器 identity、简单变量模式和标签。限定函数名会保留包限定符，例如 `@pkg.name`；限定构造器 identity 会保留 extra info。
 
-### `$const`
+### `const`
 
-`$const` 元变量捕获解析后的 MoonBit 常量。在表达式位置，它匹配 `Expr::Constant`；在 pattern 位置，它匹配 `Pattern::Constant`。
+`const` 元变量捕获解析后的 MoonBit 常量。在表达式位置，它匹配 `Expr::Constant`；在 pattern 位置，它匹配 `Pattern::Constant`。
 
 示例：
 
 ```yaml
 patterns:
-  - shape: $const:value + $const:value
+  - shape: $(value:const) + $(value:const)
 ```
 
 它可以匹配：
@@ -264,10 +271,23 @@ x + x
 
 ```yaml
 patterns:
-  - shape: match input { $const:lit => lit }
+  - shape: match input { $(lit:const) => lit }
 ```
 
 内部 body 通过普通 payload 名称 `lit` 引用外层常量捕获。
+
+### `pat`
+
+`pat` 元变量捕获整个候选 `Pattern` AST。它只在简单 pattern variable 位置有效。
+
+示例：
+
+```yaml
+patterns:
+  - shape: match input { $(item:pat) => body }
+```
+
+重复使用同一个 `pat` 名称时，捕获到的 pattern 必须结构相等。
 
 ## 结构规则
 
@@ -278,7 +298,7 @@ id: repeated-equality
 description: |
   Repeated equality.
 patterns:
-  - shape: $exp:expr == $exp:expr
+  - shape: $(expr:exp) == $(expr:exp)
 ```
 
 结构规则会应用到从源文件收集到的表达式子树。目前，结构匹配会搜索顶层表达式、函数、方法、顶层 `let` 定义、测试和 view 中的表达式主体。
@@ -303,7 +323,7 @@ id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
 inside-expr:
-  shape: wrapper($exp:prefix, __TARGET__)
+  shape: wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: target.call(prefix)
 ```
@@ -449,8 +469,9 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - shape 使用不支持的内联元变量 kind
 - shape 跨多个元变量 kind 使用同一个内联元变量名
 - 内联元变量使用保留名称
-- `$exp:name` 出现在裸表达式位置之外
-- `$const:name` 出现在常量表达式或常量 pattern 位置之外
+- `$(name:exp)` 出现在裸表达式位置之外
+- `$(name:const)` 出现在常量表达式或常量 pattern 位置之外
+- `$(name:pat)` 出现在裸 pattern 位置之外
 - `inside-expr.shape` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目重新声明了已经由 `inside-expr` 声明的名称
@@ -468,8 +489,8 @@ id: collect-output
 description: |
   These helpers collect full child-process output before returning.
 patterns:
-  - shape: $exp:command.output_collect($exp:args)
-  - shape: $exp:command.stderr_collect($exp:args)
+  - shape: $(command:exp).output_collect($(args:exp))
+  - shape: $(command:exp).stderr_collect($(args:exp))
 ```
 
 两个备选项会产生相同的规则 id 和 description。报告的 pattern index 用于区分匹配的是哪个 shape。
@@ -482,8 +503,8 @@ description: |
   C-style `for` loop.
 patterns:
   - shape: |
-      for $id:counter = $exp:start; $id:counter < $exp:limit; $id:counter = $id:counter + 1 {
-        $exp:body
+      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+        $(body:exp)
       }
 ```
 

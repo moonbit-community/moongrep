@@ -46,9 +46,9 @@ no match hits
 ## Anonymous patterns
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$exp:value + $exp:value' testdata/inline-metavar
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$(value:exp) + $(value:exp)' testdata/inline-metavar
 testdata/inline-metavar/sample.mbt:2:3-2:18
-rule: $exp:value + $exp:value
+rule: $(value:exp) + $(value:exp)
 description:
   Anonymous CLI pattern.
 source:
