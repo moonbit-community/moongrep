@@ -11,6 +11,7 @@ priv struct CliOptions {
   patterns : Array[String]
   scan_root : String
   verbose : Bool
+  matcher : @rule_model.MatcherBackend
 }
 
 ///|
@@ -31,6 +32,11 @@ let scan_command : @argparse.Command = @argparse.Command(
       "verbose",
       long="verbose",
       about="Print directory traversal progress.",
+    ),
+    @argparse.FlagArg(
+      "ast-matcher",
+      long="ast-matcher",
+      about="Use the original AST matcher backend.",
     ),
   ],
   options=[
@@ -169,6 +175,11 @@ fn dump_cli_command(
 ///|
 fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
+  let matcher = if cli_flag_enabled(scan_matches.flags, "ast-matcher") {
+    @rule_model.MatcherBackend::AstMatcher
+  } else {
+    @rule_model.MatcherBackend::JsonMatcher
+  }
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let patterns = all_cli_values(scan_matches.values, "pattern")
   if rules_root is None && patterns.is_empty() {
@@ -183,7 +194,7 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   } else {
     "."
   }
-  { rules_root, patterns, scan_root, verbose }
+  { rules_root, patterns, scan_root, verbose, matcher }
 }
 
 ///|
@@ -191,11 +202,12 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
 ///
 /// `scan` is required after the executable name. Within the `scan` subcommand,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
-/// least one `--pattern <pattern>` is required, and `--verbose` is optional. One
-/// optional scan-root positional may appear in the argument list. If the rules
-/// option appears multiple times, the last value wins. Repeated patterns are
-/// appended in order. Missing subcommands, required arguments, unknown options,
-/// or more than one scan root raise `CliError::Usage` with exit code 2.
+/// least one `--pattern <pattern>` is required, and `--verbose` and
+/// `--ast-matcher` are optional. One optional scan-root positional may appear in
+/// the argument list. If the rules option appears multiple times, the last value
+/// wins. Repeated patterns are appended in order. Missing subcommands, required
+/// arguments, unknown options, or more than one scan root raise `CliError::Usage`
+/// with exit code 2.
 fn parse_cli_command(
   argv : Array[String],
 ) -> (String, CliOptions?, String?) raise {
