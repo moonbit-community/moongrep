@@ -111,9 +111,10 @@ pub fn compile_rule_prefilter(
 ///|
 fn compile_structural_prefilter(rule : CompiledStructuralRule) -> RulePrefilter {
   let alternatives : Array[Array[String]] = []
-  let inside_literals : Array[String] = match rule.inside_expr {
-    None => []
-    Some(pattern) => required_literals_from_compiled_pattern(pattern)
+  let inside_literals : Array[String] = if rule.inside_expr is Some(pattern) {
+    required_literals_from_compiled_pattern(pattern)
+  } else {
+    []
   }
   for pattern in rule.patterns {
     alternatives.push(

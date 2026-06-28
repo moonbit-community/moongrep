@@ -227,40 +227,39 @@ fn apply_structural_rule_to_expr(
   backend : MatcherBackend,
   hits : Array[RuleFinding],
 ) -> Unit {
-  match structural.inside_expr {
-    None =>
-      apply_patterns_at_expr(
-        file,
-        rule,
-        structural.patterns,
-        expr,
-        None,
-        None,
-        backend,
-        hits,
-      )
-    Some(inside) =>
-      if match_rule_pattern(inside, expr, None, backend) is Some(outer_match) {
-        if target_expr_from_match(expr, outer_match) is Some(target) {
-          // The context rule can bind a larger expression than the final hit.
-          // Search supported expressions under `__TARGET__`, while carrying any
-          // bindings established by the outer match.
-          let target_exprs : Array[@syntax.Expr] = []
-          collect_exprs(target, target_exprs)
-          for target_expr in target_exprs {
-            apply_patterns_at_expr(
-              file,
-              rule,
-              structural.patterns,
-              target_expr,
-              Some(expr.loc()),
-              Some(bindings_from_match(outer_match)),
-              backend,
-              hits,
-            )
-          }
+  if structural.inside_expr is Some(inside) {
+    if match_rule_pattern(inside, expr, None, backend) is Some(outer_match) {
+      if target_expr_from_match(expr, outer_match) is Some(target) {
+        // The context rule can bind a larger expression than the final hit.
+        // Search supported expressions under `__TARGET__`, while carrying any
+        // bindings established by the outer match.
+        let target_exprs : Array[@syntax.Expr] = []
+        collect_exprs(target, target_exprs)
+        for target_expr in target_exprs {
+          apply_patterns_at_expr(
+            file,
+            rule,
+            structural.patterns,
+            target_expr,
+            Some(expr.loc()),
+            Some(bindings_from_match(outer_match)),
+            backend,
+            hits,
+          )
         }
       }
+    }
+  } else {
+    apply_patterns_at_expr(
+      file,
+      rule,
+      structural.patterns,
+      expr,
+      None,
+      None,
+      backend,
+      hits,
+    )
   }
 }
 
@@ -438,12 +437,12 @@ fn json_guards_match(
       @model.RuleGuardCaptureKind::ConstantGuard =>
         match bindings.get(guard_entry.name) {
           Some(@json_matching.JsonBoundValue::Constant(value)) =>
-            match @json_matching.json_constant_guard_value(value) {
-              Some(text) =>
-                if guard_entry.regex.execute(text) is None {
-                  return false
-                }
-              None => return false
+            if @json_matching.json_constant_guard_value(value) is Some(text) {
+              if guard_entry.regex.execute(text) is None {
+                return false
+              }
+            } else {
+              return false
             }
           _ => return false
         }

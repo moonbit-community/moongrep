@@ -97,12 +97,12 @@ fn cleanup_temporary_pattern_metavars(
   let pattern_metavars : Array[String] = []
   let cleaned_identifier_metavars : Array[String] = []
   for name in identifier_metavars {
-    match parse_temporary_pattern_metavar_marker(name) {
-      Some(pattern_name) =>
-        if !array_contains(pattern_metavars, pattern_name) {
-          pattern_metavars.push(pattern_name)
-        }
-      None => cleaned_identifier_metavars.push(name)
+    if parse_temporary_pattern_metavar_marker(name) is Some(pattern_name) {
+      if !array_contains(pattern_metavars, pattern_name) {
+        pattern_metavars.push(pattern_name)
+      }
+    } else {
+      cleaned_identifier_metavars.push(name)
     }
   }
   (
@@ -1127,14 +1127,14 @@ fn rewrite_optional_expr(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Expr? raise {
-  match expr {
-    None => None
-    Some(expr) =>
-      Some(
-        rewrite_expr(
-          expr, path, context, expr_metavars, identifier_metavars, constant_metavars,
-        ),
-      )
+  if expr is Some(expr) {
+    Some(
+      rewrite_expr(
+        expr, path, context, expr_metavars, identifier_metavars, constant_metavars,
+      ),
+    )
+  } else {
+    None
   }
 }
 
@@ -1240,14 +1240,14 @@ fn rewrite_optional_var(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Var? raise {
-  match var_ {
-    None => None
-    Some(var_) =>
-      Some(
-        rewrite_var(
-          var_, path, context, expr_metavars, identifier_metavars, constant_metavars,
-        ),
-      )
+  if var_ is Some(var_) {
+    Some(
+      rewrite_var(
+        var_, path, context, expr_metavars, identifier_metavars, constant_metavars,
+      ),
+    )
+  } else {
+    None
   }
 }
 
@@ -1260,14 +1260,14 @@ fn rewrite_optional_label(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Label? raise {
-  match label {
-    None => None
-    Some(label) =>
-      Some(
-        rewrite_label(
-          label, path, context, expr_metavars, identifier_metavars, constant_metavars,
-        ),
-      )
+  if label is Some(label) {
+    Some(
+      rewrite_label(
+        label, path, context, expr_metavars, identifier_metavars, constant_metavars,
+      ),
+    )
+  } else {
+    None
   }
 }
 
@@ -1308,16 +1308,16 @@ fn rewrite_optional_binders(
 ) -> @list.List[@syntax.Binder?] raise {
   let result : Array[@syntax.Binder?] = []
   for binder in binders {
-    match binder {
-      None => result.push(None)
-      Some(binder) =>
-        result.push(
-          Some(
-            rewrite_binder(
-              binder, path, context, expr_metavars, identifier_metavars, constant_metavars,
-            ),
+    if binder is Some(binder) {
+      result.push(
+        Some(
+          rewrite_binder(
+            binder, path, context, expr_metavars, identifier_metavars, constant_metavars,
           ),
-        )
+        ),
+      )
+    } else {
+      result.push(None)
     }
   }
   @list.from_array(result)
@@ -1595,14 +1595,14 @@ fn rewrite_optional_constr_pat_args(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @list.List[@syntax.ConstrPatArg]? raise {
-  match args {
-    None => None
-    Some(args) =>
-      Some(
-        rewrite_constr_pat_args(
-          args, path, context, expr_metavars, identifier_metavars, constant_metavars,
-        ),
-      )
+  if args is Some(args) {
+    Some(
+      rewrite_constr_pat_args(
+        args, path, context, expr_metavars, identifier_metavars, constant_metavars,
+      ),
+    )
+  } else {
+    None
   }
 }
 
@@ -1805,14 +1805,14 @@ fn rewrite_optional_cases(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @list.List[@syntax.Case]? raise {
-  match cases {
-    None => None
-    Some(cases) =>
-      Some(
-        rewrite_cases(
-          cases, path, context, expr_metavars, identifier_metavars, constant_metavars,
-        ),
-      )
+  if cases is Some(cases) {
+    Some(
+      rewrite_cases(
+        cases, path, context, expr_metavars, identifier_metavars, constant_metavars,
+      ),
+    )
+  } else {
+    None
   }
 }
 
@@ -1938,20 +1938,20 @@ fn rewrite_optional_where_clause(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.WhereClause? raise {
-  match clause {
-    None => None
-    Some(clause) =>
-      Some({
-        fields: rewrite_field_defs(
-          clause.fields,
-          path,
-          context,
-          expr_metavars,
-          identifier_metavars,
-          constant_metavars,
-        ),
-        loc: clause.loc,
-      })
+  if clause is Some(clause) {
+    Some({
+      fields: rewrite_field_defs(
+        clause.fields,
+        path,
+        context,
+        expr_metavars,
+        identifier_metavars,
+        constant_metavars,
+      ),
+      loc: clause.loc,
+    })
+  } else {
+    None
   }
 }
 
@@ -2150,13 +2150,13 @@ fn rewrite_optional_binder_value(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
 ) -> @syntax.Binder? raise {
-  match binder {
-    None => None
-    Some(binder) =>
-      Some(
-        rewrite_binder(
-          binder, path, context, expr_metavars, identifier_metavars, constant_metavars,
-        ),
-      )
+  if binder is Some(binder) {
+    Some(
+      rewrite_binder(
+        binder, path, context, expr_metavars, identifier_metavars, constant_metavars,
+      ),
+    )
+  } else {
+    None
   }
 }

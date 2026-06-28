@@ -271,18 +271,18 @@ test "pattern metavar captures whole pattern AST" {
     target_metavar: None,
     source_metavar: None,
   }
-  match
-    match_expr_pattern(
+  if match_expr_pattern(
       compiled,
       parse_expr("match value { Some(actual) => ok }"),
-    ) {
-    Some(result) =>
-      match result.bindings.get("item") {
-        Some(Pattern(Constr(constr~, ..))) =>
-          inspect(constr.name.name, content="Some")
-        _ => fail("expected pattern binding")
-      }
-    None => fail("expected match")
+    )
+    is Some(result) {
+    match result.bindings.get("item") {
+      Some(Pattern(Constr(constr~, ..))) =>
+        inspect(constr.name.name, content="Some")
+      _ => fail("expected pattern binding")
+    }
+  } else {
+    fail("expected match")
   }
 }
 
