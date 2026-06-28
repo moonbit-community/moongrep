@@ -1,0 +1,4 @@
+import {
+  "moonbit-community/moongrep/rule/internal/rules/moonbitlang" @moonbitlang_rules,
+  "moonbit-community/moongrep/rule/model",
+}

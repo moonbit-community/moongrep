@@ -476,5 +476,5 @@ test "json matcher rejects malformed json without mutating caller bindings" {
     )
     is None,
   )
-  inspect(initial.length(), content="0")
+  assert_eq(initial.length(), 0)
 }

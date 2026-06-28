@@ -1,0 +1,20 @@
+rule(
+  name: "embed",
+  command: "moon runwasm moonbit-community/embed $input -o $output",
+)
+
+dev_build(rule: "embed", input: "catch_all.yaml", output: "catch_all.mbt")
+
+dev_build(
+  rule: "embed",
+  input: "inspect_boolean.yaml",
+  output: "inspect_boolean.mbt",
+)
+
+dev_build(
+  rule: "embed",
+  input: "inspect_number.yaml",
+  output: "inspect_number.mbt",
+)
+
+dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
