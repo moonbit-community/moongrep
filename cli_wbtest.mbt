@@ -95,6 +95,7 @@ test "cli args parse rules root and default scan root" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
       expect_json_matcher(options)
     }
     _ => fail("unexpected command")
@@ -109,6 +110,7 @@ test "cli args parse explicit scan root" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
       expect_json_matcher(options)
     }
     _ => fail("unexpected command")
@@ -124,6 +126,7 @@ test "cli args parse scan verbose flag" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content="src")
       assert_true(options.verbose)
+      assert_false(options.enable_builtin_rules)
       expect_json_matcher(options)
     }
     _ => fail("unexpected command")
@@ -139,6 +142,7 @@ test "cli args parse ast matcher flag" {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
+      assert_false(options.enable_builtin_rules)
       expect_ast_matcher(options)
     }
     _ => fail("unexpected command")
@@ -153,6 +157,7 @@ test "cli args parse argparse option input forms" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
       expect_json_matcher(options)
     }
     _ => fail("unexpected inline command")
@@ -163,6 +168,7 @@ test "cli args parse argparse option input forms" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
       expect_json_matcher(options)
     }
     _ => fail("unexpected short command")
@@ -180,6 +186,7 @@ test "cli args keep the last rules option" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -196,6 +203,7 @@ test "cli args parse anonymous patterns without rules root" {
       debug_inspect(options.patterns, content="[\"target()\", \"other()\"]")
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -204,6 +212,20 @@ test "cli args parse anonymous patterns without rules root" {
 ///|
 test "cli args reject missing rules value" {
   expect_cli_usage(["scan", "--rules"], 2)
+}
+
+///|
+test "cli args parse builtin rules flag without rules root" {
+  match parse_cli_command(["scan", "--enable-builtin-rules", "src"]) {
+    ("scan", Some(options), None) => {
+      assert_true(options.rules_root is None)
+      debug_inspect(options.patterns, content="[]")
+      inspect(options.scan_root, content="src")
+      assert_true(options.enable_builtin_rules)
+      expect_json_matcher(options)
+    }
+    _ => fail("unexpected command")
+  }
 }
 
 ///|
@@ -225,6 +247,7 @@ test "cli args from runtime drop executable name" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }

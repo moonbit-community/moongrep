@@ -11,6 +11,7 @@ priv struct CliOptions {
   patterns : Array[String]
   scan_root : String
   verbose : Bool
+  enable_builtin_rules : Bool
   matcher : @rule_model.MatcherBackend
 }
 
@@ -37,6 +38,11 @@ let scan_command : @argparse.Command = @argparse.Command(
       "ast-matcher",
       long="ast-matcher",
       about="Use the original AST matcher backend.",
+    ),
+    @argparse.FlagArg(
+      "enable-builtin-rules",
+      long="enable-builtin-rules",
+      about="Enable embedded builtin rules.",
     ),
   ],
   options=[
@@ -175,6 +181,10 @@ fn dump_cli_command(
 ///|
 fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
+  let enable_builtin_rules = cli_flag_enabled(
+    scan_matches.flags,
+    "enable-builtin-rules",
+  )
   let matcher = if cli_flag_enabled(scan_matches.flags, "ast-matcher") {
     @rule_model.MatcherBackend::AstMatcher
   } else {
@@ -182,9 +192,9 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   }
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let patterns = all_cli_values(scan_matches.values, "pattern")
-  if rules_root is None && patterns.is_empty() {
+  if rules_root is None && patterns.is_empty() && !enable_builtin_rules {
     raise CliError::Usage(
-      message="missing required --rules or --pattern",
+      message="missing required --rules, --pattern, or --enable-builtin-rules",
       exit_code=2,
     )
   }
@@ -194,7 +204,7 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   } else {
     "."
   }
-  { rules_root, patterns, scan_root, verbose, matcher }
+  { rules_root, patterns, scan_root, verbose, enable_builtin_rules, matcher }
 }
 
 ///|
@@ -202,12 +212,12 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
 ///
 /// `scan` is required after the executable name. Within the `scan` subcommand,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
-/// least one `--pattern <pattern>` is required, and `--verbose` and
-/// `--ast-matcher` are optional. One optional scan-root positional may appear in
-/// the argument list. If the rules option appears multiple times, the last value
-/// wins. Repeated patterns are appended in order. Missing subcommands, required
-/// arguments, unknown options, or more than one scan root raise `CliError::Usage`
-/// with exit code 2.
+/// least one `--pattern <pattern>`, or `--enable-builtin-rules` is required, and
+/// `--verbose` and `--ast-matcher` are optional. One optional scan-root
+/// positional may appear in the argument list. If the rules option appears
+/// multiple times, the last value wins. Repeated patterns are appended in order.
+/// Missing subcommands, required arguments, unknown options, or more than one
+/// scan root raise `CliError::Usage` with exit code 2.
 fn parse_cli_command(
   argv : Array[String],
 ) -> (String, CliOptions?, String?) raise {

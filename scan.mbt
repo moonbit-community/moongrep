@@ -145,6 +145,9 @@ fn load_scan_rules(
   options : CliOptions,
 ) -> Array[@rule_model.RawRuleSpec] raise {
   let raw_rules : Array[@rule_model.RawRuleSpec] = []
+  if options.enable_builtin_rules {
+    raw_rules.append(@rule_builtin.load_rules())
+  }
   if options.rules_root is Some(rules_root) {
     raw_rules.append(@rule_load.load_rules(rules_root))
   }

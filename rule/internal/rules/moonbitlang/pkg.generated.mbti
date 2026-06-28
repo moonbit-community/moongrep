@@ -1,0 +1,20 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/rule/internal/rules/moonbitlang"
+
+// Values
+pub let catch_all_yaml : String
+
+pub let inspect_boolean_yaml : String
+
+pub let inspect_number_yaml : String
+
+pub let match_option_yaml : String
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
+

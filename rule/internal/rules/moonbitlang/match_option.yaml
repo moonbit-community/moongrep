@@ -14,4 +14,14 @@ patterns:
         None => $(none_body:exp)
         Some($(some:id)) => $(some_body:exp)
       }
+  - shape: |
+      match $(value:exp) {
+        Some(_) => $(some_body:exp)
+        None => $(none_body:exp)
+      }
+  - shape: |
+      match $(value:exp) {
+        None => $(none_body:exp)
+        Some(_) => $(some_body:exp)
+      }
   
