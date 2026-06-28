@@ -1,0 +1,17 @@
+id: match_option
+description: |
+  Found an Option value handled with match over Some and None.
+  Prefer if + is for simple Option checks.
+
+patterns:
+  - shape: |
+      match $(value:exp) {
+        Some($(some:id)) => $(some_body:exp)
+        None => $(none_body:exp)
+      }
+  - shape: |
+      match $(value:exp) {
+        None => $(none_body:exp)
+        Some($(some:id)) => $(some_body:exp)
+      }
+  

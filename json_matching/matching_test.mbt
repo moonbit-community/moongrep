@@ -65,17 +65,18 @@ fn expect_json_constant_guard_value(
   let compiled = compiled_expr_pattern_to_json(
     compiled_ast(parse_expr("sink(value)"), [], [], ["value"]),
   )
-  match match_expr_pattern_ast(compiled, parse_expr(source)) {
-    Some(result) =>
-      match result.bindings.get("value") {
-        Some(Constant(constant)) =>
-          match json_constant_guard_value(constant) {
-            Some(value) => inspect(value, content=expected)
-            None => fail("expected constant guard value")
-          }
-        _ => fail("expected constant binding")
-      }
-    None => fail("expected match")
+  if match_expr_pattern_ast(compiled, parse_expr(source)) is Some(result) {
+    match result.bindings.get("value") {
+      Some(Constant(constant)) =>
+        if json_constant_guard_value(constant) is Some(value) {
+          inspect(value, content=expected)
+        } else {
+          fail("expected constant guard value")
+        }
+      _ => fail("expected constant binding")
+    }
+  } else {
+    fail("expected match")
   }
 }
 
@@ -281,18 +282,18 @@ test "json matcher mirrors pattern metavars and constant patterns" {
     [],
   )
   let json_compiled = compiled_expr_pattern_to_json(pattern_compiled)
-  match
-    match_expr_pattern(
+  if match_expr_pattern(
       json_compiled,
       parse_expr_json("match value { Some(actual) => ok }"),
-    ) {
-    Some(result) =>
-      match result.bindings.get("item") {
-        Some(JsonBoundValue::Pattern(pattern)) =>
-          assert_true(json_kind_for_test(pattern) == Some("Pattern::Constr"))
-        _ => fail("expected pattern binding")
-      }
-    None => fail("expected match")
+    )
+    is Some(result) {
+    match result.bindings.get("item") {
+      Some(JsonBoundValue::Pattern(pattern)) =>
+        assert_true(json_kind_for_test(pattern) == Some("Pattern::Constr"))
+      _ => fail("expected pattern binding")
+    }
+  } else {
+    fail("expected match")
   }
   let repeated_pattern_compiled = compiled_ast(
     test_match_pattern(

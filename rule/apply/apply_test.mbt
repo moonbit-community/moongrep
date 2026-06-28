@@ -27,9 +27,10 @@ fn location_signature(loc : @basic.Location) -> String {
 
 ///|
 fn finding_signature(finding : RuleFinding) -> String {
-  let outer = match finding.outer_loc {
-    Some(loc) => location_signature(loc)
-    None => "none"
+  let outer = if finding.outer_loc is Some(loc) {
+    location_signature(loc)
+  } else {
+    "none"
   }
   "\{finding.file}|\{finding.rule_id}|\{finding.pattern_index}|\{location_signature(finding.loc)}|\{outer}"
 }

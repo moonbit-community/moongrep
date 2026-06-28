@@ -123,31 +123,31 @@ fn match_json(
       Some("Pattern::Var") =>
         match_pattern_var(pattern, candidate, compiled, bindings)
       Some(pattern_kind) =>
-        match json_kind(candidate) {
-          Some(candidate_kind) =>
-            if pattern_kind != candidate_kind {
-              false
-            } else {
-              match pattern_kind {
-                "Var" => match_var(pattern, candidate, compiled, bindings)
-                "LongIdent::Ident" | "LongIdent::Dot" =>
-                  match_long_ident(pattern, candidate, compiled, bindings)
-                "Binder" => match_binder(pattern, candidate, compiled, bindings)
-                "Label" => match_label(pattern, candidate, compiled, bindings)
-                "Constructor" =>
-                  match_constructor(pattern, candidate, compiled, bindings)
-                "TypeName" =>
-                  match_type_name(pattern, candidate, compiled, bindings)
-                "Expr::Let" =>
-                  match_let_expr(pattern, candidate, compiled, bindings)
-                "InterpElem::Source" => true
-                _ =>
-                  match_structured_node(
-                    pattern, candidate, pattern_kind, compiled, bindings,
-                  )
-              }
+        if json_kind(candidate) is Some(candidate_kind) {
+          if pattern_kind != candidate_kind {
+            false
+          } else {
+            match pattern_kind {
+              "Var" => match_var(pattern, candidate, compiled, bindings)
+              "LongIdent::Ident" | "LongIdent::Dot" =>
+                match_long_ident(pattern, candidate, compiled, bindings)
+              "Binder" => match_binder(pattern, candidate, compiled, bindings)
+              "Label" => match_label(pattern, candidate, compiled, bindings)
+              "Constructor" =>
+                match_constructor(pattern, candidate, compiled, bindings)
+              "TypeName" =>
+                match_type_name(pattern, candidate, compiled, bindings)
+              "Expr::Let" =>
+                match_let_expr(pattern, candidate, compiled, bindings)
+              "InterpElem::Source" => true
+              _ =>
+                match_structured_node(
+                  pattern, candidate, pattern_kind, compiled, bindings,
+                )
             }
-          None => false
+          }
+        } else {
+          false
         }
       None => json_value_equal(pattern, candidate, compiled, bindings)
     }
@@ -164,28 +164,29 @@ fn match_expr_placeholder(
   if json_kind(pattern) != Some("Expr::Ident") {
     return None
   }
-  match option_then(child(pattern, "id"), normalized_var) {
-    Some(name) =>
-      if is_ignore_placeholder(name) {
-        Some(true)
-      } else if is_special_expr_metavar(compiled, name) ||
-        contains_name(compiled.expr_metavars, name) {
-        Some(bind_value(bindings, name, Expr(candidate)))
-      } else if contains_name(compiled.identifier_metavars, name) {
-        match normalized_expr(candidate) {
-          Some(candidate_name) =>
-            Some(bind_value(bindings, name, Identifier(candidate_name)))
-          None => Some(false)
-        }
-      } else if contains_name(compiled.constant_metavars, name) {
-        match expr_constant(candidate) {
-          Some(constant) => Some(bind_value(bindings, name, Constant(constant)))
-          None => Some(false)
-        }
+  if option_then(child(pattern, "id"), normalized_var) is Some(name) {
+    if is_ignore_placeholder(name) {
+      Some(true)
+    } else if is_special_expr_metavar(compiled, name) ||
+      contains_name(compiled.expr_metavars, name) {
+      Some(bind_value(bindings, name, Expr(candidate)))
+    } else if contains_name(compiled.identifier_metavars, name) {
+      if normalized_expr(candidate) is Some(candidate_name) {
+        Some(bind_value(bindings, name, Identifier(candidate_name)))
       } else {
-        None
+        Some(false)
       }
-    None => None
+    } else if contains_name(compiled.constant_metavars, name) {
+      if expr_constant(candidate) is Some(constant) {
+        Some(bind_value(bindings, name, Constant(constant)))
+      } else {
+        Some(false)
+      }
+    } else {
+      None
+    }
+  } else {
+    None
   }
 }
 
@@ -196,30 +197,29 @@ fn match_pattern_var(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match option_then(child(pattern, "value"), binder_name) {
-    Some(name) =>
-      match parse_pattern_metavar_name(name) {
-        Some(meta_name) => bind_value(bindings, meta_name, Pattern(candidate))
-        None =>
-          if is_ignore_placeholder(name) {
-            true
-          } else if contains_name(compiled.identifier_metavars, name) {
-            match normalized_pattern(candidate) {
-              Some(candidate_name) =>
-                bind_value(bindings, name, Identifier(candidate_name))
-              None => false
-            }
-          } else if contains_name(compiled.constant_metavars, name) {
-            match pattern_constant(candidate) {
-              Some(constant) => bind_value(bindings, name, Constant(constant))
-              None => false
-            }
-          } else {
-            json_kind(candidate) == Some("Pattern::Var") &&
-            option_then(child(candidate, "value"), binder_name) == Some(name)
-          }
+  if option_then(child(pattern, "value"), binder_name) is Some(name) {
+    if parse_pattern_metavar_name(name) is Some(meta_name) {
+      bind_value(bindings, meta_name, Pattern(candidate))
+    } else if is_ignore_placeholder(name) {
+      true
+    } else if contains_name(compiled.identifier_metavars, name) {
+      if normalized_pattern(candidate) is Some(candidate_name) {
+        bind_value(bindings, name, Identifier(candidate_name))
+      } else {
+        false
       }
-    None => false
+    } else if contains_name(compiled.constant_metavars, name) {
+      if pattern_constant(candidate) is Some(constant) {
+        bind_value(bindings, name, Constant(constant))
+      } else {
+        false
+      }
+    } else {
+      json_kind(candidate) == Some("Pattern::Var") &&
+      option_then(child(candidate, "value"), binder_name) == Some(name)
+    }
+  } else {
+    false
   }
 }
 
@@ -288,18 +288,18 @@ fn match_child_object(
 ) -> Bool {
   for key, pattern_value in pattern_children {
     if !ignore_child_key(node_kind, key) {
-      match candidate_children.get(key) {
-        Some(candidate_value) =>
-          if optional_location_key(key) {
-            if json_has_value(pattern_value) != json_has_value(candidate_value) {
-              return false
-            }
-          } else if !match_json(
-              pattern_value, candidate_value, compiled, bindings,
-            ) {
+      if candidate_children.get(key) is Some(candidate_value) {
+        if optional_location_key(key) {
+          if json_has_value(pattern_value) != json_has_value(candidate_value) {
             return false
           }
-        None => return false
+        } else if !match_json(
+            pattern_value, candidate_value, compiled, bindings,
+          ) {
+          return false
+        }
+      } else {
+        return false
       }
     }
   }
@@ -466,20 +466,19 @@ fn match_constructor(
       Some(candidate_extra),
     ) =>
       if contains_name(compiled.identifier_metavars, pattern_name) {
-        match normalized_constructor(candidate) {
-          Some(candidate_normalized) => {
-            let extra_matches = if json_kind(pattern_extra) ==
-              Some("ConstructorExtraInfo::NoExtraInfo") {
-              true
-            } else {
-              match_constructor_extra_info(
-                pattern_extra, candidate_extra, compiled, bindings,
-              )
-            }
-            extra_matches &&
-            bind_value(bindings, pattern_name, Identifier(candidate_normalized))
+        if normalized_constructor(candidate) is Some(candidate_normalized) {
+          let extra_matches = if json_kind(pattern_extra) ==
+            Some("ConstructorExtraInfo::NoExtraInfo") {
+            true
+          } else {
+            match_constructor_extra_info(
+              pattern_extra, candidate_extra, compiled, bindings,
+            )
           }
-          None => false
+          extra_matches &&
+          bind_value(bindings, pattern_name, Identifier(candidate_normalized))
+        } else {
+          false
         }
       } else if is_ignore_placeholder(pattern_name) {
         true
@@ -881,9 +880,10 @@ fn argument_kind_equal_ignoring_loc(left : Json, right : Json) -> Bool {
 
 ///|
 fn argument_kind_label(value : Json) -> Json? {
-  match child(value, "value") {
-    Some(label) => Some(label)
-    None => child(value, "label")
+  if child(value, "value") is Some(label) {
+    Some(label)
+  } else {
+    child(value, "label")
   }
 }
 
@@ -1243,12 +1243,12 @@ fn match_plain_object(
 ) -> Bool {
   for key, pattern_value in pattern_fields {
     if key != "loc" {
-      match candidate_fields.get(key) {
-        Some(candidate_value) =>
-          if !match_json(pattern_value, candidate_value, compiled, bindings) {
-            return false
-          }
-        None => return false
+      if candidate_fields.get(key) is Some(candidate_value) {
+        if !match_json(pattern_value, candidate_value, compiled, bindings) {
+          return false
+        }
+      } else {
+        return false
       }
     }
   }
@@ -1296,12 +1296,12 @@ fn plain_object_equal(
     return false
   }
   for key, value in left {
-    match right.get(key) {
-      Some(right_value) =>
-        if !json_value_equal_plain(value, right_value) {
-          return false
-        }
-      None => return false
+    if right.get(key) is Some(right_value) {
+      if !json_value_equal_plain(value, right_value) {
+        return false
+      }
+    } else {
+      return false
     }
   }
   true
@@ -1314,12 +1314,12 @@ fn plain_object_equal_ignoring_loc(
 ) -> Bool {
   for key, value in left {
     if key != "loc" {
-      match right.get(key) {
-        Some(right_value) =>
-          if !json_value_equal_ignoring_loc(value, right_value) {
-            return false
-          }
-        None => return false
+      if right.get(key) is Some(right_value) {
+        if !json_value_equal_ignoring_loc(value, right_value) {
+          return false
+        }
+      } else {
+        return false
       }
     }
   }
@@ -1342,17 +1342,19 @@ fn[A] option_match(left : A?, right : A?, equal : (A, A) -> Bool) -> Bool {
 
 ///|
 fn[A, B] option_then(value : A?, f : (A) -> B?) -> B? {
-  match value {
-    Some(value) => f(value)
-    None => None
+  if value is Some(value) {
+    f(value)
+  } else {
+    None
   }
 }
 
 ///|
 fn[A, B] option_map(value : A?, f : (A) -> B) -> B? {
-  match value {
-    Some(value) => Some(f(value))
-    None => None
+  if value is Some(value) {
+    Some(f(value))
+  } else {
+    None
   }
 }
 
