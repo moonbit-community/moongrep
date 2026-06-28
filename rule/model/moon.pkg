@@ -1,4 +1,5 @@
 import {
+  "moonbit-community/moongrep/json_matching",
   "moonbit-community/moongrep/matching",
   "moonbitlang/lexer/basic",
   "moonbit-community/yaml",

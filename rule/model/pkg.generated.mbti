@@ -2,6 +2,7 @@
 package "moonbit-community/moongrep/rule/model"
 
 import {
+  "moonbit-community/moongrep/json_matching",
   "moonbit-community/moongrep/matching",
   "moonbitlang/core/debug",
   "moonbitlang/core/string",
@@ -38,6 +39,7 @@ pub(all) struct CompiledRuleGuard {
 pub(all) struct CompiledRulePattern {
   source : RulePatternSpec
   compiled : @matching.CompiledExprPattern
+  json_compiled : @json_matching.CompiledJsonExprPattern
   guards : Array[CompiledRuleGuard]
 }
 
@@ -64,6 +66,11 @@ pub(all) struct CompiledTaintSink {
 
 pub(all) struct CompiledTaintSource {
   pattern : CompiledRulePattern
+}
+
+pub(all) enum MatcherBackend {
+  JsonMatcher
+  AstMatcher
 }
 
 pub(all) struct RawRuleSpec {

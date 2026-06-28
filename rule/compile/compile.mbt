@@ -308,16 +308,18 @@ fn compile_pattern_with_effective_metavars(
     constant_metavars,
     pattern_metavars,
   )
+  let compiled : @matching.CompiledExprPattern = {
+    ast,
+    expr_metavars,
+    identifier_metavars,
+    constant_metavars,
+    target_metavar,
+    source_metavar,
+  }
   {
     source: pattern,
-    compiled: {
-      ast,
-      expr_metavars,
-      identifier_metavars,
-      constant_metavars,
-      target_metavar,
-      source_metavar,
-    },
+    compiled,
+    json_compiled: @json_matching.compiled_expr_pattern_to_json(compiled),
     guards,
   }
 }

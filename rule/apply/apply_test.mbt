@@ -2,7 +2,7 @@
 using @compile {compile_rules}
 
 ///|
-using @model {type CompiledRule}
+using @model {type CompiledRule, type RuleFinding}
 
 ///|
 fn parse_impls(source : String) -> @list.List[@syntax.Impl] raise {
@@ -18,6 +18,34 @@ fn compile_rule_source(source : String) -> Array[CompiledRule] raise {
       "/tmp/rules/example.yaml", "/tmp/rules", source,
     ),
   ])
+}
+
+///|
+fn location_signature(loc : @basic.Location) -> String {
+  "\{loc.start.lnum}:\{loc.start.column()}-\{loc.end.lnum}:\{loc.end.column()}"
+}
+
+///|
+fn finding_signature(finding : RuleFinding) -> String {
+  let outer = match finding.outer_loc {
+    Some(loc) => location_signature(loc)
+    None => "none"
+  }
+  "\{finding.file}|\{finding.rule_id}|\{finding.pattern_index}|\{location_signature(finding.loc)}|\{outer}"
+}
+
+///|
+fn assert_same_findings(
+  expected : Array[RuleFinding],
+  actual : Array[RuleFinding],
+) -> Unit raise {
+  assert_eq(actual.length(), expected.length())
+  for index in 0..<expected.length() {
+    inspect(
+      finding_signature(actual[index]),
+      content=finding_signature(expected[index]),
+    )
+  }
 }
 
 ///|
@@ -280,6 +308,51 @@ test "apply inside expr and inner guards filter inherited bindings" {
   )
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "backend-aware structural apply matches JSON and AST with guards inside expr" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Guarded wrapper.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    name: "^safe_"
+    #|patterns:
+    #|  - shape: call(name, $(value:const))
+    #|    guard:
+    #|      name: "_ok$"
+    #|      value: "^(42|true)$"
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(safe_ok, call(safe_ok, 42));
+    #|  wrapper(unsafe_ok, call(unsafe_ok, 42));
+    #|  wrapper(safe_bad, call(safe_bad, 42));
+    #|  wrapper(safe_ok, call(safe_ok, false))
+    #|}
+    #|
+  let rules = compile_rule_source(rule_source)
+  let impls = parse_impls(source)
+  let legacy_hits = apply_structural_rules("sample.mbt", impls, rules)
+  let ast_hits = apply_structural_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::AstMatcher,
+  )
+  let json_hits = apply_structural_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::JsonMatcher,
+  )
+  assert_same_findings(legacy_hits, ast_hits)
+  assert_same_findings(ast_hits, json_hits)
+  assert_eq(json_hits.length(), 1)
+  assert_true(json_hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -615,6 +688,47 @@ test "apply taint rule sanitizer suppresses nested source sink" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 0)
+}
+
+///|
+test "backend-aware taint apply matches JSON and AST for source sink sanitizer" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  User input reaches sink unless sanitized.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|  sanitizers:
+    #|    - shape: clean(__SOURCE__)
+    #|
+  let source =
+    #|fn sample {
+    #|  let dirty = get_user_input();
+    #|  sink(dirty);
+    #|  sink(clean(dirty))
+    #|}
+    #|
+  let rules = compile_rule_source(rule_source)
+  let impls = parse_impls(source)
+  let legacy_hits = apply_taint_rules("sample.mbt", impls, rules)
+  let ast_hits = apply_taint_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::AstMatcher,
+  )
+  let json_hits = apply_taint_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::JsonMatcher,
+  )
+  assert_same_findings(legacy_hits, ast_hits)
+  assert_same_findings(ast_hits, json_hits)
+  assert_eq(json_hits.length(), 1)
 }
 
 ///|

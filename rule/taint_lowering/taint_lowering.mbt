@@ -1,5 +1,11 @@
 ///|
-using @model {type CompiledRule, type CompiledTaintRule, type TaintTarget}
+using @model {
+  type CompiledRule,
+  type CompiledRulePattern,
+  type CompiledTaintRule,
+  type MatcherBackend,
+  type TaintTarget,
+}
 
 ///|
 priv struct TargetValue {
@@ -14,6 +20,19 @@ pub fn lower_compiled_taint_rule(
   rule : CompiledRule,
   taint_rule : CompiledTaintRule,
 ) -> @taint.TaintSpec {
+  lower_compiled_taint_rule_with_backend(
+    rule,
+    taint_rule,
+    @model.MatcherBackend::AstMatcher,
+  )
+}
+
+///|
+pub fn lower_compiled_taint_rule_with_backend(
+  rule : CompiledRule,
+  taint_rule : CompiledTaintRule,
+  backend : MatcherBackend,
+) -> @taint.TaintSpec {
   {
     rule_id: rule.rule_id,
     sources: [],
@@ -21,30 +40,31 @@ pub fn lower_compiled_taint_rule(
     unknown_call_policy: NoEffect,
     max_fixpoint_iterations: 6,
     custom_transfer_call: call => {
-      transfer_compiled_taint_call(rule.rule_id, taint_rule, call)
+      transfer_compiled_taint_call(rule.rule_id, taint_rule, call, backend)
     },
   }
 }
 
 ///|
 // Implements YAML taint rules as a custom call transfer instead of teaching the
-// taint engine about rule syntax. The rule package family owns AST pattern matching;
+// taint engine about rule syntax. The rule package family owns pattern matching;
 // the taint package only sees generic call facts and transfer results.
 fn transfer_compiled_taint_call(
   rule_id : String,
   taint_rule : CompiledTaintRule,
   call : @taint.CallInfo,
+  backend : MatcherBackend,
 ) -> @taint.CallTransfer? {
   let mut matched = false
   let return_taint : @taint.TaintTree = []
   let killed_paths : Array[@taint.StoragePath] = []
   let findings : Array[@taint.SinkFinding] = []
   for index in 0..<taint_rule.sources.length() {
-    if @matching.match_expr_pattern(
-        taint_rule.sources[index].pattern.compiled,
+    if taint_pattern_matches(
+        taint_rule.sources[index].pattern,
         call.ast,
-      )
-      is Some(_) {
+        backend,
+      ) {
       matched = true
       return_taint.push({
         path: [],
@@ -61,8 +81,7 @@ fn transfer_compiled_taint_call(
   }
   for index in 0..<taint_rule.sanitizers.length() {
     let sanitizer = taint_rule.sanitizers[index]
-    if @matching.match_expr_pattern(sanitizer.pattern.compiled, call.ast)
-      is Some(_) {
+    if taint_pattern_matches(sanitizer.pattern, call.ast, backend) {
       matched = true
       if target_value(call, sanitizer.target) is Some(target) &&
         target.path is Some(path) {
@@ -72,7 +91,7 @@ fn transfer_compiled_taint_call(
   }
   for index in 0..<taint_rule.sinks.length() {
     let sink = taint_rule.sinks[index]
-    if @matching.match_expr_pattern(sink.pattern.compiled, call.ast) is Some(_) {
+    if taint_pattern_matches(sink.pattern, call.ast, backend) {
       matched = true
       if target_value(call, sink.target) is Some(target) {
         let origins = origins_from_taint_tree(target.taint)
@@ -92,6 +111,21 @@ fn transfer_compiled_taint_call(
     Some({ return_taint, killed_paths, findings })
   } else {
     None
+  }
+}
+
+///|
+fn taint_pattern_matches(
+  pattern : CompiledRulePattern,
+  expr : @syntax.Expr,
+  backend : MatcherBackend,
+) -> Bool {
+  match backend {
+    @model.MatcherBackend::AstMatcher =>
+      @matching.match_expr_pattern(pattern.compiled, expr) is Some(_)
+    @model.MatcherBackend::JsonMatcher =>
+      @json_matching.match_expr_pattern_ast(pattern.json_compiled, expr)
+      is Some(_)
   }
 }
 

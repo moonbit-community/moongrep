@@ -1,8 +1,10 @@
 import {
+  "moonbit-community/moongrep/json_matching",
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/taint",
   "moonbitlang/lexer/basic",
+  "moonbitlang/parser/syntax",
 }
 
 import {

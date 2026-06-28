@@ -30,6 +30,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Print directory traversal progress.
+  --ast-matcher        Use the original AST matcher backend.
   -r, --rules <rules>  Directory containing YAML rules.
   --pattern <pattern>  Anonymous structural pattern to match.
 ```

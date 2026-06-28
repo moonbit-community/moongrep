@@ -1,0 +1,14 @@
+import {
+  "moonbit-community/moongrep/matching",
+  "moonbitlang/core/hashmap",
+  "moonbitlang/parser/syntax",
+}
+
+import {
+  "moonbitlang/core/json",
+  "moonbitlang/lexer",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/handrolled_parser",
+  "moonbitlang/parser/syntax",
+  "moonbitlang/core/list",
+} for "test"

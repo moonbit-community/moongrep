@@ -1,0 +1,54 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/json_matching"
+
+import {
+  "moonbit-community/moongrep/matching",
+  "moonbitlang/core/hashmap",
+  "moonbitlang/parser/syntax",
+}
+
+// Values
+pub fn compiled_expr_pattern_to_json(@matching.CompiledExprPattern) -> CompiledJsonExprPattern
+
+pub fn expr_matches(Json, Json) -> Bool
+
+pub fn json_constant_guard_value(Json) -> String?
+
+pub fn json_exact_equal(Json, Json) -> Bool
+
+pub fn match_expr_pattern(CompiledJsonExprPattern, Json) -> JsonExprMatch?
+
+pub fn match_expr_pattern_ast(CompiledJsonExprPattern, @syntax.Expr) -> JsonExprMatch?
+
+pub fn match_expr_pattern_ast_with_bindings(CompiledJsonExprPattern, @syntax.Expr, @hashmap.HashMap[String, JsonBoundValue]) -> JsonExprMatch?
+
+pub fn match_expr_pattern_with_bindings(CompiledJsonExprPattern, Json, @hashmap.HashMap[String, JsonBoundValue]) -> JsonExprMatch?
+
+// Errors
+
+// Types and methods
+pub(all) struct CompiledJsonExprPattern {
+  ast : Json
+  expr_metavars : Array[String]
+  identifier_metavars : Array[String]
+  constant_metavars : Array[String]
+  target_metavar : String?
+  source_metavar : String?
+}
+
+pub(all) enum JsonBoundValue {
+  Expr(Json)
+  Identifier(String)
+  Constant(Json)
+  Pattern(Json)
+}
+
+pub(all) struct JsonExprMatch {
+  root : Json
+  bindings : @hashmap.HashMap[String, JsonBoundValue]
+}
+
+// Type aliases
+
+// Traits
+
