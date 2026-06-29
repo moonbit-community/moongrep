@@ -8,6 +8,8 @@ import {
 }
 
 // Values
+pub fn collect_expr_jsons(Json, Array[Json]) -> Unit
+
 pub fn compiled_expr_pattern_to_json(@matching.CompiledExprPattern) -> CompiledJsonExprPattern
 
 pub fn expr_matches(Json, Json) -> Bool

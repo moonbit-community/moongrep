@@ -16,6 +16,22 @@ fn parse_expr_json(source : String) -> Json raise {
 }
 
 ///|
+fn parse_function_body(source : String) -> @syntax.Expr raise {
+  let (impls, reports) = @parser.parse_string(
+    source,
+    name="json traversal test",
+  )
+  guard reports is [] else { fail("expected source to parse: \{source}") }
+  for node in impls {
+    match node {
+      TopFuncDef(decl_body=DeclBody(expr~), ..) => return expr
+      _ => ()
+    }
+  }
+  fail("expected a function body")
+}
+
+///|
 fn compiled_ast(
   pattern : @syntax.Expr,
   expr_metavars : Array[String],
@@ -410,6 +426,31 @@ test "json matcher mirrors structural scalar roots and newer expression forms" {
     test_foreach("seed", "other", "where_value"),
   )
   assert_same_expr_match(foreach_pattern, test_foreach("seed", "step", "other"))
+}
+
+///|
+test "json expression traversal mirrors AST traversal order" {
+  let source =
+    #|fn sample {
+    #|  wrapper({
+    #|    guard ready() else { fallback() }
+    #|    target()
+    #|  });
+    #|  wrapper(sink <| target());
+    #|  match source {
+    #|    Ok(value) => wrapper([for item in items if allow(item) => target(item)], nested(value))
+    #|  }
+    #|}
+    #|
+  let expr = parse_function_body(source)
+  let ast_exprs : Array[@syntax.Expr] = []
+  @traverse.collect_exprs(expr, ast_exprs)
+  let json_exprs : Array[Json] = []
+  collect_expr_jsons(expr.to_json(), json_exprs)
+  assert_eq(json_exprs.length(), ast_exprs.length())
+  for index in 0..<ast_exprs.length() {
+    assert_true(json_exact_equal(json_exprs[index], ast_exprs[index].to_json()))
+  }
 }
 
 ///|
