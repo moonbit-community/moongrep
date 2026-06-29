@@ -191,10 +191,10 @@ fn collect_spreadable_elem_expr_jsons(
   exprs : Array[Json],
 ) -> Unit {
   collect_json_list_items(elems, fn(elem) {
-    match json_kind(elem) {
-      Some("SpreadableElem::Regular") =>
+    match elem {
+      { "kind": "SpreadableElem::Regular", .. } =>
         collect_child_expr_json(elem, "value", exprs)
-      Some("SpreadableElem::Spread") =>
+      { "kind": "SpreadableElem::Spread", .. } =>
         collect_child_expr_json(elem, "expr", exprs)
       _ => ()
     }
@@ -212,7 +212,9 @@ fn collect_binder_expr_pair_jsons(pairs : Json?, exprs : Array[Json]) -> Unit {
 fn collect_where_clause_expr_jsons(clause : Json?, exprs : Array[Json]) -> Unit {
   match clause {
     Some(Null) | None => ()
-    Some(clause) => collect_field_def_expr_jsons(child(clause, "fields"), exprs)
+    Some({ "children": { "fields": fields, .. }, .. }) =>
+      collect_field_def_expr_jsons(Some(fields), exprs)
+    Some(_) => ()
   }
 }
 
@@ -234,8 +236,10 @@ fn collect_case_expr_jsons(cases : Json?, exprs : Array[Json]) -> Unit {
 ///|
 fn collect_interp_elem_expr_jsons(elems : Json?, exprs : Array[Json]) -> Unit {
   collect_json_list_items(elems, fn(elem) {
-    if json_kind(elem) == Some("InterpElem::Expr") {
-      collect_child_expr_json(elem, "expr", exprs)
+    match elem {
+      { "kind": "InterpElem::Expr", "children": { "expr": expr, .. }, .. } =>
+        collect_expr_jsons(expr, exprs)
+      _ => ()
     }
   })
 }
@@ -246,8 +250,13 @@ fn collect_multiline_string_elem_expr_jsons(
   exprs : Array[Json],
 ) -> Unit {
   collect_json_list_items(elems, fn(elem) {
-    if json_kind(elem) == Some("MultilineString::Interp") {
-      collect_interp_elem_expr_jsons(child(elem, "value"), exprs)
+    match elem {
+      {
+        "kind": "MultilineString::Interp",
+        "children": { "value": value, .. },
+        ..
+      } => collect_interp_elem_expr_jsons(Some(value), exprs)
+      _ => ()
     }
   })
 }
@@ -267,8 +276,13 @@ fn collect_lex_top_pattern_expr_jsons(
   exprs : Array[Json],
 ) -> Unit {
   collect_json_list_items(patterns, fn(pattern) {
-    if json_kind(pattern) == Some("LexTopPattern::Pattern") {
-      collect_lex_pattern_expr_json(child(pattern, "value"), exprs)
+    match pattern {
+      {
+        "kind": "LexTopPattern::Pattern",
+        "children": { "value": value, .. },
+        ..
+      } => collect_lex_pattern_expr_json(Some(value), exprs)
+      _ => ()
     }
   })
 }
@@ -276,19 +290,22 @@ fn collect_lex_top_pattern_expr_jsons(
 ///|
 fn collect_lex_pattern_expr_json(pattern : Json?, exprs : Array[Json]) -> Unit {
   match pattern {
-    Some(pattern) =>
-      match json_kind(pattern) {
-        Some("LexPattern::Alias") =>
-          collect_lex_pattern_expr_json(child(pattern, "pat"), exprs)
-        Some("LexPattern::RegexInterp") =>
-          collect_interp_elem_expr_jsons(child(pattern, "elems"), exprs)
-        Some("LexPattern::Sequence") =>
-          collect_json_list_items(child(pattern, "pats"), fn(pat) {
-            collect_lex_pattern_expr_json(Some(pat), exprs)
-          })
-        _ => ()
+    Some({ "kind": "LexPattern::Alias", "children": { "pat": pat, .. }, .. }) =>
+      collect_lex_pattern_expr_json(Some(pat), exprs)
+    Some(
+      {
+        "kind": "LexPattern::RegexInterp",
+        "children": { "elems": elems, .. },
+        ..
       }
-    None => ()
+    ) => collect_interp_elem_expr_jsons(Some(elems), exprs)
+    Some(
+      { "kind": "LexPattern::Sequence", "children": { "pats": pats, .. }, .. }
+    ) =>
+      collect_json_list_items(Some(pats), fn(pat) {
+        collect_lex_pattern_expr_json(Some(pat), exprs)
+      })
+    Some(_) | None => ()
   }
 }
 
@@ -298,21 +315,47 @@ fn collect_list_comprehension_kind_expr_jsons(
   exprs : Array[Json],
 ) -> Unit {
   match kind {
-    Some(kind) =>
-      match json_kind(kind) {
-        Some("Expr::ListComprehension::Kind::For") => {
-          collect_binder_expr_pair_jsons(child(kind, "binders"), exprs)
-          collect_child_expr_json(kind, "condition", exprs)
-          collect_binder_expr_pair_jsons(child(kind, "continue_block"), exprs)
-        }
-        Some("Expr::ListComprehension::Kind::Foreach") => {
-          collect_child_expr_json(kind, "expr", exprs)
-          collect_binder_expr_pair_jsons(child(kind, "init"), exprs)
-          collect_binder_expr_pair_jsons(child(kind, "continue_block"), exprs)
-        }
-        _ => ()
+    Some(
+      {
+        "kind": "Expr::ListComprehension::Kind::For",
+        "children": {
+          "binders": binders,
+          "condition": condition,
+          "continue_block": continue_block,
+          ..
+        },
+        ..
       }
-    None => ()
+    ) => {
+      collect_binder_expr_pair_jsons(Some(binders), exprs)
+      collect_optional_expr_json(condition, exprs)
+      collect_binder_expr_pair_jsons(Some(continue_block), exprs)
+    }
+    Some(
+      {
+        "kind": "Expr::ListComprehension::Kind::Foreach",
+        "children": {
+          "expr": expr,
+          "init": init,
+          "continue_block": continue_block,
+          ..
+        },
+        ..
+      }
+    ) => {
+      collect_expr_jsons(expr, exprs)
+      collect_binder_expr_pair_jsons(Some(init), exprs)
+      collect_binder_expr_pair_jsons(Some(continue_block), exprs)
+    }
+    Some(_) | None => ()
+  }
+}
+
+///|
+fn collect_optional_expr_json(expr : Json, exprs : Array[Json]) -> Unit {
+  match expr {
+    Null => ()
+    _ => collect_expr_jsons(expr, exprs)
   }
 }
 
@@ -320,7 +363,9 @@ fn collect_list_comprehension_kind_expr_jsons(
 fn collect_func_body_expr_json(func : Json?, exprs : Array[Json]) -> Unit {
   match func {
     Some(Null) | None => ()
-    Some(func) => collect_child_expr_json(func, "body", exprs)
+    Some({ "children": { "body": body, .. }, .. }) =>
+      collect_expr_jsons(body, exprs)
+    Some(_) => ()
   }
 }
 
@@ -344,14 +389,10 @@ fn collect_map_elem_expr_jsons(elems : Json?, exprs : Array[Json]) -> Unit {
 ///|
 fn collect_json_list_items(list : Json?, f : (Json) -> Unit) -> Unit {
   match list {
-    Some(value) =>
-      match node_children(value) {
-        Some(Array(items)) =>
-          for item in items {
-            f(item)
-          }
-        _ => ()
+    Some({ "children": Array(items), .. }) =>
+      for item in items {
+        f(item)
       }
-    None => ()
+    Some(_) | None => ()
   }
 }
