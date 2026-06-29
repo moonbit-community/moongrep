@@ -2,6 +2,7 @@ import {
   "moonbit-community/moongrep/json_matching",
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
+  "moonbit-community/moongrep/rule/syntax_id" @id,
   "moonbit-community/moongrep/rule/taint_lowering",
   "moonbit-community/moongrep/rule/traverse",
   "moonbit-community/moongrep/taint",
@@ -16,3 +17,9 @@ import {
   "moonbit-community/moongrep/rule/compile",
   "moonbitlang/parser",
 } for "test"
+
+import {
+  "moonbit-community/moongrep/rule/compile",
+  "moonbitlang/lexer",
+  "moonbitlang/parser/handrolled_parser",
+} for "wbtest"

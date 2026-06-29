@@ -36,6 +36,15 @@ fn finding_signature(finding : RuleFinding) -> String {
 }
 
 ///|
+fn int_array_signature(values : Array[Int]) -> String {
+  let parts : Array[String] = []
+  for value in values {
+    parts.push(value.to_string())
+  }
+  "[\{parts.join(", ")}]"
+}
+
+///|
 fn assert_same_findings(
   expected : Array[RuleFinding],
   actual : Array[RuleFinding],
@@ -439,6 +448,72 @@ test "apply structural rule treats patterns as ordered alternatives" {
   assert_eq(hits.length(), 2)
   assert_eq(hits[0].pattern_index, 0)
   assert_eq(hits[1].pattern_index, 1)
+}
+
+///|
+test "apply structural root patterns preserve pattern indexes" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Mixed root patterns.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|  - shape: $(name:id)
+    #|  - shape: $(value:const)
+    #|
+  let source =
+    #|fn sample {
+    #|  sink(42);
+    #|  token;
+    #|  7
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  let pattern_indices : Array[Int] = []
+  for hit in hits {
+    pattern_indices.push(hit.pattern_index)
+  }
+  inspect(int_array_signature(pattern_indices), content="[0, 1, 2, 1, 2]")
+}
+
+///|
+test "inside expr preserves source order and outer locations" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(holder(target()));
+    #|  wrapper(holder(other()));
+    #|  wrapper(holder(target()))
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 2)
+  assert_eq(hits[0].pattern_index, 0)
+  assert_eq(hits[1].pattern_index, 0)
+  guard hits[0].outer_loc is Some(first_outer) else {
+    fail("expected first outer location")
+  }
+  guard hits[1].outer_loc is Some(second_outer) else {
+    fail("expected second outer location")
+  }
+  assert_true(hits[0].loc.start.lnum < hits[1].loc.start.lnum)
+  assert_true(first_outer.start.lnum < second_outer.start.lnum)
 }
 
 ///|
