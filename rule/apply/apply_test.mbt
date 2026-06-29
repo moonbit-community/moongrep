@@ -323,7 +323,7 @@ test "apply inside expr and inner guards filter inherited bindings" {
     #|  guard:
     #|    name: "^safe_"
     #|patterns:
-    #|  - shape: call(name)
+    #|  - shape: call($(name:id))
     #|    guard:
     #|      name: "_ok$"
     #|
@@ -354,7 +354,7 @@ test "backend-aware structural apply matches JSON and AST with guards inside exp
     #|  guard:
     #|    name: "^safe_"
     #|patterns:
-    #|  - shape: call(name, $(value:const))
+    #|  - shape: call($(name:id), $(value:const))
     #|    guard:
     #|      name: "_ok$"
     #|      value: "^(42|true)$"
@@ -548,12 +548,12 @@ test "apply structural rule supports inside expr inherited bindings" {
     #|inside-expr:
     #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target.call(prefix)
+    #|  - shape: target.call($(prefix:exp))
     #|
   let source =
     #|fn sample {
-    #|  wrapper(token, target.call(token));
-    #|  wrapper(token, target.call(other))
+    #|  wrapper(make(), target.call(make()));
+    #|  wrapper(make(), target.call(other))
     #|}
     #|
   let hits = apply_structural_rules(
@@ -566,6 +566,30 @@ test "apply structural rule supports inside expr inherited bindings" {
 }
 
 ///|
+test "inside expr plain names do not reference inherited bindings" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Plain names remain literal.
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
+    #|patterns:
+    #|  - shape: target.call(prefix)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(token, target.call(token))
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 0)
+}
+
+///|
 test "apply structural rule inherits inside expr identifier bindings" {
   let rule_source =
     #|id: example
@@ -574,7 +598,7 @@ test "apply structural rule inherits inside expr identifier bindings" {
     #|inside-expr:
     #|  shape: wrapper($(prefix:id), __TARGET__)
     #|patterns:
-    #|  - shape: target.call(prefix)
+    #|  - shape: target.call($(prefix:id))
     #|
   let source =
     #|fn sample {
@@ -600,7 +624,7 @@ test "inside expr inherited id is blocked after lexical let shadow" {
     #|inside-expr:
     #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target(name)
+    #|  - shape: target($(name:id))
     #|
   let source =
     #|fn sample {
@@ -623,7 +647,7 @@ test "inside expr inherited id still matches without shadow" {
     #|inside-expr:
     #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target(name)
+    #|  - shape: target($(name:id))
     #|
   let source =
     #|fn sample {
@@ -644,7 +668,7 @@ test "inside expr later shadow does not block earlier candidate" {
     #|inside-expr:
     #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target(name)
+    #|  - shape: target($(name:id))
     #|
   let source =
     #|fn sample {
@@ -669,8 +693,8 @@ test "inside expr only blocks patterns referencing shadowed outer id" {
     #|inside-expr:
     #|  shape: wrapper($(left:id), $(right:id), __TARGET__)
     #|patterns:
-    #|  - shape: target(right)
-    #|  - shape: target(left)
+    #|  - shape: target($(right:id))
+    #|  - shape: target($(left:id))
     #|
   let source =
     #|fn sample {

@@ -70,7 +70,8 @@ let _embed_writingrules_md : String =
   #|- Inherited `id` captures follow lexical shadowing. If an inner pattern refers
   #|  to an outer `id` capture and the path to a candidate expression crosses a
   #|  local binder with the same normalized identifier, that candidate is skipped.
-  #|- Inner patterns must not redeclare names from `inside-expr`.
+  #|- Inner patterns reuse names from `inside-expr` by repeating the same inline
+  #|  metavar form; the same name with a different kind is rejected.
   #|- Hits from `inside-expr` rules record `outer_loc` for the context expression
   #|  in addition to `loc` for the inner match.
   #|
@@ -261,7 +262,7 @@ let _embed_writingrules_md : String =
   #|    wrapper($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: |
-  #|      target.call(prefix)
+  #|      target.call($(prefix:exp))
   #|```
   #|
   #|Rules for `inside-expr`:
@@ -275,8 +276,9 @@ let _embed_writingrules_md : String =
   #|  shapes
   #|- inherited `id` captures observe lexical shadowing inside the searched target
   #|  subtree
-  #|- inner `patterns` must not redeclare names already declared by `inside-expr`;
-  #|  reference outer captures with their plain payload name, such as `prefix`
+  #|- inner `patterns` reference outer captures by repeating the same inline
+  #|  metavar form, such as `$(prefix:exp)`; using the same name with a different
+  #|  kind is rejected
   #|
   #|### 4. Use `guard` for id and const filters
   #|

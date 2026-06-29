@@ -37,7 +37,7 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将 `__TARGET__` 捕获为表达式，则 `patterns` 会应用到该目标子树内的每个表达式。
 - `inside-expr` 声明的内联捕获对内部 `patterns` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 `patterns` 使用。
 - 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，而通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
-- 内部 pattern 不能重新声明来自 `inside-expr` 的名称。
+- 内部 pattern 通过重复相同的内联元变量形式复用来自 `inside-expr` 的名称；同名但 kind 不同会被拒绝。
 - `inside-expr` 规则的命中会记录上下文表达式的 `outer_loc`，以及内部匹配的 `loc`。
 
 对于污点规则：
@@ -183,7 +183,7 @@ inside-expr:
     wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: |
-      target.call(prefix)
+      target.call($(prefix:exp))
 ```
 
 `inside-expr` 的规则：
@@ -193,7 +193,7 @@ patterns:
 - `__TARGET__` 是保留名称，不能用作内联元变量名
 - 内部 `patterns` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
 - 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
-- 内部 `patterns` 不能重新声明已经由 `inside-expr` 声明的名称；请使用普通 payload 名称引用外层捕获，例如 `prefix`
+- 内部 `patterns` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名但 kind 不同会被拒绝
 
 ### 4. 使用 `guard` 过滤 id 和 const
 

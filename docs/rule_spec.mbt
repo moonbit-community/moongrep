@@ -424,7 +424,7 @@ let _embed_rulespec_md : String =
   #|inside-expr:
   #|  shape: wrapper($(prefix:exp), __TARGET__)
   #|patterns:
-  #|  - shape: target.call(prefix)
+  #|  - shape: target.call($(prefix:exp))
   #|```
   #|
   #|`inside-expr` uses the same pattern-object schema as entries in `patterns`.
@@ -440,9 +440,10 @@ let _embed_rulespec_md : String =
   #|- Entries in `patterns` must not contain `__TARGET__` in a binding-capable
   #|  position.
   #|- Inline metavars declared by `inside-expr` remain visible when matching the
-  #|  inner `patterns`; inner shapes reference them with the plain payload name.
-  #|- Inner `patterns` must not redeclare a metavar name that is already visible
-  #|  from `inside-expr`.
+  #|  inner `patterns`; inner shapes reference them by repeating the same inline
+  #|  metavar form.
+  #|- Inner `patterns` must not use a visible `inside-expr` metavar name with a
+  #|  different kind.
   #|
   #|Runtime behavior:
   #|
@@ -453,9 +454,10 @@ let _embed_rulespec_md : String =
   #|- each expression inside that captured subtree is checked against `patterns`
   #|- inner pattern matching starts with the bindings established by
   #|  `inside-expr`
-  #|- if an inner pattern references an inherited `id` capture, that candidate is
-  #|  skipped when the path from `__TARGET__` to the candidate crosses a lexical
-  #|  binder with the same normalized identifier name
+  #|- if an inner pattern references an inherited `id` capture with the same inline
+  #|  `$(name:id)` form, that candidate is skipped when the path from `__TARGET__`
+  #|  to the candidate crosses a lexical binder with the same normalized identifier
+  #|  name
   #|
   #|The reported location for an `inside-expr` hit is the inner match location.
   #|Consumers that expose context locations may also expose the outer expression
@@ -609,8 +611,8 @@ let _embed_rulespec_md : String =
   #|- `inside-expr.shape` does not contain exactly one binding-capable
   #|  `__TARGET__`
   #|- a structural `patterns` entry contains binding-capable `__TARGET__`
-  #|- a structural `patterns` entry redeclares a name already declared by
-  #|  `inside-expr`
+  #|- a structural `patterns` entry uses an inherited `inside-expr` metavar name
+  #|  with a different kind
   #|- a taint source contains binding-capable `__SOURCE__`
   #|- a taint sink or sanitizer does not contain exactly one binding-capable
   #|  `__SOURCE__`
