@@ -35,9 +35,9 @@ let scan_command : @argparse.Command = @argparse.Command(
       about="Print directory traversal progress.",
     ),
     @argparse.FlagArg(
-      "ast-matcher",
-      long="ast-matcher",
-      about="Use the original AST matcher backend.",
+      "json-matcher",
+      long="json-matcher",
+      about="Use the JSON matcher backend.",
     ),
     @argparse.FlagArg(
       "enable-builtin-rules",
@@ -185,10 +185,10 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
     scan_matches.flags,
     "enable-builtin-rules",
   )
-  let matcher = if cli_flag_enabled(scan_matches.flags, "ast-matcher") {
-    @rule_model.MatcherBackend::AstMatcher
-  } else {
+  let matcher = if cli_flag_enabled(scan_matches.flags, "json-matcher") {
     @rule_model.MatcherBackend::JsonMatcher
+  } else {
+    @rule_model.MatcherBackend::AstMatcher
   }
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let patterns = all_cli_values(scan_matches.values, "pattern")
@@ -213,7 +213,7 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
 /// `scan` is required after the executable name. Within the `scan` subcommand,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
 /// least one `--pattern <pattern>`, or `--enable-builtin-rules` is required, and
-/// `--verbose` and `--ast-matcher` are optional. One optional scan-root
+/// `--verbose` and `--json-matcher` are optional. One optional scan-root
 /// positional may appear in the argument list. If the rules option appears
 /// multiple times, the last value wins. Repeated patterns are appended in order.
 /// Missing subcommands, required arguments, unknown options, or more than one
