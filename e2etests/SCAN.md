@@ -71,7 +71,7 @@ source:
 ```
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --ast-matcher --pattern 'target()' testdata/cli-pattern
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --json-matcher --pattern 'target()' testdata/cli-pattern
 testdata/cli-pattern/hit.mbt:2:3-2:11
 rule: target()
 description:

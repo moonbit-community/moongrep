@@ -96,7 +96,7 @@ test "cli args parse rules root and default scan root" {
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
-      expect_json_matcher(options)
+      expect_ast_matcher(options)
     }
     _ => fail("unexpected command")
   }
@@ -111,7 +111,7 @@ test "cli args parse explicit scan root" {
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
-      expect_json_matcher(options)
+      expect_ast_matcher(options)
     }
     _ => fail("unexpected command")
   }
@@ -127,23 +127,23 @@ test "cli args parse scan verbose flag" {
       inspect(options.scan_root, content="src")
       assert_true(options.verbose)
       assert_false(options.enable_builtin_rules)
-      expect_json_matcher(options)
+      expect_ast_matcher(options)
     }
     _ => fail("unexpected command")
   }
 }
 
 ///|
-test "cli args parse ast matcher flag" {
+test "cli args parse json matcher flag" {
   match
     parse_cli_command([
-      "scan", "--rules", "custom-rules", "--ast-matcher", "src",
+      "scan", "--rules", "custom-rules", "--json-matcher", "src",
     ]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
       assert_false(options.enable_builtin_rules)
-      expect_ast_matcher(options)
+      expect_json_matcher(options)
     }
     _ => fail("unexpected command")
   }
@@ -158,7 +158,7 @@ test "cli args parse argparse option input forms" {
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
-      expect_json_matcher(options)
+      expect_ast_matcher(options)
     }
     _ => fail("unexpected inline command")
   }
@@ -169,7 +169,7 @@ test "cli args parse argparse option input forms" {
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
-      expect_json_matcher(options)
+      expect_ast_matcher(options)
     }
     _ => fail("unexpected short command")
   }
@@ -222,7 +222,7 @@ test "cli args parse builtin rules flag without rules root" {
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content="src")
       assert_true(options.enable_builtin_rules)
-      expect_json_matcher(options)
+      expect_ast_matcher(options)
     }
     _ => fail("unexpected command")
   }
