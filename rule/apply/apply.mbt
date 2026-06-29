@@ -31,6 +31,14 @@ priv enum RulePatternMatch {
 }
 
 ///|
+priv struct AstStructuralRuleEntry {
+  rule : CompiledRule
+  structural : CompiledStructuralRule
+  pattern_buckets : ExprPatternBuckets
+  inside_root_key : String?
+}
+
+///|
 /// Applies only structural rules to the supplied parser AST nodes.
 ///
 /// Supported expression subtrees collected by `collect_impl_exprs` and
@@ -92,18 +100,90 @@ pub fn apply_structural_rules_to_impl_with_backend(
   let hits : Array[RuleFinding] = []
   let exprs : Array[@syntax.Expr] = []
   collect_impl_exprs(node, exprs)
-  for expr in exprs {
-    for rule in rules {
-      match rule.definition {
-        Structural(structural) =>
-          apply_structural_rule_to_expr(
-            file, rule, structural, expr, backend, hits,
-          )
-        _ => ()
+  match backend {
+    @model.MatcherBackend::AstMatcher => {
+      let entries = ast_structural_rule_entries(rules)
+      for expr in exprs {
+        for entry in entries {
+          apply_ast_structural_rule_entry_to_expr(file, entry, expr, hits)
+        }
       }
     }
+    @model.MatcherBackend::JsonMatcher =>
+      for expr in exprs {
+        for rule in rules {
+          match rule.definition {
+            Structural(structural) =>
+              apply_structural_rule_to_expr(
+                file, rule, structural, expr, backend, hits,
+              )
+            _ => ()
+          }
+        }
+      }
   }
   hits
+}
+
+///|
+fn ast_structural_rule_entries(
+  rules : Array[CompiledRule],
+) -> Array[AstStructuralRuleEntry] {
+  let entries : Array[AstStructuralRuleEntry] = []
+  for rule in rules {
+    match rule.definition {
+      Structural(structural) => {
+        let inside_root_key = match structural.inside_expr {
+          Some(inside) => Some(compiled_pattern_root_key(inside))
+          None => None
+        }
+        entries.push({
+          rule,
+          structural,
+          pattern_buckets: ExprPatternBuckets::from_patterns(
+            structural.patterns,
+          ),
+          inside_root_key,
+        })
+      }
+      _ => ()
+    }
+  }
+  entries
+}
+
+///|
+fn apply_ast_structural_rule_entry_to_expr(
+  file : String,
+  entry : AstStructuralRuleEntry,
+  expr : @syntax.Expr,
+  hits : Array[RuleFinding],
+) -> Unit {
+  if entry.structural.inside_expr is Some(inside) {
+    let inside_root_key = match entry.inside_root_key {
+      Some(key) => key
+      None => ast_bucket_wildcard_key()
+    }
+    apply_inside_expr_ast_bucketed(
+      file,
+      entry.rule,
+      inside,
+      inside_root_key,
+      entry.pattern_buckets,
+      expr,
+      hits,
+    )
+  } else {
+    apply_ast_patterns_at_expr(
+      file,
+      entry.rule,
+      entry.pattern_buckets,
+      expr,
+      None,
+      None,
+      hits,
+    )
+  }
 }
 
 ///|
@@ -282,6 +362,39 @@ fn apply_inside_expr_ast(
 }
 
 ///|
+fn apply_inside_expr_ast_bucketed(
+  file : String,
+  rule : CompiledRule,
+  inside : CompiledRulePattern,
+  inside_root_key : String,
+  pattern_buckets : ExprPatternBuckets,
+  expr : @syntax.Expr,
+  hits : Array[RuleFinding],
+) -> Unit {
+  if !ast_bucket_root_key_matches(inside_root_key, expr) {
+    return
+  }
+  if match_ast_rule_pattern(inside, expr, None) is Some(AstRuleMatch(result)) {
+    if result.bindings.get("__TARGET__")
+      is Some(@matching.BoundValue::Expr(target)) {
+      let target_exprs : Array[@syntax.Expr] = []
+      collect_exprs(target, target_exprs)
+      for target_expr in target_exprs {
+        apply_ast_patterns_at_expr(
+          file,
+          rule,
+          pattern_buckets,
+          target_expr,
+          Some(expr.loc()),
+          Some(AstBindings(result.bindings)),
+          hits,
+        )
+      }
+    }
+  }
+}
+
+///|
 fn apply_inside_expr_json(
   file : String,
   rule : CompiledRule,
@@ -306,6 +419,32 @@ fn apply_inside_expr_json(
           hits,
         )
       }
+    }
+  }
+}
+
+///|
+fn apply_ast_patterns_at_expr(
+  file : String,
+  rule : CompiledRule,
+  pattern_buckets : ExprPatternBuckets,
+  expr : @syntax.Expr,
+  outer_loc : @basic.Location?,
+  initial_bindings : RulePatternBindings?,
+  hits : Array[RuleFinding],
+) -> Unit {
+  for indexed in pattern_buckets.patterns_for_expr(expr) {
+    if match_ast_rule_pattern(indexed.pattern, expr, initial_bindings)
+      is Some(_) {
+      hits.push({
+        file,
+        rule_id: rule.rule_id,
+        description: rule.description,
+        pattern_index: indexed.pattern_index,
+        loc: expr.loc(),
+        outer_loc,
+      })
+      return
     }
   }
 }
