@@ -35,11 +35,6 @@ let scan_command : @argparse.Command = @argparse.Command(
       about="Print directory traversal progress.",
     ),
     @argparse.FlagArg(
-      "json-matcher",
-      long="json-matcher",
-      about="Use the JSON matcher backend.",
-    ),
-    @argparse.FlagArg(
       "enable-builtin-rules",
       long="enable-builtin-rules",
       about="Enable embedded builtin rules.",
@@ -135,6 +130,17 @@ fn cli_flag_enabled(flags : Map[String, Bool], name : String) -> Bool {
 }
 
 ///|
+let json_matcher_env_var : String = "MOONGREP_JSON_MATCHER"
+
+///|
+fn env_json_matcher_enabled(env : Map[String, String]) -> Bool {
+  match env.get(json_matcher_env_var) {
+    Some("true") => true
+    _ => false
+  }
+}
+
+///|
 fn docs_cli_command(
   docs_matches : @argparse.Matches,
 ) -> (String, CliOptions?, String?) raise {
@@ -179,13 +185,16 @@ fn dump_cli_command(
 }
 
 ///|
-fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
+fn scan_cli_options(
+  scan_matches : @argparse.Matches,
+  env : Map[String, String],
+) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
   let enable_builtin_rules = cli_flag_enabled(
     scan_matches.flags,
     "enable-builtin-rules",
   )
-  let matcher = if cli_flag_enabled(scan_matches.flags, "json-matcher") {
+  let matcher = if env_json_matcher_enabled(env) {
     @rule_model.MatcherBackend::JsonMatcher
   } else {
     @rule_model.MatcherBackend::AstMatcher
@@ -213,15 +222,17 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
 /// `scan` is required after the executable name. Within the `scan` subcommand,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
 /// least one `--pattern <pattern>`, or `--enable-builtin-rules` is required, and
-/// `--verbose` and `--json-matcher` are optional. One optional scan-root
-/// positional may appear in the argument list. If the rules option appears
-/// multiple times, the last value wins. Repeated patterns are appended in order.
-/// Missing subcommands, required arguments, unknown options, or more than one
-/// scan root raise `CliError::Usage` with exit code 2.
+/// `--verbose` is optional. `MOONGREP_JSON_MATCHER=true` selects the JSON
+/// matcher backend. One optional scan-root positional may appear in the
+/// argument list. If the rules option appears multiple times, the last value
+/// wins. Repeated patterns are appended in order. Missing subcommands, required
+/// arguments, unknown options, or more than one scan root raise
+/// `CliError::Usage` with exit code 2.
 fn parse_cli_command(
   argv : Array[String],
+  env? : Map[String, String] = {},
 ) -> (String, CliOptions?, String?) raise {
-  let matches = moongrep_command.parse(argv~, env={}) catch {
+  let matches = moongrep_command.parse(argv~, env~) catch {
     err => {
       let message = "\{err}"
       raise CliError::Usage(message~, exit_code=2)
@@ -229,7 +240,7 @@ fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches)), None)
+      ("scan", Some(scan_cli_options(scan_matches, env)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)

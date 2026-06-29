@@ -134,11 +134,19 @@ test "cli args parse scan verbose flag" {
 }
 
 ///|
-test "cli args parse json matcher flag" {
+test "cli args reject json matcher flag" {
+  expect_cli_usage(
+    ["scan", "--rules", "custom-rules", "--json-matcher", "src"],
+    2,
+  )
+}
+
+///|
+test "cli args parse json matcher env var" {
   match
-    parse_cli_command([
-      "scan", "--rules", "custom-rules", "--json-matcher", "src",
-    ]) {
+    parse_cli_command(["scan", "--rules", "custom-rules", "src"], env={
+      "MOONGREP_JSON_MATCHER": "true",
+    }) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")

@@ -52,3 +52,4 @@ jobs:
       - name: e2e test
         run: |
           bash scripts/e2e.sh test
+          MOONGREP_JSON_MATCHER=true bash scripts/e2e.sh test
