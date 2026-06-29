@@ -674,6 +674,702 @@ pub fn collect_impl_exprs(
 }
 
 ///|
+pub(all) struct ScopedExpr {
+  expr : @syntax.Expr
+  shadowed_names : Array[String]
+}
+
+///|
+pub fn collect_scoped_exprs(
+  expr : @syntax.Expr,
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  collect_scoped_exprs_with_shadow(expr, [], exprs)
+}
+
+///|
+fn collect_scoped_exprs_with_shadow(
+  expr : @syntax.Expr,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  exprs.push({ expr, shadowed_names: copy_names(shadowed) })
+  match expr {
+    Apply(func~, args~, ..) => {
+      collect_scoped_exprs_with_shadow(func, shadowed, exprs)
+      collect_scoped_argument_exprs(args, shadowed, exprs)
+    }
+    DotApply(self~, args~, ..) => {
+      collect_scoped_exprs_with_shadow(self, shadowed, exprs)
+      collect_scoped_argument_exprs(args, shadowed, exprs)
+    }
+    Field(record~, ..) =>
+      collect_scoped_exprs_with_shadow(record, shadowed, exprs)
+    Infix(lhs~, rhs~, ..) => {
+      collect_scoped_exprs_with_shadow(lhs, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(rhs, shadowed, exprs)
+    }
+    Unary(expr~, ..) | Assign(expr~, ..) =>
+      collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+    Array(exprs=items, ..) | Tuple(exprs=items, ..) =>
+      collect_scoped_expr_list(items, shadowed, exprs)
+    Sequence(exprs=items, last_expr~, ..) => {
+      collect_scoped_expr_list(items, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(last_expr, shadowed, exprs)
+    }
+    ArrayGet(array~, index~, ..) => {
+      collect_scoped_exprs_with_shadow(array, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(index, shadowed, exprs)
+    }
+    ArraySet(array~, index~, value~, ..)
+    | ArrayAugmentedSet(array~, index~, value~, ..) => {
+      collect_scoped_exprs_with_shadow(array, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(index, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(value, shadowed, exprs)
+    }
+    ArraySpread(elems~, ..) =>
+      collect_scoped_spreadable_elem_exprs(elems, shadowed, exprs)
+    ArrayGetSlice(array~, start_index~, end_index~, ..) => {
+      collect_scoped_exprs_with_shadow(array, shadowed, exprs)
+      collect_scoped_optional_expr(start_index, shadowed, exprs)
+      collect_scoped_optional_expr(end_index, shadowed, exprs)
+    }
+    Group(expr~, ..) | Constraint(expr~, ..) | As(expr~, ..) =>
+      collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+    If(cond~, ifso~, ifnot~, ..) => {
+      collect_scoped_exprs_with_shadow(cond, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(ifso, shadowed, exprs)
+      collect_scoped_optional_expr(ifnot, shadowed, exprs)
+    }
+    Guard(cond~, otherwise~, body~, ..) => {
+      collect_scoped_exprs_with_shadow(cond, shadowed, exprs)
+      collect_scoped_optional_expr(otherwise, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(body, shadowed, exprs)
+    }
+    Let(pattern~, expr=bound_expr, body~, ..) => {
+      collect_scoped_exprs_with_shadow(bound_expr, shadowed, exprs)
+      let body_shadowed = shadowed_with_pattern(shadowed, pattern)
+      collect_scoped_exprs_with_shadow(body, body_shadowed, exprs)
+    }
+    LetMut(binder~, expr=bound_expr, body~, ..) => {
+      collect_scoped_exprs_with_shadow(bound_expr, shadowed, exprs)
+      let body_shadowed = shadowed_with_binder(shadowed, binder)
+      collect_scoped_exprs_with_shadow(body, body_shadowed, exprs)
+    }
+    For(
+      binders~,
+      condition~,
+      continue_block~,
+      body~,
+      for_else~,
+      where_clause~,
+      ..
+    ) => {
+      collect_scoped_binder_expr_pairs(binders, shadowed, exprs)
+      let loop_shadowed = shadowed_with_binder_expr_pair_binders(
+        shadowed, binders,
+      )
+      collect_scoped_optional_expr(condition, loop_shadowed, exprs)
+      collect_scoped_binder_expr_pairs(continue_block, loop_shadowed, exprs)
+      collect_scoped_exprs_with_shadow(body, loop_shadowed, exprs)
+      collect_scoped_optional_expr(for_else, loop_shadowed, exprs)
+      collect_scoped_optional_where_clause_exprs(
+        where_clause, loop_shadowed, exprs,
+      )
+    }
+    ForEach(
+      binders~,
+      expr=iter,
+      init~,
+      continue_block~,
+      body~,
+      else_block~,
+      where_clause~,
+      ..
+    ) => {
+      collect_scoped_exprs_with_shadow(iter, shadowed, exprs)
+      collect_scoped_binder_expr_pairs(init, shadowed, exprs)
+      let loop_shadowed = shadowed_with_optional_binders(shadowed, binders)
+      add_binder_expr_pair_names(loop_shadowed, init)
+      collect_scoped_binder_expr_pairs(continue_block, loop_shadowed, exprs)
+      collect_scoped_exprs_with_shadow(body, loop_shadowed, exprs)
+      collect_scoped_optional_expr(else_block, loop_shadowed, exprs)
+      collect_scoped_optional_where_clause_exprs(
+        where_clause, loop_shadowed, exprs,
+      )
+    }
+    Return(return_value~, ..) =>
+      collect_scoped_optional_expr(return_value, shadowed, exprs)
+    Raise(err_value~, ..) =>
+      collect_scoped_exprs_with_shadow(err_value, shadowed, exprs)
+    Pipe(lhs~, rhs~, ..) | RevPipe(lhs~, rhs~, ..) | Implies(lhs~, rhs~, ..) => {
+      collect_scoped_exprs_with_shadow(lhs, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(rhs, shadowed, exprs)
+    }
+    Interp(elems~, ..) =>
+      collect_scoped_interp_elem_exprs(elems, shadowed, exprs)
+    Record(fields~, ..) =>
+      collect_scoped_field_def_exprs(fields, shadowed, exprs)
+    RecordUpdate(record~, fields~, ..) => {
+      collect_scoped_exprs_with_shadow(record, shadowed, exprs)
+      collect_scoped_field_def_exprs(fields, shadowed, exprs)
+    }
+    Mutate(record~, field~, ..) => {
+      collect_scoped_exprs_with_shadow(record, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(field, shadowed, exprs)
+    }
+    Match(expr=matched, cases~, ..) => {
+      collect_scoped_exprs_with_shadow(matched, shadowed, exprs)
+      collect_scoped_case_exprs(cases, shadowed, exprs)
+    }
+    Is(expr=matched, ..) =>
+      collect_scoped_exprs_with_shadow(matched, shadowed, exprs)
+    IsLexMatch(expr=matched, pat~, ..) => {
+      collect_scoped_exprs_with_shadow(matched, shadowed, exprs)
+      collect_scoped_lex_top_pattern_exprs(pat, shadowed, exprs)
+    }
+    LexMatch(expr=matched, cases~, ..) => {
+      collect_scoped_exprs_with_shadow(matched, shadowed, exprs)
+      collect_scoped_lex_case_exprs(cases, shadowed, exprs)
+    }
+    ListComprehension(kind~, guard_~, body~, ..) => {
+      let body_shadowed = collect_scoped_list_comprehension_kind_exprs(
+        kind, shadowed, exprs,
+      )
+      collect_scoped_optional_expr(guard_, body_shadowed, exprs)
+      collect_scoped_exprs_with_shadow(body, body_shadowed, exprs)
+    }
+    Try(body~, catch_~, try_else~, ..) => {
+      collect_scoped_exprs_with_shadow(body, shadowed, exprs)
+      collect_scoped_case_exprs(catch_, shadowed, exprs)
+      if try_else is Some(cases) {
+        collect_scoped_case_exprs(cases, shadowed, exprs)
+      }
+    }
+    TryOperator(body~, ..) =>
+      collect_scoped_exprs_with_shadow(body, shadowed, exprs)
+    While(loop_cond~, loop_body~, while_else~, ..) => {
+      collect_scoped_exprs_with_shadow(loop_cond, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(loop_body, shadowed, exprs)
+      collect_scoped_optional_expr(while_else, shadowed, exprs)
+    }
+    Break(arg~, ..) => collect_scoped_optional_expr(arg, shadowed, exprs)
+    Continue(args~, ..) => collect_scoped_expr_list(args, shadowed, exprs)
+    Defer(expr=deferred, body~, ..) => {
+      collect_scoped_exprs_with_shadow(deferred, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(body, shadowed, exprs)
+    }
+    ProofAssert(expr=asserted, ..) | ProofLet(expr=asserted, ..) =>
+      collect_scoped_exprs_with_shadow(asserted, shadowed, exprs)
+    Quantifier(binder~, body~, ..) => {
+      let body_shadowed = shadowed_with_binder(shadowed, binder)
+      collect_scoped_exprs_with_shadow(body, body_shadowed, exprs)
+    }
+    RegexMatch(expr=matched, pat~, ..) => {
+      collect_scoped_exprs_with_shadow(matched, shadowed, exprs)
+      collect_scoped_regex_pattern_exprs(pat, shadowed, exprs)
+    }
+    StaticAssert(body~, ..) =>
+      collect_scoped_exprs_with_shadow(body, shadowed, exprs)
+    TemplateWriting(expr=writer, template~, ..) => {
+      collect_scoped_exprs_with_shadow(writer, shadowed, exprs)
+      collect_scoped_exprs_with_shadow(template, shadowed, exprs)
+    }
+    Function(func~, ..) => collect_scoped_func_exprs(func, shadowed, exprs)
+    LetFn(name=binder, func~, body~, ..) => {
+      let name_shadowed = shadowed_with_binder(shadowed, binder)
+      collect_scoped_func_exprs(func, name_shadowed, exprs)
+      collect_scoped_exprs_with_shadow(body, name_shadowed, exprs)
+    }
+    LetAnd(bindings~, body~, ..) => {
+      let binding_shadowed = shadowed_with_let_and_binders(shadowed, bindings)
+      for binding in bindings {
+        let (_binder, _ty, func) = binding
+        collect_scoped_func_exprs(func, binding_shadowed, exprs)
+      }
+      collect_scoped_exprs_with_shadow(body, binding_shadowed, exprs)
+    }
+    Map(elems~, ..) =>
+      for elem in elems {
+        collect_scoped_exprs_with_shadow(elem.expr, shadowed, exprs)
+      }
+    MultilineString(elems~, ..) =>
+      collect_scoped_multiline_string_elem_exprs(elems, shadowed, exprs)
+    _ => ()
+  }
+}
+
+///|
+fn collect_scoped_argument_exprs(
+  args : @list.List[@syntax.Argument],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for arg in args {
+    collect_scoped_exprs_with_shadow(arg.value, shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_expr_list(
+  list : @list.List[@syntax.Expr],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for expr in list {
+    collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_spreadable_elem_exprs(
+  elems : @list.List[@syntax.SpreadableElem],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for elem in elems {
+    match elem {
+      Regular(expr) | Spread(expr~, ..) =>
+        collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+    }
+  }
+}
+
+///|
+fn collect_scoped_optional_expr(
+  expr : @syntax.Expr?,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  if expr is Some(expr) {
+    collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_optional_where_clause_exprs(
+  clause : @syntax.WhereClause?,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  if clause is Some(clause) {
+    collect_scoped_field_def_exprs(clause.fields, shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_binder_expr_pairs(
+  pairs : @list.List[(@syntax.Binder, @syntax.Expr)],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for pair in pairs {
+    let (_binder, expr) = pair
+    collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_interp_elem_exprs(
+  elems : @list.List[@syntax.InterpElem],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for elem in elems {
+    match elem {
+      Expr(expr~, ..) => collect_scoped_exprs_with_shadow(expr, shadowed, exprs)
+      Literal(..) | Source(_) => ()
+    }
+  }
+}
+
+///|
+fn collect_scoped_multiline_string_elem_exprs(
+  elems : @list.List[@syntax.MultilineStringElem],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for elem in elems {
+    match elem {
+      Interp(elems) => collect_scoped_interp_elem_exprs(elems, shadowed, exprs)
+      String(_) => ()
+    }
+  }
+}
+
+///|
+fn collect_scoped_lex_case_exprs(
+  cases : @list.List[@syntax.LexCase],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for case in cases {
+    collect_scoped_lex_top_pattern_exprs(case.pat, shadowed, exprs)
+    let case_shadowed = shadowed_with_lex_top_patterns(shadowed, case.pat)
+    collect_scoped_optional_expr(case.guard_, case_shadowed, exprs)
+    collect_scoped_exprs_with_shadow(case.body, case_shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_lex_top_pattern_exprs(
+  patterns : @list.List[@syntax.LexTopPattern],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for pattern in patterns {
+    match pattern {
+      Pattern(pattern) =>
+        collect_scoped_lex_pattern_exprs(pattern, shadowed, exprs)
+      Binder(_) | Wildcard(..) => ()
+    }
+  }
+}
+
+///|
+fn collect_scoped_lex_pattern_exprs(
+  pattern : @syntax.LexPattern,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  match pattern {
+    Alias(pat~, ..) => collect_scoped_lex_pattern_exprs(pat, shadowed, exprs)
+    RegexInterp(elems~, ..) =>
+      collect_scoped_interp_elem_exprs(elems, shadowed, exprs)
+    Sequence(pats~, ..) =>
+      for pat in pats {
+        collect_scoped_lex_pattern_exprs(pat, shadowed, exprs)
+      }
+    ConstantRef(..) | Regex(..) => ()
+  }
+}
+
+///|
+fn collect_scoped_list_comprehension_kind_exprs(
+  kind : @syntax.ListComprehensionKind,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Array[String] {
+  match kind {
+    For(binders~, condition~, continue_block~, ..) => {
+      collect_scoped_binder_expr_pairs(binders, shadowed, exprs)
+      let loop_shadowed = shadowed_with_binder_expr_pair_binders(
+        shadowed, binders,
+      )
+      collect_scoped_optional_expr(condition, loop_shadowed, exprs)
+      collect_scoped_binder_expr_pairs(continue_block, loop_shadowed, exprs)
+      loop_shadowed
+    }
+    Foreach(binders~, expr=iter, init~, continue_block~) => {
+      collect_scoped_exprs_with_shadow(iter, shadowed, exprs)
+      collect_scoped_binder_expr_pairs(init, shadowed, exprs)
+      let loop_shadowed = shadowed_with_optional_binders(shadowed, binders)
+      add_binder_expr_pair_names(loop_shadowed, init)
+      collect_scoped_binder_expr_pairs(continue_block, loop_shadowed, exprs)
+      loop_shadowed
+    }
+  }
+}
+
+///|
+fn collect_scoped_field_def_exprs(
+  fields : @list.List[@syntax.FieldDef],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for field in fields {
+    collect_scoped_exprs_with_shadow(field.expr, shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_case_exprs(
+  cases : @list.List[@syntax.Case],
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  for case in cases {
+    let case_shadowed = shadowed_with_pattern(shadowed, case.pattern)
+    collect_scoped_optional_expr(case.guard_, case_shadowed, exprs)
+    collect_scoped_exprs_with_shadow(case.body, case_shadowed, exprs)
+  }
+}
+
+///|
+fn collect_scoped_func_exprs(
+  func : @syntax.Func,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  let body_shadowed = shadowed_with_parameters(shadowed, func.parameters)
+  collect_scoped_exprs_with_shadow(func.body, body_shadowed, exprs)
+}
+
+///|
+fn collect_scoped_regex_pattern_exprs(
+  pattern : @syntax.RegexPattern,
+  shadowed : Array[String],
+  exprs : Array[ScopedExpr],
+) -> Unit {
+  match pattern {
+    Alias(pat~, ..) => collect_scoped_regex_pattern_exprs(pat, shadowed, exprs)
+    Alternation(pat1~, pat2~, ..) | Sequence(pat1~, pat2~, ..) => {
+      collect_scoped_regex_pattern_exprs(pat1, shadowed, exprs)
+      collect_scoped_regex_pattern_exprs(pat2, shadowed, exprs)
+    }
+    Literal(..) | Reference(..) => ()
+  }
+}
+
+///|
+fn copy_names(names : Array[String]) -> Array[String] {
+  let copied : Array[String] = []
+  for name in names {
+    copied.push(name)
+  }
+  copied
+}
+
+///|
+fn add_unique_name(names : Array[String], name : String) -> Unit {
+  for existing in names {
+    if existing == name {
+      return
+    }
+  }
+  names.push(name)
+}
+
+///|
+fn add_binder_name(names : Array[String], binder : @syntax.Binder) -> Unit {
+  if @id.normalize_identifier_name_from_binder(binder) is Some(name) {
+    add_unique_name(names, name)
+  }
+}
+
+///|
+fn shadowed_with_binder(
+  shadowed : Array[String],
+  binder : @syntax.Binder,
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  add_binder_name(next, binder)
+  next
+}
+
+///|
+fn shadowed_with_pattern(
+  shadowed : Array[String],
+  pattern : @syntax.Pattern,
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  add_pattern_names(next, pattern)
+  next
+}
+
+///|
+fn shadowed_with_parameters(
+  shadowed : Array[String],
+  parameters : @list.List[@syntax.Parameter],
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  for parameter in parameters {
+    add_parameter_name(next, parameter)
+  }
+  next
+}
+
+///|
+fn shadowed_with_binder_expr_pair_binders(
+  shadowed : Array[String],
+  pairs : @list.List[(@syntax.Binder, @syntax.Expr)],
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  add_binder_expr_pair_names(next, pairs)
+  next
+}
+
+///|
+fn shadowed_with_optional_binders(
+  shadowed : Array[String],
+  binders : @list.List[@syntax.Binder?],
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  for binder in binders {
+    if binder is Some(binder) {
+      add_binder_name(next, binder)
+    }
+  }
+  next
+}
+
+///|
+fn shadowed_with_let_and_binders(
+  shadowed : Array[String],
+  bindings : @list.List[(@syntax.Binder, @syntax.Type?, @syntax.Func)],
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  for binding in bindings {
+    let (binder, _ty, _func) = binding
+    add_binder_name(next, binder)
+  }
+  next
+}
+
+///|
+fn shadowed_with_lex_top_patterns(
+  shadowed : Array[String],
+  patterns : @list.List[@syntax.LexTopPattern],
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  for pattern in patterns {
+    add_lex_top_pattern_names(next, pattern)
+  }
+  next
+}
+
+///|
+fn add_binder_expr_pair_names(
+  names : Array[String],
+  pairs : @list.List[(@syntax.Binder, @syntax.Expr)],
+) -> Unit {
+  for pair in pairs {
+    let (binder, _expr) = pair
+    add_binder_name(names, binder)
+  }
+}
+
+///|
+fn add_parameter_name(
+  names : Array[String],
+  parameter : @syntax.Parameter,
+) -> Unit {
+  match parameter {
+    DiscardPositional(..) => ()
+    Labelled(binder~, ..)
+    | Optional(binder~, ..)
+    | Positional(binder~, ..)
+    | QuestionOptional(binder~, ..) => add_binder_name(names, binder)
+  }
+}
+
+///|
+fn add_pattern_names(names : Array[String], pattern : @syntax.Pattern) -> Unit {
+  match pattern {
+    Var(binder) => add_binder_name(names, binder)
+    Alias(pat~, alias_~, ..) => {
+      add_pattern_names(names, pat)
+      add_binder_name(names, alias_)
+    }
+    Array(pats~, ..) => add_array_pattern_names(names, pats)
+    Constr(args=Some(args), ..) =>
+      for arg in args {
+        add_pattern_names(names, arg.pat)
+      }
+    Constr(args=None, ..) => ()
+    Constraint(pat~, ..) => add_pattern_names(names, pat)
+    Map(elems~, ..) =>
+      for elem in elems {
+        add_pattern_names(names, elem.pat)
+      }
+    Or(pat1~, pat2~, ..) | Range(lhs=pat1, rhs=pat2, ..) => {
+      add_pattern_names(names, pat1)
+      add_pattern_names(names, pat2)
+    }
+    Record(fields~, ..) =>
+      for field in fields {
+        add_pattern_names(names, field.pattern)
+      }
+    SpecialConstr(binder~, args~, ..) => {
+      add_binder_name(names, binder)
+      for arg in args {
+        add_pattern_names(names, arg.pat)
+      }
+    }
+    Tuple(pats~, ..) =>
+      for pat in pats {
+        add_pattern_names(names, pat)
+      }
+    Any(..) | Constant(..) => ()
+  }
+}
+
+///|
+fn add_array_pattern_names(
+  names : Array[String],
+  patterns : @syntax.ArrayPatterns,
+) -> Unit {
+  match patterns {
+    Closed(items) =>
+      for item in items {
+        add_array_pattern_item_names(names, item)
+      }
+    Open(prefix, suffix, rest) => {
+      for item in prefix {
+        add_array_pattern_item_names(names, item)
+      }
+      for item in suffix {
+        add_array_pattern_item_names(names, item)
+      }
+      add_dot_dot_binder_name(names, rest)
+    }
+  }
+}
+
+///|
+fn add_array_pattern_item_names(
+  names : Array[String],
+  pattern : @syntax.ArrayPattern,
+) -> Unit {
+  match pattern {
+    Pattern(pattern) => add_pattern_names(names, pattern)
+    ConstSpread(binder~, ..) => add_binder_name(names, binder)
+    BytesSpread(..) | StringSpread(..) => ()
+  }
+}
+
+///|
+fn add_dot_dot_binder_name(
+  names : Array[String],
+  binder : @syntax.DotDotBinder,
+) -> Unit {
+  match binder {
+    Binder(binder) | BinderAs(binder) => add_binder_name(names, binder)
+    NoBinder | Underscore => ()
+  }
+}
+
+///|
+fn add_lex_top_pattern_names(
+  names : Array[String],
+  pattern : @syntax.LexTopPattern,
+) -> Unit {
+  match pattern {
+    Binder(binder) => add_binder_name(names, binder)
+    Pattern(pattern) => add_lex_pattern_names(names, pattern)
+    Wildcard(..) => ()
+  }
+}
+
+///|
+fn add_lex_pattern_names(
+  names : Array[String],
+  pattern : @syntax.LexPattern,
+) -> Unit {
+  match pattern {
+    Alias(pat~, binder~, ..) => {
+      add_lex_pattern_names(names, pat)
+      add_binder_name(names, binder)
+    }
+    Sequence(pats~, ..) =>
+      for pat in pats {
+        add_lex_pattern_names(names, pat)
+      }
+    ConstantRef(..) | Regex(..) | RegexInterp(..) => ()
+  }
+}
+
+///|
 pub fn collect_exprs(expr : @syntax.Expr, exprs : Array[@syntax.Expr]) -> Unit {
   exprs.push(expr)
   match expr {

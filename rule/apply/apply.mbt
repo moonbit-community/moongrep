@@ -16,7 +16,12 @@ using @taint_lowering {
 }
 
 ///|
-using @traverse {collect_exprs, collect_impl_exprs}
+using @traverse {
+  collect_impl_exprs,
+  collect_scoped_exprs,
+  count_supported_name_in_expr,
+  type ScopedExpr,
+}
 
 ///|
 priv enum RulePatternBindings {
@@ -343,17 +348,17 @@ fn apply_inside_expr_ast(
       // The context rule can bind a larger expression than the final hit.
       // Search supported expressions under `__TARGET__`, while carrying any
       // bindings established by the outer match.
-      let target_exprs : Array[@syntax.Expr] = []
-      collect_exprs(target, target_exprs)
+      let target_exprs : Array[ScopedExpr] = []
+      collect_scoped_exprs(target, target_exprs)
       for target_expr in target_exprs {
-        apply_patterns_at_expr(
+        apply_ast_patterns_at_scoped_expr(
           file,
           rule,
           structural.patterns,
           target_expr,
           Some(expr.loc()),
-          Some(AstBindings(result.bindings)),
-          @model.MatcherBackend::AstMatcher,
+          result.bindings,
+          inside.compiled.identifier_metavars,
           hits,
         )
       }
@@ -377,16 +382,17 @@ fn apply_inside_expr_ast_bucketed(
   if match_ast_rule_pattern(inside, expr, None) is Some(AstRuleMatch(result)) {
     if result.bindings.get("__TARGET__")
       is Some(@matching.BoundValue::Expr(target)) {
-      let target_exprs : Array[@syntax.Expr] = []
-      collect_exprs(target, target_exprs)
+      let target_exprs : Array[ScopedExpr] = []
+      collect_scoped_exprs(target, target_exprs)
       for target_expr in target_exprs {
-        apply_ast_patterns_at_expr(
+        apply_ast_bucketed_patterns_at_scoped_expr(
           file,
           rule,
           pattern_buckets,
           target_expr,
           Some(expr.loc()),
-          Some(AstBindings(result.bindings)),
+          result.bindings,
+          inside.compiled.identifier_metavars,
           hits,
         )
       }
@@ -406,19 +412,98 @@ fn apply_inside_expr_json(
   if match_json_rule_pattern(inside, expr, None) is Some(JsonRuleMatch(result)) {
     if result.bindings.get("__TARGET__")
       is Some(@json_matching.JsonBoundValue::Expr(target)) {
-      let target_exprs : Array[Json] = []
-      @json_matching.collect_expr_jsons(target, target_exprs)
+      let target_exprs : Array[@json_matching.ScopedJsonExpr] = []
+      @json_matching.collect_scoped_expr_jsons(target, target_exprs)
       for target_expr in target_exprs {
-        apply_json_patterns_at_expr_json(
+        apply_json_patterns_at_scoped_expr_json(
           file,
           rule,
           structural.patterns,
           target_expr,
           Some(expr.loc()),
-          Some(JsonBindings(result.bindings)),
+          result.bindings,
+          inside.compiled.identifier_metavars,
           hits,
         )
       }
+    }
+  }
+}
+
+///|
+fn apply_ast_bucketed_patterns_at_scoped_expr(
+  file : String,
+  rule : CompiledRule,
+  pattern_buckets : ExprPatternBuckets,
+  scoped_expr : ScopedExpr,
+  outer_loc : @basic.Location?,
+  outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
+  inherited_identifier_metavars : Array[String],
+  hits : Array[RuleFinding],
+) -> Unit {
+  for indexed in pattern_buckets.patterns_for_expr(scoped_expr.expr) {
+    if ast_pattern_blocked_by_shadowed_outer_id(
+        indexed.pattern,
+        outer_bindings,
+        inherited_identifier_metavars,
+        scoped_expr.shadowed_names,
+      ) {
+      continue
+    }
+    if match_ast_rule_pattern(
+        indexed.pattern,
+        scoped_expr.expr,
+        Some(AstBindings(outer_bindings)),
+      )
+      is Some(_) {
+      hits.push({
+        file,
+        rule_id: rule.rule_id,
+        description: rule.description,
+        pattern_index: indexed.pattern_index,
+        loc: scoped_expr.expr.loc(),
+        outer_loc,
+      })
+      return
+    }
+  }
+}
+
+///|
+fn apply_ast_patterns_at_scoped_expr(
+  file : String,
+  rule : CompiledRule,
+  patterns : Array[CompiledRulePattern],
+  scoped_expr : ScopedExpr,
+  outer_loc : @basic.Location?,
+  outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
+  inherited_identifier_metavars : Array[String],
+  hits : Array[RuleFinding],
+) -> Unit {
+  for index in 0..<patterns.length() {
+    if ast_pattern_blocked_by_shadowed_outer_id(
+        patterns[index],
+        outer_bindings,
+        inherited_identifier_metavars,
+        scoped_expr.shadowed_names,
+      ) {
+      continue
+    }
+    if match_ast_rule_pattern(
+        patterns[index],
+        scoped_expr.expr,
+        Some(AstBindings(outer_bindings)),
+      )
+      is Some(_) {
+      hits.push({
+        file,
+        rule_id: rule.rule_id,
+        description: rule.description,
+        pattern_index: index,
+        loc: scoped_expr.expr.loc(),
+        outer_loc,
+      })
+      return
     }
   }
 }
@@ -477,19 +562,32 @@ fn apply_patterns_at_expr(
 }
 
 ///|
-fn apply_json_patterns_at_expr_json(
+fn apply_json_patterns_at_scoped_expr_json(
   file : String,
   rule : CompiledRule,
   patterns : Array[CompiledRulePattern],
-  expr : Json,
+  scoped_expr : @json_matching.ScopedJsonExpr,
   outer_loc : @basic.Location?,
-  initial_bindings : RulePatternBindings?,
+  outer_bindings : @hashmap.HashMap[String, @json_matching.JsonBoundValue],
+  inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
 ) -> Unit {
   for index in 0..<patterns.length() {
-    if match_json_rule_pattern_json(patterns[index], expr, initial_bindings)
+    if json_pattern_blocked_by_shadowed_outer_id(
+        patterns[index],
+        outer_bindings,
+        inherited_identifier_metavars,
+        scoped_expr.shadowed_names,
+      ) {
+      continue
+    }
+    if match_json_rule_pattern_json(
+        patterns[index],
+        scoped_expr.expr,
+        Some(JsonBindings(outer_bindings)),
+      )
       is Some(_) {
-      if json_expr_location(expr) is Some(loc) {
+      if json_expr_location(scoped_expr.expr) is Some(loc) {
         hits.push({
           file,
           rule_id: rule.rule_id,
@@ -502,6 +600,56 @@ fn apply_json_patterns_at_expr_json(
       return
     }
   }
+}
+
+///|
+fn ast_pattern_blocked_by_shadowed_outer_id(
+  pattern : CompiledRulePattern,
+  outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
+  inherited_identifier_metavars : Array[String],
+  shadowed_names : Array[String],
+) -> Bool {
+  for metavar in inherited_identifier_metavars {
+    if count_supported_name_in_expr(pattern.compiled.ast, metavar) > 0 {
+      if outer_bindings.get(metavar)
+        is Some(@matching.BoundValue::Identifier(bound_name)) {
+        if names_contain(shadowed_names, bound_name) {
+          return true
+        }
+      }
+    }
+  }
+  false
+}
+
+///|
+fn json_pattern_blocked_by_shadowed_outer_id(
+  pattern : CompiledRulePattern,
+  outer_bindings : @hashmap.HashMap[String, @json_matching.JsonBoundValue],
+  inherited_identifier_metavars : Array[String],
+  shadowed_names : Array[String],
+) -> Bool {
+  for metavar in inherited_identifier_metavars {
+    if count_supported_name_in_expr(pattern.compiled.ast, metavar) > 0 {
+      if outer_bindings.get(metavar)
+        is Some(@json_matching.JsonBoundValue::Identifier(bound_name)) {
+        if names_contain(shadowed_names, bound_name) {
+          return true
+        }
+      }
+    }
+  }
+  false
+}
+
+///|
+fn names_contain(names : Array[String], needle : String) -> Bool {
+  for name in names {
+    if name == needle {
+      return true
+    }
+  }
+  false
 }
 
 ///|

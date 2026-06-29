@@ -10,11 +10,17 @@ pub fn collect_exprs(@syntax.Expr, Array[@syntax.Expr]) -> Unit
 
 pub fn collect_impl_exprs(@syntax.Impl, Array[@syntax.Expr]) -> Unit
 
+pub fn collect_scoped_exprs(@syntax.Expr, Array[ScopedExpr]) -> Unit
+
 pub fn count_supported_name_in_expr(@syntax.Expr, String) -> Int
 
 // Errors
 
 // Types and methods
+pub(all) struct ScopedExpr {
+  expr : @syntax.Expr
+  shadowed_names : Array[String]
+}
 
 // Type aliases
 

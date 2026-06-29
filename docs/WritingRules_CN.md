@@ -36,6 +36,7 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
   `id` 和 `const` 捕获。
 - 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将 `__TARGET__` 捕获为表达式，则 `patterns` 会应用到该目标子树内的每个表达式。
 - `inside-expr` 声明的内联捕获对内部 `patterns` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 `patterns` 使用。
+- 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，而通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
 - 内部 pattern 不能重新声明来自 `inside-expr` 的名称。
 - `inside-expr` 规则的命中会记录上下文表达式的 `outer_loc`，以及内部匹配的 `loc`。
 
@@ -191,6 +192,7 @@ patterns:
 - 它必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
 - `__TARGET__` 是保留名称，不能用作内联元变量名
 - 内部 `patterns` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
+- 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
 - 内部 `patterns` 不能重新声明已经由 `inside-expr` 声明的名称；请使用普通 payload 名称引用外层捕获，例如 `prefix`
 
 ### 4. 使用 `guard` 过滤 id 和 const

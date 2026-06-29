@@ -10,6 +10,8 @@ import {
 // Values
 pub fn collect_expr_jsons(Json, Array[Json]) -> Unit
 
+pub fn collect_scoped_expr_jsons(Json, Array[ScopedJsonExpr]) -> Unit
+
 pub fn compiled_expr_pattern_to_json(@matching.CompiledExprPattern) -> CompiledJsonExprPattern
 
 pub fn expr_matches(Json, Json) -> Bool
@@ -48,6 +50,11 @@ pub(all) enum JsonBoundValue {
 pub(all) struct JsonExprMatch {
   root : Json
   bindings : @hashmap.HashMap[String, JsonBoundValue]
+}
+
+pub(all) struct ScopedJsonExpr {
+  expr : Json
+  shadowed_names : Array[String]
 }
 
 // Type aliases

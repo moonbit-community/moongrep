@@ -59,6 +59,29 @@ fn assert_same_findings(
 }
 
 ///|
+fn assert_same_ast_json_findings(
+  source : String,
+  rule_source : String,
+) -> Array[RuleFinding] raise {
+  let rules = compile_rule_source(rule_source)
+  let impls = parse_impls(source)
+  let ast_hits = apply_structural_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::AstMatcher,
+  )
+  let json_hits = apply_structural_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::JsonMatcher,
+  )
+  assert_same_findings(ast_hits, json_hits)
+  ast_hits
+}
+
+///|
 test "apply structural rule matches repeated subtree once" {
   let rule_source =
     #|id: example
@@ -565,6 +588,102 @@ test "apply structural rule inherits inside expr identifier bindings" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "inside expr inherited id is blocked after lexical let shadow" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: target(name)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, {
+    #|    let x = y;
+    #|    target(x)
+    #|  })
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 0)
+}
+
+///|
+test "inside expr inherited id still matches without shadow" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: target(name)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, target(x))
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "inside expr later shadow does not block earlier candidate" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: target(name)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, {
+    #|    target(x);
+    #|    let x = y;
+    #|    done
+    #|  })
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "inside expr only blocks patterns referencing shadowed outer id" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr:
+    #|  shape: wrapper($(left:id), $(right:id), __TARGET__)
+    #|patterns:
+    #|  - shape: target(right)
+    #|  - shape: target(left)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, y, {
+    #|    let x = other;
+    #|    target(y);
+    #|    target(x)
+    #|  })
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 0)
   assert_true(hits[0].outer_loc is Some(_))
 }
 

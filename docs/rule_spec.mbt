@@ -453,6 +453,9 @@ let _embed_rulespec_md : String =
   #|- each expression inside that captured subtree is checked against `patterns`
   #|- inner pattern matching starts with the bindings established by
   #|  `inside-expr`
+  #|- if an inner pattern references an inherited `id` capture, that candidate is
+  #|  skipped when the path from `__TARGET__` to the candidate crosses a lexical
+  #|  binder with the same normalized identifier name
   #|
   #|The reported location for an `inside-expr` hit is the inner match location.
   #|Consumers that expose context locations may also expose the outer expression
