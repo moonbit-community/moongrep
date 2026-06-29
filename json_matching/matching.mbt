@@ -88,16 +88,25 @@ pub fn compiled_expr_pattern_to_json(
 ///|
 /// Returns the textual value used by rule guards for a JSON constant capture.
 pub fn json_constant_guard_value(constant : Json) -> String? {
-  match json_kind(constant) {
-    Some(kind) if kind.has_prefix("Constant::") =>
-      match child(constant, "value") {
-        Some(String(value)) => Some(value)
-        Some(True) => Some("true")
-        Some(False) => Some("false")
-        Some(Number(_, repr=Some(raw))) => Some(raw)
-        Some(Number(value, repr=None)) => Some(value.to_string())
-        _ => None
+  match constant {
+    { "kind": String(kind), "children": { "value": value, .. }, .. } =>
+      if kind.has_prefix("Constant::") {
+        constant_value_text(value)
+      } else {
+        None
       }
+    _ => None
+  }
+}
+
+///|
+fn constant_value_text(value : Json) -> String? {
+  match value {
+    String(value) => Some(value)
+    True => Some("true")
+    False => Some("false")
+    Number(_, repr=Some(raw)) => Some(raw)
+    Number(value, repr=None) => Some(value.to_string())
     _ => None
   }
 }
@@ -161,32 +170,33 @@ fn match_expr_placeholder(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool? {
-  if json_kind(pattern) != Some("Expr::Ident") {
-    return None
-  }
-  if option_then(child(pattern, "id"), normalized_var) is Some(name) {
-    if is_ignore_placeholder(name) {
-      Some(true)
-    } else if is_special_expr_metavar(compiled, name) ||
-      contains_name(compiled.expr_metavars, name) {
-      Some(bind_value(bindings, name, Expr(candidate)))
-    } else if contains_name(compiled.identifier_metavars, name) {
-      if normalized_expr(candidate) is Some(candidate_name) {
-        Some(bind_value(bindings, name, Identifier(candidate_name)))
+  match pattern {
+    { "kind": "Expr::Ident", "children": { "id": id, .. }, .. } =>
+      if normalized_var(id) is Some(name) {
+        if is_ignore_placeholder(name) {
+          Some(true)
+        } else if is_special_expr_metavar(compiled, name) ||
+          contains_name(compiled.expr_metavars, name) {
+          Some(bind_value(bindings, name, Expr(candidate)))
+        } else if contains_name(compiled.identifier_metavars, name) {
+          if normalized_expr(candidate) is Some(candidate_name) {
+            Some(bind_value(bindings, name, Identifier(candidate_name)))
+          } else {
+            Some(false)
+          }
+        } else if contains_name(compiled.constant_metavars, name) {
+          if expr_constant(candidate) is Some(constant) {
+            Some(bind_value(bindings, name, Constant(constant)))
+          } else {
+            Some(false)
+          }
+        } else {
+          None
+        }
       } else {
-        Some(false)
+        None
       }
-    } else if contains_name(compiled.constant_metavars, name) {
-      if expr_constant(candidate) is Some(constant) {
-        Some(bind_value(bindings, name, Constant(constant)))
-      } else {
-        Some(false)
-      }
-    } else {
-      None
-    }
-  } else {
-    None
+    _ => None
   }
 }
 
@@ -197,29 +207,33 @@ fn match_pattern_var(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  if option_then(child(pattern, "value"), binder_name) is Some(name) {
-    if parse_pattern_metavar_name(name) is Some(meta_name) {
-      bind_value(bindings, meta_name, Pattern(candidate))
-    } else if is_ignore_placeholder(name) {
-      true
-    } else if contains_name(compiled.identifier_metavars, name) {
-      if normalized_pattern(candidate) is Some(candidate_name) {
-        bind_value(bindings, name, Identifier(candidate_name))
+  match pattern {
+    { "kind": "Pattern::Var", "children": { "value": value, .. }, .. } =>
+      if binder_name(value) is Some(name) {
+        if parse_pattern_metavar_name(name) is Some(meta_name) {
+          bind_value(bindings, meta_name, Pattern(candidate))
+        } else if is_ignore_placeholder(name) {
+          true
+        } else if contains_name(compiled.identifier_metavars, name) {
+          if normalized_pattern(candidate) is Some(candidate_name) {
+            bind_value(bindings, name, Identifier(candidate_name))
+          } else {
+            false
+          }
+        } else if contains_name(compiled.constant_metavars, name) {
+          if pattern_constant(candidate) is Some(constant) {
+            bind_value(bindings, name, Constant(constant))
+          } else {
+            false
+          }
+        } else {
+          json_kind(candidate) == Some("Pattern::Var") &&
+          child(candidate, "value").bind(binder_name) == Some(name)
+        }
       } else {
         false
       }
-    } else if contains_name(compiled.constant_metavars, name) {
-      if pattern_constant(candidate) is Some(constant) {
-        bind_value(bindings, name, Constant(constant))
-      } else {
-        false
-      }
-    } else {
-      json_kind(candidate) == Some("Pattern::Var") &&
-      option_then(child(candidate, "value"), binder_name) == Some(name)
-    }
-  } else {
-    false
+    _ => false
   }
 }
 
@@ -230,22 +244,26 @@ fn match_let_expr(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match
+  match (pattern, candidate) {
     (
-      child(pattern, "pattern"),
-      child(candidate, "pattern"),
-      child(pattern, "expr"),
-      child(candidate, "expr"),
-      child(pattern, "body"),
-      child(candidate, "body"),
-    ) {
-    (
-      Some(pattern_pat),
-      Some(candidate_pat),
-      Some(pattern_expr),
-      Some(candidate_expr),
-      Some(pattern_body),
-      Some(candidate_body),
+      {
+        "children": {
+          "pattern": pattern_pat,
+          "expr": pattern_expr,
+          "body": pattern_body,
+          ..
+        },
+        ..
+      },
+      {
+        "children": {
+          "pattern": candidate_pat,
+          "expr": candidate_expr,
+          "body": candidate_body,
+          ..
+        },
+        ..
+      },
     ) =>
       match_json(pattern_pat, candidate_pat, compiled, bindings) &&
       match_json(pattern_expr, candidate_expr, compiled, bindings) &&
@@ -265,14 +283,19 @@ fn match_structured_node(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match (node_children(pattern), node_children(candidate)) {
-    (Some(Object(pattern_children)), Some(Object(candidate_children))) =>
+  match (pattern, candidate) {
+    (
+      { "children": Object(pattern_children), .. },
+      { "children": Object(candidate_children), .. },
+    ) =>
       match_child_object(
         pattern_children, candidate_children, node_kind, compiled, bindings,
       )
-    (Some(Array(pattern_items)), Some(Array(candidate_items))) =>
-      match_json_array(pattern_items, candidate_items, compiled, bindings)
-    (Some(left), Some(right)) =>
+    (
+      { "children": Array(pattern_items), .. },
+      { "children": Array(candidate_items), .. },
+    ) => match_json_array(pattern_items, candidate_items, compiled, bindings)
+    ({ "children": left, .. }, { "children": right, .. }) =>
       json_value_equal(left, right, compiled, bindings)
     _ => false
   }
@@ -338,9 +361,11 @@ fn match_var(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match (child(pattern, "name"), child(candidate, "name")) {
-    (Some(pattern_name), Some(candidate_name)) =>
-      match_long_ident(pattern_name, candidate_name, compiled, bindings)
+  match (pattern, candidate) {
+    (
+      { "children": { "name": pattern_name, .. }, .. },
+      { "children": { "name": candidate_name, .. }, .. },
+    ) => match_long_ident(pattern_name, candidate_name, compiled, bindings)
     _ => false
   }
 }
@@ -352,35 +377,41 @@ fn match_long_ident(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match json_kind(pattern) {
-    Some("LongIdent::Ident") =>
-      match (child_string(pattern, "value"), normalized_long_ident(candidate)) {
-        (Some(pattern_name), Some(candidate_name)) =>
-          match_identifier_name(
-            pattern_name, candidate_name, candidate_name, compiled, bindings,
-          )
-        _ => false
+  match pattern {
+    {
+      "kind": "LongIdent::Ident",
+      "children": { "value": String(pattern_name), .. },
+      ..
+    } =>
+      if normalized_long_ident(candidate) is Some(candidate_name) {
+        match_identifier_name(
+          pattern_name, candidate_name, candidate_name, compiled, bindings,
+        )
+      } else {
+        false
       }
-    Some("LongIdent::Dot") =>
-      match
-        (
-          child_string(pattern, "pkg"),
-          child_string(pattern, "id"),
-          child_string(candidate, "pkg"),
-          child_string(candidate, "id"),
-          normalized_long_ident(candidate),
-        ) {
-        (
-          Some(pattern_pkg),
-          Some(pattern_id),
-          Some(candidate_pkg),
-          Some(candidate_id),
-          Some(candidate_name),
-        ) =>
-          pattern_pkg == candidate_pkg &&
-          match_identifier_name(
-            pattern_id, candidate_id, candidate_name, compiled, bindings,
-          )
+    {
+      "kind": "LongIdent::Dot",
+      "children": { "pkg": String(pattern_pkg), "id": String(pattern_id), .. },
+      ..
+    } =>
+      match candidate {
+        {
+          "children": {
+            "pkg": String(candidate_pkg),
+            "id": String(candidate_id),
+            ..
+          },
+          ..
+        } =>
+          if normalized_long_ident(candidate) is Some(candidate_name) {
+            pattern_pkg == candidate_pkg &&
+            match_identifier_name(
+              pattern_id, candidate_id, candidate_name, compiled, bindings,
+            )
+          } else {
+            false
+          }
         _ => false
       }
     _ => false
@@ -426,21 +457,27 @@ fn match_type_name(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match
+  match (pattern, candidate) {
     (
-      child_bool(pattern, "is_object"),
-      child_bool(candidate, "is_object"),
-      child(pattern, "name"),
-      child(candidate, "name"),
-    ) {
-    (
-      Some(pattern_is_object),
-      Some(candidate_is_object),
-      Some(pattern_name),
-      Some(candidate_name),
+      {
+        "children": { "is_object": pattern_is_object, "name": pattern_name, .. },
+        ..
+      },
+      {
+        "children": {
+          "is_object": candidate_is_object,
+          "name": candidate_name,
+          ..
+        },
+        ..
+      },
     ) =>
-      pattern_is_object == candidate_is_object &&
-      match_long_ident(pattern_name, candidate_name, compiled, bindings)
+      match (json_bool(pattern_is_object), json_bool(candidate_is_object)) {
+        (Some(pattern_is_object), Some(candidate_is_object)) =>
+          pattern_is_object == candidate_is_object &&
+          match_long_ident(pattern_name, candidate_name, compiled, bindings)
+        _ => false
+      }
     _ => false
   }
 }
@@ -452,41 +489,55 @@ fn match_constructor(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  match
+  match (pattern, candidate) {
     (
-      option_then(child(pattern, "name"), constr_name),
-      option_then(child(candidate, "name"), constr_name),
-      child(pattern, "extra_info"),
-      child(candidate, "extra_info"),
-    ) {
-    (
-      Some(pattern_name),
-      Some(candidate_name),
-      Some(pattern_extra),
-      Some(candidate_extra),
+      {
+        "children": {
+          "name": pattern_name_json,
+          "extra_info": pattern_extra,
+          ..
+        },
+        ..
+      },
+      {
+        "children": {
+          "name": candidate_name_json,
+          "extra_info": candidate_extra,
+          ..
+        },
+        ..
+      },
     ) =>
-      if contains_name(compiled.identifier_metavars, pattern_name) {
-        if normalized_constructor(candidate) is Some(candidate_normalized) {
-          let extra_matches = if json_kind(pattern_extra) ==
-            Some("ConstructorExtraInfo::NoExtraInfo") {
+      match (constr_name(pattern_name_json), constr_name(candidate_name_json)) {
+        (Some(pattern_name), Some(candidate_name)) =>
+          if contains_name(compiled.identifier_metavars, pattern_name) {
+            if normalized_constructor(candidate) is Some(candidate_normalized) {
+              let extra_matches = if json_kind(pattern_extra) ==
+                Some("ConstructorExtraInfo::NoExtraInfo") {
+                true
+              } else {
+                match_constructor_extra_info(
+                  pattern_extra, candidate_extra, compiled, bindings,
+                )
+              }
+              extra_matches &&
+              bind_value(
+                bindings,
+                pattern_name,
+                Identifier(candidate_normalized),
+              )
+            } else {
+              false
+            }
+          } else if is_ignore_placeholder(pattern_name) {
             true
           } else {
+            pattern_name == candidate_name &&
             match_constructor_extra_info(
               pattern_extra, candidate_extra, compiled, bindings,
             )
           }
-          extra_matches &&
-          bind_value(bindings, pattern_name, Identifier(candidate_normalized))
-        } else {
-          false
-        }
-      } else if is_ignore_placeholder(pattern_name) {
-        true
-      } else {
-        pattern_name == candidate_name &&
-        match_constructor_extra_info(
-          pattern_extra, candidate_extra, compiled, bindings,
-        )
+        _ => false
       }
     _ => false
   }
@@ -499,28 +550,59 @@ fn match_constructor_extra_info(
   compiled : CompiledJsonExprPattern,
   bindings : @hashmap.HashMap[String, JsonBoundValue],
 ) -> Bool {
-  if json_kind(pattern) != json_kind(candidate) {
-    return false
-  }
-  match json_kind(pattern) {
-    Some("ConstructorExtraInfo::NoExtraInfo") => true
-    Some("ConstructorExtraInfo::Package") =>
-      child_string(pattern, "value") == child_string(candidate, "value")
-    Some("ConstructorExtraInfo::TypeName") =>
-      match (child(pattern, "value"), child(candidate, "value")) {
-        (Some(pattern_type), Some(candidate_type)) =>
-          match_type_name(pattern_type, candidate_type, compiled, bindings)
-        _ => false
-      }
-    Some("ConstructorExtraInfo::TypeNameWithConstrPackage") => {
-      let pkg_matches = child_string(pattern, "pkg") ==
-        child_string(candidate, "pkg")
-      let type_matches = match
-        (child(pattern, "type_name"), child(candidate, "type_name")) {
-        (Some(pattern_type), Some(candidate_type)) =>
-          match_type_name(pattern_type, candidate_type, compiled, bindings)
-        _ => false
-      }
+  match (pattern, candidate) {
+    (
+      { "kind": "ConstructorExtraInfo::NoExtraInfo", .. },
+      { "kind": "ConstructorExtraInfo::NoExtraInfo", .. },
+    ) => true
+    (
+      {
+        "kind": "ConstructorExtraInfo::Package",
+        "children": { "value": String(pattern_value), .. },
+        ..
+      },
+      {
+        "kind": "ConstructorExtraInfo::Package",
+        "children": { "value": String(candidate_value), .. },
+        ..
+      },
+    ) => pattern_value == candidate_value
+    (
+      {
+        "kind": "ConstructorExtraInfo::TypeName",
+        "children": { "value": pattern_type, .. },
+        ..
+      },
+      {
+        "kind": "ConstructorExtraInfo::TypeName",
+        "children": { "value": candidate_type, .. },
+        ..
+      },
+    ) => match_type_name(pattern_type, candidate_type, compiled, bindings)
+    (
+      {
+        "kind": "ConstructorExtraInfo::TypeNameWithConstrPackage",
+        "children": {
+          "pkg": String(pattern_pkg),
+          "type_name": pattern_type,
+          ..
+        },
+        ..
+      },
+      {
+        "kind": "ConstructorExtraInfo::TypeNameWithConstrPackage",
+        "children": {
+          "pkg": String(candidate_pkg),
+          "type_name": candidate_type,
+          ..
+        },
+        ..
+      },
+    ) => {
+      let pkg_matches = pattern_pkg == candidate_pkg
+      let type_matches = match_type_name(
+        pattern_type, candidate_type, compiled, bindings,
+      )
       pkg_matches && type_matches
     }
     _ => false
@@ -726,8 +808,8 @@ fn pattern_equal_ignoring_loc(left : Json, right : Json) -> Bool {
       } else {
         match left_kind {
           "Pattern::Var" =>
-            option_then(child(left, "value"), binder_name) ==
-            option_then(child(right, "value"), binder_name)
+            child(left, "value").bind(binder_name) ==
+            child(right, "value").bind(binder_name)
           "Pattern::Any" => true
           "Pattern::Alias" =>
             option_match(
@@ -826,18 +908,22 @@ fn pattern_equal_ignoring_loc(left : Json, right : Json) -> Bool {
 
 ///|
 fn expr_list_equal_ignoring_loc(left : Json, right : Json) -> Bool {
-  match (node_children(left), node_children(right)) {
-    (Some(Array(left_items)), Some(Array(right_items))) =>
-      match_plain_array(left_items, right_items, expr_equal_ignoring_loc)
+  match (left, right) {
+    (
+      { "children": Array(left_items), .. },
+      { "children": Array(right_items), .. },
+    ) => match_plain_array(left_items, right_items, expr_equal_ignoring_loc)
     _ => false
   }
 }
 
 ///|
 fn argument_list_equal_ignoring_loc(left : Json, right : Json) -> Bool {
-  match (node_children(left), node_children(right)) {
-    (Some(Array(left_items)), Some(Array(right_items))) =>
-      match_plain_array(left_items, right_items, argument_equal_ignoring_loc)
+  match (left, right) {
+    (
+      { "children": Array(left_items), .. },
+      { "children": Array(right_items), .. },
+    ) => match_plain_array(left_items, right_items, argument_equal_ignoring_loc)
     _ => false
   }
 }
@@ -880,27 +966,31 @@ fn argument_kind_equal_ignoring_loc(left : Json, right : Json) -> Bool {
 
 ///|
 fn argument_kind_label(value : Json) -> Json? {
-  if child(value, "value") is Some(label) {
-    Some(label)
-  } else {
-    child(value, "label")
+  match value {
+    { "children": { "value": label, .. }, .. } => Some(label)
+    { "children": { "label": label, .. }, .. } => Some(label)
+    _ => None
   }
 }
 
 ///|
 fn pattern_list_equal_ignoring_loc(left : Json, right : Json) -> Bool {
-  match (node_children(left), node_children(right)) {
-    (Some(Array(left_items)), Some(Array(right_items))) =>
-      match_plain_array(left_items, right_items, pattern_equal_ignoring_loc)
+  match (left, right) {
+    (
+      { "children": Array(left_items), .. },
+      { "children": Array(right_items), .. },
+    ) => match_plain_array(left_items, right_items, pattern_equal_ignoring_loc)
     _ => false
   }
 }
 
 ///|
 fn binder_expr_list_equal(left : Json, right : Json) -> Bool {
-  match (node_children(left), node_children(right)) {
-    (Some(Array(left_items)), Some(Array(right_items))) =>
-      match_plain_array(left_items, right_items, binder_expr_equal)
+  match (left, right) {
+    (
+      { "children": Array(left_items), .. },
+      { "children": Array(right_items), .. },
+    ) => match_plain_array(left_items, right_items, binder_expr_equal)
     _ => false
   }
 }
@@ -958,14 +1048,17 @@ fn label_equal_plain(left : Json, right : Json) -> Bool {
 
 ///|
 fn type_name_equal_plain(left : Json, right : Json) -> Bool {
-  match (child_bool(left, "is_object"), child_bool(right, "is_object")) {
-    (Some(left_object), Some(right_object)) =>
-      left_object == right_object &&
-      option_match(
-        child(left, "name"),
-        child(right, "name"),
-        long_ident_equal_plain,
-      )
+  match (left, right) {
+    (
+      { "children": { "is_object": left_object, "name": left_name, .. }, .. },
+      { "children": { "is_object": right_object, "name": right_name, .. }, .. },
+    ) =>
+      match (json_bool(left_object), json_bool(right_object)) {
+        (Some(left_object), Some(right_object)) =>
+          left_object == right_object &&
+          long_ident_equal_plain(left_name, right_name)
+        _ => false
+      }
     _ => false
   }
 }
@@ -988,70 +1081,85 @@ fn long_ident_equal_plain(left : Json, right : Json) -> Bool {
 
 ///|
 fn normalized_expr(expr : Json) -> String? {
-  if json_kind(expr) == Some("Expr::Ident") {
-    option_then(child(expr, "id"), normalized_var)
-  } else {
-    None
+  match expr {
+    { "kind": "Expr::Ident", "children": { "id": id, .. }, .. } =>
+      normalized_var(id)
+    _ => None
   }
 }
 
 ///|
 fn normalized_pattern(pattern : Json) -> String? {
-  if json_kind(pattern) == Some("Pattern::Var") {
-    option_then(child(pattern, "value"), binder_name)
-  } else {
-    None
+  match pattern {
+    { "kind": "Pattern::Var", "children": { "value": value, .. }, .. } =>
+      binder_name(value)
+    _ => None
   }
 }
 
 ///|
 fn normalized_var(value : Json) -> String? {
-  if json_kind(value) == Some("Var") {
-    option_then(child(value, "name"), normalized_long_ident)
-  } else {
-    None
+  match value {
+    { "kind": "Var", "children": { "name": name, .. }, .. } =>
+      normalized_long_ident(name)
+    _ => None
   }
 }
 
 ///|
 fn normalized_long_ident(value : Json) -> String? {
-  match json_kind(value) {
-    Some("LongIdent::Ident") => child_string(value, "value")
-    Some("LongIdent::Dot") =>
-      match (child_string(value, "pkg"), child_string(value, "id")) {
-        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
-        _ => None
-      }
+  match value {
+    {
+      "kind": "LongIdent::Ident",
+      "children": { "value": String(value), .. },
+      ..
+    } => Some(value)
+    {
+      "kind": "LongIdent::Dot",
+      "children": { "pkg": String(pkg), "id": String(id), .. },
+      ..
+    } => Some("@\{pkg}.\{id}")
     _ => None
   }
 }
 
 ///|
 fn normalized_constructor(constr : Json) -> String? {
-  match
-    (
-      option_then(child(constr, "name"), constr_name),
-      child(constr, "extra_info"),
-    ) {
-    (Some(name), Some(extra)) =>
-      match json_kind(extra) {
-        Some("ConstructorExtraInfo::NoExtraInfo") => Some(name)
-        Some("ConstructorExtraInfo::Package") =>
-          option_map(child_string(extra, "value"), pkg => "@\{pkg}.\{name}")
-        Some("ConstructorExtraInfo::TypeName") =>
-          option_map(option_then(child(extra, "value"), normalized_type_name), type_name => {
+  match constr {
+    { "children": { "name": name_json, "extra_info": extra, .. }, .. } =>
+      match (constr_name(name_json), extra) {
+        (Some(name), { "kind": "ConstructorExtraInfo::NoExtraInfo", .. }) =>
+          Some(name)
+        (
+          Some(name),
+          {
+            "kind": "ConstructorExtraInfo::Package",
+            "children": { "value": String(pkg), .. },
+            ..
+          },
+        ) => Some("@\{pkg}.\{name}")
+        (
+          Some(name),
+          {
+            "kind": "ConstructorExtraInfo::TypeName",
+            "children": { "value": type_name_json, .. },
+            ..
+          },
+        ) =>
+          normalized_type_name(type_name_json).map(type_name => {
             "\{type_name}::\{name}"
           })
-        Some("ConstructorExtraInfo::TypeNameWithConstrPackage") =>
-          match
-            (
-              option_then(child(extra, "type_name"), normalized_type_name),
-              child_string(extra, "pkg"),
-            ) {
-            (Some(type_name), Some(pkg)) =>
-              Some("\{type_name}::@\{pkg}.\{name}")
-            _ => None
-          }
+        (
+          Some(name),
+          {
+            "kind": "ConstructorExtraInfo::TypeNameWithConstrPackage",
+            "children": { "type_name": type_name_json, "pkg": String(pkg), .. },
+            ..
+          },
+        ) =>
+          normalized_type_name(type_name_json).map(type_name => {
+            "\{type_name}::@\{pkg}.\{name}"
+          })
         _ => None
       }
     _ => None
@@ -1060,114 +1168,89 @@ fn normalized_constructor(constr : Json) -> String? {
 
 ///|
 fn normalized_type_name(type_name : Json) -> String? {
-  match
-    (
-      option_then(child(type_name, "name"), normalized_long_ident),
-      child_bool(type_name, "is_object"),
-    ) {
-    (Some(name), Some(true)) => Some("object \{name}")
-    (Some(name), Some(false)) => Some(name)
+  match type_name {
+    { "children": { "name": name_json, "is_object": True, .. }, .. } =>
+      normalized_long_ident(name_json).map(name => "object \{name}")
+    { "children": { "name": name_json, "is_object": False, .. }, .. } =>
+      normalized_long_ident(name_json)
     _ => None
   }
 }
 
 ///|
 fn expr_constant(expr : Json) -> Json? {
-  if json_kind(expr) == Some("Expr::Constant") {
-    child(expr, "constant")
-  } else {
-    None
+  match expr {
+    { "kind": "Expr::Constant", "children": { "constant": constant, .. }, .. } =>
+      Some(constant)
+    _ => None
   }
 }
 
 ///|
 fn pattern_constant(pattern : Json) -> Json? {
-  if json_kind(pattern) == Some("Pattern::Constant") {
-    child(pattern, "constant")
-  } else {
-    None
+  match pattern {
+    {
+      "kind": "Pattern::Constant",
+      "children": { "constant": constant, .. },
+      ..
+    } => Some(constant)
+    _ => None
   }
 }
 
 ///|
 fn is_faked_unit(expr : Json) -> Bool {
-  json_kind(expr) == Some("Expr::Unit") &&
-  child_bool(expr, "faked") == Some(true)
+  expr is { "kind": "Expr::Unit", "children": { "faked": True, .. }, .. }
 }
 
 ///|
 fn binder_name(binder : Json) -> String? {
-  if json_kind(binder) == Some("Binder") {
-    child_string(binder, "name")
-  } else {
-    None
+  match binder {
+    { "kind": "Binder", "children": { "name": String(name), .. }, .. } =>
+      Some(name)
+    _ => None
   }
 }
 
 ///|
 fn label_name(label : Json) -> String? {
-  if json_kind(label) == Some("Label") {
-    child_string(label, "name")
-  } else {
-    None
+  match label {
+    { "kind": "Label", "children": { "name": String(name), .. }, .. } =>
+      Some(name)
+    _ => None
   }
 }
 
 ///|
 fn constr_name(name : Json) -> String? {
-  if json_kind(name) == Some("ConstrName") {
-    child_string(name, "name")
-  } else {
-    None
+  match name {
+    { "kind": "ConstrName", "children": { "name": String(name), .. }, .. } =>
+      Some(name)
+    _ => None
   }
 }
 
 ///|
 fn json_kind(value : Json) -> String? {
   match value {
-    Object(fields) =>
-      match fields.get("kind") {
-        Some(String(kind)) => Some(kind)
-        _ => None
-      }
+    { "kind": String(kind), .. } => Some(kind)
     _ => None
   }
-}
-
-///|
-fn node_children(value : Json) -> Json? {
-  object_field(value, "children")
 }
 
 ///|
 fn child(value : Json, name : String) -> Json? {
-  match node_children(value) {
-    Some(Object(fields)) => fields.get(name)
-    _ => None
-  }
-}
-
-///|
-fn child_string(value : Json, name : String) -> String? {
-  match child(value, name) {
-    Some(String(result)) => Some(result)
-    _ => None
-  }
-}
-
-///|
-fn child_bool(value : Json, name : String) -> Bool? {
-  match child(value, name) {
-    Some(True) => Some(true)
-    Some(False) => Some(false)
-    _ => None
-  }
-}
-
-///|
-fn object_field(value : Json, name : String) -> Json? {
   match value {
-    Object(fields) => fields.get(name)
+    { "children": Object(fields), .. } => fields.get(name)
+    _ => None
+  }
+}
+
+///|
+fn json_bool(value : Json) -> Bool? {
+  match value {
+    True => Some(true)
+    False => Some(false)
     _ => None
   }
 }
@@ -1337,24 +1420,6 @@ fn[A] option_match(left : A?, right : A?, equal : (A, A) -> Bool) -> Bool {
     (None, None) => true
     (Some(left), Some(right)) => equal(left, right)
     _ => false
-  }
-}
-
-///|
-fn[A, B] option_then(value : A?, f : (A) -> B?) -> B? {
-  if value is Some(value) {
-    f(value)
-  } else {
-    None
-  }
-}
-
-///|
-fn[A, B] option_map(value : A?, f : (A) -> B) -> B? {
-  if value is Some(value) {
-    Some(f(value))
-  } else {
-    None
   }
 }
 
