@@ -8,7 +8,9 @@ import {
   "moonbitlang/core/json",
   "moonbitlang/lexer",
   "moonbitlang/lexer/basic",
+  "moonbitlang/parser",
   "moonbitlang/parser/handrolled_parser",
   "moonbitlang/parser/syntax",
+  "moonbit-community/moongrep/rule/traverse",
   "moonbitlang/core/list",
 } for "test"

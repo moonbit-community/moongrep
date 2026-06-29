@@ -357,6 +357,41 @@ test "backend-aware structural apply matches JSON and AST with guards inside exp
 }
 
 ///|
+test "JSON inside expr reports nested target locations without AST recovery" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Nested target call.
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target(secret)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(holder(target(secret)))
+    #|}
+    #|
+  let rules = compile_rule_source(rule_source)
+  let impls = parse_impls(source)
+  let ast_hits = apply_structural_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::AstMatcher,
+  )
+  let json_hits = apply_structural_rules_with_backend(
+    "sample.mbt",
+    impls,
+    rules,
+    @model.MatcherBackend::JsonMatcher,
+  )
+  assert_eq(json_hits.length(), 1)
+  assert_same_findings(ast_hits, json_hits)
+  assert_true(json_hits[0].outer_loc is Some(_))
+}
+
+///|
 test "apply structural rule supports inline pattern metavars" {
   let rule_source =
     #|id: example

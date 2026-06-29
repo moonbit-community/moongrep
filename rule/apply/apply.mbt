@@ -228,26 +228,11 @@ fn apply_structural_rule_to_expr(
   hits : Array[RuleFinding],
 ) -> Unit {
   if structural.inside_expr is Some(inside) {
-    if match_rule_pattern(inside, expr, None, backend) is Some(outer_match) {
-      if target_expr_from_match(expr, outer_match) is Some(target) {
-        // The context rule can bind a larger expression than the final hit.
-        // Search supported expressions under `__TARGET__`, while carrying any
-        // bindings established by the outer match.
-        let target_exprs : Array[@syntax.Expr] = []
-        collect_exprs(target, target_exprs)
-        for target_expr in target_exprs {
-          apply_patterns_at_expr(
-            file,
-            rule,
-            structural.patterns,
-            target_expr,
-            Some(expr.loc()),
-            Some(bindings_from_match(outer_match)),
-            backend,
-            hits,
-          )
-        }
-      }
+    match backend {
+      @model.MatcherBackend::AstMatcher =>
+        apply_inside_expr_ast(file, rule, structural, inside, expr, hits)
+      @model.MatcherBackend::JsonMatcher =>
+        apply_inside_expr_json(file, rule, structural, inside, expr, hits)
     }
   } else {
     apply_patterns_at_expr(
@@ -260,6 +245,68 @@ fn apply_structural_rule_to_expr(
       backend,
       hits,
     )
+  }
+}
+
+///|
+fn apply_inside_expr_ast(
+  file : String,
+  rule : CompiledRule,
+  structural : CompiledStructuralRule,
+  inside : CompiledRulePattern,
+  expr : @syntax.Expr,
+  hits : Array[RuleFinding],
+) -> Unit {
+  if match_ast_rule_pattern(inside, expr, None) is Some(AstRuleMatch(result)) {
+    if result.bindings.get("__TARGET__")
+      is Some(@matching.BoundValue::Expr(target)) {
+      // The context rule can bind a larger expression than the final hit.
+      // Search supported expressions under `__TARGET__`, while carrying any
+      // bindings established by the outer match.
+      let target_exprs : Array[@syntax.Expr] = []
+      collect_exprs(target, target_exprs)
+      for target_expr in target_exprs {
+        apply_patterns_at_expr(
+          file,
+          rule,
+          structural.patterns,
+          target_expr,
+          Some(expr.loc()),
+          Some(AstBindings(result.bindings)),
+          @model.MatcherBackend::AstMatcher,
+          hits,
+        )
+      }
+    }
+  }
+}
+
+///|
+fn apply_inside_expr_json(
+  file : String,
+  rule : CompiledRule,
+  structural : CompiledStructuralRule,
+  inside : CompiledRulePattern,
+  expr : @syntax.Expr,
+  hits : Array[RuleFinding],
+) -> Unit {
+  if match_json_rule_pattern(inside, expr, None) is Some(JsonRuleMatch(result)) {
+    if result.bindings.get("__TARGET__")
+      is Some(@json_matching.JsonBoundValue::Expr(target)) {
+      let target_exprs : Array[Json] = []
+      @json_matching.collect_expr_jsons(target, target_exprs)
+      for target_expr in target_exprs {
+        apply_json_patterns_at_expr_json(
+          file,
+          rule,
+          structural.patterns,
+          target_expr,
+          Some(expr.loc()),
+          Some(JsonBindings(result.bindings)),
+          hits,
+        )
+      }
+    }
   }
 }
 
@@ -285,6 +332,34 @@ fn apply_patterns_at_expr(
         loc: expr.loc(),
         outer_loc,
       })
+      return
+    }
+  }
+}
+
+///|
+fn apply_json_patterns_at_expr_json(
+  file : String,
+  rule : CompiledRule,
+  patterns : Array[CompiledRulePattern],
+  expr : Json,
+  outer_loc : @basic.Location?,
+  initial_bindings : RulePatternBindings?,
+  hits : Array[RuleFinding],
+) -> Unit {
+  for index in 0..<patterns.length() {
+    if match_json_rule_pattern_json(patterns[index], expr, initial_bindings)
+      is Some(_) {
+      if json_expr_location(expr) is Some(loc) {
+        hits.push({
+          file,
+          rule_id: rule.rule_id,
+          description: rule.description,
+          pattern_index: index,
+          loc,
+          outer_loc,
+        })
+      }
       return
     }
   }
@@ -334,15 +409,28 @@ fn match_json_rule_pattern(
   expr : @syntax.Expr,
   initial_bindings : RulePatternBindings?,
 ) -> RulePatternMatch? {
+  match_json_rule_pattern_json(
+    pattern,
+    expr_json_with_locations(expr),
+    initial_bindings,
+  )
+}
+
+///|
+fn match_json_rule_pattern_json(
+  pattern : CompiledRulePattern,
+  expr : Json,
+  initial_bindings : RulePatternBindings?,
+) -> RulePatternMatch? {
   let matched = match initial_bindings {
     Some(JsonBindings(bindings)) =>
-      @json_matching.match_expr_pattern_ast_with_bindings(
+      @json_matching.match_expr_pattern_with_bindings(
         pattern.json_compiled,
         expr,
         bindings,
       )
     Some(AstBindings(_)) => None
-    None => @json_matching.match_expr_pattern_ast(pattern.json_compiled, expr)
+    None => @json_matching.match_expr_pattern(pattern.json_compiled, expr)
   }
   match matched {
     Some(result) if json_guards_match(pattern.guards, result.bindings) =>
@@ -352,43 +440,120 @@ fn match_json_rule_pattern(
 }
 
 ///|
-fn bindings_from_match(result : RulePatternMatch) -> RulePatternBindings {
-  match result {
-    AstRuleMatch(result) => AstBindings(result.bindings)
-    JsonRuleMatch(result) => JsonBindings(result.bindings)
+fn expr_json_with_locations(expr : @syntax.Expr) -> Json {
+  let previous = @basic.show_loc.val
+  @basic.show_loc.val = @basic.LocStyle::Json
+  let result = expr.to_json()
+  @basic.show_loc.val = previous
+  result
+}
+
+///|
+fn json_expr_location(expr : Json) -> @basic.Location? {
+  match json_object_field(expr, "loc") {
+    Some(loc) => json_location(loc)
+    None => None
   }
 }
 
 ///|
-fn target_expr_from_match(
-  root : @syntax.Expr,
-  result : RulePatternMatch,
-) -> @syntax.Expr? {
-  match result {
-    AstRuleMatch(result) =>
-      match result.bindings.get("__TARGET__") {
-        Some(@matching.BoundValue::Expr(target)) => Some(target)
-        _ => None
+fn json_location(value : Json) -> @basic.Location? {
+  match value {
+    Json::Object(fields) =>
+      match (fields.get("start"), fields.get("end")) {
+        (Some(start), Some(end)) =>
+          if json_position(start) is Some(start) {
+            if json_position(end) is Some(end) {
+              Some({ start, end })
+            } else {
+              json_line_column_location(fields)
+            }
+          } else {
+            json_line_column_location(fields)
+          }
+        _ => json_line_column_location(fields)
       }
-    JsonRuleMatch(result) =>
-      match result.bindings.get("__TARGET__") {
-        Some(@json_matching.JsonBoundValue::Expr(target)) =>
-          find_expr_by_json(root, target)
-        _ => None
-      }
+    _ => None
   }
 }
 
 ///|
-fn find_expr_by_json(root : @syntax.Expr, target : Json) -> @syntax.Expr? {
-  let exprs : Array[@syntax.Expr] = []
-  collect_exprs(root, exprs)
-  for expr in exprs {
-    if @json_matching.json_exact_equal(expr.to_json(), target) {
-      return Some(expr)
-    }
+fn json_line_column_location(fields : Map[String, Json]) -> @basic.Location? {
+  match (fields.get("file"), fields.get("start"), fields.get("end")) {
+    (Some(Json::String(fname)), Some(start), Some(end)) =>
+      if json_line_column_position(fname, start) is Some(start) {
+        if json_line_column_position(fname, end) is Some(end) {
+          Some({ start, end })
+        } else {
+          None
+        }
+      } else {
+        None
+      }
+    _ => None
   }
-  None
+}
+
+///|
+fn json_position(value : Json) -> @basic.Position? {
+  match value {
+    Json::Object(fields) =>
+      match
+        (
+          json_string_field(fields, "fname"),
+          json_int_field(fields, "lnum"),
+          json_int_field(fields, "bol"),
+          json_int_field(fields, "cnum"),
+        ) {
+        (Some(fname), Some(lnum), Some(bol), Some(cnum)) =>
+          Some({ fname, lnum, bol, cnum })
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn json_line_column_position(fname : String, value : Json) -> @basic.Position? {
+  match value {
+    Json::Object(fields) =>
+      match (json_int_field(fields, "line"), json_int_field(fields, "column")) {
+        (Some(lnum), Some(column)) =>
+          Some({ fname, lnum, bol: 0, cnum: column - 1 })
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn json_string_field(fields : Map[String, Json], name : String) -> String? {
+  match fields.get(name) {
+    Some(Json::String(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn json_int_field(fields : Map[String, Json], name : String) -> Int? {
+  match fields.get(name) {
+    Some(value) =>
+      try {
+        let decoded : Int = @json.from_json(value)
+        Some(decoded)
+      } catch {
+        _ => None
+      }
+    None => None
+  }
+}
+
+///|
+fn json_object_field(value : Json, name : String) -> Json? {
+  match value {
+    Json::Object(fields) => fields.get(name)
+    _ => None
+  }
 }
 
 ///|
