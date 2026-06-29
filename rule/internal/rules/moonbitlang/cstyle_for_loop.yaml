@@ -7,4 +7,4 @@ inside-expr:
       __TARGET__
     }
 patterns:
-  - shape: counter
+  - shape: $(counter:id)

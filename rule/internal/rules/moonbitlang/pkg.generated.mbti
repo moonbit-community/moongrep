@@ -4,6 +4,8 @@ package "moonbit-community/moongrep/rule/internal/rules/moonbitlang"
 // Values
 pub let catch_all_yaml : String
 
+pub let cstyle_for_loop_yaml : String
+
 pub let inspect_boolean_yaml : String
 
 pub let inspect_number_yaml : String

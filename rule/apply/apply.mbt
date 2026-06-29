@@ -16,12 +16,7 @@ using @taint_lowering {
 }
 
 ///|
-using @traverse {
-  collect_impl_exprs,
-  collect_scoped_exprs,
-  count_supported_name_in_expr,
-  type ScopedExpr,
-}
+using @traverse {collect_impl_exprs, collect_scoped_exprs, type ScopedExpr}
 
 ///|
 priv enum RulePatternBindings {
@@ -610,7 +605,7 @@ fn ast_pattern_blocked_by_shadowed_outer_id(
   shadowed_names : Array[String],
 ) -> Bool {
   for metavar in inherited_identifier_metavars {
-    if count_supported_name_in_expr(pattern.compiled.ast, metavar) > 0 {
+    if names_contain(pattern.compiled.identifier_metavars, metavar) {
       if outer_bindings.get(metavar)
         is Some(@matching.BoundValue::Identifier(bound_name)) {
         if names_contain(shadowed_names, bound_name) {
@@ -630,7 +625,7 @@ fn json_pattern_blocked_by_shadowed_outer_id(
   shadowed_names : Array[String],
 ) -> Bool {
   for metavar in inherited_identifier_metavars {
-    if count_supported_name_in_expr(pattern.compiled.ast, metavar) > 0 {
+    if names_contain(pattern.compiled.identifier_metavars, metavar) {
       if outer_bindings.get(metavar)
         is Some(@json_matching.JsonBoundValue::Identifier(bound_name)) {
         if names_contain(shadowed_names, bound_name) {

@@ -282,22 +282,52 @@ test "validate rejects const metavar in ordinary binders" {
 }
 
 ///|
-test "validate rejects redeclared inside expr metavars" {
+test "validate allows inherited inside expr metavars with matching inline forms" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(value:exp), $(name:id), $(lit:const), __TARGET__)
+    #|patterns:
+    #|  - shape: target($(value:exp), $(name:id), $(lit:const))
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      debug_inspect(
+        rule.patterns[0].compiled.expr_metavars,
+        content="[\"value\"]",
+      )
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+      debug_inspect(
+        rule.patterns[0].compiled.constant_metavars,
+        content="[\"lit\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects inherited inside expr metavars with different inline forms" {
   let source =
     #|id: example
     #|description: Example.
     #|inside-expr:
     #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target($(prefix:exp))
+    #|  - shape: target($(prefix:id))
     #|
   expect_compile_invalid(
-    source, "patterns[0] cannot declare metavar prefix because it is already visible from inside-expr",
+    source, "patterns[0] cannot use inherited inside-expr metavar prefix as id because it was declared as exp",
   )
 }
 
 ///|
-test "validate inside expr constant metavars are visible and cannot be redeclared" {
+test "validate inside expr constant metavars use matching inline forms" {
   let source =
     #|id: example
     #|description: Example.
@@ -306,18 +336,7 @@ test "validate inside expr constant metavars are visible and cannot be redeclare
     #|patterns:
     #|  - shape: target($(lit:const))
     #|
-  expect_compile_invalid(
-    source, "patterns[0] cannot declare metavar lit because it is already visible from inside-expr",
-  )
-  let visible_source =
-    #|id: example
-    #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper($(lit:const), __TARGET__)
-    #|patterns:
-    #|  - shape: target(lit)
-    #|
-  let rules = compile_one(visible_source)
+  let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
@@ -458,7 +477,7 @@ test "validate allows inner guard to reference inside expr id and const captures
     #|inside-expr:
     #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
     #|patterns:
-    #|  - shape: call(name, lit)
+    #|  - shape: call($(name:id), $(lit:const))
     #|    guard:
     #|      name: "^safe_"
     #|      lit: "^ok$"

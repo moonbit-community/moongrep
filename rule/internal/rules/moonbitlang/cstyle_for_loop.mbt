@@ -11,7 +11,8 @@ let _embed_cstyle_for_loop_yaml : String =
   #|      __TARGET__
   #|    }
   #|patterns:
-  #|  - shape: counter
+  #|  - shape: $(counter:id)
+  #|
 
 ///|
 pub let cstyle_for_loop_yaml : String = _embed_cstyle_for_loop_yaml

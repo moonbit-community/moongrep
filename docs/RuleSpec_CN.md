@@ -351,7 +351,7 @@ description: |
 inside-expr:
   shape: wrapper($(prefix:exp), __TARGET__)
 patterns:
-  - shape: target.call(prefix)
+  - shape: target.call($(prefix:exp))
 ```
 
 `inside-expr` 使用与 `patterns` 条目相同的 pattern-object schema。
@@ -362,8 +362,8 @@ patterns:
 - `__TARGET__` 必须占据一个完整表达式位置，例如完整调用参数、receiver 或块表达式。如果它只作为标签或其他非表达式值出现，就没有目标子树可供搜索。
 - `__TARGET__` 是保留名称，不能用作内联元变量名。
 - `patterns` 条目不能在可绑定位置包含 `__TARGET__`。
-- `inside-expr` 声明的内联元变量在匹配内部 `patterns` 时仍然可见；内部 shape 使用普通 payload 名称引用它们。
-- 内部 `patterns` 不能重新声明已经从 `inside-expr` 可见的元变量名。
+- `inside-expr` 声明的内联元变量在匹配内部 `patterns` 时仍然可见；内部 shape 通过重复相同的内联元变量形式引用它们。
+- 内部 `patterns` 不能用不同 kind 使用已经从 `inside-expr` 可见的元变量名。
 
 运行时行为：
 
@@ -372,7 +372,7 @@ patterns:
 - 如果匹配成功，会搜索由 `__TARGET__` 捕获的子树
 - 捕获子树中的每个表达式都会被 `patterns` 检查
 - 内部 pattern 匹配会带着 `inside-expr` 已建立的绑定开始
-- 如果内部 pattern 引用了继承来的 `id` 捕获，并且从 `__TARGET__` 到候选表达式的路径上出现了同名（按规范化后的 identifier 名称计算）的词法绑定，则跳过该候选
+- 如果内部 pattern 通过相同的 `$(name:id)` inline 形式引用了继承来的 `id` 捕获，并且从 `__TARGET__` 到候选表达式的路径上出现了同名（按规范化后的 identifier 名称计算）的词法绑定，则跳过该候选
 
 `inside-expr` 命中的报告位置是内部匹配位置。暴露上下文位置的消费者也可以暴露外层表达式位置。
 
@@ -506,7 +506,7 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - guard 正则无效
 - `inside-expr.shape` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
-- 结构规则的 `patterns` 条目重新声明了已经由 `inside-expr` 声明的名称
+- 结构规则的 `patterns` 条目用不同 kind 使用了继承自 `inside-expr` 的元变量名
 - taint source 包含可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有且只有一个可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置
