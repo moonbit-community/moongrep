@@ -30,7 +30,6 @@ Arguments:
 Options:
   -h, --help              Show help information.
   --verbose               Print directory traversal progress.
-  --json-matcher          Use the JSON matcher backend.
   --enable-builtin-rules  Enable embedded builtin rules.
   -r, --rules <rules>     Directory containing YAML rules.
   --pattern <pattern>     Anonymous structural pattern to match.
