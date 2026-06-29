@@ -63,6 +63,9 @@ bodies, and applies structural rules to those expression subtrees.
   `__TARGET__` only
   selects the expression subtree to traverse and must not be used by inner
   `patterns`.
+- Inherited `id` captures follow lexical shadowing. If an inner pattern refers
+  to an outer `id` capture and the path to a candidate expression crosses a
+  local binder with the same normalized identifier, that candidate is skipped.
 - Inner patterns must not redeclare names from `inside-expr`.
 - Hits from `inside-expr` rules record `outer_loc` for the context expression
   in addition to `loc` for the inner match.
@@ -266,6 +269,8 @@ Rules for `inside-expr`:
 - inner `patterns` must not contain `__TARGET__`; the target placeholder
   selects the subtree to search, but it is not a binding available to inner
   shapes
+- inherited `id` captures observe lexical shadowing inside the searched target
+  subtree
 - inner `patterns` must not redeclare names already declared by `inside-expr`;
   reference outer captures with their plain payload name, such as `prefix`
 
