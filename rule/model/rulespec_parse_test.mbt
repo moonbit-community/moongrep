@@ -188,14 +188,10 @@ test "model rejects invalid id schema" {
 }
 
 ///|
-test "model parses structural guard map" {
+test "model parses structural pattern guard map" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper($(name:id), __TARGET__)
-    #|  guard:
-    #|    name: "^safe_"
     #|patterns:
     #|  - shape: $(callee:id)($(value:const))
     #|    guard:
@@ -207,15 +203,47 @@ test "model parses structural guard map" {
   )
   match rule.definition {
     Structural(spec) => {
-      guard spec.inside_expr is Some(inside_expr) else {
-        fail("expected inside-expr")
-      }
-      inspect(inside_expr.guards["name"], content="^safe_")
       inspect(spec.patterns[0].guards["callee"], content="^@html\\.render$")
       inspect(spec.patterns[0].guards["value"], content="danger|raw")
     }
     Taint(_) => fail("expected structural rule")
   }
+}
+
+///|
+test "model parses scalar inside expr" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) => {
+      guard spec.inside_expr is Some(inside_expr) else {
+        fail("expected inside-expr")
+      }
+      inspect(inside_expr, content="wrapper($(name:id), __TARGET__)")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "model rejects mapping inside expr" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(source, "inside-expr must be a string")
 }
 
 ///|

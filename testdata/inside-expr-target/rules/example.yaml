@@ -1,10 +1,9 @@
 id: example
 description: |
   Local println shadows the builtin.
-inside-expr:
-  shape: |
-    let println = ___
-    __TARGET__
+inside-expr: |
+  let println = ___
+  __TARGET__
 patterns:
   - shape: |
       println(___)

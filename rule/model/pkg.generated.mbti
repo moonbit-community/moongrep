@@ -110,7 +110,7 @@ pub(all) struct RulePrefilter {
 }
 
 pub(all) struct StructuralRuleSpec {
-  inside_expr : RulePatternSpec?
+  inside_expr : String?
   patterns : Array[RulePatternSpec]
 }
 

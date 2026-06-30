@@ -21,6 +21,6 @@ dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
 
 dev_build(
   rule: "embed",
-  input: "cstyle_for_loop.yaml",
-  output: "cstyle_for_loop.mbt",
+  input: "cstyle_forward_forloop.yaml",
+  output: "cstyle_forward_forloop.mbt",
 )

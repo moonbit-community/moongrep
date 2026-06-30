@@ -52,7 +52,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 - `id`（必需）：非空 YAML 字符串，且不能包含 `/`
 - `description`（必需）：YAML 字符串
 - `patterns`（结构规则必需）：非空 YAML 数组
-- `inside-expr`（结构规则可选）：一个作为外层上下文的 pattern object
+- `inside-expr`（结构规则可选）：包含一个 MoonBit 表达式片段的 YAML 字符串，作为外层上下文
 - `taint`（污点规则必需）：YAML 映射
 
 未知顶层键会被拒绝。
@@ -68,7 +68,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ### Pattern Objects
 
-结构规则中的 `patterns` 条目和 `inside-expr` 使用以下对象 schema。
+结构规则中的 `patterns` 条目使用以下对象 schema。
 
 只接受这些键：
 
@@ -348,17 +348,16 @@ patterns:
 id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
-inside-expr:
-  shape: wrapper($(prefix:exp), __TARGET__)
+inside-expr: wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: target.call($(prefix:exp))
 ```
 
-`inside-expr` 使用与 `patterns` 条目相同的 pattern-object schema。
+`inside-expr` 是 YAML 字符串，会作为一个 MoonBit 表达式片段解析。
 
 额外规则：
 
-- `inside-expr.shape` 必须在可绑定位置包含且只包含一个 `__TARGET__`。
+- `inside-expr` 必须在可绑定位置包含且只包含一个 `__TARGET__`。
 - `__TARGET__` 必须占据一个完整表达式位置，例如完整调用参数、receiver 或块表达式。如果它只作为标签或其他非表达式值出现，就没有目标子树可供搜索。
 - `__TARGET__` 是保留名称，不能用作内联元变量名。
 - `patterns` 条目不能在可绑定位置包含 `__TARGET__`。
@@ -368,7 +367,6 @@ patterns:
 运行时行为：
 
 - 当前表达式首先与 `inside-expr` 匹配
-- 如果存在 `inside-expr.guard`，它也必须匹配外层 pattern 建立的绑定
 - 如果匹配成功，会搜索由 `__TARGET__` 捕获的子树
 - 捕获子树中的每个表达式都会被 `patterns` 检查
 - 内部 pattern 匹配会带着 `inside-expr` 已建立的绑定开始
@@ -481,11 +479,11 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 顶层 YAML 文档不是映射
 - 顶层、`taint` 内或 pattern object 内出现不支持的键
 - 缺少必需键
-- `id`、`description` 或 `shape` 不是 YAML 字符串
+- `id`、`description`、`inside-expr` 或 `shape` 不是 YAML 字符串
 - `id` 为空或包含 `/`
 - 规则没有且只有一个 `patterns` 或 `taint`
 - taint 规则中出现 `inside-expr`
-- `inside-expr` 存在但不是映射
+- `inside-expr` 存在但不是字符串
 - `patterns` 不是数组或为空
 - `patterns` 条目不是映射
 - `taint` 不是映射
@@ -504,7 +502,7 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `$(name:pat)` 出现在裸 pattern 位置之外
 - guard 键引用未知捕获、`exp` 捕获或 `pat` 捕获
 - guard 正则无效
-- `inside-expr.shape` 没有且只有一个可绑定的 `__TARGET__`
+- `inside-expr` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 条目用不同 kind 使用了继承自 `inside-expr` 的元变量名
 - taint source 包含可绑定的 `__SOURCE__`
@@ -548,8 +546,7 @@ patterns:
 id: unsafe-wrapper
 description: |
   Match a sink only under an unsafe wrapper.
-inside-expr:
-  shape: unsafe(__TARGET__)
+inside-expr: unsafe(__TARGET__)
 patterns:
   - shape: sink(__)
 ```

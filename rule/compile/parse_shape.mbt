@@ -23,26 +23,35 @@ fn parse_shape(
     }
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape has lexical errors",
+      info="\{shape_context_name(context)} has lexical errors",
     )
   }
   let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
   if reports.length() != 0 {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape is not a valid MoonBit expression",
+      info="\{shape_context_name(context)} is not a valid MoonBit expression",
     )
   }
   expr
 }
 
 ///|
+fn shape_context_name(context : String) -> String {
+  if context == "inside-expr" {
+    context
+  } else {
+    "\{context}.shape"
+  }
+}
+
+///|
 fn invalid_metavar_syntax_message(context : String, raw : String) -> String {
   match legacy_metavar_replacement(raw) {
     Some((old, replacement)) =>
-      "\{context}.shape uses legacy inline metavar syntax \{old}; use \{replacement}"
+      "\{shape_context_name(context)} uses legacy inline metavar syntax \{old}; use \{replacement}"
     None =>
-      "\{context}.shape has invalid metavar syntax \{raw}; use explicit typed syntax like $(value:exp)"
+      "\{shape_context_name(context)} has invalid metavar syntax \{raw}; use explicit typed syntax like $(value:exp)"
   }
 }
 
