@@ -4,7 +4,13 @@ package "moonbit-community/moongrep/rule/internal/rules/moonbitlang"
 // Values
 pub let catch_all_yaml : String
 
-pub let cstyle_for_loop_yaml : String
+pub let cstyle_backward_array_iteration_yaml : String
+
+pub let cstyle_backward_simple_forloop_yaml : String
+
+pub let cstyle_forward_array_iteration_yaml : String
+
+pub let cstyle_forward_simple_forloop_yaml : String
 
 pub let inspect_boolean_yaml : String
 

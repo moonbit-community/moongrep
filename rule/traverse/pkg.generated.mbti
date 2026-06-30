@@ -14,12 +14,23 @@ pub fn collect_scoped_exprs(@syntax.Expr, Array[ScopedExpr]) -> Unit
 
 pub fn count_supported_name_in_expr(@syntax.Expr, String) -> Int
 
+pub fn visit_impl_scoped_expr_roots(@syntax.Impl, (ScopedExpr) -> Unit) -> Unit
+
+pub fn visit_scoped_expr_children(ScopedExpr, (ScopedExpr) -> Unit) -> Unit
+
+pub fn visit_scoped_exprs(@syntax.Expr, (ScopedExpr) -> ScopedExprVisitAction) -> Unit
+
 // Errors
 
 // Types and methods
 pub(all) struct ScopedExpr {
   expr : @syntax.Expr
   shadowed_names : Array[String]
+}
+
+pub(all) enum ScopedExprVisitAction {
+  VisitContinue
+  VisitPrune
 }
 
 // Type aliases

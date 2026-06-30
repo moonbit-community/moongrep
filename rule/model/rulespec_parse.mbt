@@ -25,7 +25,7 @@ pub fn RawRuleSpec::from_str(
     raise invalid_rule(path~, info="top-level YAML document must be a mapping")
   }
   ensure_allowed_keys(path, "top-level rule", doc, [
-    "id", "description", "patterns", "inside-expr", "taint",
+    "id", "description", "patterns", "patterns-not", "inside-expr", "taint",
   ])
   let id = expect_rule_id(doc, path)
   let description = expect_yaml_string(doc, path, "description")
@@ -44,6 +44,7 @@ fn expect_rule_definition(
   path : String,
 ) -> RuleDefinitionSpec raise {
   let has_patterns = doc.contains("patterns")
+  let has_patterns_not = doc.contains("patterns-not")
   let has_taint = doc.contains("taint")
   let has_inside_expr = doc.contains("inside-expr")
   if has_taint && has_inside_expr {
@@ -52,16 +53,27 @@ fn expect_rule_definition(
       info="inside-expr is only supported for structural rules",
     )
   }
-  if has_patterns == has_taint {
+  if has_taint && has_patterns_not {
+    raise invalid_rule(
+      path~,
+      info="patterns-not is only supported for structural rules",
+    )
+  }
+  if has_taint && has_patterns {
     raise invalid_rule(
       path~,
       info="rule must contain exactly one of patterns or taint",
     )
   }
-  if has_patterns {
+  if has_taint {
+    Taint(expect_taint_rule(doc, path))
+  } else if has_patterns || has_patterns_not || has_inside_expr {
     Structural(expect_structural_rule(doc, path))
   } else {
-    Taint(expect_taint_rule(doc, path))
+    raise invalid_rule(
+      path~,
+      info="rule must contain patterns, patterns-not with inside-expr, or taint",
+    )
   }
 }
 
@@ -70,17 +82,64 @@ fn expect_structural_rule(
   doc : Map[String, @yaml.Yaml],
   path : String,
 ) -> StructuralRuleSpec raise {
-  let patterns = parse_rule_clause_array(
-    expect_yaml_array(doc, path, "patterns"),
-    path,
-    "patterns",
-    allow_guard=true,
-  )
-  if patterns.is_empty() {
+  let has_patterns = doc.contains("patterns")
+  let has_patterns_not = doc.contains("patterns-not")
+  let patterns = match doc.get("patterns") {
+    Some(value) =>
+      parse_rule_clause_array(
+        expect_yaml_array_value(value, path, "patterns"),
+        path,
+        "patterns",
+        allow_guard=true,
+      )
+    None => []
+  }
+  if has_patterns && patterns.is_empty() {
     raise invalid_rule(path~, info="patterns must not be empty")
   }
+  let patterns_not = match doc.get("patterns-not") {
+    Some(value) =>
+      parse_rule_clause_array(
+        expect_yaml_array_value(value, path, "patterns-not"),
+        path,
+        "patterns-not",
+        allow_guard=true,
+      )
+    None => []
+  }
+  if has_patterns_not && patterns_not.is_empty() {
+    raise invalid_rule(path~, info="patterns-not must not be empty")
+  }
   let inside_expr = expect_inside_expr(doc, path)
-  { inside_expr, patterns }
+  if !has_patterns && has_patterns_not && inside_expr is None {
+    raise invalid_rule(
+      path~,
+      info="patterns-not requires patterns or inside-expr",
+    )
+  }
+  if !has_patterns && patterns_not.is_empty() && inside_expr is Some(_) {
+    raise invalid_rule(
+      path~,
+      info="inside-expr requires patterns or patterns-not",
+    )
+  }
+  let patterns_not_mode = expect_patterns_not_mode(
+    inside_expr, patterns, patterns_not,
+  )
+  { inside_expr, patterns, patterns_not, patterns_not_mode }
+}
+
+///|
+fn expect_patterns_not_mode(
+  inside_expr : String?,
+  patterns : Array[RulePatternSpec],
+  patterns_not : Array[RulePatternSpec],
+) -> StructuralPatternsNotMode {
+  if inside_expr is Some(_) && !patterns.is_empty() && !patterns_not.is_empty() {
+    RejectUncoveredNegative
+  } else {
+    PruneOnNegative
+  }
 }
 
 ///|
@@ -256,9 +315,20 @@ fn expect_yaml_array(
   key : String,
 ) -> Array[@yaml.Yaml] raise {
   match map.get(key) {
-    Some(Array(values)) => values
-    Some(_) => raise invalid_rule(path~, info="\{key} must be an array")
+    Some(value) => expect_yaml_array_value(value, path, key)
     None => raise invalid_rule(path~, info="missing required key \{key}")
+  }
+}
+
+///|
+fn expect_yaml_array_value(
+  value : @yaml.Yaml,
+  path : String,
+  key : String,
+) -> Array[@yaml.Yaml] raise {
+  match value {
+    Array(values) => values
+    _ => raise invalid_rule(path~, info="\{key} must be an array")
   }
 }
 

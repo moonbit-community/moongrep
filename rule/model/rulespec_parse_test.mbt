@@ -51,6 +51,7 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
       assert_eq(spec.patterns.length(), 1)
       inspect(spec.patterns[0].shape, content="$(_expr:exp) == $(_expr:exp)")
       assert_eq(spec.patterns[0].guards.length(), 0)
+      assert_eq(spec.patterns_not.length(), 0)
       assert_true(spec.inside_expr is None)
     }
     Taint(_) => fail("expected structural rule")
@@ -211,6 +212,117 @@ test "model parses structural pattern guard map" {
 }
 
 ///|
+test "model parses structural patterns-not shape and guard map" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|patterns-not:
+    #|  - shape: safe($(callee:id), $(literal:const))
+    #|    guard:
+    #|      callee: "^allow_"
+    #|      literal: "^ok$"
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) => {
+      assert_eq(spec.patterns.length(), 1)
+      assert_eq(spec.patterns_not.length(), 1)
+      inspect(
+        spec.patterns_not[0].shape,
+        content="safe($(callee:id), $(literal:const))",
+      )
+      inspect(spec.patterns_not[0].guards["callee"], content="^allow_")
+      inspect(spec.patterns_not[0].guards["literal"], content="^ok$")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "model defaults patterns-not mode to prune on negative" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|patterns-not:
+    #|  - shape: safe($(value:exp))
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) => assert_true(spec.patterns_not_mode is PruneOnNegative)
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "model derives reject-uncovered-negative for inside expr positives and negatives" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: arr[$(name:id)]
+    #|patterns-not:
+    #|  - shape: $(name:id)
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) =>
+      assert_true(spec.patterns_not_mode is RejectUncoveredNegative)
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "model rejects patterns-not-mode as an unsupported top-level key" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns-not-mode: covered-by-patterns
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(
+    source, "top-level rule contains unsupported key patterns-not-mode",
+  )
+}
+
+///|
+test "model allows inside expr with only patterns-not" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns-not:
+    #|  - shape: block($(name:id))
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) => {
+      guard spec.inside_expr is Some(inside_expr) else {
+        fail("expected inside-expr")
+      }
+      inspect(inside_expr, content="wrapper($(name:id), __TARGET__)")
+      assert_eq(spec.patterns.length(), 0)
+      assert_eq(spec.patterns_not.length(), 1)
+      inspect(spec.patterns_not[0].shape, content="block($(name:id))")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "model parses scalar inside expr" {
   let source =
     #|id: example
@@ -244,6 +356,72 @@ test "model rejects mapping inside expr" {
     #|  - shape: call($(name:id))
     #|
   expect_invalid_rule_info(source, "inside-expr must be a string")
+}
+
+///|
+test "model rejects malformed patterns-not schema" {
+  let non_array =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|patterns-not: nope
+    #|
+  expect_invalid_rule_info(non_array, "patterns-not must be an array")
+  let empty_array =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|patterns-not: []
+    #|
+  expect_invalid_rule_info(empty_array, "patterns-not must not be empty")
+  let non_mapping_clause =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: x
+    #|patterns-not:
+    #|  - x
+    #|
+  expect_invalid_rule_info(
+    non_mapping_clause, "patterns-not[0] must be a mapping",
+  )
+}
+
+///|
+test "model rejects invalid patterns-not combinations" {
+  let only_patterns_not =
+    #|id: example
+    #|description: Example.
+    #|patterns-not:
+    #|  - shape: x
+    #|
+  expect_invalid_rule_info(
+    only_patterns_not, "patterns-not requires patterns or inside-expr",
+  )
+  let taint_patterns_not =
+    #|id: example
+    #|description: Example.
+    #|patterns-not:
+    #|  - shape: x
+    #|taint:
+    #|  sources:
+    #|    - shape: source()
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|
+  expect_invalid_rule_info(
+    taint_patterns_not, "patterns-not is only supported for structural rules",
+  )
+  let inside_only =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper(__TARGET__)
+    #|
+  expect_invalid_rule_info(
+    inside_only, "inside-expr requires patterns or patterns-not",
+  )
 }
 
 ///|
@@ -313,7 +491,7 @@ test "model rejects multi document and missing required keys" {
     #|description: Example.
     #|
   expect_invalid_rule_info(
-    missing_definition, "rule must contain exactly one of patterns or taint",
+    missing_definition, "rule must contain patterns, patterns-not with inside-expr, or taint",
   )
 }
 

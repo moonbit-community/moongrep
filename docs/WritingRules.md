@@ -31,13 +31,18 @@ rejects unknown top-level keys, and uses exactly one of these top-level modes:
 - `patterns`: structural expression matching
 - `taint`: intraprocedural taint modeling compiled to the `taint` package
 
-`patterns` must be a non-empty array.
+`patterns` must be a non-empty array when present. Structural rules may also
+use `patterns-not`, a non-empty array with the same `shape` and optional
+`guard` schema. `patterns-not` prunes candidate subtrees only after they miss
+all positive structural patterns; with `inside-expr`, it can also define a
+wrapper match that succeeds only when the target subtree contains no negative
+match.
 Unknown keys are rejected at every schema level: top-level rule keys, `taint`
 keys, and rule clause keys.
 
 Structural rules may also add an optional top-level `inside-expr` that filters
 an outer expression, binds outer inline captures, and then searches the captured
-`__TARGET__` expression subtree with the inner `patterns`.
+`__TARGET__` expression subtree with the inner `patterns` or `patterns-not`.
 
 ## Mental Model
 
@@ -53,23 +58,35 @@ bodies, and applies structural rules to those expression subtrees.
 - Multiple entries under `patterns` are ordered alternatives. For one
   expression and one rule, the first matching pattern wins and determines
   `pattern_index`.
+- `patterns-not` entries are checked only after all positive `patterns` fail at
+  a candidate expression root. A positive match reports one hit and skips
+  `patterns-not` for that candidate. A negative match prunes that candidate
+  subtree for the rule without reporting a hit.
 - All patterns in one rule share the same rule id and `description`.
 - Structural pattern objects may use `guard` to regex-filter `id` and `const`
   captures after shape matching.
 - If `inside-expr` is present, it runs first on the current expression. If it
-  captures `__TARGET__` as an expression, `patterns` are applied to every
-  expression inside that target subtree.
-- Inline captures declared by `inside-expr` stay visible to inner `patterns`;
-  `__TARGET__` only
+  captures `__TARGET__` as an expression and `patterns` are present, each
+  candidate in that target subtree tries positives first, then `patterns-not`
+  only after a positive miss. If there are no `patterns`, the outer expression
+  is reported only when no negative pattern matches anywhere in the target
+  subtree.
+- When an `inside-expr` rule has both positive and negative patterns, positive
+  hits cover all nested negative-shaped uses by default. Any uncovered negative
+  match rejects the outer context.
+- Inline captures declared by `inside-expr` stay visible to inner `patterns`
+  and `patterns-not`; `__TARGET__` only
   selects the expression subtree to traverse and must not be used by inner
-  `patterns`.
+  pattern entries.
 - Inherited `id` captures follow lexical shadowing. If an inner pattern refers
   to an outer `id` capture and the path to a candidate expression crosses a
   local binder with the same normalized identifier, that candidate is skipped.
-- Inner patterns reuse names from `inside-expr` by repeating the same inline
-  metavar form; the same name with a different kind is rejected.
+- Inner positive and negative patterns reuse names from `inside-expr` by
+  repeating the same inline metavar form; the same name with a different kind
+  is rejected.
 - Hits from `inside-expr` rules record `outer_loc` for the context expression
-  in addition to `loc` for the inner match.
+  in addition to `loc` for the inner match. For `inside-expr` rules that only
+  use `patterns-not`, `loc` is the outer expression location.
 
 For taint rules:
 
@@ -274,6 +291,59 @@ Rules for `inside-expr`:
 - inner `patterns` reference outer captures by repeating the same inline
   metavar form, such as `$(prefix:exp)`; using the same name with a different
   kind is rejected
+
+### 3.6 Use `patterns-not` to prune blocked branches
+
+Use `patterns-not` when a structural shape marks a branch that should be
+pruned after the current candidate fails all positive patterns.
+
+```yaml
+id: unblocked-target
+description: |
+  Target call outside blocked wrappers.
+patterns:
+  - shape: target()
+patterns-not:
+  - shape: blocked($(value:exp))
+```
+
+Positive patterns run before negative patterns at each candidate root. A
+negative pattern is checked only when every positive alternative fails. Negative
+patterns check that root, not every child expression below it. In the example,
+`blocked(target())` prunes the `blocked(...)` branch, so the nested `target()`
+is not reported. The `value` inside `patterns-not` is captured by the negative
+pattern itself; it does not reuse any positive pattern capture.
+
+With `inside-expr`, `patterns-not` can also describe a context that should be
+reported only when the captured target subtree contains no forbidden shape:
+
+```yaml
+id: wrapper-without-danger
+description: |
+  Wrapper payload contains no danger call.
+inside-expr: wrapper(__TARGET__)
+patterns-not:
+  - shape: danger()
+```
+
+This reports `wrapper(...)` when `danger()` does not appear anywhere in the
+captured `__TARGET__` subtree.
+
+When `inside-expr` is used with both `patterns` and `patterns-not`, positive
+matches cover their whole matched subtrees. Any negative match outside those
+covered positive subtrees rejects the outer context.
+
+```yaml
+inside-expr: wrapper($(counter:id), __TARGET__)
+patterns:
+  - shape: arr[$(counter:id)]
+patterns-not:
+  - shape: $(counter:id)
+```
+
+This reports covered `arr[i]` hits only when every unshadowed use of the
+inherited counter `i` in the target subtree is inside one of those array-access
+matches. An uncovered `i`, such as `println(i)`, rejects that wrapper match.
 
 ### 4. Use `guard` for id and const filters
 

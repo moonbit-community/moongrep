@@ -21,6 +21,24 @@ dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
 
 dev_build(
   rule: "embed",
-  input: "cstyle_forward_forloop.yaml",
-  output: "cstyle_forward_forloop.mbt",
+  input: "cstyle_forward_simple_forloop.yaml",
+  output: "cstyle_forward_simple_forloop.mbt",
+)
+
+dev_build(
+  rule: "embed",
+  input: "cstyle_backward_simple_forloop.yaml",
+  output: "cstyle_backward_simple_forloop.mbt",
+)
+
+dev_build(
+  rule: "embed",
+  input: "cstyle_forward_array_iteration.yaml",
+  output: "cstyle_forward_array_iteration.mbt",
+)
+
+dev_build(
+  rule: "embed",
+  input: "cstyle_backward_array_iteration.yaml",
+  output: "cstyle_backward_array_iteration.mbt",
 )

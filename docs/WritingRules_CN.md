@@ -31,14 +31,21 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 - `shape` 应该是能捕获你想标记内容的最小表达式片段。
 - `patterns` 下的多个条目是有序备选项。对于一个表达式和一条规则，第一个匹配的 pattern 获胜，并决定 `pattern_index`。
+- `patterns-not` 只会在当前候选表达式根的所有正向 `patterns`
+  都失败后检查。正向命中会报告一个结果，并跳过该候选的
+  `patterns-not`。负向命中会剪枝该候选子树，但不产生命中。
 - 同一规则中的所有 pattern 共享相同的规则 id 和 `description`。
 - 结构规则的 pattern object 可以使用 `guard`，在 shape 匹配后用正则过滤
   `id` 和 `const` 捕获。
-- 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将 `__TARGET__` 捕获为表达式，则 `patterns` 会应用到该目标子树内的每个表达式。
-- `inside-expr` 声明的内联捕获对内部 `patterns` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 `patterns` 使用。
+- 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将
+  `__TARGET__` 捕获为表达式且存在 `patterns`，目标子树中的每个候选都会先运行正向 pattern，只有正向失败后才检查 `patterns-not`。如果没有 `patterns`，只有整个目标子树没有负向匹配时才报告外层表达式。
+- 当 `inside-expr` 规则同时有正向和负向 pattern 时，正向命中会默认覆盖其中嵌套的负向形状用法；任何未被覆盖的负向命中都会拒绝外层上下文。
+- `inside-expr` 声明的内联捕获对内部 `patterns` 和 `patterns-not`
+  保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 pattern 使用。
 - 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，而通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
-- 内部 pattern 通过重复相同的内联元变量形式复用来自 `inside-expr` 的名称；同名但 kind 不同会被拒绝。
-- `inside-expr` 规则的命中会记录上下文表达式的 `outer_loc`，以及内部匹配的 `loc`。
+- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自
+  `inside-expr` 的名称；同名但 kind 不同会被拒绝。
+- `inside-expr` 规则的命中会记录上下文表达式的 `outer_loc`，以及内部匹配的 `loc`；只有 `patterns-not` 的 `inside-expr` 规则中，`loc` 是外层表达式位置。
 
 对于污点规则：
 
@@ -190,9 +197,52 @@ patterns:
 - 它使用与一个结构 pattern 相同的内联元变量语法
 - 它必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
 - `__TARGET__` 是保留名称，不能用作内联元变量名
-- 内部 `patterns` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
+- 内部 `patterns` 和 `patterns-not` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
 - 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
-- 内部 `patterns` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名但 kind 不同会被拒绝
+- 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名但 kind 不同会被拒绝
+
+### 3.6 使用 `patterns-not` 剪枝禁止的子树
+
+当某个结构形状应当在当前候选未命中任何正向 pattern 后剪枝时，使用
+`patterns-not`。
+
+```yaml
+id: unblocked-target
+description: |
+  Target call outside blocked wrappers.
+patterns:
+  - shape: target()
+patterns-not:
+  - shape: blocked($(value:exp))
+```
+
+正向 pattern 会先于负向 pattern 在每个候选根上运行。只有所有正向备选都失败后，才会检查负向 pattern。负向 pattern 检查的是当前根，而不是根下面的每个子表达式。在示例中，`blocked(target())` 会剪枝 `blocked(...)` 分支，因此内部的 `target()` 不会被报告。`patterns-not` 内的 `value` 由负向 pattern 自己捕获，不复用任何正向 pattern 捕获。
+
+如果只有 `inside-expr` 和 `patterns-not`，可以描述“某个上下文内不包含禁止形状”：
+
+```yaml
+id: wrapper-without-danger
+description: |
+  Wrapper payload contains no danger call.
+inside-expr: wrapper(__TARGET__)
+patterns-not:
+  - shape: danger()
+```
+
+当捕获到的 `__TARGET__` 子树中没有 `danger()` 时，这会报告
+`wrapper(...)`。
+
+当 `inside-expr` 同时使用 `patterns` 和 `patterns-not` 时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝外层上下文。
+
+```yaml
+inside-expr: wrapper($(counter:id), __TARGET__)
+patterns:
+  - shape: arr[$(counter:id)]
+patterns-not:
+  - shape: $(counter:id)
+```
+
+这只会在 target 子树中继承来的计数器 `i` 的每个未被遮蔽用法都位于某个 `arr[i]` 匹配内部时报告这些被覆盖的命中。像 `println(i)` 这样的未覆盖 `i` 会拒绝该 wrapper 匹配。
 
 ### 4. 使用 `guard` 过滤 id 和 const
 

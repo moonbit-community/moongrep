@@ -169,6 +169,8 @@ fn anonymous_pattern_rule(
     definition: Structural({
       inside_expr: None,
       patterns: [{ shape: pattern, guards: {} }],
+      patterns_not: [],
+      patterns_not_mode: @rule_model.StructuralPatternsNotMode::PruneOnNegative,
     }),
   }
 }

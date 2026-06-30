@@ -467,6 +467,426 @@ test "apply structural rule treats patterns as ordered alternatives" {
 }
 
 ///|
+test "apply structural patterns-not is ignored after positive root match" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Match every sink root before considering negative patterns.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|patterns-not:
+    #|  - shape: sink(safe(__))
+    #|
+  let source =
+    #|fn sample {
+    #|  sink(danger);
+    #|  sink(safe(raw))
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 2)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:3-2:15|none",
+  )
+  inspect(
+    finding_signature(hits[1]),
+    content="sample.mbt|example|0|3:3-3:18|none",
+  )
+}
+
+///|
+test "apply structural patterns-not uses independent bindings after positives fail" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Block pair descendants only after positive pair matching fails.
+    #|patterns:
+    #|  - shape: pair($(value:exp), $(value:exp))
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: pair($(prefix:exp), $(value:exp))
+    #|
+  let source =
+    #|fn sample {
+    #|  pair(a, target());
+    #|  target()
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|1|3:3-3:11|none",
+  )
+}
+
+///|
+test "apply structural positive root prunes descendants" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Prefer the wrapper root over its target child.
+    #|patterns:
+    #|  - shape: wrapper($(value:exp))
+    #|  - shape: target()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(target())
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:3-2:20|none",
+  )
+}
+
+///|
+test "apply structural patterns-not prunes descendants after positives fail" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Skip target calls hidden inside blocked wrappers.
+    #|patterns:
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: wrapper($(value:exp))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(target());
+    #|  target()
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|3:3-3:11|none",
+  )
+}
+
+///|
+test "inside expr positive root ignores descendant patterns-not" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped holder positive wins before descendant negative.
+    #|inside-expr: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: holder($(value:exp))
+    #|patterns-not:
+    #|  - shape: danger()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(holder(danger()))
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:11-2:27|2:3-2:28",
+  )
+}
+
+///|
+test "inside expr positive root wins over same-root patterns-not" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target roots match before negative patterns run.
+    #|inside-expr: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target($(value:exp))
+    #|patterns-not:
+    #|  - shape: target(blocked)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(target(allowed));
+    #|  wrapper(target(blocked))
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 2)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:11-2:26|2:3-2:27",
+  )
+  inspect(
+    finding_signature(hits[1]),
+    content="sample.mbt|example|0|3:11-3:26|3:3-3:27",
+  )
+}
+
+///|
+test "inside expr patterns-not rejects outer on uncovered negative" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped targets outside blocked branches.
+    #|inside-expr: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: blocker($(value:exp))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper({
+    #|    blocker(target());
+    #|    target()
+    #|  });
+    #|  wrapper({
+    #|    target();
+    #|    blocker(target())
+    #|  });
+    #|  wrapper(blocker(target()));
+    #|  wrapper(target())
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|11:11-11:19|11:3-11:20",
+  )
+}
+
+///|
+test "inside expr positive array access wins over patterns-not identifier" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped array access.
+    #|inside-expr: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: $(array:exp)[$(index:exp)]
+    #|patterns-not:
+    #|  - shape: $(counter:id)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(arr[i])
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  guard hits[0].outer_loc is Some(_) else { fail("expected outer location") }
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:14-2:17|2:3-2:18",
+  )
+}
+
+///|
+test "inside expr rejects only uncovered negative and accepts covered array access" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Covered array index use.
+    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|patterns:
+    #|  - shape: arr[$(counter:id)]
+    #|patterns-not:
+    #|  - shape: $(counter:id)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(i, arr[i])
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:17-2:20|2:3-2:21",
+  )
+}
+
+///|
+test "inside expr rejects uncovered inherited id outside positive coverage" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Uncovered index use rejects the wrapper.
+    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|patterns:
+    #|  - shape: arr[$(counter:id)]
+    #|patterns-not:
+    #|  - shape: $(counter:id)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(i, {
+    #|    arr[i];
+    #|    println(i)
+    #|  })
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 0)
+}
+
+///|
+test "inside expr reports multiple covered positive hits" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Multiple covered index uses.
+    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|patterns:
+    #|  - shape: arr[$(counter:id)]
+    #|patterns-not:
+    #|  - shape: $(counter:id)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(i, {
+    #|    arr[i];
+    #|    arr[i]
+    #|  })
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 2)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|3:8-3:11|2:3-5:5",
+  )
+  inspect(
+    finding_signature(hits[1]),
+    content="sample.mbt|example|0|4:8-4:11|2:3-5:5",
+  )
+}
+
+///|
+test "inside expr reject-uncovered-negative respects shadowed inherited identifiers" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Shadowed index use belongs to inner binding.
+    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|patterns:
+    #|  - shape: arr[$(counter:id)]
+    #|patterns-not:
+    #|  - shape: $(counter:id)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(i, {
+    #|    arr[i];
+    #|    let i = other;
+    #|    println(i)
+    #|  })
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|3:8-3:11|2:3-6:5",
+  )
+}
+
+///|
+test "inside expr accepts only loop counter uses covered by array access" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  C-style forward array iteration.
+    #|inside-expr: |
+    #|  for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
+    #|    __TARGET__
+    #|  }
+    #|patterns:
+    #|  - shape: |
+    #|      $(arr:id)[$(counter:id)]
+    #|patterns-not:
+    #|  - shape: $(counter:id)
+    #|
+  let source =
+    #|fn sample(arr) {
+    #|  for i = 0; i < arr.length(); i = i + 1 {
+    #|    wrapper(arr[i])
+    #|  }
+    #|  for i = 0; i < arr.length(); i = i + 1 {
+    #|    arr[i];
+    #|    println(i)
+    #|  }
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 3)
+  guard hits[0].outer_loc is Some(outer) else {
+    fail("expected outer location")
+  }
+  assert_eq(outer.start.lnum, 2)
+}
+
+///|
+test "inside expr with only patterns-not reports outer when target subtree is clean" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target without danger.
+    #|inside-expr: wrapper(__TARGET__)
+    #|patterns-not:
+    #|  - shape: danger()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(safe());
+    #|  wrapper(danger());
+    #|  wrapper(holder(danger()))
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  guard hits[0].outer_loc is Some(outer) else {
+    fail("expected outer location")
+  }
+  assert_eq(hits[0].loc.start.lnum, outer.start.lnum)
+  assert_eq(hits[0].loc.start.column(), outer.start.column())
+  assert_eq(hits[0].loc.end.lnum, outer.end.lnum)
+  assert_eq(hits[0].loc.end.column(), outer.end.column())
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|2:3-2:18|2:3-2:18",
+  )
+}
+
+///|
+test "inside expr only patterns-not respects shadowed inherited identifiers" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target without same-name target call.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns-not:
+    #|  - shape: target($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, {
+    #|    let x = other;
+    #|    target(x)
+    #|  });
+    #|  wrapper(x, target(x))
+    #|}
+    #|
+  let hits = assert_same_ast_json_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 2)
+}
+
+///|
 test "apply structural root patterns preserve pattern indexes" {
   let rule_source =
     #|id: example
@@ -493,7 +913,7 @@ test "apply structural root patterns preserve pattern indexes" {
   for hit in hits {
     pattern_indices.push(hit.pattern_index)
   }
-  inspect(int_array_signature(pattern_indices), content="[0, 1, 2, 1, 2]")
+  inspect(int_array_signature(pattern_indices), content="[0, 1, 2]")
 }
 
 ///|

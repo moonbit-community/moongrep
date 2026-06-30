@@ -311,6 +311,90 @@ test "validate allows inherited inside expr metavars with matching inline forms"
 }
 
 ///|
+test "validate compiles patterns-not inline metavars and guards" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|patterns-not:
+    #|  - shape: allow($(name:id), $(lit:const))
+    #|    guard:
+    #|      name: "^safe_"
+    #|      lit: "^ok$"
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.patterns.length(), 1)
+      assert_eq(rule.patterns_not.length(), 1)
+      assert_eq(rule.patterns_not[0].guards.length(), 2)
+      debug_inspect(
+        rule.patterns_not[0].compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+      debug_inspect(
+        rule.patterns_not[0].compiled.constant_metavars,
+        content="[\"lit\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate patterns-not inherits inside expr metavars without positive patterns" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns-not:
+    #|  - shape: blocked($(name:id))
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.patterns.length(), 0)
+      assert_eq(rule.patterns_not.length(), 1)
+      debug_inspect(
+        rule.patterns_not[0].compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects target placeholder in patterns-not" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:exp))
+    #|patterns-not:
+    #|  - shape: __TARGET__
+    #|
+  expect_compile_invalid(
+    source, "patterns-not[0].shape must not contain __TARGET__",
+  )
+}
+
+///|
+test "validate rejects inherited inside expr kind mismatch in patterns-not" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|patterns-not:
+    #|  - shape: target($(prefix:id))
+    #|
+  expect_compile_invalid(
+    source, "patterns-not[0] cannot use inherited inside-expr metavar prefix as id because it was declared as exp",
+  )
+}
+
+///|
 test "validate rejects inherited inside expr metavars with different inline forms" {
   let source =
     #|id: example

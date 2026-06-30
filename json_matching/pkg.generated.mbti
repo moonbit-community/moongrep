@@ -28,6 +28,10 @@ pub fn match_expr_pattern_ast_with_bindings(CompiledJsonExprPattern, @syntax.Exp
 
 pub fn match_expr_pattern_with_bindings(CompiledJsonExprPattern, Json, @hashmap.HashMap[String, JsonBoundValue]) -> JsonExprMatch?
 
+pub fn visit_scoped_expr_json_children(ScopedJsonExpr, (ScopedJsonExpr) -> Unit) -> Unit
+
+pub fn visit_scoped_expr_jsons(Json, (ScopedJsonExpr) -> ScopedJsonExprVisitAction) -> Unit
+
 // Errors
 
 // Types and methods
@@ -55,6 +59,11 @@ pub(all) struct JsonExprMatch {
 pub(all) struct ScopedJsonExpr {
   expr : Json
   shadowed_names : Array[String]
+}
+
+pub(all) enum ScopedJsonExprVisitAction {
+  JsonVisitContinue
+  JsonVisitPrune
 }
 
 // Type aliases

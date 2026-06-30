@@ -1,0 +1,7 @@
+id: example
+description: |
+  Sink call where positive match wins over patterns-not.
+patterns:
+  - shape: sink($(value:exp))
+patterns-not:
+  - shape: sink(safe(__))

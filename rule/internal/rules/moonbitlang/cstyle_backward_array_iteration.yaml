@@ -1,0 +1,15 @@
+id: cstyle_backward_array_iteration
+description: |
+  C-style backward array iteration.
+
+inside-expr: |
+  for $(counter:id) = $(arr:id).length() - 1; $(counter:id) >= 0; $(counter:id) = $(counter:id) - 1 {
+    __TARGET__
+  }
+
+patterns:
+  - shape: |
+      $(arr:id)[$(counter:id)]
+
+patterns-not:
+  - shape: $(counter:id)
