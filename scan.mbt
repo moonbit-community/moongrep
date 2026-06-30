@@ -70,14 +70,16 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
             file_rules, impl_source,
           )
           if !impl_rules.is_empty() {
-            let structural_hits = @rule_apply.apply_structural_rules_to_impl_with_backend(
-              file,
-              node,
-              impl_rules,
-              options.matcher,
-            )
-            for hit in structural_hits {
-              hits.push(make_scan_hit(source, hit))
+            if !impl_has_moongrep_skip(node) {
+              let structural_hits = @rule_apply.apply_structural_rules_to_impl_with_backend(
+                file,
+                node,
+                impl_rules,
+                options.matcher,
+              )
+              for hit in structural_hits {
+                hits.push(make_scan_hit(source, hit))
+              }
             }
             let taint_hits = @rule_apply.apply_taint_rules_to_impl_with_backend(
               file,
@@ -181,6 +183,39 @@ fn source_text_for_impl(source : String, node : @syntax.Impl) -> String {
 }
 
 ///|
+fn impl_has_moongrep_skip(node : @syntax.Impl) -> Bool {
+  match node {
+    TopFuncDef(fun_decl~, ..) => attributes_have_moongrep_skip(fun_decl.attrs)
+    TopImpl(attrs~, ..) => attributes_have_moongrep_skip(attrs)
+    TopLetDef(attrs~, ..) => attributes_have_moongrep_skip(attrs)
+    TopTest(attrs~, ..) => attributes_have_moongrep_skip(attrs)
+    TopView(attrs~, ..) => attributes_have_moongrep_skip(attrs)
+    _ => false
+  }
+}
+
+///|
+fn attributes_have_moongrep_skip(
+  attrs : @list.List[@attribute.Attribute],
+) -> Bool {
+  for attr in attrs {
+    if attribute_is_moongrep_skip(attr) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn attribute_is_moongrep_skip(attr : @attribute.Attribute) -> Bool {
+  match attr.parsed {
+    Some(@attribute.Expr::Ident(id)) | Some(@attribute.Expr::Apply(id, _)) =>
+      id.qual == Some("moongrep") && id.name == "skip"
+    _ => false
+  }
+}
+
+///|
 fn source_text_for_location(source : String, loc : @basic.Location) -> String {
   let lines = source.split("\n").to_array()
   let start_line = loc.start.lnum
@@ -245,6 +280,7 @@ fn should_skip_entry(entry : String) -> Bool {
 }
 
 ///|
+#moongrep.skip
 fn compact_reports(reports : Array[@basic.Report]) -> String {
   let messages : Array[String] = []
   for report in reports {

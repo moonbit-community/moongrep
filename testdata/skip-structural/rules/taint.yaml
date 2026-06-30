@@ -1,0 +1,8 @@
+id: taint
+description: |
+  User input reaches sink.
+taint:
+  sources:
+    - shape: get_user_input()
+  sinks:
+    - shape: sink(__SOURCE__)

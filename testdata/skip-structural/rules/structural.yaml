@@ -1,0 +1,5 @@
+id: structural
+description: |
+  Target call.
+patterns:
+  - shape: target()
