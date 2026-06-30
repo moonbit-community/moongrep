@@ -354,6 +354,7 @@ fn compile_pattern_with_effective_metavars(
 }
 
 ///|
+#moongrep.skip
 fn compile_guards(
   raw_guards : Map[String, String],
   path : String,

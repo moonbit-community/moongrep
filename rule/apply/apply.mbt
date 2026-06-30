@@ -145,9 +145,10 @@ fn ast_structural_rule_entries(
   for rule in rules {
     match rule.definition {
       Structural(structural) => {
-        let inside_root_key = match structural.inside_expr {
-          Some(inside) => Some(compiled_pattern_root_key(inside))
-          None => None
+        let inside_root_key = if structural.inside_expr is Some(inside) {
+          Some(compiled_pattern_root_key(inside))
+        } else {
+          None
         }
         entries.push({
           rule,
@@ -229,9 +230,10 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
   if entry.structural.inside_expr is Some(inside) {
-    let inside_root_key = match entry.inside_root_key {
-      Some(key) => key
-      None => ast_bucket_wildcard_key()
+    let inside_root_key = if entry.inside_root_key is Some(key) {
+      key
+    } else {
+      ast_bucket_wildcard_key()
     }
     apply_inside_expr_ast_bucketed(
       file,
@@ -481,9 +483,8 @@ fn apply_inside_expr_json_at_scoped_expr_json(
     is Some(JsonRuleMatch(result)) {
     if result.bindings.get("__TARGET__")
       is Some(@json_matching.JsonBoundValue::Expr(target)) {
-      let outer_loc = match json_expr_location(scoped_expr.expr) {
-        Some(loc) => loc
-        None => return
+      guard json_expr_location(scoped_expr.expr) is Some(outer_loc) else {
+        return
       }
       if structural.patterns.is_empty() {
         let target_exprs : Array[@json_matching.ScopedJsonExpr] = []
@@ -1143,9 +1144,10 @@ fn expr_json_with_locations(expr : @syntax.Expr) -> Json {
 
 ///|
 fn json_expr_location(expr : Json) -> @basic.Location? {
-  match json_object_field(expr, "loc") {
-    Some(loc) => json_location(loc)
-    None => None
+  if json_object_field(expr, "loc") is Some(loc) {
+    json_location(loc)
+  } else {
+    None
   }
 }
 
@@ -1228,6 +1230,7 @@ fn json_string_field(fields : Map[String, Json], name : String) -> String? {
 }
 
 ///|
+#moongrep.skip
 fn json_int_field(fields : Map[String, Json], name : String) -> Int? {
   match fields.get(name) {
     Some(value) =>

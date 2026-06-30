@@ -38,9 +38,10 @@ fn compile_bucket_structural_patterns(
 fn compile_bucket_inside_pattern(source : String) -> CompiledRulePattern raise {
   match compile_bucket_rule_source(source).definition {
     Structural(structural) =>
-      match structural.inside_expr {
-        Some(pattern) => pattern
-        None => fail("expected inside-expr")
+      if structural.inside_expr is Some(pattern) {
+        pattern
+      } else {
+        fail("expected inside-expr")
       }
     Taint(_) => fail("expected structural rule")
   }
