@@ -84,28 +84,28 @@ fn expect_structural_rule(
 ) -> StructuralRuleSpec raise {
   let has_patterns = doc.contains("patterns")
   let has_patterns_not = doc.contains("patterns-not")
-  let patterns = match doc.get("patterns") {
-    Some(value) =>
-      parse_rule_clause_array(
-        expect_yaml_array_value(value, path, "patterns"),
-        path,
-        "patterns",
-        allow_guard=true,
-      )
-    None => []
+  let patterns = if doc.get("patterns") is Some(value) {
+    parse_rule_clause_array(
+      expect_yaml_array_value(value, path, "patterns"),
+      path,
+      "patterns",
+      allow_guard=true,
+    )
+  } else {
+    []
   }
   if has_patterns && patterns.is_empty() {
     raise invalid_rule(path~, info="patterns must not be empty")
   }
-  let patterns_not = match doc.get("patterns-not") {
-    Some(value) =>
-      parse_rule_clause_array(
-        expect_yaml_array_value(value, path, "patterns-not"),
-        path,
-        "patterns-not",
-        allow_guard=true,
-      )
-    None => []
+  let patterns_not = if doc.get("patterns-not") is Some(value) {
+    parse_rule_clause_array(
+      expect_yaml_array_value(value, path, "patterns-not"),
+      path,
+      "patterns-not",
+      allow_guard=true,
+    )
+  } else {
+    []
   }
   if has_patterns_not && patterns_not.is_empty() {
     raise invalid_rule(path~, info="patterns-not must not be empty")
@@ -314,9 +314,10 @@ fn expect_yaml_array(
   path : String,
   key : String,
 ) -> Array[@yaml.Yaml] raise {
-  match map.get(key) {
-    Some(value) => expect_yaml_array_value(value, path, key)
-    None => raise invalid_rule(path~, info="missing required key \{key}")
+  if map.get(key) is Some(value) {
+    expect_yaml_array_value(value, path, key)
+  } else {
+    raise invalid_rule(path~, info="missing required key \{key}")
   }
 }
 

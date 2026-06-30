@@ -167,9 +167,10 @@ fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> String {
   match compiled.ast {
     Ident(id~, ..) =>
       if @id.normalize_identifier_name_from_var(id) is Some(name) {
-        match compiled_root_ident_key(compiled, name) {
-          Some(key) => key
-          None => expr_root_key(compiled.ast)
+        if compiled_root_ident_key(compiled, name) is Some(key) {
+          key
+        } else {
+          expr_root_key(compiled.ast)
         }
       } else {
         expr_root_key(compiled.ast)
@@ -200,14 +201,11 @@ fn ExprPatternBuckets::from_patterns(
     let key = compiled_pattern_root_key(patterns[index])
     if key == ast_bucket_wildcard_key() {
       wildcard.push(indexed)
+    } else if keyed.get(key) is Some(items) {
+      items.push(indexed)
+      keyed[key] = items
     } else {
-      match keyed.get(key) {
-        Some(items) => {
-          items.push(indexed)
-          keyed[key] = items
-        }
-        None => keyed[key] = [indexed]
-      }
+      keyed[key] = [indexed]
     }
   }
   { wildcard, keyed }
@@ -220,9 +218,10 @@ fn ExprPatternBuckets::patterns_for_expr(
   self : ExprPatternBuckets,
   expr : @syntax.Expr,
 ) -> Array[IndexedCompiledRulePattern] {
-  let keyed = match self.keyed.get(expr_root_key(expr)) {
-    Some(items) => items
-    None => []
+  let keyed = if self.keyed.get(expr_root_key(expr)) is Some(items) {
+    items
+  } else {
+    []
   }
   merge_indexed_patterns(self.wildcard, keyed)
 }

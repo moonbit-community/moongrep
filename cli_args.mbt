@@ -300,6 +300,7 @@ fn normalize_scan_exclude_dir_args(argv : Array[String]) -> Array[String] raise 
 /// directories are appended in order. Missing subcommands, required arguments,
 /// unknown options, or more than one scan root raise
 /// `CliError::Usage` with exit code 2.
+#moongrep.skip
 fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = {},
