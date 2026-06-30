@@ -41,5 +41,17 @@ fn builtin_rule_sources() -> Array[BuiltinRuleSource] {
       path: "builtin/moonbitlang/match_option.yaml",
       yaml: @moonbitlang_rules.match_option_yaml,
     },
+    {
+      path: "builtin/moonbitlang/cstyle_forward_simple_forloop.yaml",
+      yaml: @moonbitlang_rules.cstyle_forward_simple_forloop_yaml,
+    },
+    {
+      path: "builtin/moonbitlang/cstyle_forward_array_iteration.yaml",
+      yaml: @moonbitlang_rules.cstyle_forward_array_iteration_yaml,
+    },
+    {
+      path: "builtin/moonbitlang/cstyle_backward_array_iteration.yaml",
+      yaml: @moonbitlang_rules.cstyle_backward_array_iteration_yaml,
+    },
   ]
 }

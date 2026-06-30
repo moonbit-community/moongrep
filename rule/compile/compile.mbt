@@ -153,7 +153,55 @@ fn compile_structural_rule(
       ),
     )
   }
-  { inside_expr, patterns }
+  let patterns_not : Array[CompiledRulePattern] = []
+  for index in 0..<spec.patterns_not.length() {
+    let context = "patterns-not[\{index}]"
+    let pattern = spec.patterns_not[index]
+    let compiled_shape = compile_inline_metavar_shape(
+      path,
+      context,
+      pattern.shape,
+    )
+    ensure_inherited_inside_expr_metavar_forms(
+      path,
+      context,
+      compiled_shape.expr_metavars,
+      compiled_shape.identifier_metavars,
+      compiled_shape.constant_metavars,
+      compiled_shape.pattern_metavars,
+      outer_expr,
+      outer_identifier,
+      outer_constant,
+      outer_pattern_names,
+    )
+    let ast = compiled_shape.ast
+    if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{context}.shape must not contain __TARGET__",
+      )
+    }
+    patterns_not.push(
+      compile_pattern_with_effective_metavars(
+        pattern,
+        path,
+        context,
+        ast,
+        compiled_shape.expr_metavars,
+        compiled_shape.identifier_metavars,
+        compiled_shape.constant_metavars,
+        compiled_shape.pattern_metavars,
+        target_metavar=None,
+        source_metavar=None,
+      ),
+    )
+  }
+  {
+    inside_expr,
+    patterns,
+    patterns_not,
+    patterns_not_mode: spec.patterns_not_mode,
+  }
 }
 
 ///|

@@ -13,6 +13,9 @@ test "builtin rules load moonbitlang rules" {
       #|  "moonbitlang/inspect_boolean",
       #|  "moonbitlang/inspect_number",
       #|  "moonbitlang/match_option",
+      #|  "moonbitlang/cstyle_forward_simple_forloop",
+      #|  "moonbitlang/cstyle_forward_array_iteration",
+      #|  "moonbitlang/cstyle_backward_array_iteration",
       #|]
     ),
   )

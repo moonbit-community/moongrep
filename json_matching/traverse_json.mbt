@@ -21,6 +21,669 @@ pub(all) struct ScopedJsonExpr {
 }
 
 ///|
+pub(all) enum ScopedJsonExprVisitAction {
+  JsonVisitContinue
+  JsonVisitPrune
+}
+
+///|
+pub fn visit_scoped_expr_jsons(
+  expr : Json,
+  visitor : (ScopedJsonExpr) -> ScopedJsonExprVisitAction,
+) -> Unit {
+  visit_scoped_expr_jsons_with_shadow(expr, [], visitor)
+}
+
+///|
+fn visit_scoped_expr_jsons_with_shadow(
+  expr : Json,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> ScopedJsonExprVisitAction,
+) -> Unit {
+  match json_kind(expr) {
+    Some(kind) if kind.has_prefix("Expr::") => {
+      let scoped_expr = { expr, shadowed_names: copy_shadowed_names(shadowed) }
+      match visitor(scoped_expr) {
+        JsonVisitPrune => ()
+        JsonVisitContinue =>
+          visit_scoped_expr_json_children(scoped_expr, fn(child) {
+            visit_scoped_expr_jsons_with_shadow(
+              child.expr,
+              child.shadowed_names,
+              visitor,
+            )
+          })
+      }
+    }
+    _ => ()
+  }
+}
+
+///|
+pub fn visit_scoped_expr_json_children(
+  scoped_expr : ScopedJsonExpr,
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  if json_kind(scoped_expr.expr) is Some(kind) {
+    visit_scoped_expr_json_children_with_shadow(
+      scoped_expr.expr,
+      kind,
+      scoped_expr.shadowed_names,
+      visitor,
+    )
+  }
+}
+
+///|
+fn visit_scoped_expr_json_children_with_shadow(
+  expr : Json,
+  kind : String,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match kind {
+    "Expr::Apply" => {
+      visit_scoped_child_expr_json(expr, "func", shadowed, visitor)
+      visit_scoped_argument_expr_jsons(child(expr, "args"), shadowed, visitor)
+    }
+    "Expr::DotApply" => {
+      visit_scoped_child_expr_json(expr, "self", shadowed, visitor)
+      visit_scoped_argument_expr_jsons(child(expr, "args"), shadowed, visitor)
+    }
+    "Expr::Field" =>
+      visit_scoped_child_expr_json(expr, "record", shadowed, visitor)
+    "Expr::Infix" | "Expr::Pipe" | "Expr::RevPipe" | "Expr::Implies" => {
+      visit_scoped_child_expr_json(expr, "lhs", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "rhs", shadowed, visitor)
+    }
+    "Expr::Unary"
+    | "Expr::Assign"
+    | "Expr::Is"
+    | "Expr::ProofAssert"
+    | "Expr::ProofLet" =>
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+    "Expr::RegexMatch" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      visit_scoped_regex_pattern_expr_json(
+        child(expr, "pat"),
+        shadowed,
+        visitor,
+      )
+    }
+    "Expr::Array" | "Expr::Tuple" =>
+      visit_scoped_expr_list_jsons(child(expr, "exprs"), shadowed, visitor)
+    "Expr::Continue" =>
+      visit_scoped_expr_list_jsons(child(expr, "args"), shadowed, visitor)
+    "Expr::Sequence" => {
+      visit_scoped_expr_list_jsons(child(expr, "exprs"), shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "last_expr", shadowed, visitor)
+    }
+    "Expr::ArrayGet" => {
+      visit_scoped_child_expr_json(expr, "array", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "index", shadowed, visitor)
+    }
+    "Expr::ArraySet" | "Expr::ArrayAugmentedSet" => {
+      visit_scoped_child_expr_json(expr, "array", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "index", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "value", shadowed, visitor)
+    }
+    "Expr::ArraySpread" =>
+      visit_scoped_spreadable_elem_expr_jsons(
+        child(expr, "elems"),
+        shadowed,
+        visitor,
+      )
+    "Expr::ArrayGetSlice" => {
+      visit_scoped_child_expr_json(expr, "array", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "start_index", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "end_index", shadowed, visitor)
+    }
+    "Expr::Group" | "Expr::Constraint" | "Expr::As" | "Expr::TryOperator" =>
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+    "Expr::If" => {
+      visit_scoped_child_expr_json(expr, "cond", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "ifso", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "ifnot", shadowed, visitor)
+    }
+    "Expr::Guard" => {
+      visit_scoped_child_expr_json(expr, "cond", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "otherwise", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "body", shadowed, visitor)
+    }
+    "Expr::Let" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      let body_shadowed = shadowed_with_json_pattern(
+        shadowed,
+        child(expr, "pattern"),
+      )
+      visit_scoped_child_expr_json(expr, "body", body_shadowed, visitor)
+    }
+    "Expr::LetMut" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      let body_shadowed = shadowed_with_json_binder(
+        shadowed,
+        child(expr, "binder"),
+      )
+      visit_scoped_child_expr_json(expr, "body", body_shadowed, visitor)
+    }
+    "Expr::For" => {
+      visit_scoped_binder_expr_pair_jsons(
+        child(expr, "binders"),
+        shadowed,
+        visitor,
+      )
+      let loop_shadowed = shadowed_with_json_binder_expr_pairs(
+        shadowed,
+        child(expr, "binders"),
+      )
+      visit_scoped_child_expr_json(expr, "condition", loop_shadowed, visitor)
+      visit_scoped_binder_expr_pair_jsons(
+        child(expr, "continue_block"),
+        loop_shadowed,
+        visitor,
+      )
+      visit_scoped_child_expr_json(expr, "body", loop_shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "for_else", loop_shadowed, visitor)
+      visit_scoped_where_clause_expr_jsons(
+        child(expr, "where_clause"),
+        loop_shadowed,
+        visitor,
+      )
+    }
+    "Expr::ForEach" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      visit_scoped_binder_expr_pair_jsons(
+        child(expr, "init"),
+        shadowed,
+        visitor,
+      )
+      let loop_shadowed = shadowed_with_json_optional_binders(
+        shadowed,
+        child(expr, "binders"),
+      )
+      add_json_binder_expr_pair_names(loop_shadowed, child(expr, "init"))
+      visit_scoped_binder_expr_pair_jsons(
+        child(expr, "continue_block"),
+        loop_shadowed,
+        visitor,
+      )
+      visit_scoped_child_expr_json(expr, "body", loop_shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "else_block", loop_shadowed, visitor)
+      visit_scoped_where_clause_expr_jsons(
+        child(expr, "where_clause"),
+        loop_shadowed,
+        visitor,
+      )
+    }
+    "Expr::Return" =>
+      visit_scoped_child_expr_json(expr, "return_value", shadowed, visitor)
+    "Expr::Raise" =>
+      visit_scoped_child_expr_json(expr, "err_value", shadowed, visitor)
+    "Expr::Interp" =>
+      visit_scoped_interp_elem_expr_jsons(
+        child(expr, "elems"),
+        shadowed,
+        visitor,
+      )
+    "Expr::Record" =>
+      visit_scoped_field_def_expr_jsons(
+        child(expr, "fields"),
+        shadowed,
+        visitor,
+      )
+    "Expr::RecordUpdate" => {
+      visit_scoped_child_expr_json(expr, "record", shadowed, visitor)
+      visit_scoped_field_def_expr_jsons(
+        child(expr, "fields"),
+        shadowed,
+        visitor,
+      )
+    }
+    "Expr::Mutate" => {
+      visit_scoped_child_expr_json(expr, "record", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "field", shadowed, visitor)
+    }
+    "Expr::Match" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      visit_scoped_case_expr_jsons(child(expr, "cases"), shadowed, visitor)
+    }
+    "Expr::IsLexmatch" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      visit_scoped_lex_top_pattern_expr_jsons(
+        child(expr, "pat"),
+        shadowed,
+        visitor,
+      )
+    }
+    "Expr::Lexmatch" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      visit_scoped_lex_case_expr_jsons(child(expr, "cases"), shadowed, visitor)
+    }
+    "Expr::ListComprehension" => {
+      let body_shadowed = visit_scoped_list_comprehension_kind_expr_jsons(
+        child(expr, "kind"),
+        shadowed,
+        visitor,
+      )
+      visit_scoped_child_expr_json(expr, "guard", body_shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "body", body_shadowed, visitor)
+    }
+    "Expr::Try" => {
+      visit_scoped_child_expr_json(expr, "body", shadowed, visitor)
+      visit_scoped_case_expr_jsons(child(expr, "catch"), shadowed, visitor)
+      if child(expr, "try_else") is Some(try_else) {
+        visit_scoped_case_expr_jsons(Some(try_else), shadowed, visitor)
+      }
+    }
+    "Expr::While" => {
+      visit_scoped_child_expr_json(expr, "loop_cond", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "loop_body", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "while_else", shadowed, visitor)
+    }
+    "Expr::Break" =>
+      visit_scoped_child_expr_json(expr, "arg", shadowed, visitor)
+    "Expr::Defer" | "Expr::TemplateWriting" => {
+      visit_scoped_child_expr_json(expr, "expr", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "body", shadowed, visitor)
+      visit_scoped_child_expr_json(expr, "template", shadowed, visitor)
+    }
+    "Expr::Quantifier" => {
+      let body_shadowed = shadowed_with_json_binder(
+        shadowed,
+        child(expr, "binder"),
+      )
+      visit_scoped_child_expr_json(expr, "body", body_shadowed, visitor)
+    }
+    "Expr::StaticAssert" =>
+      visit_scoped_child_expr_json(expr, "body", shadowed, visitor)
+    "Expr::Function" =>
+      visit_scoped_func_body_expr_json(child(expr, "func"), shadowed, visitor)
+    "Expr::LetFn" => {
+      let name_shadowed = shadowed_with_json_binder(
+        shadowed,
+        child(expr, "name"),
+      )
+      visit_scoped_func_body_expr_json(
+        child(expr, "func"),
+        name_shadowed,
+        visitor,
+      )
+      visit_scoped_child_expr_json(expr, "body", name_shadowed, visitor)
+    }
+    "Expr::LetAnd" => {
+      let binding_shadowed = shadowed_with_json_let_and_bindings(
+        shadowed,
+        child(expr, "bindings"),
+      )
+      visit_scoped_let_and_binding_expr_jsons(
+        child(expr, "bindings"),
+        binding_shadowed,
+        visitor,
+      )
+      visit_scoped_child_expr_json(expr, "body", binding_shadowed, visitor)
+    }
+    "Expr::Map" =>
+      visit_scoped_map_elem_expr_jsons(child(expr, "elems"), shadowed, visitor)
+    "Expr::MultilineString" =>
+      visit_scoped_multiline_string_elem_expr_jsons(
+        child(expr, "elems"),
+        shadowed,
+        visitor,
+      )
+    _ => ()
+  }
+}
+
+///|
+fn visit_scoped_child_expr_json(
+  node : Json,
+  name : String,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match child(node, name) {
+    Some(Null) | None => ()
+    Some(expr) =>
+      visitor({ expr, shadowed_names: copy_shadowed_names(shadowed) })
+  }
+}
+
+///|
+fn visit_scoped_expr_list_jsons(
+  list : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(list, fn(item) {
+    visitor({ expr: item, shadowed_names: copy_shadowed_names(shadowed) })
+  })
+}
+
+///|
+fn visit_scoped_argument_expr_jsons(
+  args : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(args, fn(arg) {
+    visit_scoped_child_expr_json(arg, "value", shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_spreadable_elem_expr_jsons(
+  elems : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(elems, fn(elem) {
+    match elem {
+      { "kind": "SpreadableElem::Regular", .. } =>
+        visit_scoped_child_expr_json(elem, "value", shadowed, visitor)
+      { "kind": "SpreadableElem::Spread", .. } =>
+        visit_scoped_child_expr_json(elem, "expr", shadowed, visitor)
+      _ => ()
+    }
+  })
+}
+
+///|
+fn visit_scoped_binder_expr_pair_jsons(
+  pairs : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(pairs, fn(pair) {
+    visit_scoped_child_expr_json(pair, "expr", shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_where_clause_expr_jsons(
+  clause : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match clause {
+    Some(Null) | None => ()
+    Some({ "children": { "fields": fields, .. }, .. }) =>
+      visit_scoped_field_def_expr_jsons(Some(fields), shadowed, visitor)
+    Some(_) => ()
+  }
+}
+
+///|
+fn visit_scoped_field_def_expr_jsons(
+  fields : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(fields, fn(field) {
+    visit_scoped_child_expr_json(field, "expr", shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_case_expr_jsons(
+  cases : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(cases, fn(case) {
+    let case_shadowed = shadowed_with_json_pattern(
+      shadowed,
+      child(case, "pattern"),
+    )
+    visit_scoped_child_expr_json(case, "guard", case_shadowed, visitor)
+    visit_scoped_child_expr_json(case, "body", case_shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_interp_elem_expr_jsons(
+  elems : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(elems, fn(elem) {
+    match elem {
+      { "kind": "InterpElem::Expr", "children": { "expr": expr, .. }, .. } =>
+        visitor({ expr, shadowed_names: copy_shadowed_names(shadowed) })
+      _ => ()
+    }
+  })
+}
+
+///|
+fn visit_scoped_multiline_string_elem_expr_jsons(
+  elems : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(elems, fn(elem) {
+    match elem {
+      {
+        "kind": "MultilineString::Interp",
+        "children": { "value": value, .. },
+        ..
+      } => visit_scoped_interp_elem_expr_jsons(Some(value), shadowed, visitor)
+      _ => ()
+    }
+  })
+}
+
+///|
+fn visit_scoped_lex_case_expr_jsons(
+  cases : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(cases, fn(case) {
+    visit_scoped_lex_top_pattern_expr_jsons(
+      child(case, "pat"),
+      shadowed,
+      visitor,
+    )
+    let case_shadowed = shadowed_with_json_lex_top_patterns(
+      shadowed,
+      child(case, "pat"),
+    )
+    visit_scoped_child_expr_json(case, "guard", case_shadowed, visitor)
+    visit_scoped_child_expr_json(case, "body", case_shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_lex_top_pattern_expr_jsons(
+  patterns : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(patterns, fn(pattern) {
+    match pattern {
+      {
+        "kind": "LexTopPattern::Pattern",
+        "children": { "value": value, .. },
+        ..
+      } => visit_scoped_lex_pattern_expr_json(Some(value), shadowed, visitor)
+      _ => ()
+    }
+  })
+}
+
+///|
+fn visit_scoped_lex_pattern_expr_json(
+  pattern : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match pattern {
+    Some({ "kind": "LexPattern::Alias", "children": { "pat": pat, .. }, .. }) =>
+      visit_scoped_lex_pattern_expr_json(Some(pat), shadowed, visitor)
+    Some(
+      {
+        "kind": "LexPattern::RegexInterp",
+        "children": { "elems": elems, .. },
+        ..
+      }
+    ) => visit_scoped_interp_elem_expr_jsons(Some(elems), shadowed, visitor)
+    Some(
+      { "kind": "LexPattern::Sequence", "children": { "pats": pats, .. }, .. }
+    ) =>
+      collect_json_list_items(Some(pats), fn(pat) {
+        visit_scoped_lex_pattern_expr_json(Some(pat), shadowed, visitor)
+      })
+    Some(_) | None => ()
+  }
+}
+
+///|
+fn visit_scoped_list_comprehension_kind_expr_jsons(
+  kind : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Array[String] {
+  match kind {
+    Some(
+      {
+        "kind": "Expr::ListComprehension::Kind::For",
+        "children": {
+          "binders": binders,
+          "condition": condition,
+          "continue_block": continue_block,
+          ..
+        },
+        ..
+      }
+    ) => {
+      visit_scoped_binder_expr_pair_jsons(Some(binders), shadowed, visitor)
+      let loop_shadowed = shadowed_with_json_binder_expr_pairs(
+        shadowed,
+        Some(binders),
+      )
+      visit_scoped_optional_expr_json(condition, loop_shadowed, visitor)
+      visit_scoped_binder_expr_pair_jsons(
+        Some(continue_block),
+        loop_shadowed,
+        visitor,
+      )
+      loop_shadowed
+    }
+    Some(
+      {
+        "kind": "Expr::ListComprehension::Kind::Foreach",
+        "children": {
+          "binders": binders,
+          "expr": iter,
+          "init": init,
+          "continue_block": continue_block,
+          ..
+        },
+        ..
+      }
+    ) => {
+      visitor({ expr: iter, shadowed_names: copy_shadowed_names(shadowed) })
+      visit_scoped_binder_expr_pair_jsons(Some(init), shadowed, visitor)
+      let loop_shadowed = shadowed_with_json_optional_binders(
+        shadowed,
+        Some(binders),
+      )
+      add_json_binder_expr_pair_names(loop_shadowed, Some(init))
+      visit_scoped_binder_expr_pair_jsons(
+        Some(continue_block),
+        loop_shadowed,
+        visitor,
+      )
+      loop_shadowed
+    }
+    Some(_) | None => copy_shadowed_names(shadowed)
+  }
+}
+
+///|
+fn visit_scoped_optional_expr_json(
+  expr : Json,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match expr {
+    Null => ()
+    _ => visitor({ expr, shadowed_names: copy_shadowed_names(shadowed) })
+  }
+}
+
+///|
+fn visit_scoped_func_body_expr_json(
+  func : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match func {
+    Some(Null) | None => ()
+    Some({ "children": { "parameters": parameters, "body": body, .. }, .. }) => {
+      let body_shadowed = shadowed_with_json_parameters(
+        shadowed,
+        Some(parameters),
+      )
+      visitor({ expr: body, shadowed_names: copy_shadowed_names(body_shadowed) })
+    }
+    Some(_) => ()
+  }
+}
+
+///|
+fn visit_scoped_let_and_binding_expr_jsons(
+  bindings : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(bindings, fn(binding) {
+    visit_scoped_func_body_expr_json(child(binding, "func"), shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_map_elem_expr_jsons(
+  elems : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  collect_json_list_items(elems, fn(elem) {
+    visit_scoped_child_expr_json(elem, "expr", shadowed, visitor)
+  })
+}
+
+///|
+fn visit_scoped_regex_pattern_expr_json(
+  pattern : Json?,
+  shadowed : Array[String],
+  visitor : (ScopedJsonExpr) -> Unit,
+) -> Unit {
+  match pattern {
+    Some({ "kind": "RegexPattern::Alias", "children": { "pat": pat, .. }, .. }) =>
+      visit_scoped_regex_pattern_expr_json(Some(pat), shadowed, visitor)
+    Some(
+      {
+        "kind": "RegexPattern::Alternation",
+        "children": { "pat1": pat1, "pat2": pat2, .. },
+        ..
+      }
+    )
+    | Some(
+      {
+        "kind": "RegexPattern::Sequence",
+        "children": { "pat1": pat1, "pat2": pat2, .. },
+        ..
+      }
+    ) => {
+      visit_scoped_regex_pattern_expr_json(Some(pat1), shadowed, visitor)
+      visit_scoped_regex_pattern_expr_json(Some(pat2), shadowed, visitor)
+    }
+    Some(_) | None => ()
+  }
+}
+
+///|
 pub fn collect_scoped_expr_jsons(
   expr : Json,
   exprs : Array[ScopedJsonExpr],

@@ -52,6 +52,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 - `id`（必需）：非空 YAML 字符串，且不能包含 `/`
 - `description`（必需）：YAML 字符串
 - `patterns`（结构规则必需）：非空 YAML 数组
+- `patterns-not`（结构规则可选）：与 `patterns` 使用相同条目 schema 的非空 YAML 数组
 - `inside-expr`（结构规则可选）：包含一个 MoonBit 表达式片段的 YAML 字符串，作为外层上下文
 - `taint`（污点规则必需）：YAML 映射
 
@@ -59,10 +60,10 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 每条规则必须且只能选择一种规则模式：
 
-- 结构模式：`patterns`
+- 结构模式：`patterns`，或带 `patterns-not` 的 `inside-expr`
 - 污点模式：`taint`
 
-`patterns` 和 `taint` 互斥。`inside-expr` 只在与 `patterns` 一起使用时有效；它在污点规则中会被拒绝。
+`patterns` 和 `taint` 互斥。`inside-expr` 和 `patterns-not` 只对结构规则有效；它们在污点规则中会被拒绝。`patterns-not` 必须和 `patterns` 或 `inside-expr` 一起出现；没有 `patterns` 的 `inside-expr` 规则必须包含 `patterns-not`。
 
 `id` 是其文件目录内的本地规则名。`description` 也是必需字段且必须是字符串。它的内容会按 YAML 提供的结果保留，包括 block scalar 产生的尾随换行。
 
@@ -317,7 +318,8 @@ Guard 会在结构 AST 匹配成功后检查。单个 pattern object 中的所�
 
 ## 结构规则
 
-结构规则具有非空 `patterns` 数组。
+结构规则具有非空 `patterns` 数组，或者具有 `inside-expr` 和非空
+`patterns-not`。
 
 ```yaml
 id: repeated-equality
@@ -332,13 +334,38 @@ patterns:
 每个被访问的表达式都会被每条结构规则检查。对于一个被访问表达式和一条规则：
 
 - `patterns` 条目是有序备选项
-- 第一个匹配的 pattern 会产生一个命中
-- 同一规则中后续 pattern 不会再为该表达式检查
-- 扫描仍会继续进入其他表达式子树
+- 第一个匹配的正向 pattern 会产生一个命中，并且该候选表达式子树会对这条规则剪枝
+- 如果所有正向 pattern 都失败，才会针对当前候选表达式根检查
+  `patterns-not`
+- 如果此时负向 pattern 匹配，该候选表达式子树会对这条规则剪枝，且不会产生命中
+- 兄弟表达式子树以及其他规则仍会继续扫描
 
 报告的 pattern index 从零开始，指向 `patterns` 中匹配的条目。
 
 同一条规则中的所有 pattern 共享同一个规则 id 和 `description`。
+
+### `patterns-not`
+
+`patterns-not` 是结构规则的负向约束。它的条目使用与 `patterns` 相同的
+`shape` 和可选 `guard` schema。
+
+```yaml
+id: unblocked-target
+description: |
+  Match target calls unless they are inside a blocked wrapper.
+patterns:
+  - shape: target()
+patterns-not:
+  - shape: blocked($(value:exp))
+```
+
+对于带 `patterns` 的普通结构规则，每个候选表达式根都会先运行有序的正向 pattern。只要正向 pattern 匹配，就报告命中，并且不会再为该候选检查 `patterns-not`。只有所有正向 pattern 都失败后，才会检查 `patterns-not`。负向匹配没有初始绑定。只在 `patterns-not` 中声明的内联元变量独立绑定，不复用 `patterns` 中的捕获。
+
+如果正向 pattern 全部失败后负向 pattern 匹配，该候选不会产生命中，并且它的子表达式不会再为这条规则搜索。如果正向和负向 pattern 都不匹配，则继续进入该候选的子表达式。
+
+负向 pattern 仍然只匹配当前候选根。在上面的例子中，`blocked(target())` 不会搜索内部的 `target()`，因为 `blocked` 根先未命中所有正向 pattern，随后命中 `patterns-not`，从而剪枝该分支。如果某个 `blocked(...)` 节点本身也能命中正向 pattern，它会被报告，并且不会检查 `patterns-not`；需要排除同根形状时，应把正向 pattern 写得更窄。
+
+与 `inside-expr` 一起使用时，负向匹配会带着外层匹配建立的绑定开始。如果规则同时有 `patterns`，捕获到的 `__TARGET__` 子树中的每个表达式都使用相同的步进顺序：先运行正向 pattern；只有正向 pattern 全部失败后，才检查 `patterns-not`。当 `inside-expr`、`patterns` 和 `patterns-not` 同时存在时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝整个外层 `inside-expr` 匹配。`patterns-not` 也可以与只有 `inside-expr`、没有 `patterns` 的规则一起使用；这种形式见下文。
 
 ### `inside-expr`
 
@@ -360,19 +387,24 @@ patterns:
 - `inside-expr` 必须在可绑定位置包含且只包含一个 `__TARGET__`。
 - `__TARGET__` 必须占据一个完整表达式位置，例如完整调用参数、receiver 或块表达式。如果它只作为标签或其他非表达式值出现，就没有目标子树可供搜索。
 - `__TARGET__` 是保留名称，不能用作内联元变量名。
-- `patterns` 条目不能在可绑定位置包含 `__TARGET__`。
-- `inside-expr` 声明的内联元变量在匹配内部 `patterns` 时仍然可见；内部 shape 通过重复相同的内联元变量形式引用它们。
-- 内部 `patterns` 不能用不同 kind 使用已经从 `inside-expr` 可见的元变量名。
+- `patterns` 和 `patterns-not` 条目不能在可绑定位置包含 `__TARGET__`。
+- `inside-expr` 声明的内联元变量在匹配内部 `patterns` 和
+  `patterns-not` 时仍然可见；内部 shape 通过重复相同的内联元变量形式引用它们。
+- 内部 `patterns` 和 `patterns-not` 不能用不同 kind 使用已经从
+  `inside-expr` 可见的元变量名。
 
 运行时行为：
 
 - 当前表达式首先与 `inside-expr` 匹配
 - 如果匹配成功，会搜索由 `__TARGET__` 捕获的子树
-- 捕获子树中的每个表达式都会被 `patterns` 检查
-- 内部 pattern 匹配会带着 `inside-expr` 已建立的绑定开始
+- 当存在 `patterns` 时，捕获子树中的每个表达式会先用
+  `inside-expr` 建立的绑定运行有序正向 pattern；正向命中会被报告，其命中子树会覆盖嵌套的负向匹配
+- 当同时存在 `patterns` 和 `patterns-not` 时，只有正向 pattern 全部失败的候选才会用 `inside-expr` 绑定检查 `patterns-not`；正向命中子树之外的负向命中会拒绝整个外层匹配
+- 当不存在 `patterns` 时，捕获子树中的每个表达式都会用 `inside-expr` 绑定检查 `patterns-not`；如果没有任何负向 pattern 匹配，外层表达式产生一个命中
 - 如果内部 pattern 通过相同的 `$(name:id)` inline 形式引用了继承来的 `id` 捕获，并且从 `__TARGET__` 到候选表达式的路径上出现了同名（按规范化后的 identifier 名称计算）的词法绑定，则跳过该候选
 
-`inside-expr` 命中的报告位置是内部匹配位置。暴露上下文位置的消费者也可以暴露外层表达式位置。
+带 `patterns` 的 `inside-expr` 命中报告位置是内部正向匹配位置。只有
+`patterns-not` 的 `inside-expr` 规则报告外层表达式位置。暴露上下文位置的消费者也可以通过 `outer_loc` 暴露外层表达式位置。
 
 ## 污点规则
 
@@ -486,6 +518,11 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `inside-expr` 存在但不是字符串
 - `patterns` 不是数组或为空
 - `patterns` 条目不是映射
+- `patterns-not` 不是数组或为空
+- `patterns-not` 没有和 `patterns` 或 `inside-expr` 一起出现
+- taint 规则中出现 `patterns-not`
+- 出现不支持的顶层键
+- `patterns-not` 条目不是映射
 - `taint` 不是映射
 - `taint.sources` 或 `taint.sinks` 缺失、不是数组或为空
 - `taint.sanitizers` 存在但不是数组

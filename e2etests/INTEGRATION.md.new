@@ -32,7 +32,7 @@ $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/
 testdata/patterns-not-structural/src/hit.mbt:2:3-2:12
 rule: example
 description:
-  Sink call where positive match wins over patterns-not.
+  Sink call unless explicitly safe.
 source:
 \x1b[90m1 | fn sample {\x1b[39m (escaped)
 2 |   sink(raw);
@@ -42,7 +42,7 @@ source:
 testdata/patterns-not-structural/src/hit.mbt:3:3-3:18
 rule: example
 description:
-  Sink call where positive match wins over patterns-not.
+  Sink call unless explicitly safe.
 source:
 \x1b[90m1 | fn sample {\x1b[39m (escaped)
 \x1b[90m2 |   sink(raw);\x1b[39m (escaped)

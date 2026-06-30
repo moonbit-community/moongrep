@@ -680,6 +680,506 @@ pub(all) struct ScopedExpr {
 }
 
 ///|
+pub(all) enum ScopedExprVisitAction {
+  VisitContinue
+  VisitPrune
+}
+
+///|
+pub fn visit_impl_scoped_expr_roots(
+  node : @syntax.Impl,
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  match node {
+    TopExpr(expr~, ..)
+    | TopFuncDef(decl_body=DeclBody(expr~), ..)
+    | TopImpl(body=DeclBody(expr~), ..)
+    | TopLetDef(expr~, ..)
+    | TopTest(expr~, ..)
+    | TopView(body=expr, ..) => visit_scoped_child_expr(expr, [], visitor)
+    _ => ()
+  }
+}
+
+///|
+pub fn visit_scoped_exprs(
+  expr : @syntax.Expr,
+  visitor : (ScopedExpr) -> ScopedExprVisitAction,
+) -> Unit {
+  visit_scoped_exprs_with_shadow(expr, [], visitor)
+}
+
+///|
+fn visit_scoped_exprs_with_shadow(
+  expr : @syntax.Expr,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> ScopedExprVisitAction,
+) -> Unit {
+  let scoped_expr = { expr, shadowed_names: copy_names(shadowed) }
+  match visitor(scoped_expr) {
+    VisitPrune => ()
+    VisitContinue =>
+      visit_scoped_expr_children(scoped_expr, fn(child) {
+        visit_scoped_exprs_with_shadow(
+          child.expr,
+          child.shadowed_names,
+          visitor,
+        )
+      })
+  }
+}
+
+///|
+pub fn visit_scoped_expr_children(
+  scoped_expr : ScopedExpr,
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  visit_scoped_expr_children_with_shadow(
+    scoped_expr.expr,
+    scoped_expr.shadowed_names,
+    visitor,
+  )
+}
+
+///|
+fn visit_scoped_expr_children_with_shadow(
+  expr : @syntax.Expr,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  match expr {
+    Apply(func~, args~, ..) => {
+      visit_scoped_child_expr(func, shadowed, visitor)
+      visit_scoped_argument_exprs(args, shadowed, visitor)
+    }
+    DotApply(self~, args~, ..) => {
+      visit_scoped_child_expr(self, shadowed, visitor)
+      visit_scoped_argument_exprs(args, shadowed, visitor)
+    }
+    Field(record~, ..) => visit_scoped_child_expr(record, shadowed, visitor)
+    Infix(lhs~, rhs~, ..) => {
+      visit_scoped_child_expr(lhs, shadowed, visitor)
+      visit_scoped_child_expr(rhs, shadowed, visitor)
+    }
+    Unary(expr~, ..) | Assign(expr~, ..) =>
+      visit_scoped_child_expr(expr, shadowed, visitor)
+    Array(exprs=items, ..) | Tuple(exprs=items, ..) =>
+      visit_scoped_expr_list(items, shadowed, visitor)
+    Sequence(exprs=items, last_expr~, ..) => {
+      visit_scoped_expr_list(items, shadowed, visitor)
+      visit_scoped_child_expr(last_expr, shadowed, visitor)
+    }
+    ArrayGet(array~, index~, ..) => {
+      visit_scoped_child_expr(array, shadowed, visitor)
+      visit_scoped_child_expr(index, shadowed, visitor)
+    }
+    ArraySet(array~, index~, value~, ..)
+    | ArrayAugmentedSet(array~, index~, value~, ..) => {
+      visit_scoped_child_expr(array, shadowed, visitor)
+      visit_scoped_child_expr(index, shadowed, visitor)
+      visit_scoped_child_expr(value, shadowed, visitor)
+    }
+    ArraySpread(elems~, ..) =>
+      visit_scoped_spreadable_elem_exprs(elems, shadowed, visitor)
+    ArrayGetSlice(array~, start_index~, end_index~, ..) => {
+      visit_scoped_child_expr(array, shadowed, visitor)
+      visit_scoped_optional_expr(start_index, shadowed, visitor)
+      visit_scoped_optional_expr(end_index, shadowed, visitor)
+    }
+    Group(expr~, ..) | Constraint(expr~, ..) | As(expr~, ..) =>
+      visit_scoped_child_expr(expr, shadowed, visitor)
+    If(cond~, ifso~, ifnot~, ..) => {
+      visit_scoped_child_expr(cond, shadowed, visitor)
+      visit_scoped_child_expr(ifso, shadowed, visitor)
+      visit_scoped_optional_expr(ifnot, shadowed, visitor)
+    }
+    Guard(cond~, otherwise~, body~, ..) => {
+      visit_scoped_child_expr(cond, shadowed, visitor)
+      visit_scoped_optional_expr(otherwise, shadowed, visitor)
+      visit_scoped_child_expr(body, shadowed, visitor)
+    }
+    Let(pattern~, expr=bound_expr, body~, ..) => {
+      visit_scoped_child_expr(bound_expr, shadowed, visitor)
+      let body_shadowed = shadowed_with_pattern(shadowed, pattern)
+      visit_scoped_child_expr(body, body_shadowed, visitor)
+    }
+    LetMut(binder~, expr=bound_expr, body~, ..) => {
+      visit_scoped_child_expr(bound_expr, shadowed, visitor)
+      let body_shadowed = shadowed_with_binder(shadowed, binder)
+      visit_scoped_child_expr(body, body_shadowed, visitor)
+    }
+    For(
+      binders~,
+      condition~,
+      continue_block~,
+      body~,
+      for_else~,
+      where_clause~,
+      ..
+    ) => {
+      visit_scoped_binder_expr_pairs(binders, shadowed, visitor)
+      let loop_shadowed = shadowed_with_binder_expr_pair_binders(
+        shadowed, binders,
+      )
+      visit_scoped_optional_expr(condition, loop_shadowed, visitor)
+      visit_scoped_binder_expr_pairs(continue_block, loop_shadowed, visitor)
+      visit_scoped_child_expr(body, loop_shadowed, visitor)
+      visit_scoped_optional_expr(for_else, loop_shadowed, visitor)
+      visit_scoped_optional_where_clause_exprs(
+        where_clause, loop_shadowed, visitor,
+      )
+    }
+    ForEach(
+      binders~,
+      expr=iter,
+      init~,
+      continue_block~,
+      body~,
+      else_block~,
+      where_clause~,
+      ..
+    ) => {
+      visit_scoped_child_expr(iter, shadowed, visitor)
+      visit_scoped_binder_expr_pairs(init, shadowed, visitor)
+      let loop_shadowed = shadowed_with_optional_binders(shadowed, binders)
+      add_binder_expr_pair_names(loop_shadowed, init)
+      visit_scoped_binder_expr_pairs(continue_block, loop_shadowed, visitor)
+      visit_scoped_child_expr(body, loop_shadowed, visitor)
+      visit_scoped_optional_expr(else_block, loop_shadowed, visitor)
+      visit_scoped_optional_where_clause_exprs(
+        where_clause, loop_shadowed, visitor,
+      )
+    }
+    Return(return_value~, ..) =>
+      visit_scoped_optional_expr(return_value, shadowed, visitor)
+    Raise(err_value~, ..) =>
+      visit_scoped_child_expr(err_value, shadowed, visitor)
+    Pipe(lhs~, rhs~, ..) | RevPipe(lhs~, rhs~, ..) | Implies(lhs~, rhs~, ..) => {
+      visit_scoped_child_expr(lhs, shadowed, visitor)
+      visit_scoped_child_expr(rhs, shadowed, visitor)
+    }
+    Interp(elems~, ..) =>
+      visit_scoped_interp_elem_exprs(elems, shadowed, visitor)
+    Record(fields~, ..) =>
+      visit_scoped_field_def_exprs(fields, shadowed, visitor)
+    RecordUpdate(record~, fields~, ..) => {
+      visit_scoped_child_expr(record, shadowed, visitor)
+      visit_scoped_field_def_exprs(fields, shadowed, visitor)
+    }
+    Mutate(record~, field~, ..) => {
+      visit_scoped_child_expr(record, shadowed, visitor)
+      visit_scoped_child_expr(field, shadowed, visitor)
+    }
+    Match(expr=matched, cases~, ..) => {
+      visit_scoped_child_expr(matched, shadowed, visitor)
+      visit_scoped_case_exprs(cases, shadowed, visitor)
+    }
+    Is(expr=matched, ..) => visit_scoped_child_expr(matched, shadowed, visitor)
+    IsLexMatch(expr=matched, pat~, ..) => {
+      visit_scoped_child_expr(matched, shadowed, visitor)
+      visit_scoped_lex_top_pattern_exprs(pat, shadowed, visitor)
+    }
+    LexMatch(expr=matched, cases~, ..) => {
+      visit_scoped_child_expr(matched, shadowed, visitor)
+      visit_scoped_lex_case_exprs(cases, shadowed, visitor)
+    }
+    ListComprehension(kind~, guard_~, body~, ..) => {
+      let body_shadowed = visit_scoped_list_comprehension_kind_exprs(
+        kind, shadowed, visitor,
+      )
+      visit_scoped_optional_expr(guard_, body_shadowed, visitor)
+      visit_scoped_child_expr(body, body_shadowed, visitor)
+    }
+    Try(body~, catch_~, try_else~, ..) => {
+      visit_scoped_child_expr(body, shadowed, visitor)
+      visit_scoped_case_exprs(catch_, shadowed, visitor)
+      if try_else is Some(cases) {
+        visit_scoped_case_exprs(cases, shadowed, visitor)
+      }
+    }
+    TryOperator(body~, ..) => visit_scoped_child_expr(body, shadowed, visitor)
+    While(loop_cond~, loop_body~, while_else~, ..) => {
+      visit_scoped_child_expr(loop_cond, shadowed, visitor)
+      visit_scoped_child_expr(loop_body, shadowed, visitor)
+      visit_scoped_optional_expr(while_else, shadowed, visitor)
+    }
+    Break(arg~, ..) => visit_scoped_optional_expr(arg, shadowed, visitor)
+    Continue(args~, ..) => visit_scoped_expr_list(args, shadowed, visitor)
+    Defer(expr=deferred, body~, ..) => {
+      visit_scoped_child_expr(deferred, shadowed, visitor)
+      visit_scoped_child_expr(body, shadowed, visitor)
+    }
+    ProofAssert(expr=asserted, ..) | ProofLet(expr=asserted, ..) =>
+      visit_scoped_child_expr(asserted, shadowed, visitor)
+    Quantifier(binder~, body~, ..) => {
+      let body_shadowed = shadowed_with_binder(shadowed, binder)
+      visit_scoped_child_expr(body, body_shadowed, visitor)
+    }
+    RegexMatch(expr=matched, pat~, ..) => {
+      visit_scoped_child_expr(matched, shadowed, visitor)
+      visit_scoped_regex_pattern_exprs(pat, shadowed, visitor)
+    }
+    StaticAssert(body~, ..) => visit_scoped_child_expr(body, shadowed, visitor)
+    TemplateWriting(expr=writer, template~, ..) => {
+      visit_scoped_child_expr(writer, shadowed, visitor)
+      visit_scoped_child_expr(template, shadowed, visitor)
+    }
+    Function(func~, ..) => visit_scoped_func_exprs(func, shadowed, visitor)
+    LetFn(name=binder, func~, body~, ..) => {
+      let name_shadowed = shadowed_with_binder(shadowed, binder)
+      visit_scoped_func_exprs(func, name_shadowed, visitor)
+      visit_scoped_child_expr(body, name_shadowed, visitor)
+    }
+    LetAnd(bindings~, body~, ..) => {
+      let binding_shadowed = shadowed_with_let_and_binders(shadowed, bindings)
+      for binding in bindings {
+        let (_binder, _ty, func) = binding
+        visit_scoped_func_exprs(func, binding_shadowed, visitor)
+      }
+      visit_scoped_child_expr(body, binding_shadowed, visitor)
+    }
+    Map(elems~, ..) =>
+      for elem in elems {
+        visit_scoped_child_expr(elem.expr, shadowed, visitor)
+      }
+    MultilineString(elems~, ..) =>
+      visit_scoped_multiline_string_elem_exprs(elems, shadowed, visitor)
+    _ => ()
+  }
+}
+
+///|
+fn visit_scoped_child_expr(
+  expr : @syntax.Expr,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  visitor({ expr, shadowed_names: copy_names(shadowed) })
+}
+
+///|
+fn visit_scoped_argument_exprs(
+  args : @list.List[@syntax.Argument],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for arg in args {
+    visit_scoped_child_expr(arg.value, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_expr_list(
+  list : @list.List[@syntax.Expr],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for expr in list {
+    visit_scoped_child_expr(expr, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_spreadable_elem_exprs(
+  elems : @list.List[@syntax.SpreadableElem],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for elem in elems {
+    match elem {
+      Regular(expr) | Spread(expr~, ..) =>
+        visit_scoped_child_expr(expr, shadowed, visitor)
+    }
+  }
+}
+
+///|
+fn visit_scoped_optional_expr(
+  expr : @syntax.Expr?,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  if expr is Some(expr) {
+    visit_scoped_child_expr(expr, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_optional_where_clause_exprs(
+  clause : @syntax.WhereClause?,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  if clause is Some(clause) {
+    visit_scoped_field_def_exprs(clause.fields, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_binder_expr_pairs(
+  pairs : @list.List[(@syntax.Binder, @syntax.Expr)],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for pair in pairs {
+    let (_binder, expr) = pair
+    visit_scoped_child_expr(expr, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_interp_elem_exprs(
+  elems : @list.List[@syntax.InterpElem],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for elem in elems {
+    match elem {
+      Expr(expr~, ..) => visit_scoped_child_expr(expr, shadowed, visitor)
+      Literal(..) | Source(_) => ()
+    }
+  }
+}
+
+///|
+fn visit_scoped_multiline_string_elem_exprs(
+  elems : @list.List[@syntax.MultilineStringElem],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for elem in elems {
+    match elem {
+      Interp(elems) => visit_scoped_interp_elem_exprs(elems, shadowed, visitor)
+      String(_) => ()
+    }
+  }
+}
+
+///|
+fn visit_scoped_lex_case_exprs(
+  cases : @list.List[@syntax.LexCase],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for case in cases {
+    visit_scoped_lex_top_pattern_exprs(case.pat, shadowed, visitor)
+    let case_shadowed = shadowed_with_lex_top_patterns(shadowed, case.pat)
+    visit_scoped_optional_expr(case.guard_, case_shadowed, visitor)
+    visit_scoped_child_expr(case.body, case_shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_lex_top_pattern_exprs(
+  patterns : @list.List[@syntax.LexTopPattern],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for pattern in patterns {
+    match pattern {
+      Pattern(pattern) =>
+        visit_scoped_lex_pattern_exprs(pattern, shadowed, visitor)
+      Binder(_) | Wildcard(..) => ()
+    }
+  }
+}
+
+///|
+fn visit_scoped_lex_pattern_exprs(
+  pattern : @syntax.LexPattern,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  match pattern {
+    Alias(pat~, ..) => visit_scoped_lex_pattern_exprs(pat, shadowed, visitor)
+    RegexInterp(elems~, ..) =>
+      visit_scoped_interp_elem_exprs(elems, shadowed, visitor)
+    Sequence(pats~, ..) =>
+      for pat in pats {
+        visit_scoped_lex_pattern_exprs(pat, shadowed, visitor)
+      }
+    ConstantRef(..) | Regex(..) => ()
+  }
+}
+
+///|
+fn visit_scoped_list_comprehension_kind_exprs(
+  kind : @syntax.ListComprehensionKind,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Array[String] {
+  match kind {
+    For(binders~, condition~, continue_block~, ..) => {
+      visit_scoped_binder_expr_pairs(binders, shadowed, visitor)
+      let loop_shadowed = shadowed_with_binder_expr_pair_binders(
+        shadowed, binders,
+      )
+      visit_scoped_optional_expr(condition, loop_shadowed, visitor)
+      visit_scoped_binder_expr_pairs(continue_block, loop_shadowed, visitor)
+      loop_shadowed
+    }
+    Foreach(binders~, expr=iter, init~, continue_block~) => {
+      visit_scoped_child_expr(iter, shadowed, visitor)
+      visit_scoped_binder_expr_pairs(init, shadowed, visitor)
+      let loop_shadowed = shadowed_with_optional_binders(shadowed, binders)
+      add_binder_expr_pair_names(loop_shadowed, init)
+      visit_scoped_binder_expr_pairs(continue_block, loop_shadowed, visitor)
+      loop_shadowed
+    }
+  }
+}
+
+///|
+fn visit_scoped_field_def_exprs(
+  fields : @list.List[@syntax.FieldDef],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for field in fields {
+    visit_scoped_child_expr(field.expr, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_case_exprs(
+  cases : @list.List[@syntax.Case],
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  for case in cases {
+    let case_shadowed = shadowed_with_pattern(shadowed, case.pattern)
+    visit_scoped_optional_expr(case.guard_, case_shadowed, visitor)
+    visit_scoped_child_expr(case.body, case_shadowed, visitor)
+  }
+}
+
+///|
+fn visit_scoped_func_exprs(
+  func : @syntax.Func,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  let body_shadowed = shadowed_with_parameters(shadowed, func.parameters)
+  visit_scoped_child_expr(func.body, body_shadowed, visitor)
+}
+
+///|
+fn visit_scoped_regex_pattern_exprs(
+  pattern : @syntax.RegexPattern,
+  shadowed : Array[String],
+  visitor : (ScopedExpr) -> Unit,
+) -> Unit {
+  match pattern {
+    Alias(pat~, ..) => visit_scoped_regex_pattern_exprs(pat, shadowed, visitor)
+    Alternation(pat1~, pat2~, ..) | Sequence(pat1~, pat2~, ..) => {
+      visit_scoped_regex_pattern_exprs(pat1, shadowed, visitor)
+      visit_scoped_regex_pattern_exprs(pat2, shadowed, visitor)
+    }
+    Literal(..) | Reference(..) => ()
+  }
+}
+
+///|
 pub fn collect_scoped_exprs(
   expr : @syntax.Expr,
   exprs : Array[ScopedExpr],

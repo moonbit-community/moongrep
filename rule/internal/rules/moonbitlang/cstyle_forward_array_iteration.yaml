@@ -1,0 +1,15 @@
+id: cstyle_forward_array_iteration
+description: |
+  C-style forward array iteration.
+
+inside-expr: |
+  for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
+    __TARGET__
+  }
+
+patterns:
+  - shape: |
+      $(arr:id)[$(counter:id)]
+
+patterns-not:
+  - shape: $(counter:id)

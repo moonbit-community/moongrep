@@ -149,6 +149,39 @@ test "prefilter requires inside expr and inner pattern literals together" {
 }
 
 ///|
+test "prefilter ignores patterns-not literals for structural rules" {
+  let source =
+    #|id: example
+    #|description: Target unless ignored.
+    #|patterns:
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: impossible_negative_literal()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { target() }\n"))
+  assert_false(rule_is_relevant_to_source(rule, "fn sample { other() }\n"))
+}
+
+///|
+test "prefilter uses inside expr literals for patterns-not only rules" {
+  let source =
+    #|id: example
+    #|description: Wrapped target unless ignored.
+    #|inside-expr: wrapper(__TARGET__)
+    #|patterns-not:
+    #|  - shape: impossible_negative_literal()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { wrapper(ok()) }\n"))
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { impossible_negative_literal() }\n",
+    ),
+  )
+}
+
+///|
 test "prefilter requires taint source and sink literals" {
   let source =
     #|id: example

@@ -20,14 +20,30 @@ pub(all) struct RulePatternSpec {
 }
 
 ///|
+/// How `patterns-not` is interpreted for structural rules.
+///
+/// `PruneOnNegative` means negative patterns prune only candidate branches after
+/// all positive patterns miss. `RejectUncoveredNegative` is derived for
+/// `inside-expr` rules with both positive and negative patterns: positive
+/// subtrees cover negative matches, while uncovered negative matches reject the
+/// whole outer `inside-expr` match.
+pub(all) enum StructuralPatternsNotMode {
+  PruneOnNegative
+  RejectUncoveredNegative
+}
+
+///|
 /// Raw structural-rule definition loaded from YAML.
 ///
 /// `inside_expr`, when present, is a MoonBit expression string that must
 /// contain a single `__TARGET__` placeholder. The normal `patterns` are then
-/// matched inside that target.
+/// matched inside that target. `patterns_not` holds negative structural
+/// patterns that suppress otherwise successful structural matches.
 pub(all) struct StructuralRuleSpec {
   inside_expr : String?
   patterns : Array[RulePatternSpec]
+  patterns_not : Array[RulePatternSpec]
+  patterns_not_mode : StructuralPatternsNotMode
 }
 
 ///|
@@ -107,6 +123,8 @@ pub(all) struct CompiledRuleGuard {
 pub(all) struct CompiledStructuralRule {
   inside_expr : CompiledRulePattern?
   patterns : Array[CompiledRulePattern]
+  patterns_not : Array[CompiledRulePattern]
+  patterns_not_mode : StructuralPatternsNotMode
 }
 
 ///|

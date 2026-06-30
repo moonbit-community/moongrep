@@ -8,4 +8,10 @@ test "matched source line prefix is not dimmed" {
     }),
     content="12 | let value = target()",
   )
+  let arr = [5, 6, 7]
+  for i = 0; i < arr.length(); i = i + 1 {
+    if arr[i] == 0 {
+      println(i)
+    }
+  }
 }

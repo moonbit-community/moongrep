@@ -116,6 +116,9 @@ fn compile_structural_prefilter(rule : CompiledStructuralRule) -> RulePrefilter 
   } else {
     []
   }
+  if rule.patterns.is_empty() {
+    alternatives.push(unique_literals(inside_literals))
+  }
   for pattern in rule.patterns {
     alternatives.push(
       unique_literals(

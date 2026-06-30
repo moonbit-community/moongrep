@@ -46,6 +46,8 @@ pub(all) struct CompiledRulePattern {
 pub(all) struct CompiledStructuralRule {
   inside_expr : CompiledRulePattern?
   patterns : Array[CompiledRulePattern]
+  patterns_not : Array[CompiledRulePattern]
+  patterns_not_mode : StructuralPatternsNotMode
 }
 
 pub(all) struct CompiledTaintRule {
@@ -109,9 +111,16 @@ pub(all) struct RulePrefilter {
   alternatives : Array[Array[String]]
 }
 
+pub(all) enum StructuralPatternsNotMode {
+  PruneOnNegative
+  RejectUncoveredNegative
+}
+
 pub(all) struct StructuralRuleSpec {
   inside_expr : String?
   patterns : Array[RulePatternSpec]
+  patterns_not : Array[RulePatternSpec]
+  patterns_not_mode : StructuralPatternsNotMode
 }
 
 pub(all) struct TaintRuleSpec {
