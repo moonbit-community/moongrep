@@ -17,6 +17,21 @@ source:
 1 | fn sample { target() }
 ```
 
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --verbose --rules e2etests/rules/structural testdata/exclude-dirs --exclude-dir ignored/ ./testdata/exclude-dirs/generated/
+moongrep scan: entering testdata/exclude-dirs
+moongrep scan: file testdata/exclude-dirs/hit.mbt
+moongrep scan: skipping testdata/exclude-dirs/ignored
+moongrep scan: skipping testdata/exclude-dirs/generated
+
+testdata/exclude-dirs/hit.mbt:1:13-1:21
+rule: example
+description:
+  Target call.
+source:
+1 | fn sample { target() }
+```
+
 ## Parse warnings
 
 ```mooncram

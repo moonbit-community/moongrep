@@ -37,8 +37,10 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let compiled_rules = @rule_compile.compile_rules(raw_rules)
   let files : Array[String] = []
   let scan_trace : Array[String] = []
+  let exclude_dirs = normalize_scan_exclude_dirs(options.exclude_dirs)
   collect_source_files(
     options.scan_root,
+    exclude_dirs,
     files,
     if options.verbose {
       Some(scan_trace)
@@ -243,6 +245,7 @@ fn source_text_for_location(source : String, loc : @basic.Location) -> String {
 ///|
 fn collect_source_files(
   path : String,
+  exclude_dirs : Array[String],
   files : Array[String],
   scan_trace : Array[String]?,
 ) -> Unit raise {
@@ -250,10 +253,11 @@ fn collect_source_files(
     push_scan_trace(scan_trace, "moongrep scan: entering \{path}")
     let entries = @miniio.readdir(path, sort=true, follow_symlink=true)
     for entry in entries {
-      if !should_skip_entry(entry) {
-        collect_source_files("\{path}/\{entry}", files, scan_trace)
+      let child_path = "\{path}/\{entry}"
+      if !should_skip_entry(child_path, entry, exclude_dirs) {
+        collect_source_files(child_path, exclude_dirs, files, scan_trace)
       } else {
-        push_scan_trace(scan_trace, "moongrep scan: skipping \{path}/\{entry}")
+        push_scan_trace(scan_trace, "moongrep scan: skipping \{child_path}")
       }
     }
   } else if @miniio.is_file(path) && path.has_suffix(".mbt") {
@@ -270,13 +274,19 @@ fn push_scan_trace(scan_trace : Array[String]?, message : String) -> Unit {
 }
 
 ///|
-fn should_skip_entry(entry : String) -> Bool {
+fn should_skip_entry(
+  path : String,
+  entry : String,
+  exclude_dirs : Array[String],
+) -> Bool {
   // Skip dependency, build, and VCS directories that are noisy and are rarely
   // intended scan targets.
   entry == ".git" ||
   entry == "_build" ||
   entry == ".mooncakes" ||
-  entry == "target"
+  entry == "target" ||
+  exclude_dirs.contains(entry) ||
+  exclude_dirs.contains(normalize_scan_exclude_dir(path))
 }
 
 ///|
