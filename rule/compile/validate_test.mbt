@@ -286,8 +286,7 @@ test "validate allows inherited inside expr metavars with matching inline forms"
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper($(value:exp), $(name:id), $(lit:const), __TARGET__)
+    #|inside-expr: wrapper($(value:exp), $(name:id), $(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: target($(value:exp), $(name:id), $(lit:const))
     #|
@@ -316,8 +315,7 @@ test "validate rejects inherited inside expr metavars with different inline form
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper($(prefix:exp), __TARGET__)
+    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
     #|  - shape: target($(prefix:id))
     #|
@@ -331,8 +329,7 @@ test "validate inside expr constant metavars use matching inline forms" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper($(lit:const), __TARGET__)
+    #|inside-expr: wrapper($(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: target($(lit:const))
     #|
@@ -352,13 +349,12 @@ test "validate inside expr requires exactly one target" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper(x)
+    #|inside-expr: wrapper(x)
     #|patterns:
     #|  - shape: x
     #|
   expect_compile_invalid(
-    source, "inside-expr.shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    source, "inside-expr must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }
 
@@ -474,8 +470,7 @@ test "validate allows inner guard to reference inside expr id and const captures
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|inside-expr: wrapper($(name:id), $(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: call($(name:id), $(lit:const))
     #|    guard:

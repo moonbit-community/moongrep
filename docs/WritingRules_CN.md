@@ -178,9 +178,8 @@ patterns:
 id: wrapped-target
 description: |
   Match a call only when it appears inside a specific wrapper.
-inside-expr:
-  shape: |
-    wrapper($(prefix:exp), __TARGET__)
+inside-expr: |
+  wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: |
       target.call($(prefix:exp))
@@ -318,9 +317,9 @@ patterns:
 
 ### 带 `guard` 的规则加载失败
 
-请检查 `guard` 是否位于结构规则的 `patterns` 或 `inside-expr` 对象下，是否是
-映射，并且每个键都引用了该 pattern 可见的 `id` 或 `const` 捕获。taint 子句中
-仍然会拒绝 `guard`。
+请检查 `guard` 是否位于结构规则的 `patterns` 条目下，是否是映射，并且每个键
+都引用了该 pattern 可见的 `id` 或 `const` 捕获。taint 子句中仍然会拒绝
+`guard`。
 
 ## 测试工作流
 

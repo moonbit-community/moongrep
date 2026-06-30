@@ -22,10 +22,11 @@ pub(all) struct RulePatternSpec {
 ///|
 /// Raw structural-rule definition loaded from YAML.
 ///
-/// `inside_expr`, when present, must contain a single `__TARGET__` expression
-/// placeholder. The normal `patterns` are then matched inside that target.
+/// `inside_expr`, when present, is a MoonBit expression string that must
+/// contain a single `__TARGET__` placeholder. The normal `patterns` are then
+/// matched inside that target.
 pub(all) struct StructuralRuleSpec {
-  inside_expr : RulePatternSpec?
+  inside_expr : String?
   patterns : Array[RulePatternSpec]
 }
 

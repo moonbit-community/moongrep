@@ -63,8 +63,8 @@ Only these top-level keys are accepted:
 - `id` (required): non-empty YAML string that must not contain `/`
 - `description` (required): YAML string
 - `patterns` (required for structural rules): non-empty YAML array
-- `inside-expr` (optional for structural rules): one pattern object used as an
-  outer context
+- `inside-expr` (optional for structural rules): YAML string containing one
+  MoonBit expression snippet used as an outer context
 - `taint` (required for taint rules): YAML mapping
 
 Unknown top-level keys are rejected.
@@ -83,7 +83,7 @@ including trailing newlines produced by block scalars.
 
 ### Pattern Objects
 
-Structural entries in `patterns` and `inside-expr` use this object schema.
+Structural entries in `patterns` use this object schema.
 
 Only these keys are accepted:
 
@@ -417,17 +417,16 @@ context.
 id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
-inside-expr:
-  shape: wrapper($(prefix:exp), __TARGET__)
+inside-expr: wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: target.call($(prefix:exp))
 ```
 
-`inside-expr` uses the same pattern-object schema as entries in `patterns`.
+`inside-expr` is a YAML string parsed as one MoonBit expression snippet.
 
 Additional rules:
 
-- `inside-expr.shape` must contain exactly one `__TARGET__` occurrence in a
+- `inside-expr` must contain exactly one `__TARGET__` occurrence in a
   binding-capable position.
 - `__TARGET__` must occupy a whole expression position, such as a whole call
   argument, receiver, or block expression. If it appears only as a label or
@@ -444,8 +443,6 @@ Additional rules:
 Runtime behavior:
 
 - the current expression is first matched against `inside-expr`
-- if `inside-expr.guard` is present, it must match the bindings established by
-  that outer pattern
 - if it matches, the subtree captured by `__TARGET__` is searched
 - each expression inside that captured subtree is checked against `patterns`
 - inner pattern matching starts with the bindings established by
@@ -580,11 +577,11 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - an unsupported key appears at the top level, inside `taint`, or inside a
   pattern object
 - a required key is missing
-- `id`, `description`, or `shape` is not a YAML string
+- `id`, `description`, `inside-expr`, or `shape` is not a YAML string
 - `id` is empty or contains `/`
 - the rule does not contain exactly one of `patterns` or `taint`
 - `inside-expr` appears on a taint rule
-- `inside-expr` is present but is not a mapping
+- `inside-expr` is present but is not a string
 - `patterns` is not an array or is empty
 - a `patterns` entry is not a mapping
 - `taint` is not a mapping
@@ -604,8 +601,7 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - `$(name:pat)` appears outside a bare pattern position
 - a guard key references an unknown, `exp`, or `pat` capture
 - a guard regex is invalid
-- `inside-expr.shape` does not contain exactly one binding-capable
-  `__TARGET__`
+- `inside-expr` does not contain exactly one binding-capable `__TARGET__`
 - a structural `patterns` entry contains binding-capable `__TARGET__`
 - a structural `patterns` entry uses an inherited `inside-expr` metavar name
   with a different kind
@@ -654,8 +650,7 @@ positions. `start`, `limit`, and `body` are expression captures.
 id: unsafe-wrapper
 description: |
   Match a sink only under an unsafe wrapper.
-inside-expr:
-  shape: unsafe(__TARGET__)
+inside-expr: unsafe(__TARGET__)
 patterns:
   - shape: sink(__)
 ```

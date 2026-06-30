@@ -54,7 +54,7 @@ fn parse_inline_metavar(
     let name = if raw.length() > 1 { raw[1:].to_owned() } else { "value" }
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses untyped inline metavar \{raw}; use explicit typed syntax like $(\{name}:exp)",
+      info="\{shape_context_name(context)} uses untyped inline metavar \{raw}; use explicit typed syntax like $(\{name}:exp)",
     )
   }
   let end = raw.length() - 1
@@ -65,7 +65,7 @@ fn parse_inline_metavar(
   }
   raise RuleLoadError::InvalidRule(
     path~,
-    info="\{context}.shape has invalid inline metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
+    info="\{shape_context_name(context)} has invalid inline metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
   )
 }
 
@@ -886,7 +886,7 @@ fn register_inline_metavar(
   if kind != "exp" && kind != "id" && kind != "const" {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape contains unsupported metavar kind \{kind}",
+      info="\{shape_context_name(context)} contains unsupported metavar kind \{kind}",
     )
   }
   validate_declared_metavar(path, context, name, true)
@@ -925,7 +925,7 @@ fn ensure_no_other_metavar_kind(
   if array_contains(left, name) || array_contains(right, name) {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape declares metavar \{name} as multiple inline metavar kinds",
+      info="\{shape_context_name(context)} declares metavar \{name} as multiple inline metavar kinds",
     )
   }
 }
@@ -940,17 +940,17 @@ fn reject_inline_metavar_position(
   if kind == "exp" {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a bare expression position",
+      info="\{shape_context_name(context)} uses \{inline_metavar_text(kind, name)} outside a bare expression position",
     )
   } else if kind == "pat" {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a bare pattern position",
+      info="\{shape_context_name(context)} uses \{inline_metavar_text(kind, name)} outside a bare pattern position",
     )
   } else {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a constant expression or pattern position",
+      info="\{shape_context_name(context)} uses \{inline_metavar_text(kind, name)} outside a constant expression or pattern position",
     )
   }
 }
@@ -966,12 +966,12 @@ fn reject_qualified_inline_metavar(
       if kind == "exp" {
         raise RuleLoadError::InvalidRule(
           path~,
-          info="\{context}.shape uses \{inline_metavar_text(kind, name)} outside a bare expression position",
+          info="\{shape_context_name(context)} uses \{inline_metavar_text(kind, name)} outside a bare expression position",
         )
       } else {
         raise RuleLoadError::InvalidRule(
           path~,
-          info="\{context}.shape uses \{inline_metavar_text(kind, name)} in an unsupported qualified identifier position",
+          info="\{shape_context_name(context)} uses \{inline_metavar_text(kind, name)} in an unsupported qualified identifier position",
         )
       }
     None => ()

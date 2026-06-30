@@ -134,8 +134,7 @@ test "prefilter requires inside expr and inner pattern literals together" {
   let source =
     #|id: example
     #|description: Wrapped target call.
-    #|inside-expr:
-    #|  shape: wrapper(__TARGET__)
+    #|inside-expr: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|

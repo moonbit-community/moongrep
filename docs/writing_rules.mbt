@@ -257,9 +257,8 @@ let _embed_writingrules_md : String =
   #|id: wrapped-target
   #|description: |
   #|  Match a call only when it appears inside a specific wrapper.
-  #|inside-expr:
-  #|  shape: |
-  #|    wrapper($(prefix:exp), __TARGET__)
+  #|inside-expr: |
+  #|  wrapper($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: |
   #|      target.call($(prefix:exp))
@@ -414,9 +413,9 @@ let _embed_writingrules_md : String =
   #|
   #|### A rule with `guard` fails to load
   #|
-  #|Check that `guard` is under a structural `patterns` or `inside-expr` object,
-  #|that it is a mapping, and that every key names an `id` or `const` capture
-  #|visible to that pattern. `guard` is still rejected in taint clauses.
+  #|Check that `guard` is under a structural `patterns` entry, that it is a
+  #|mapping, and that every key names an `id` or `const` capture visible to that
+  #|pattern. `guard` is still rejected in taint clauses.
   #|
   #|## Testing Workflow
   #|
