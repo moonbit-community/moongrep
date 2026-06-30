@@ -10,6 +10,7 @@ priv struct CliOptions {
   rules_root : String?
   patterns : Array[String]
   scan_root : String
+  exclude_dirs : Array[String]
   verbose : Bool
   enable_builtin_rules : Bool
   matcher : @rule_model.MatcherBackend
@@ -51,6 +52,11 @@ let scan_command : @argparse.Command = @argparse.Command(
       "pattern",
       action=@argparse.OptionAction::Append,
       about="Anonymous structural pattern to match.",
+    ),
+    @argparse.OptionArg(
+      "exclude-dir",
+      action=@argparse.OptionAction::Append,
+      about="Directory name or path to skip while recursively scanning.",
     ),
   ],
   positionals=[@argparse.PositionArg("scan-root", about="Directory to scan.")],
@@ -119,6 +125,27 @@ fn all_cli_values(
   } else {
     []
   }
+}
+
+///|
+fn normalize_scan_exclude_dir(path : String) -> String {
+  let mut normalized = path
+  while normalized.length() > 1 && normalized.has_suffix("/") {
+    normalized = normalized[0:normalized.length() - 1].to_owned()
+  }
+  while normalized.has_prefix("./") {
+    normalized = normalized[2:].to_owned()
+  }
+  normalized
+}
+
+///|
+fn normalize_scan_exclude_dirs(paths : Array[String]) -> Array[String] {
+  let normalized : Array[String] = []
+  for path in paths {
+    normalized.push(normalize_scan_exclude_dir(path))
+  }
+  normalized
 }
 
 ///|
@@ -201,6 +228,9 @@ fn scan_cli_options(
   }
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let patterns = all_cli_values(scan_matches.values, "pattern")
+  let exclude_dirs = normalize_scan_exclude_dirs(
+    all_cli_values(scan_matches.values, "exclude-dir"),
+  )
   if rules_root is None && patterns.is_empty() && !enable_builtin_rules {
     raise CliError::Usage(
       message="missing required --rules, --pattern, or --enable-builtin-rules",
@@ -213,7 +243,47 @@ fn scan_cli_options(
   } else {
     "."
   }
-  { rules_root, patterns, scan_root, verbose, enable_builtin_rules, matcher }
+  {
+    rules_root,
+    patterns,
+    scan_root,
+    exclude_dirs,
+    verbose,
+    enable_builtin_rules,
+    matcher,
+  }
+}
+
+///|
+fn normalize_scan_exclude_dir_args(argv : Array[String]) -> Array[String] raise {
+  if argv.length() == 0 || argv[0] != "scan" {
+    return argv
+  }
+  let normalized : Array[String] = [argv[0]]
+  let mut index = 1
+  while index < argv.length() {
+    let arg = argv[index]
+    if arg == "--exclude-dir" {
+      let mut value_count = 0
+      index += 1
+      while index < argv.length() && !argv[index].has_prefix("-") {
+        normalized.push("--exclude-dir")
+        normalized.push(argv[index])
+        value_count += 1
+        index += 1
+      }
+      if value_count == 0 {
+        raise CliError::Usage(
+          message="missing value for --exclude-dir",
+          exit_code=2,
+        )
+      }
+    } else {
+      normalized.push(arg)
+      index += 1
+    }
+  }
+  normalized
 }
 
 ///|
@@ -222,17 +292,20 @@ fn scan_cli_options(
 /// `scan` is required after the executable name. Within the `scan` subcommand,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
 /// least one `--pattern <pattern>`, or `--enable-builtin-rules` is required, and
-/// `--verbose` is optional. `MOONGREP_JSON_MATCHER=true` selects the JSON
-/// matcher backend. One optional scan-root positional may appear in the
-/// argument list. If the rules option appears multiple times, the last value
-/// wins. Repeated patterns are appended in order. Missing subcommands, required
-/// arguments, unknown options, or more than one scan root raise
+/// `--verbose` is optional. `--exclude-dir <dir>...` skips matching child
+/// directory names or paths during recursive source scanning.
+/// `MOONGREP_JSON_MATCHER=true` selects the JSON matcher backend. One optional
+/// scan-root positional may appear in the argument list. If the rules option
+/// appears multiple times, the last value wins. Repeated patterns and exclude
+/// directories are appended in order. Missing subcommands, required arguments,
+/// unknown options, or more than one scan root raise
 /// `CliError::Usage` with exit code 2.
 fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = {},
 ) -> (String, CliOptions?, String?) raise {
-  let matches = moongrep_command.parse(argv~, env~) catch {
+  let normalized_argv = normalize_scan_exclude_dir_args(argv)
+  let matches = moongrep_command.parse(argv=normalized_argv, env~) catch {
     err => {
       let message = "\{err}"
       raise CliError::Usage(message~, exit_code=2)

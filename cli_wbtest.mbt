@@ -134,6 +134,24 @@ test "cli args parse scan verbose flag" {
 }
 
 ///|
+test "cli args parse scan exclude dirs" {
+  match
+    parse_cli_command([
+      "scan", "--rules", "custom-rules", "src", "--exclude-dir", "./vendor/", "generated/",
+    ]) {
+    ("scan", Some(options), None) => {
+      expect_rules_root(options, "custom-rules")
+      inspect(options.scan_root, content="src")
+      debug_inspect(options.exclude_dirs, content="[\"vendor\", \"generated\"]")
+      assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
+      expect_ast_matcher(options)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
 test "cli args reject json matcher flag" {
   expect_cli_usage(
     ["scan", "--rules", "custom-rules", "--json-matcher", "src"],

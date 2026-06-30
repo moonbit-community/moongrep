@@ -16,7 +16,7 @@ moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) | --pattern <pattern>)... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) | --pattern <pattern>)... [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
@@ -27,6 +27,11 @@ pattern string itself. One optional positional `scan-root` may appear in the `sc
 list and defaults to `.`. If the rules option appears multiple times, the last
 value wins. Repeated `--pattern` values are appended as separate anonymous
 rules.
+
+Use `--exclude-dir <dir>...` to skip directory names or paths while recursively
+scanning the source tree. When passing multiple excluded directories after one
+flag, put `scan-root` before `--exclude-dir`; repeated `--exclude-dir <dir>` and
+`--exclude-dir=<dir>` forms are also accepted.
 
 Usage errors print a message and exit with code 2: missing `scan` command,
 missing both rules and pattern options, missing option value, unknown options,
@@ -52,6 +57,8 @@ moon runwasm moonbit-community/moongrep -- scan --pattern 'target()'
 The scanner recursively reads `.mbt` files. When descending from `scan-root`,
 child entries named `.git`, `_build`, `.mooncakes`, or `target` are skipped; if
 one of those directories is passed explicitly as `scan-root`, it is scanned.
+Directories supplied through `--exclude-dir` are skipped by entry name anywhere
+below `scan-root`, or by exact child path.
 
 Symbolic links encountered during recursive source or rule traversal are
 followed. Files that fail to parse are reported as warnings and skipped; other

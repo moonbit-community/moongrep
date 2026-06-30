@@ -28,11 +28,12 @@ Arguments:
   scan-root  Directory to scan.
 
 Options:
-  -h, --help              Show help information.
-  --verbose               Print directory traversal progress.
-  --enable-builtin-rules  Enable embedded builtin rules.
-  -r, --rules <rules>     Directory containing YAML rules.
-  --pattern <pattern>     Anonymous structural pattern to match.
+  -h, --help                   Show help information.
+  --verbose                    Print directory traversal progress.
+  --enable-builtin-rules       Enable embedded builtin rules.
+  -r, --rules <rules>          Directory containing YAML rules.
+  --pattern <pattern>          Anonymous structural pattern to match.
+  --exclude-dir <exclude-dir>  Directory name or path to skip while recursively scanning.
 ```
 
 ## moongrep scan --enable-builtin-rules
