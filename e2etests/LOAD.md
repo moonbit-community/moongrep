@@ -24,6 +24,19 @@ source:
 ```
 
 ```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rule testdata/recursive-rule-discovery-rules/nested/b.yml testdata/recursive-rule-discovery-src
+testdata/recursive-rule-discovery-src/hits.mbt:4:8-4:9
+rule: example
+description:
+  User input reaches sink.
+source:
+\x1b[90m2 |   let same = value == value\x1b[39m (escaped)
+\x1b[90m3 |   let x = get_user_input()\x1b[39m (escaped)
+4 |   sink(x)
+\x1b[90m5 | }\x1b[39m (escaped)
+```
+
+```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/recursive-rule-discovery-src
 InvalidRule(
   path="testdata/empty-rule-root",

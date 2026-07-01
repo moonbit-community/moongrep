@@ -155,6 +155,9 @@ fn load_scan_rules(
   if options.rules_root is Some(rules_root) {
     raw_rules.append(@rule_load.load_rules(rules_root))
   }
+  if options.rule_file is Some(rule_file) {
+    raw_rules.push(@rule_load.load_rule(rule_file))
+  }
   for index in 0..<options.patterns.length() {
     raw_rules.push(anonymous_pattern_rule(options.patterns[index], index))
   }

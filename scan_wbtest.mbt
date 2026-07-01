@@ -40,6 +40,7 @@ test "scan recognizes only qualified moongrep skip attribute" {
 fn skip_scan_options() -> CliOptions {
   {
     rules_root: Some("testdata/skip-structural/rules"),
+    rule_file: None,
     patterns: [],
     scan_root: "testdata/skip-structural/src",
     exclude_dirs: [],
@@ -53,10 +54,25 @@ fn skip_scan_options() -> CliOptions {
 fn exclude_dir_scan_options() -> CliOptions {
   {
     rules_root: Some("e2etests/rules/structural"),
+    rule_file: None,
     patterns: [],
     scan_root: "testdata/exclude-dirs",
     exclude_dirs: ["ignored/", "./testdata/exclude-dirs/generated/"],
     verbose: true,
+    enable_builtin_rules: false,
+    matcher: @rule_model.MatcherBackend::AstMatcher,
+  }
+}
+
+///|
+fn single_rule_file_scan_options() -> CliOptions {
+  {
+    rules_root: None,
+    rule_file: Some("testdata/recursive-rule-discovery-rules/nested/b.yml"),
+    patterns: [],
+    scan_root: "testdata/recursive-rule-discovery-src",
+    exclude_dirs: [],
+    verbose: false,
     enable_builtin_rules: false,
     matcher: @rule_model.MatcherBackend::AstMatcher,
   }
@@ -107,4 +123,14 @@ test "scan excludes configured directory names" {
       "moongrep scan: skipping testdata/exclude-dirs/generated",
     ),
   )
+}
+
+///|
+test "scan loads only the configured single rule file" {
+  let result = collect_directory_hits(single_rule_file_scan_options())
+  let summaries : Array[String] = []
+  for hit in result.hits {
+    summaries.push(scan_hit_line_summary(hit))
+  }
+  debug_inspect(summaries, content="[\"example:4\"]")
 }
