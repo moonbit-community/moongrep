@@ -155,7 +155,6 @@ test "scan verbose lists loaded rule ids before traversal" {
       #|  "moongrep scan: loaded rule example",
       #|  "moongrep scan: loaded rule nested/example",
       #|  "moongrep scan: entering testdata/recursive-rule-discovery-src",
-      #|  "moongrep scan: skipping testdata/recursive-rule-discovery-src/_build",
       #|  "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
       #|]
     ),
