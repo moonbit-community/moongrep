@@ -289,7 +289,7 @@ patterns:
 moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 ```
 
-`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，扫描器使用 `.`。`--verbose` 会在 warning 和匹配结果之前打印目录遍历进度。
+`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，扫描器使用 `.`。`--verbose` 会在 warning 和匹配结果之前打印已加载的 rule id 和目录遍历进度。
 
 ## 完整示例
 

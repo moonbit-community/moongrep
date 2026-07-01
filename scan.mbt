@@ -37,6 +37,11 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let compiled_rules = @rule_compile.compile_rules(raw_rules)
   let files : Array[String] = []
   let scan_trace : Array[String] = []
+  if options.verbose {
+    for rule in compiled_rules {
+      scan_trace.push("moongrep scan: loaded rule \{rule.rule_id}")
+    }
+  }
   let exclude_dirs = normalize_scan_exclude_dirs(options.exclude_dirs)
   collect_source_files(
     options.scan_root,

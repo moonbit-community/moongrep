@@ -34,7 +34,7 @@ let scan_command : @argparse.Command = @argparse.Command(
     @argparse.FlagArg(
       "verbose",
       long="verbose",
-      about="Print directory traversal progress.",
+      about="Print loaded rule ids and directory traversal progress.",
     ),
     @argparse.FlagArg(
       "enable-builtin-rules",

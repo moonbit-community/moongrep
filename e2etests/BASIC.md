@@ -29,7 +29,7 @@ Arguments:
 
 Options:
   -h, --help                   Show help information.
-  --verbose                    Print directory traversal progress.
+  --verbose                    Print loaded rule ids and directory traversal progress.
   --enable-builtin-rules       Enable embedded builtin rules.
   -r, --rules <rules>          Directory containing YAML rules.
   --rule <rule>                Single YAML rule file.
