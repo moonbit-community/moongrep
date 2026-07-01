@@ -12,17 +12,9 @@ pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[@model.Com
 
 pub fn apply_structural_rules_to_impl(String, @syntax.Impl, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
 
-pub fn apply_structural_rules_to_impl_with_backend(String, @syntax.Impl, Array[@model.CompiledRule], @model.MatcherBackend) -> Array[@model.RuleFinding]
-
-pub fn apply_structural_rules_with_backend(String, @list.List[@syntax.Impl], Array[@model.CompiledRule], @model.MatcherBackend) -> Array[@model.RuleFinding]
-
 pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
 pub fn apply_taint_rules_to_impl(String, @syntax.Impl, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
-
-pub fn apply_taint_rules_to_impl_with_backend(String, @syntax.Impl, Array[@model.CompiledRule], @model.MatcherBackend) -> Array[@model.RuleFinding] raise
-
-pub fn apply_taint_rules_with_backend(String, @list.List[@syntax.Impl], Array[@model.CompiledRule], @model.MatcherBackend) -> Array[@model.RuleFinding] raise
 
 // Errors
 
