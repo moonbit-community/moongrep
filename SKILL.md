@@ -16,17 +16,18 @@ moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root>) | --pattern <pattern>)... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern>)... [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
-optional when at least one `--pattern <pattern>` is supplied. The long rules
-option accepts both `--rules <rules-root>` and `--rules=<rules-root>` forms.
-Inline patterns are treated as anonymous structural rules whose rule id is the
-pattern string itself. One optional positional `scan-root` may appear in the `scan` argument
-list and defaults to `.`. If the rules option appears multiple times, the last
-value wins. Repeated `--pattern` values are appended as separate anonymous
-rules.
+optional when `--rule <rule-file>` or at least one `--pattern <pattern>` is
+supplied. The long rules option accepts both `--rules <rules-root>` and
+`--rules=<rules-root>` forms. Use `--rule <rule-file>` to load exactly one YAML
+rule file. Inline patterns are treated as anonymous structural rules whose rule
+id is the pattern string itself. One optional positional `scan-root` may appear
+in the `scan` argument list and defaults to `.`. If the rules or rule option
+appears multiple times, the last value wins. Repeated `--pattern` values are
+appended as separate anonymous rules.
 
 Use `--exclude-dir <dir>...` to skip directory names or paths while recursively
 scanning the source tree. When passing multiple excluded directories after one
@@ -51,6 +52,7 @@ If `scan-root` is omitted, `moongrep` scans the current directory:
 ```bash
 moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules
 moon runwasm moonbit-community/moongrep -- scan -r path/to/rules
+moon runwasm moonbit-community/moongrep -- scan --rule path/to/rule.yaml
 moon runwasm moonbit-community/moongrep -- scan --pattern 'target()'
 ```
 

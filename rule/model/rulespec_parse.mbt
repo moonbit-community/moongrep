@@ -339,14 +339,18 @@ fn rule_id_from_path(
   rules_root : String,
   id : String,
 ) -> String raise {
-  let prefix = "\{rules_root}/"
-  if !path.has_prefix(prefix) {
-    raise invalid_rule(
-      path~,
-      info="rule path is outside rules root \{rules_root}",
-    )
+  let relative = if rules_root == "" {
+    path
+  } else {
+    let prefix = "\{rules_root}/"
+    if !path.has_prefix(prefix) {
+      raise invalid_rule(
+        path~,
+        info="rule path is outside rules root \{rules_root}",
+      )
+    }
+    path[prefix.length():].to_owned()
   }
-  let relative = path[prefix.length():].to_owned()
   let relative_without_suffix = if relative.has_suffix(".yaml") {
     relative[0:relative.length() - 5].to_owned()
   } else if relative.has_suffix(".yml") {

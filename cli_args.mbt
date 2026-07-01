@@ -8,6 +8,7 @@ priv suberror CliError {
 /// Parsed command-line options for one scan target.
 priv struct CliOptions {
   rules_root : String?
+  rule_file : String?
   patterns : Array[String]
   scan_root : String
   exclude_dirs : Array[String]
@@ -47,6 +48,11 @@ let scan_command : @argparse.Command = @argparse.Command(
       short='r',
       action=@argparse.OptionAction::Append,
       about="Directory containing YAML rules.",
+    ),
+    @argparse.OptionArg(
+      "rule",
+      action=@argparse.OptionAction::Append,
+      about="Single YAML rule file.",
     ),
     @argparse.OptionArg(
       "pattern",
@@ -227,13 +233,17 @@ fn scan_cli_options(
     @rule_model.MatcherBackend::AstMatcher
   }
   let rules_root = last_cli_value(scan_matches.values, "rules")
+  let rule_file = last_cli_value(scan_matches.values, "rule")
   let patterns = all_cli_values(scan_matches.values, "pattern")
   let exclude_dirs = normalize_scan_exclude_dirs(
     all_cli_values(scan_matches.values, "exclude-dir"),
   )
-  if rules_root is None && patterns.is_empty() && !enable_builtin_rules {
+  if rules_root is None &&
+    rule_file is None &&
+    patterns.is_empty() &&
+    !enable_builtin_rules {
     raise CliError::Usage(
-      message="missing required --rules, --pattern, or --enable-builtin-rules",
+      message="missing required --rules, --rule, --pattern, or --enable-builtin-rules",
       exit_code=2,
     )
   }
@@ -245,6 +255,7 @@ fn scan_cli_options(
   }
   {
     rules_root,
+    rule_file,
     patterns,
     scan_root,
     exclude_dirs,
@@ -290,15 +301,16 @@ fn normalize_scan_exclude_dir_args(argv : Array[String]) -> Array[String] raise 
 /// Parses command-line arguments after the executable name has been removed.
 ///
 /// `scan` is required after the executable name. Within the `scan` subcommand,
-/// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`, or at
-/// least one `--pattern <pattern>`, or `--enable-builtin-rules` is required, and
-/// `--verbose` is optional. `--exclude-dir <dir>...` skips matching child
-/// directory names or paths during recursive source scanning.
+/// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`,
+/// `--rule <rule-file>`, at least one `--pattern <pattern>`, or
+/// `--enable-builtin-rules` is required, and `--verbose` is optional.
+/// `--exclude-dir <dir>...` skips matching child directory names or paths
+/// during recursive source scanning.
 /// `MOONGREP_JSON_MATCHER=true` selects the JSON matcher backend. One optional
 /// scan-root positional may appear in the argument list. If the rules option
-/// appears multiple times, the last value wins. Repeated patterns and exclude
-/// directories are appended in order. Missing subcommands, required arguments,
-/// unknown options, or more than one scan root raise
+/// or single rule option appears multiple times, the last value wins. Repeated
+/// patterns and exclude directories are appended in order. Missing subcommands,
+/// required arguments, unknown options, or more than one scan root raise
 /// `CliError::Usage` with exit code 2.
 #moongrep.skip
 fn parse_cli_command(

@@ -19,6 +19,15 @@ fn expect_rules_root(options : CliOptions, expected : String) -> Unit raise {
 }
 
 ///|
+fn expect_rule_file(options : CliOptions, expected : String) -> Unit raise {
+  if options.rule_file is Some(path) {
+    inspect(path, content=expected)
+  } else {
+    fail("expected rule file")
+  }
+}
+
+///|
 fn expect_json_matcher(options : CliOptions) -> Unit raise {
   match options.matcher {
     @rule_model.MatcherBackend::JsonMatcher => ()
@@ -92,6 +101,23 @@ test "cli args parse rules root and default scan root" {
   match parse_cli_command(["scan", "--rules", "custom-rules"]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
+      assert_true(options.rule_file is None)
+      debug_inspect(options.patterns, content="[]")
+      inspect(options.scan_root, content=".")
+      assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
+      expect_ast_matcher(options)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse single rule file and default scan root" {
+  match parse_cli_command(["scan", "--rule", "custom-rules/example.yaml"]) {
+    ("scan", Some(options), None) => {
+      assert_true(options.rules_root is None)
+      expect_rule_file(options, "custom-rules/example.yaml")
       debug_inspect(options.patterns, content="[]")
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)

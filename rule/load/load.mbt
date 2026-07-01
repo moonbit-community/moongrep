@@ -23,6 +23,25 @@ pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
 }
 
 ///|
+/// Loads exactly one YAML rule file.
+pub fn load_rule(rule_file : String) -> RawRuleSpec raise {
+  let source = @miniio.read_text_file(rule_file)
+  @model.RawRuleSpec::from_str(
+    rule_file,
+    rule_file_rules_root(rule_file),
+    source,
+  )
+}
+
+///|
+fn rule_file_rules_root(rule_file : String) -> String {
+  match rule_file.rev_split_once("/") {
+    Some((directory, _file_name)) => directory.to_owned()
+    None => ""
+  }
+}
+
+///|
 fn collect_rule_files(rules_root : String) -> Array[String] raise {
   let files : Array[String] = []
   walk_rule_dir(rules_root, files)
