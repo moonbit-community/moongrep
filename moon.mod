@@ -1,6 +1,6 @@
 name = "moonbit-community/moongrep"
 
-version = "0.1.9"
+version = "0.1.10"
 
 preferred_target = "wasm"
 
@@ -18,7 +18,7 @@ repository = "https://github.com/moonbit-community/moongrep"
 
 license = "Apache-2.0"
 
-keywords = [ ]
+keywords = [ "linter", "grep", "refactoring", "static-analysis" ]
 
 description = "Experimental MoonBit structural search and taint-analysis tool"
 
