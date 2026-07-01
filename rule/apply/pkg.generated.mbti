@@ -2,6 +2,7 @@
 package "moonbit-community/moongrep/rule/apply"
 
 import {
+  "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
   "moonbitlang/core/list",
   "moonbitlang/parser/syntax",
@@ -12,9 +13,17 @@ pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[@model.Com
 
 pub fn apply_structural_rules_to_impl(String, @syntax.Impl, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
 
+pub fn apply_structural_rules_to_impl_with_matcher(String, @syntax.Impl, Array[@model.CompiledRule], @matching.MatcherMode) -> Array[@model.RuleFinding]
+
+pub fn apply_structural_rules_with_matcher(String, @list.List[@syntax.Impl], Array[@model.CompiledRule], @matching.MatcherMode) -> Array[@model.RuleFinding]
+
 pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
 pub fn apply_taint_rules_to_impl(String, @syntax.Impl, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
+
+pub fn apply_taint_rules_to_impl_with_matcher(String, @syntax.Impl, Array[@model.CompiledRule], @matching.MatcherMode) -> Array[@model.RuleFinding] raise
+
+pub fn apply_taint_rules_with_matcher(String, @list.List[@syntax.Impl], Array[@model.CompiledRule], @matching.MatcherMode) -> Array[@model.RuleFinding] raise
 
 // Errors
 

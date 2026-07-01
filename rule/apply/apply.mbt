@@ -9,7 +9,7 @@ using @model {
 }
 
 ///|
-using @taint_lowering {lower_compiled_taint_rule}
+using @taint_lowering {lower_compiled_taint_rule_with_matcher}
 
 ///|
 using @traverse {collect_scoped_exprs, type ScopedExpr}
@@ -34,6 +34,7 @@ priv struct AstStructuralRuleEntry {
   pattern_buckets : ExprPatternBuckets
   negative_pattern_buckets : ExprPatternBuckets
   inside_root_key : String?
+  matcher_mode : @matching.MatcherMode
 }
 
 ///|
@@ -47,9 +48,21 @@ pub fn apply_structural_rules(
   impls : @list.List[@syntax.Impl],
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
+  apply_structural_rules_with_matcher(file, impls, rules, @matching.AstMatcher)
+}
+
+///|
+pub fn apply_structural_rules_with_matcher(
+  file : String,
+  impls : @list.List[@syntax.Impl],
+  rules : Array[CompiledRule],
+  matcher_mode : @matching.MatcherMode,
+) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
   for node in impls {
-    let node_hits = apply_structural_rules_to_impl(file, node, rules)
+    let node_hits = apply_structural_rules_to_impl_with_matcher(
+      file, node, rules, matcher_mode,
+    )
     for hit in node_hits {
       hits.push(hit)
     }
@@ -63,8 +76,23 @@ pub fn apply_structural_rules_to_impl(
   node : @syntax.Impl,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
+  apply_structural_rules_to_impl_with_matcher(
+    file,
+    node,
+    rules,
+    @matching.AstMatcher,
+  )
+}
+
+///|
+pub fn apply_structural_rules_to_impl_with_matcher(
+  file : String,
+  node : @syntax.Impl,
+  rules : Array[CompiledRule],
+  matcher_mode : @matching.MatcherMode,
+) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
-  let entries = ast_structural_rule_entries(rules)
+  let entries = ast_structural_rule_entries(rules, matcher_mode)
   @traverse.visit_impl_scoped_expr_roots(node, fn(scoped_expr) {
     apply_ast_structural_rule_entries_to_scoped_expr(
       file, entries, scoped_expr, hits,
@@ -76,6 +104,7 @@ pub fn apply_structural_rules_to_impl(
 ///|
 fn ast_structural_rule_entries(
   rules : Array[CompiledRule],
+  matcher_mode : @matching.MatcherMode,
 ) -> Array[AstStructuralRuleEntry] {
   let entries : Array[AstStructuralRuleEntry] = []
   for rule in rules {
@@ -96,6 +125,7 @@ fn ast_structural_rule_entries(
             structural.patterns_not,
           ),
           inside_root_key,
+          matcher_mode,
         })
       }
       _ => ()
@@ -154,6 +184,7 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
       entry.negative_pattern_buckets,
       scoped_expr.expr,
       hits,
+      entry.matcher_mode,
     )
     RuleContinue
   } else {
@@ -166,6 +197,7 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
       None,
       None,
       hits,
+      entry.matcher_mode,
     )
   }
 }
@@ -180,9 +212,21 @@ pub fn apply_taint_rules(
   impls : @list.List[@syntax.Impl],
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
+  apply_taint_rules_with_matcher(file, impls, rules, @matching.AstMatcher)
+}
+
+///|
+pub fn apply_taint_rules_with_matcher(
+  file : String,
+  impls : @list.List[@syntax.Impl],
+  rules : Array[CompiledRule],
+  matcher_mode : @matching.MatcherMode,
+) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
   for node in impls {
-    let node_hits = apply_taint_rules_to_impl(file, node, rules)
+    let node_hits = apply_taint_rules_to_impl_with_matcher(
+      file, node, rules, matcher_mode,
+    )
     for hit in node_hits {
       hits.push(hit)
     }
@@ -196,11 +240,28 @@ pub fn apply_taint_rules_to_impl(
   node : @syntax.Impl,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
+  apply_taint_rules_to_impl_with_matcher(
+    file,
+    node,
+    rules,
+    @matching.AstMatcher,
+  )
+}
+
+///|
+pub fn apply_taint_rules_to_impl_with_matcher(
+  file : String,
+  node : @syntax.Impl,
+  rules : Array[CompiledRule],
+  matcher_mode : @matching.MatcherMode,
+) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
   for rule in rules {
     match rule.definition {
       Taint(taint_rule) =>
-        apply_taint_rule_to_impl(file, rule, taint_rule, node, hits)
+        apply_taint_rule_to_impl(
+          file, rule, taint_rule, node, hits, matcher_mode,
+        )
       _ => ()
     }
   }
@@ -214,8 +275,11 @@ fn apply_taint_rule_to_impl(
   taint_rule : CompiledTaintRule,
   node : @syntax.Impl,
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> Unit raise {
-  let spec = lower_compiled_taint_rule(rule, taint_rule)
+  let spec = lower_compiled_taint_rule_with_matcher(
+    rule, taint_rule, matcher_mode,
+  )
   try @taint.analyze_function_like(node, spec) catch {
     @taint.TaintAnalysisError::UnsupportedFunctionLike(..) => ()
     err => raise err
@@ -255,11 +319,12 @@ fn apply_inside_expr_ast_bucketed(
   negative_pattern_buckets : ExprPatternBuckets,
   expr : @syntax.Expr,
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> Unit {
   if !ast_bucket_root_key_matches(inside_root_key, expr) {
     return
   }
-  if match_ast_rule_pattern(inside, expr, None) is Some(result) {
+  if match_ast_rule_pattern(inside, expr, None, matcher_mode) is Some(result) {
     if result.bindings.get("__TARGET__")
       is Some(@matching.BoundValue::Expr(target)) {
       if structural.patterns.is_empty() {
@@ -274,6 +339,7 @@ fn apply_inside_expr_ast_bucketed(
           result.bindings,
           inside.compiled.identifier_metavars,
           hits,
+          matcher_mode,
         )
       } else {
         match structural.patterns_not_mode {
@@ -288,6 +354,7 @@ fn apply_inside_expr_ast_bucketed(
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
+              matcher_mode,
             )
           @model.StructuralPatternsNotMode::PruneOnNegative =>
             apply_ast_bucketed_patterns_in_target_subtree(
@@ -300,6 +367,7 @@ fn apply_inside_expr_ast_bucketed(
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
+              matcher_mode,
             )
         }
       }
@@ -318,12 +386,13 @@ fn apply_ast_bucketed_patterns_in_target_subtree(
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> Unit {
   @traverse.visit_scoped_exprs(target, fn(scoped_expr) {
     match
       apply_ast_bucketed_patterns_at_scoped_expr(
         file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_loc,
-        outer_bindings, inherited_identifier_metavars, hits,
+        outer_bindings, inherited_identifier_metavars, hits, matcher_mode,
       ) {
       RulePrune => @traverse.ScopedExprVisitAction::VisitPrune
       RuleContinue => @traverse.ScopedExprVisitAction::VisitContinue
@@ -342,6 +411,7 @@ fn apply_ast_bucketed_covered_patterns_in_target_subtree(
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> Unit {
   let pending_hits : Array[RuleFinding] = []
   let mut rejected = false
@@ -352,7 +422,7 @@ fn apply_ast_bucketed_covered_patterns_in_target_subtree(
       match
         apply_ast_bucketed_covered_patterns_at_scoped_expr(
           file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_loc,
-          outer_bindings, inherited_identifier_metavars, pending_hits,
+          outer_bindings, inherited_identifier_metavars, pending_hits, matcher_mode,
         ) {
         InsideTargetPrune => @traverse.ScopedExprVisitAction::VisitPrune
         InsideTargetReject => {
@@ -378,9 +448,11 @@ fn apply_inside_expr_only_ast_bucketed(
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> Unit {
   if ast_bucketed_negative_patterns_match_any_scoped_expr(
       negative_pattern_buckets, target_exprs, outer_bindings, inherited_identifier_metavars,
+      matcher_mode,
     ) {
     return
   }
@@ -415,6 +487,7 @@ fn apply_ast_bucketed_covered_patterns_at_scoped_expr(
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> InsideTargetScanAction {
   for indexed in pattern_buckets.patterns_for_expr(scoped_expr.expr) {
     if ast_pattern_blocked_by_shadowed_outer_id(
@@ -429,6 +502,7 @@ fn apply_ast_bucketed_covered_patterns_at_scoped_expr(
         indexed.pattern,
         scoped_expr.expr,
         Some(outer_bindings),
+        matcher_mode,
       )
       is Some(_) {
       hits.push({
@@ -444,6 +518,7 @@ fn apply_ast_bucketed_covered_patterns_at_scoped_expr(
   }
   if ast_bucketed_negative_patterns_match_scoped_expr(
       negative_pattern_buckets, scoped_expr, outer_bindings, inherited_identifier_metavars,
+      matcher_mode,
     ) {
     return InsideTargetReject
   }
@@ -461,6 +536,7 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> RuleTraversalAction {
   for indexed in pattern_buckets.patterns_for_expr(scoped_expr.expr) {
     if ast_pattern_blocked_by_shadowed_outer_id(
@@ -475,6 +551,7 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
         indexed.pattern,
         scoped_expr.expr,
         Some(outer_bindings),
+        matcher_mode,
       )
       is Some(_) {
       hits.push({
@@ -490,6 +567,7 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
   }
   if ast_bucketed_negative_patterns_match_scoped_expr(
       negative_pattern_buckets, scoped_expr, outer_bindings, inherited_identifier_metavars,
+      matcher_mode,
     ) {
     return RulePrune
   }
@@ -506,9 +584,15 @@ fn apply_ast_patterns_at_expr(
   outer_loc : @basic.Location?,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
   hits : Array[RuleFinding],
+  matcher_mode : @matching.MatcherMode,
 ) -> RuleTraversalAction {
   for indexed in pattern_buckets.patterns_for_expr(expr) {
-    if match_ast_rule_pattern(indexed.pattern, expr, initial_bindings)
+    if match_ast_rule_pattern(
+        indexed.pattern,
+        expr,
+        initial_bindings,
+        matcher_mode,
+      )
       is Some(_) {
       hits.push({
         file,
@@ -522,7 +606,7 @@ fn apply_ast_patterns_at_expr(
     }
   }
   if ast_negative_patterns_match_expr(
-      negative_pattern_buckets, expr, initial_bindings,
+      negative_pattern_buckets, expr, initial_bindings, matcher_mode,
     ) {
     return RulePrune
   }
@@ -534,9 +618,15 @@ fn ast_negative_patterns_match_expr(
   negative_pattern_buckets : ExprPatternBuckets,
   expr : @syntax.Expr,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
+  matcher_mode : @matching.MatcherMode,
 ) -> Bool {
   for indexed in negative_pattern_buckets.patterns_for_expr(expr) {
-    if match_ast_rule_pattern(indexed.pattern, expr, initial_bindings)
+    if match_ast_rule_pattern(
+        indexed.pattern,
+        expr,
+        initial_bindings,
+        matcher_mode,
+      )
       is Some(_) {
       return true
     }
@@ -550,6 +640,7 @@ fn ast_bucketed_negative_patterns_match_scoped_expr(
   scoped_expr : ScopedExpr,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
+  matcher_mode : @matching.MatcherMode,
 ) -> Bool {
   for indexed in negative_pattern_buckets.patterns_for_expr(scoped_expr.expr) {
     if ast_pattern_blocked_by_shadowed_outer_id(
@@ -564,6 +655,7 @@ fn ast_bucketed_negative_patterns_match_scoped_expr(
         indexed.pattern,
         scoped_expr.expr,
         Some(initial_bindings),
+        matcher_mode,
       )
       is Some(_) {
       return true
@@ -578,10 +670,12 @@ fn ast_bucketed_negative_patterns_match_any_scoped_expr(
   target_exprs : Array[ScopedExpr],
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
+  matcher_mode : @matching.MatcherMode,
 ) -> Bool {
   for scoped_expr in target_exprs {
     if ast_bucketed_negative_patterns_match_scoped_expr(
         negative_pattern_buckets, scoped_expr, initial_bindings, inherited_identifier_metavars,
+        matcher_mode,
       ) {
       return true
     }
@@ -624,15 +718,22 @@ fn match_ast_rule_pattern(
   pattern : CompiledRulePattern,
   expr : @syntax.Expr,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
+  matcher_mode : @matching.MatcherMode,
 ) -> @matching.ExprMatch? {
   let matched = match initial_bindings {
     Some(bindings) =>
-      @matching.match_expr_pattern_with_bindings(
+      @matching.match_expr_pattern_with_bindings_with_mode(
         pattern.compiled,
         expr,
         bindings,
+        matcher_mode,
       )
-    None => @matching.match_expr_pattern(pattern.compiled, expr)
+    None =>
+      @matching.match_expr_pattern_with_mode(
+        pattern.compiled,
+        expr,
+        matcher_mode,
+      )
   }
   match matched {
     Some(result) if ast_guards_match(pattern.guards, result.bindings) =>
