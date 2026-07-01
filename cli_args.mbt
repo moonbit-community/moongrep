@@ -15,6 +15,7 @@ priv struct CliOptions {
   verbose : Bool
   enable_builtin_rules : Bool
   no_color : Bool
+  matcher_mode : @matching.MatcherMode
 }
 
 ///|
@@ -171,6 +172,14 @@ fn no_color_enabled(env : Map[String, String]) -> Bool {
 }
 
 ///|
+fn matcher_mode_from_env(env : Map[String, String]) -> @matching.MatcherMode {
+  match env.get("MOONGREP_NEW_MATCHER") {
+    Some("1") => @matching.UntypedAstMatcher
+    _ => @matching.AstMatcher
+  }
+}
+
+///|
 fn docs_cli_command(
   docs_matches : @argparse.Matches,
 ) -> (String, CliOptions?, String?) raise {
@@ -225,6 +234,7 @@ fn scan_cli_options(
     "enable-builtin-rules",
   )
   let no_color = no_color_enabled(env)
+  let matcher_mode = matcher_mode_from_env(env)
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
   let patterns = all_cli_values(scan_matches.values, "pattern")
@@ -255,6 +265,7 @@ fn scan_cli_options(
     verbose,
     enable_builtin_rules,
     no_color,
+    matcher_mode,
   }
 }
 

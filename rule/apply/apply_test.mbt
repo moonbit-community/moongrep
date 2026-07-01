@@ -55,6 +55,21 @@ fn apply_structural_rule_findings(
 }
 
 ///|
+fn apply_structural_rule_findings_untyped(
+  source : String,
+  rule_source : String,
+) -> Array[RuleFinding] raise {
+  let rules = compile_rule_source(rule_source)
+  let impls = parse_impls(source)
+  apply_structural_rules_with_matcher(
+    "sample.mbt",
+    impls,
+    rules,
+    @matching.UntypedAstMatcher,
+  )
+}
+
+///|
 test "apply structural rule matches repeated subtree once" {
   let rule_source =
     #|id: example
@@ -1159,6 +1174,119 @@ test "apply structural rule visits top let definitions" {
 }
 
 ///|
+test "untyped structural matcher matches repeated if expression" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Repeated branch expression.
+    #|patterns:
+    #|  - shape: $(value:exp) == $(value:exp)
+    #|
+  let source =
+    #|fn sample {
+    #|  (if ready { a } else { b }) == (if ready { a } else { b });
+    #|  (if ready { a } else { b }) == (if ready { a } else { c })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "untyped structural matcher prunes descendants with patterns-not" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Skip target calls in repeated wrappers.
+    #|patterns:
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: wrapper($(value:exp), $(value:exp), $(body:exp))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(if ready { a } else { b }, if ready { a } else { b }, target());
+    #|  target()
+    #|}
+    #|
+  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(
+    finding_signature(hits[0]),
+    content="sample.mbt|example|0|3:3-3:11|none",
+  )
+}
+
+///|
+test "untyped structural matcher carries inside target bindings" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target using same expression.
+    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|patterns:
+    #|  - shape: target($(prefix:exp))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(if ready { a } else { b }, target(if ready { a } else { b }));
+    #|  wrapper(if ready { a } else { b }, target(if ready { a } else { c }))
+    #|}
+    #|
+  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "untyped structural matcher respects shadowed inherited identifiers" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: target($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, {
+    #|    let x = y;
+    #|    target(x)
+    #|  });
+    #|  wrapper(x, target(x))
+    #|}
+    #|
+  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
+test "untyped structural matcher applies id and const guards" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Guarded calls.
+    #|patterns:
+    #|  - shape: $(callee:id)($(value:const))
+    #|    guard:
+    #|      callee: "^safe_"
+    #|      value: "^ok$"
+    #|
+  let source =
+    #|fn sample {
+    #|  safe_call("ok");
+    #|  safe_call("bad");
+    #|  danger_call("ok")
+    #|}
+    #|
+  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  assert_eq(hits.length(), 1)
+}
+
+///|
 test "apply taint rule supports inline constant metavars" {
   let rule_source =
     #|id: example
@@ -1234,6 +1362,37 @@ test "apply taint rule reports source reaching sink" {
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
   assert_eq(hits[0].pattern_index, 0)
+}
+
+///|
+test "untyped taint matcher applies source sink and sanitizer patterns" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  User input reaches sink unless sanitized.
+    #|taint:
+    #|  sources:
+    #|    - shape: tagged_source($(tag:exp), $(tag:exp))
+    #|  sinks:
+    #|    - shape: tagged_sink($(tag:exp), $(tag:exp), __SOURCE__)
+    #|  sanitizers:
+    #|    - shape: clean($(tag:exp), $(tag:exp), __SOURCE__)
+    #|
+  let source =
+    #|fn sample {
+    #|  let dirty = tagged_source(if ready { a } else { b }, if ready { a } else { b });
+    #|  tagged_sink(if ready { a } else { b }, if ready { a } else { b }, dirty);
+    #|  tagged_sink(if ready { a } else { b }, if ready { a } else { b }, clean(if ready { a } else { b }, if ready { a } else { b }, dirty))
+    #|}
+    #|
+  let hits = apply_taint_rules_with_matcher(
+    "sample.mbt",
+    parse_impls(source),
+    compile_rule_source(rule_source),
+    @matching.UntypedAstMatcher,
+  )
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
 }
 
 ///|

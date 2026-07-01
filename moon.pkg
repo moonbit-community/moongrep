@@ -1,5 +1,6 @@
 import {
   "moonbit-community/chalk",
+  "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/docs",
   "moonbit-community/moongrep/rule/apply" @rule_apply,
   "moonbit-community/moongrep/rule/builtin" @rule_builtin,

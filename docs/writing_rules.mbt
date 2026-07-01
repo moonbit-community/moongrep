@@ -403,6 +403,9 @@ let _embed_writingrules_md : String =
   #|If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints loaded rule
   #|ids and directory traversal progress before warnings and match results.
   #|
+  #|`MOONGREP_NEW_MATCHER=1` enables the experimental untyped AST matcher for
+  #|`scan`. Unset values and values other than `1` keep the default AST matcher.
+  #|
   #|## Worked Examples
   #|
   #|### Repeated expression equality
