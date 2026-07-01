@@ -7,20 +7,20 @@ rule: example
 description:
   Repeated equality.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-2 |   let same = value == value
-\x1b[90m3 |   let x = get_user_input()\x1b[39m (escaped)
-\x1b[90m4 |   sink(x)\x1b[39m (escaped)
+1 | fn sample {
+2 >   let same = value == value
+3 |   let x = get_user_input()
+4 |   sink(x)
 
 testdata/recursive-rule-discovery-src/hits.mbt:4:8-4:9
 rule: nested/example
 description:
   User input reaches sink.
 source:
-\x1b[90m2 |   let same = value == value\x1b[39m (escaped)
-\x1b[90m3 |   let x = get_user_input()\x1b[39m (escaped)
-4 |   sink(x)
-\x1b[90m5 | }\x1b[39m (escaped)
+2 |   let same = value == value
+3 |   let x = get_user_input()
+4 >   sink(x)
+5 | }
 ```
 
 ```mooncram
@@ -30,10 +30,10 @@ rule: example
 description:
   User input reaches sink.
 source:
-\x1b[90m2 |   let same = value == value\x1b[39m (escaped)
-\x1b[90m3 |   let x = get_user_input()\x1b[39m (escaped)
-4 |   sink(x)
-\x1b[90m5 | }\x1b[39m (escaped)
+2 |   let same = value == value
+3 |   let x = get_user_input()
+4 >   sink(x)
+5 | }
 ```
 
 ```mooncram

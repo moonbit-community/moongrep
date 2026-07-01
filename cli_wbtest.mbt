@@ -90,7 +90,37 @@ test "cli args parse rules root and default scan root" {
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
+      assert_false(options.no_color)
     }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args enable no color only when NO_COLOR is 1" {
+  match parse_cli_command(["scan", "--rules", "custom-rules"]) {
+    ("scan", Some(options), None) => assert_false(options.no_color)
+    _ => fail("unexpected command")
+  }
+  match
+    parse_cli_command(["scan", "--rules", "custom-rules"], env={
+      "NO_COLOR": "",
+    }) {
+    ("scan", Some(options), None) => assert_false(options.no_color)
+    _ => fail("unexpected command")
+  }
+  match
+    parse_cli_command(["scan", "--rules", "custom-rules"], env={
+      "NO_COLOR": "true",
+    }) {
+    ("scan", Some(options), None) => assert_false(options.no_color)
+    _ => fail("unexpected command")
+  }
+  match
+    parse_cli_command(["scan", "--rules", "custom-rules"], env={
+      "NO_COLOR": "1",
+    }) {
+    ("scan", Some(options), None) => assert_true(options.no_color)
     _ => fail("unexpected command")
   }
 }

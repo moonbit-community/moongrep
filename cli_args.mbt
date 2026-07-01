@@ -14,6 +14,7 @@ priv struct CliOptions {
   exclude_dirs : Array[String]
   verbose : Bool
   enable_builtin_rules : Bool
+  no_color : Bool
 }
 
 ///|
@@ -162,6 +163,14 @@ fn cli_flag_enabled(flags : Map[String, Bool], name : String) -> Bool {
 }
 
 ///|
+fn no_color_enabled(env : Map[String, String]) -> Bool {
+  match env.get("NO_COLOR") {
+    Some(value) if value == "1" => true
+    _ => false
+  }
+}
+
+///|
 fn docs_cli_command(
   docs_matches : @argparse.Matches,
 ) -> (String, CliOptions?, String?) raise {
@@ -206,12 +215,16 @@ fn dump_cli_command(
 }
 
 ///|
-fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
+fn scan_cli_options(
+  scan_matches : @argparse.Matches,
+  env : Map[String, String],
+) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
   let enable_builtin_rules = cli_flag_enabled(
     scan_matches.flags,
     "enable-builtin-rules",
   )
+  let no_color = no_color_enabled(env)
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
   let patterns = all_cli_values(scan_matches.values, "pattern")
@@ -241,6 +254,7 @@ fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
     exclude_dirs,
     verbose,
     enable_builtin_rules,
+    no_color,
   }
 }
 
@@ -304,7 +318,7 @@ fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches)), None)
+      ("scan", Some(scan_cli_options(scan_matches, env)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)

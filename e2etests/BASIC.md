@@ -47,11 +47,11 @@ description:
   Found inspect() snapshots whose expected value is a plain number.
   Prefer numeric assertions for numeric checks.
 source:
-\x1b[90m1 | ///|\x1b[39m (escaped)
-\x1b[90m2 | fn has_builtin_hits(value : Int?) -> Unit {\x1b[39m (escaped)
-3 |   inspect(1, content="1")
-\x1b[90m4 |   assert_true(\x1b[39m (escaped)
-\x1b[90m5 |     match value {\x1b[39m (escaped)
+1 | ///|
+2 | fn has_builtin_hits(value : Int?) -> Unit {
+3 >   inspect(1, content="1")
+4 |   assert_true(
+5 |     match value {
 
 testdata/builtin-rules/hit.mbt:5:5-8:6
 rule: moonbitlang/match_option
@@ -59,14 +59,14 @@ description:
   Found an Option value handled with match over Some and None.
   Prefer if + is for simple Option checks.
 source:
-\x1b[90m3 |   inspect(1, content="1")\x1b[39m (escaped)
-\x1b[90m4 |   assert_true(\x1b[39m (escaped)
-5 |     match value {
-6 |       Some(inner) => inner > 0
-7 |       None => false
-8 |     },
-\x1b[90m9 |   )\x1b[39m (escaped)
-\x1b[90m10 | }\x1b[39m (escaped)
+3 |   inspect(1, content="1")
+4 |   assert_true(
+5 >     match value {
+6 >       Some(inner) => inner > 0
+7 >       None => false
+8 >     },
+9 |   )
+10 | }
 ```
 
 ## moongrep dump --help

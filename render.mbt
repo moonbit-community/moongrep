@@ -1,7 +1,10 @@
 ///|
 // Renders warnings first and match hits second so parse failures never hide
 // successful findings from other files.
-fn render_directory_scan_result(result : DirectoryScanResult) -> String {
+fn render_directory_scan_result(
+  result : DirectoryScanResult,
+  no_color? : Bool = false,
+) -> String {
   let sections : Array[String] = []
   if result.scan_trace.length() > 0 {
     sections.push(result.scan_trace.join("\n"))
@@ -18,7 +21,7 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
   } else {
     let rendered_hits : Array[String] = []
     for hit in result.hits {
-      rendered_hits.push(render_scan_hit(hit))
+      rendered_hits.push(render_scan_hit(hit, no_color~))
     }
     sections.push(rendered_hits.join("\n\n"))
   }
@@ -29,7 +32,7 @@ fn render_directory_scan_result(result : DirectoryScanResult) -> String {
 // Keep hit output stable and line-oriented for downstream agents. The first
 // line is always a location, followed by rule metadata and indented
 // description text.
-fn render_scan_hit(hit : ScanHit) -> String {
+fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
   let finding = hit.finding
   let lines : Array[String] = [
     format_location(finding.file, finding.loc),
@@ -49,15 +52,21 @@ fn render_scan_hit(hit : ScanHit) -> String {
   }
   lines.push("source:")
   for context_line in hit.source_context.lines {
-    lines.push(render_source_context_line(context_line))
+    lines.push(render_source_context_line(context_line, no_color~))
   }
   lines.join("\n")
 }
 
 ///|
-fn render_source_context_line(line : SourceContextLine) -> String {
-  let prefix = "\{line.line_number} | "
+fn render_source_context_line(
+  line : SourceContextLine,
+  no_color? : Bool = false,
+) -> String {
+  let separator = if no_color && line.is_match { " > " } else { " | " }
+  let prefix = "\{line.line_number}\{separator}"
   if line.is_match {
+    prefix + line.text
+  } else if no_color {
     prefix + line.text
   } else {
     render_gray(prefix + line.text)

@@ -23,5 +23,5 @@ keywords = [ ]
 description = "Experimental MoonBit structural search and taint-analysis tool"
 
 options(
-  "exclude": ["testdata", "e2etest"]
+  exclude: [ "testdata", "e2etest" ],
 )

@@ -6,5 +6,5 @@ cp _build/wasm/release/build/moongrep.wasm e2etests
 
 
 for mdfile in e2etests/*.md; do
-  moon cram "$@" "$mdfile"
+  NO_COLOR=1 moon cram "$@" "$mdfile"
 done

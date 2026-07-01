@@ -8,10 +8,10 @@ outer_loc: testdata/inside-expr-target/src/hit.mbt:2:3-3:15
 description:
   Local println shadows the builtin.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-\x1b[90m2 |   let println = custom;\x1b[39m (escaped)
-3 |   println("x")
-\x1b[90m4 | }\x1b[39m (escaped)
+1 | fn sample {
+2 |   let println = custom;
+3 >   println("x")
+4 | }
 ```
 
 ```mooncram
@@ -21,10 +21,10 @@ rule: example
 description:
   Attrs built with `inner_html(...)` carry raw DOM content.
 source:
-\x1b[90m1 | fn hit(raw, child) {\x1b[39m (escaped)
-\x1b[90m2 |   let attrs = @html.Attrs::build().inner_html(raw);\x1b[39m (escaped)
-3 |   @html.div(class="x", attrs=attrs, child)
-\x1b[90m4 | }\x1b[39m (escaped)
+1 | fn hit(raw, child) {
+2 |   let attrs = @html.Attrs::build().inner_html(raw);
+3 >   @html.div(class="x", attrs=attrs, child)
+4 | }
 ```
 
 ```mooncram
@@ -34,21 +34,21 @@ rule: example
 description:
   Sink call where positive match wins over patterns-not.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-2 |   sink(raw);
-\x1b[90m3 |   sink(safe(raw))\x1b[39m (escaped)
-\x1b[90m4 | }\x1b[39m (escaped)
+1 | fn sample {
+2 >   sink(raw);
+3 |   sink(safe(raw))
+4 | }
 
 testdata/patterns-not-structural/src/hit.mbt:3:3-3:18
 rule: example
 description:
   Sink call where positive match wins over patterns-not.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-\x1b[90m2 |   sink(raw);\x1b[39m (escaped)
-3 |   sink(safe(raw))
-\x1b[90m4 | }\x1b[39m (escaped)
-\x1b[90m5 | \x1b[39m (escaped)
+1 | fn sample {
+2 |   sink(raw);
+3 >   sink(safe(raw))
+4 | }
+5 | 
 ```
 
 ```mooncram
@@ -59,8 +59,8 @@ outer_loc: testdata/patterns-not-inside/src/hit.mbt:2:3-2:18
 description:
   Wrapper payload without danger.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-2 |   wrapper(safe());
-\x1b[90m3 |   wrapper(danger());\x1b[39m (escaped)
-\x1b[90m4 |   wrapper(holder(danger()))\x1b[39m (escaped)
+1 | fn sample {
+2 >   wrapper(safe());
+3 |   wrapper(danger());
+4 |   wrapper(holder(danger()))
 ```
