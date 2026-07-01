@@ -400,8 +400,8 @@ let _embed_writingrules_md : String =
   #|```
   #|
   #|`--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
-  #|If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints directory
-  #|traversal progress before warnings and match results.
+  #|If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints loaded rule
+  #|ids and directory traversal progress before warnings and match results.
   #|
   #|## Worked Examples
   #|

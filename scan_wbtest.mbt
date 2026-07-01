@@ -79,6 +79,20 @@ fn single_rule_file_scan_options() -> CliOptions {
 }
 
 ///|
+fn verbose_rules_scan_options() -> CliOptions {
+  {
+    rules_root: Some("testdata/recursive-rule-discovery-rules"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/recursive-rule-discovery-src",
+    exclude_dirs: [],
+    verbose: true,
+    enable_builtin_rules: false,
+    matcher: @rule_model.MatcherBackend::AstMatcher,
+  }
+}
+
+///|
 fn scan_hit_line_summary(hit : ScanHit) -> String {
   "\{hit.finding.rule_id}:\{hit.finding.loc.start.lnum}"
 }
@@ -133,4 +147,21 @@ test "scan loads only the configured single rule file" {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"example:4\"]")
+}
+
+///|
+test "scan verbose lists loaded rule ids before traversal" {
+  let result = collect_directory_hits(verbose_rules_scan_options())
+  debug_inspect(
+    result.scan_trace,
+    content=(
+      #|[
+      #|  "moongrep scan: loaded rule example",
+      #|  "moongrep scan: loaded rule nested/example",
+      #|  "moongrep scan: entering testdata/recursive-rule-discovery-src",
+      #|  "moongrep scan: skipping testdata/recursive-rule-discovery-src/_build",
+      #|  "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
+      #|]
+    ),
+  )
 }

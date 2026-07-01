@@ -2,6 +2,7 @@
 
 ```mooncram
 $ cd "$TESTDIR"/.. && sh testdata/skip-dirs/run.sh "$TESTDIR"/moongrep.wasm
+moongrep scan: loaded rule example
 moongrep scan: entering testdata/skip-dirs
 moongrep scan: skipping testdata/skip-dirs/.git
 moongrep scan: skipping testdata/skip-dirs/_build
@@ -19,6 +20,7 @@ source:
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --verbose --rules e2etests/rules/structural testdata/exclude-dirs --exclude-dir ignored/ ./testdata/exclude-dirs/generated/
+moongrep scan: loaded rule example
 moongrep scan: entering testdata/exclude-dirs
 moongrep scan: file testdata/exclude-dirs/hit.mbt
 moongrep scan: skipping testdata/exclude-dirs/ignored

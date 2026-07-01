@@ -1,5 +1,6 @@
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --verbose --pattern 'target()' testdata/symlink/scan-dir-link
+moongrep scan: loaded rule target()
 moongrep scan: entering testdata/symlink/scan-dir-link
 moongrep scan: file testdata/symlink/scan-dir-link/hit.mbt
 

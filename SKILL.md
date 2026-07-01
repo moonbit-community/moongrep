@@ -40,8 +40,8 @@ or more than one scan root. Non-usage errors, including unreadable paths, an
 empty rules directory, invalid YAML/schema/shape, or source read failures,
 abort the run; the CLI prints the error and exits with code 1.
 
-Pass `--verbose` to print the directory traversal progress before warnings and
-match results.
+Pass `--verbose` to print loaded rule ids and the directory traversal progress
+before warnings and match results.
 
 Each match result prints the source line covered by the finding plus up to two
 lines of surrounding source context. Surrounding context lines are rendered in
