@@ -83,22 +83,14 @@ pub(all) struct RawRuleSpec {
 }
 
 ///|
-/// Runtime matcher implementation selected by callers that support switching.
-pub(all) enum MatcherBackend {
-  JsonMatcher
-  AstMatcher
-}
-
-///|
 /// A parsed and compiled pattern clause.
 ///
 /// `source` preserves the user-facing YAML clause for diagnostics and metadata.
-/// `compiled` and `json_compiled` are matcher-ready AST and JSON
-/// representations. `guards` are evaluated after structural matching succeeds.
+/// `compiled` is the matcher-ready AST representation. `guards` are evaluated
+/// after structural matching succeeds.
 pub(all) struct CompiledRulePattern {
   source : RulePatternSpec
   compiled : @matching.CompiledExprPattern
-  json_compiled : @json_matching.CompiledJsonExprPattern
   guards : Array[CompiledRuleGuard]
 }
 

@@ -45,40 +45,13 @@ fn int_array_signature(values : Array[Int]) -> String {
 }
 
 ///|
-fn assert_same_findings(
-  expected : Array[RuleFinding],
-  actual : Array[RuleFinding],
-) -> Unit raise {
-  assert_eq(actual.length(), expected.length())
-  for index in 0..<expected.length() {
-    inspect(
-      finding_signature(actual[index]),
-      content=finding_signature(expected[index]),
-    )
-  }
-}
-
-///|
-fn assert_same_ast_json_findings(
+fn apply_structural_rule_findings(
   source : String,
   rule_source : String,
 ) -> Array[RuleFinding] raise {
   let rules = compile_rule_source(rule_source)
   let impls = parse_impls(source)
-  let ast_hits = apply_structural_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::AstMatcher,
-  )
-  let json_hits = apply_structural_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::JsonMatcher,
-  )
-  assert_same_findings(ast_hits, json_hits)
-  ast_hits
+  apply_structural_rules("sample.mbt", impls, rules)
 }
 
 ///|
@@ -341,7 +314,7 @@ test "apply inside expr and inner guards filter inherited bindings" {
 }
 
 ///|
-test "backend-aware structural apply matches JSON and AST with guards inside expr" {
+test "apply structural rule matches guards inside expr" {
   let rule_source =
     #|id: example
     #|description: |
@@ -363,27 +336,13 @@ test "backend-aware structural apply matches JSON and AST with guards inside exp
     #|
   let rules = compile_rule_source(rule_source)
   let impls = parse_impls(source)
-  let legacy_hits = apply_structural_rules("sample.mbt", impls, rules)
-  let ast_hits = apply_structural_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::AstMatcher,
-  )
-  let json_hits = apply_structural_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::JsonMatcher,
-  )
-  assert_same_findings(legacy_hits, ast_hits)
-  assert_same_findings(ast_hits, json_hits)
-  assert_eq(json_hits.length(), 1)
-  assert_true(json_hits[0].outer_loc is Some(_))
+  let hits = apply_structural_rules("sample.mbt", impls, rules)
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
-test "JSON inside expr reports nested target locations without AST recovery" {
+test "inside expr reports nested target locations" {
   let rule_source =
     #|id: example
     #|description: |
@@ -399,21 +358,9 @@ test "JSON inside expr reports nested target locations without AST recovery" {
     #|
   let rules = compile_rule_source(rule_source)
   let impls = parse_impls(source)
-  let ast_hits = apply_structural_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::AstMatcher,
-  )
-  let json_hits = apply_structural_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::JsonMatcher,
-  )
-  assert_eq(json_hits.length(), 1)
-  assert_same_findings(ast_hits, json_hits)
-  assert_true(json_hits[0].outer_loc is Some(_))
+  let hits = apply_structural_rules("sample.mbt", impls, rules)
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -483,7 +430,7 @@ test "apply structural patterns-not is ignored after positive root match" {
     #|  sink(safe(raw))
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 2)
   inspect(
     finding_signature(hits[0]),
@@ -513,7 +460,7 @@ test "apply structural patterns-not uses independent bindings after positives fa
     #|  target()
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -536,7 +483,7 @@ test "apply structural positive root prunes descendants" {
     #|  wrapper(target())
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -561,7 +508,7 @@ test "apply structural patterns-not prunes descendants after positives fail" {
     #|  target()
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -586,7 +533,7 @@ test "inside expr positive root ignores descendant patterns-not" {
     #|  wrapper(holder(danger()))
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -612,7 +559,7 @@ test "inside expr positive root wins over same-root patterns-not" {
     #|  wrapper(target(blocked))
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 2)
   inspect(
     finding_signature(hits[0]),
@@ -650,7 +597,7 @@ test "inside expr patterns-not rejects outer on uncovered negative" {
     #|  wrapper(target())
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -675,7 +622,7 @@ test "inside expr positive array access wins over patterns-not identifier" {
     #|  wrapper(arr[i])
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   guard hits[0].outer_loc is Some(_) else { fail("expected outer location") }
   inspect(
@@ -701,7 +648,7 @@ test "inside expr rejects only uncovered negative and accepts covered array acce
     #|  wrapper(i, arr[i])
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -729,7 +676,7 @@ test "inside expr rejects uncovered inherited id outside positive coverage" {
     #|  })
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 0)
 }
 
@@ -753,7 +700,7 @@ test "inside expr reports multiple covered positive hits" {
     #|  })
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 2)
   inspect(
     finding_signature(hits[0]),
@@ -786,7 +733,7 @@ test "inside expr reject-uncovered-negative respects shadowed inherited identifi
     #|  })
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -821,7 +768,7 @@ test "inside expr accepts only loop counter uses covered by array access" {
     #|  }
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_eq(hits[0].loc.start.lnum, 3)
   guard hits[0].outer_loc is Some(outer) else {
@@ -847,7 +794,7 @@ test "inside expr with only patterns-not reports outer when target subtree is cl
     #|  wrapper(holder(danger()))
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   guard hits[0].outer_loc is Some(outer) else {
     fail("expected outer location")
@@ -881,7 +828,7 @@ test "inside expr only patterns-not respects shadowed inherited identifiers" {
     #|  wrapper(x, target(x))
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_eq(hits[0].loc.start.lnum, 2)
 }
@@ -1042,7 +989,7 @@ test "inside expr inherited id is blocked after lexical let shadow" {
     #|  })
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 0)
 }
 
@@ -1061,7 +1008,7 @@ test "inside expr inherited id still matches without shadow" {
     #|  wrapper(x, target(x))
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
@@ -1085,7 +1032,7 @@ test "inside expr later shadow does not block earlier candidate" {
     #|  })
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
@@ -1110,7 +1057,7 @@ test "inside expr only blocks patterns referencing shadowed outer id" {
     #|  })
     #|}
     #|
-  let hits = assert_same_ast_json_findings(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_eq(hits[0].pattern_index, 0)
   assert_true(hits[0].outer_loc is Some(_))
@@ -1347,7 +1294,7 @@ test "apply taint rule sanitizer suppresses nested source sink" {
 }
 
 ///|
-test "backend-aware taint apply matches JSON and AST for source sink sanitizer" {
+test "apply taint rule matches source sink sanitizer" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1369,22 +1316,8 @@ test "backend-aware taint apply matches JSON and AST for source sink sanitizer" 
     #|
   let rules = compile_rule_source(rule_source)
   let impls = parse_impls(source)
-  let legacy_hits = apply_taint_rules("sample.mbt", impls, rules)
-  let ast_hits = apply_taint_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::AstMatcher,
-  )
-  let json_hits = apply_taint_rules_with_backend(
-    "sample.mbt",
-    impls,
-    rules,
-    @model.MatcherBackend::JsonMatcher,
-  )
-  assert_same_findings(legacy_hits, ast_hits)
-  assert_same_findings(ast_hits, json_hits)
-  assert_eq(json_hits.length(), 1)
+  let hits = apply_taint_rules("sample.mbt", impls, rules)
+  assert_eq(hits.length(), 1)
 }
 
 ///|

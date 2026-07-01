@@ -9,8 +9,6 @@ import {
 // Values
 pub fn lower_compiled_taint_rule(@model.CompiledRule, @model.CompiledTaintRule) -> @taint.TaintSpec
 
-pub fn lower_compiled_taint_rule_with_backend(@model.CompiledRule, @model.CompiledTaintRule, @model.MatcherBackend) -> @taint.TaintSpec
-
 // Errors
 
 // Types and methods

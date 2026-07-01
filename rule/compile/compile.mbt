@@ -345,12 +345,7 @@ fn compile_pattern_with_effective_metavars(
     target_metavar,
     source_metavar,
   }
-  {
-    source: pattern,
-    compiled,
-    json_compiled: @json_matching.compiled_expr_pattern_to_json(compiled),
-    guards,
-  }
+  { source: pattern, compiled, guards }
 }
 
 ///|

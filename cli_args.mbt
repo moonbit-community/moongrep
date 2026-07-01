@@ -14,7 +14,6 @@ priv struct CliOptions {
   exclude_dirs : Array[String]
   verbose : Bool
   enable_builtin_rules : Bool
-  matcher : @rule_model.MatcherBackend
 }
 
 ///|
@@ -163,17 +162,6 @@ fn cli_flag_enabled(flags : Map[String, Bool], name : String) -> Bool {
 }
 
 ///|
-let json_matcher_env_var : String = "MOONGREP_JSON_MATCHER"
-
-///|
-fn env_json_matcher_enabled(env : Map[String, String]) -> Bool {
-  match env.get(json_matcher_env_var) {
-    Some("true") => true
-    _ => false
-  }
-}
-
-///|
 fn docs_cli_command(
   docs_matches : @argparse.Matches,
 ) -> (String, CliOptions?, String?) raise {
@@ -218,20 +206,12 @@ fn dump_cli_command(
 }
 
 ///|
-fn scan_cli_options(
-  scan_matches : @argparse.Matches,
-  env : Map[String, String],
-) -> CliOptions raise {
+fn scan_cli_options(scan_matches : @argparse.Matches) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
   let enable_builtin_rules = cli_flag_enabled(
     scan_matches.flags,
     "enable-builtin-rules",
   )
-  let matcher = if env_json_matcher_enabled(env) {
-    @rule_model.MatcherBackend::JsonMatcher
-  } else {
-    @rule_model.MatcherBackend::AstMatcher
-  }
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
   let patterns = all_cli_values(scan_matches.values, "pattern")
@@ -261,7 +241,6 @@ fn scan_cli_options(
     exclude_dirs,
     verbose,
     enable_builtin_rules,
-    matcher,
   }
 }
 
@@ -306,12 +285,11 @@ fn normalize_scan_exclude_dir_args(argv : Array[String]) -> Array[String] raise 
 /// `--enable-builtin-rules` is required, and `--verbose` is optional.
 /// `--exclude-dir <dir>...` skips matching child directory names or paths
 /// during recursive source scanning.
-/// `MOONGREP_JSON_MATCHER=true` selects the JSON matcher backend. One optional
-/// scan-root positional may appear in the argument list. If the rules option
-/// or single rule option appears multiple times, the last value wins. Repeated
-/// patterns and exclude directories are appended in order. Missing subcommands,
-/// required arguments, unknown options, or more than one scan root raise
-/// `CliError::Usage` with exit code 2.
+/// One optional scan-root positional may appear in the argument list. If the
+/// rules option or single rule option appears multiple times, the last value
+/// wins. Repeated patterns and exclude directories are appended in order.
+/// Missing subcommands, required arguments, unknown options, or more than one
+/// scan root raise `CliError::Usage` with exit code 2.
 #moongrep.skip
 fn parse_cli_command(
   argv : Array[String],
@@ -326,7 +304,7 @@ fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches, env)), None)
+      ("scan", Some(scan_cli_options(scan_matches)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)

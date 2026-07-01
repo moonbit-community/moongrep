@@ -57,12 +57,7 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
     target_metavar: None,
     source_metavar: Some("__SOURCE__"),
   }
-  {
-    source: { shape, guards: {} },
-    compiled,
-    json_compiled: @json_matching.compiled_expr_pattern_to_json(compiled),
-    guards: [],
-  }
+  { source: { shape, guards: {} }, compiled, guards: [] }
 }
 
 ///|
