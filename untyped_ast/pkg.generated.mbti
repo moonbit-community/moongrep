@@ -1,0 +1,50 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/untyped_ast"
+
+import {
+  "moonbitlang/core/list",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/syntax",
+}
+
+// Values
+pub fn from_expr(@syntax.Expr) -> Node
+
+pub fn from_impl(@syntax.Impl) -> Node
+
+pub fn from_impls(@list.List[@syntax.Impl]) -> Node
+
+pub fn from_pattern(@syntax.Pattern) -> Node
+
+pub fn from_type(@syntax.Type) -> Node
+
+// Errors
+
+// Types and methods
+pub(all) struct Node {
+  kind : String
+  loc : @basic.Location
+  children : NodeChildren
+}
+pub fn Node::to_json(Self) -> Json
+pub impl ToJson for Node
+
+pub(all) enum NodeChildren {
+  AstFields(FixedArray[(String, Value)])
+  AstItems(FixedArray[Value])
+}
+
+pub(all) enum Value {
+  AstNode(Node)
+  AstNull
+  AstBool(Bool)
+  AstString(String)
+  AstNumber(Double, repr~ : String?)
+}
+pub fn Value::to_json(Self) -> Json
+pub impl ToJson for Value
+
+// Type aliases
+
+// Traits
+
