@@ -15,7 +15,7 @@ rule: example
 description:
   Target call.
 source:
-1 | fn sample { target() }
+1 > fn sample { target() }
 ```
 
 ```mooncram
@@ -31,7 +31,7 @@ rule: example
 description:
   Target call.
 source:
-1 | fn sample { target() }
+1 > fn sample { target() }
 ```
 
 ## Parse warnings
@@ -45,7 +45,7 @@ rule: example
 description:
   Target call.
 source:
-1 | fn sample { target() }
+1 > fn sample { target() }
 ```
 
 ```mooncram
@@ -69,10 +69,10 @@ rule: $(value:exp) + $(value:exp)
 description:
   Anonymous CLI pattern.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-2 |   make() + make()
-\x1b[90m3 |   make() + other()\x1b[39m (escaped)
-\x1b[90m4 | }\x1b[39m (escaped)
+1 | fn sample {
+2 >   make() + make()
+3 |   make() + other()
+4 | }
 ```
 
 ```mooncram
@@ -82,9 +82,9 @@ rule: target()
 description:
   Anonymous CLI pattern.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-2 |   target()
-\x1b[90m3 | }\x1b[39m (escaped)
+1 | fn sample {
+2 >   target()
+3 | }
 ```
 
 ## Rule filtering
@@ -96,20 +96,20 @@ rule: target
 description:
   Target call.
 source:
-\x1b[90m1 | fn first {\x1b[39m (escaped)
-2 |   target()
-\x1b[90m3 | }\x1b[39m (escaped)
-\x1b[90m4 | \x1b[39m (escaped)
+1 | fn first {
+2 >   target()
+3 | }
+4 | 
 
 testdata/prefilter-impl/hits.mbt:6:3-6:10
 rule: other
 description:
   Other call.
 source:
-\x1b[90m4 | \x1b[39m (escaped)
-\x1b[90m5 | fn second {\x1b[39m (escaped)
-6 |   other()
-\x1b[90m7 | }\x1b[39m (escaped)
+4 | 
+5 | fn second {
+6 >   other()
+7 | }
 ```
 
 ```mooncram
@@ -119,7 +119,7 @@ rule: example
 description:
   Target call.
 source:
-1 | fn sample { target() }
+1 > fn sample { target() }
 ```
 
 ```mooncram
@@ -134,10 +134,10 @@ rule: guarded-render
 description:
   Guarded render call.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-2 |   @html.render("raw")
-\x1b[90m3 |   @html.render("safe")\x1b[39m (escaped)
-\x1b[90m4 |   render("raw")\x1b[39m (escaped)
+1 | fn sample {
+2 >   @html.render("raw")
+3 |   @html.render("safe")
+4 |   render("raw")
 ```
 
 ## Rendering
@@ -149,11 +149,11 @@ rule: example
 description:
   Target call.
 source:
-\x1b[90m1 | fn sample {\x1b[39m (escaped)
-\x1b[90m2 |   before()\x1b[39m (escaped)
-3 |   target()
-\x1b[90m4 |   after()\x1b[39m (escaped)
-\x1b[90m5 | }\x1b[39m (escaped)
+1 | fn sample {
+2 |   before()
+3 >   target()
+4 |   after()
+5 | }
 ```
 
 ```mooncram
@@ -163,9 +163,9 @@ rule: example
 description:
   User input reaches sink.
 source:
-\x1b[90m2 |   before()\x1b[39m (escaped)
-\x1b[90m3 |   let x = get_user_input()\x1b[39m (escaped)
-4 |   sink(x)
-\x1b[90m5 |   after()\x1b[39m (escaped)
-\x1b[90m6 | }\x1b[39m (escaped)
+2 |   before()
+3 |   let x = get_user_input()
+4 >   sink(x)
+5 |   after()
+6 | }
 ```

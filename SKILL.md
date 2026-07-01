@@ -45,7 +45,9 @@ before warnings and match results.
 
 Each match result prints the source line covered by the finding plus up to two
 lines of surrounding source context. Surrounding context lines are rendered in
-gray; matched source lines are rendered without gray styling.
+gray; matched source lines are rendered without gray styling. Set `NO_COLOR=1`
+to disable gray context styling and render matched source lines with `>` instead
+of `|`.
 
 If `scan-root` is omitted, `moongrep` scans the current directory:
 

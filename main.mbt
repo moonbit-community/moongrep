@@ -16,7 +16,9 @@ fn main {
     match command {
       ("scan", Some(options), None) => {
         let result = collect_directory_hits(options)
-        write_cli_output(render_directory_scan_result(result))
+        write_cli_output(
+          render_directory_scan_result(result, no_color=options.no_color),
+        )
       }
       ("docs-list", None, None) | ("docs-show", None, Some(_)) =>
         write_cli_output(render_docs_command(command))

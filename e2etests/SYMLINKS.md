@@ -9,10 +9,10 @@ rule: target()
 description:
   Anonymous CLI pattern.
 source:
-\x1b[90m1 | ///|\x1b[39m (escaped)
-\x1b[90m2 | fn sample {\x1b[39m (escaped)
-3 |   target()
-\x1b[90m4 | }\x1b[39m (escaped)
+1 | ///|
+2 | fn sample {
+3 >   target()
+4 | }
 ```
 
 ```mooncram
@@ -22,8 +22,8 @@ rule: example
 description:
   Target call through symlinked rules.
 source:
-\x1b[90m1 | ///|\x1b[39m (escaped)
-\x1b[90m2 | fn sample {\x1b[39m (escaped)
-3 |   target()
-\x1b[90m4 | }\x1b[39m (escaped)
+1 | ///|
+2 | fn sample {
+3 >   target()
+4 | }
 ```

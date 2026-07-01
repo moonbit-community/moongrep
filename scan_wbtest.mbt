@@ -46,6 +46,7 @@ fn skip_scan_options() -> CliOptions {
     exclude_dirs: [],
     verbose: false,
     enable_builtin_rules: false,
+    no_color: false,
   }
 }
 
@@ -59,6 +60,7 @@ fn exclude_dir_scan_options() -> CliOptions {
     exclude_dirs: ["ignored/", "./testdata/exclude-dirs/generated/"],
     verbose: true,
     enable_builtin_rules: false,
+    no_color: false,
   }
 }
 
@@ -72,6 +74,7 @@ fn single_rule_file_scan_options() -> CliOptions {
     exclude_dirs: [],
     verbose: false,
     enable_builtin_rules: false,
+    no_color: false,
   }
 }
 
@@ -85,6 +88,7 @@ fn verbose_rules_scan_options() -> CliOptions {
     exclude_dirs: [],
     verbose: true,
     enable_builtin_rules: false,
+    no_color: false,
   }
 }
 
