@@ -720,20 +720,15 @@ fn match_ast_rule_pattern(
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
   matcher_mode : @matching.MatcherMode,
 ) -> @matching.ExprMatch? {
-  let matched = match initial_bindings {
-    Some(bindings) =>
-      @matching.match_expr_pattern_with_bindings_with_mode(
-        pattern.compiled,
-        expr,
-        bindings,
-        matcher_mode,
-      )
-    None =>
-      @matching.match_expr_pattern_with_mode(
-        pattern.compiled,
-        expr,
-        matcher_mode,
-      )
+  let matched = if initial_bindings is Some(bindings) {
+    @matching.match_expr_pattern_with_bindings_with_mode(
+      pattern.compiled,
+      expr,
+      bindings,
+      matcher_mode,
+    )
+  } else {
+    @matching.match_expr_pattern_with_mode(pattern.compiled, expr, matcher_mode)
   }
   match matched {
     Some(result) if ast_guards_match(pattern.guards, result.bindings) =>

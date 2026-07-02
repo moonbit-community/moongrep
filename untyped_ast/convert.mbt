@@ -39,9 +39,10 @@ fn number_value(n : Double) -> Value {
 
 ///|
 fn[T] option_value(opt : T?, f : (T) -> Value) -> Value {
-  match opt {
-    Some(value) => f(value)
-    None => AstNull
+  if opt is Some(value) {
+    f(value)
+  } else {
+    AstNull
   }
 }
 
@@ -300,10 +301,8 @@ fn type_desc_node(item : @syntax.TypeDesc, loc : @basic.Location) -> Node {
           ),
         ),
       ]
-      match constr_decl {
-        Some(decl) =>
-          children.push(("constr_decl", node_value(fun_decl_node(decl))))
-        None => ()
+      if constr_decl is Some(decl) {
+        children.push(("constr_decl", node_value(fun_decl_node(decl))))
       }
       node("TypeDesc::Record", loc, children)
     }
@@ -395,9 +394,10 @@ fn constr_name_node(item : @syntax.ConstrName) -> Node {
 
 ///|
 fn constr_param_node(item : @syntax.ConstrParam) -> Node {
-  let loc = match item.label {
-    Some(label) => label.loc.merge(item.ty.loc())
-    None => item.ty.loc()
+  let loc = if item.label is Some(label) {
+    label.loc.merge(item.ty.loc())
+  } else {
+    item.ty.loc()
   }
   node("ConstrParam", loc, [
     ("ty", type_value(item.ty)),
@@ -980,9 +980,10 @@ fn parameter_node(item : @syntax.Parameter) -> Node {
         ("ty", option_value(ty, type_value)),
       ])
     Positional(binder~, ty~) => {
-      let loc = match ty {
-        Some(ty) => binder.loc.merge(ty.loc())
-        None => binder.loc
+      let loc = if ty is Some(ty) {
+        binder.loc.merge(ty.loc())
+      } else {
+        binder.loc
       }
       node("Parameter::Positional", loc, [
         ("binder", binder_value(binder)),
@@ -990,9 +991,10 @@ fn parameter_node(item : @syntax.Parameter) -> Node {
       ])
     }
     Labelled(binder~, ty~) => {
-      let loc = match ty {
-        Some(ty) => binder.loc.merge(ty.loc())
-        None => binder.loc
+      let loc = if ty is Some(ty) {
+        binder.loc.merge(ty.loc())
+      } else {
+        binder.loc
       }
       node("Parameter::Labelled", loc, [
         ("binder", binder_value(binder)),
@@ -1008,9 +1010,10 @@ fn parameter_node(item : @syntax.Parameter) -> Node {
       ])
     }
     QuestionOptional(binder~, ty~) => {
-      let loc = match ty {
-        Some(ty) => binder.loc.merge(ty.loc())
-        None => binder.loc
+      let loc = if ty is Some(ty) {
+        binder.loc.merge(ty.loc())
+      } else {
+        binder.loc
       }
       node("Parameter::QuestionOptional", loc, [
         ("binder", binder_value(binder)),

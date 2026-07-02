@@ -122,13 +122,13 @@ test "untyped matcher binds constants and preserves guard values" {
     expr_metavars=["input"],
     constant_metavars=["lit"],
   )
-  match untyped_match(compiled, "match value { 1 => 1 }") {
-    Some(result) =>
-      match result.bindings.get("lit") {
-        Some(Constant(Int("1"))) => ()
-        _ => fail("expected constant binding")
-      }
-    None => fail("expected match")
+  if untyped_match(compiled, "match value { 1 => 1 }") is Some(result) {
+    match result.bindings.get("lit") {
+      Some(Constant(Int("1"))) => ()
+      _ => fail("expected constant binding")
+    }
+  } else {
+    fail("expected match")
   }
   assert_false(untyped_match(compiled, "match value { 1 => 2 }") is Some(_))
   assert_false(
@@ -165,16 +165,16 @@ test "untyped matcher supports target and source placeholders" {
     parse_untyped_test_expr("__TARGET__"),
     target_metavar=Some("__TARGET__"),
   )
-  match untyped_match(target_compiled, "sink(value)") {
-    Some(result) =>
-      match result.bindings.get("__TARGET__") {
-        Some(Expr(expr)) =>
-          assert_true(
-            expr_matches_untyped(expr, parse_untyped_test_expr("sink(value)")),
-          )
-        _ => fail("expected target expression binding")
-      }
-    None => fail("expected target placeholder match")
+  if untyped_match(target_compiled, "sink(value)") is Some(result) {
+    match result.bindings.get("__TARGET__") {
+      Some(Expr(expr)) =>
+        assert_true(
+          expr_matches_untyped(expr, parse_untyped_test_expr("sink(value)")),
+        )
+      _ => fail("expected target expression binding")
+    }
+  } else {
+    fail("expected target placeholder match")
   }
   let source_compiled = untyped_compiled(
     parse_untyped_test_expr("__SOURCE__"),
