@@ -4,7 +4,7 @@
 let _embed_cstyle_forward_array_iteration_yaml : String =
   #|id: cstyle_forward_array_iteration
   #|description: |
-  #|  C-style forward array iteration.
+  #|  C-style forward array iteration that can be rewritten as simple for-in loops.
   #|
   #|inside-expr: |
   #|  for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
