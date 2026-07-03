@@ -4,7 +4,10 @@
 /// This convenience entry point does not enable declared metavars. It still
 /// treats identifiers made entirely of two or more underscores as ignore
 /// placeholders.
-pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
+pub fn expr_matches(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+) -> Bool {
   let compiled : CompiledExprPattern = {
     ast: pattern,
     expr_metavars: [],
@@ -27,7 +30,7 @@ pub fn expr_matches(pattern : @syntax.Expr, candidate : @syntax.Expr) -> Bool {
 /// `None` and does not expose partial bindings.
 pub fn match_expr_pattern(
   compiled : CompiledExprPattern,
-  candidate : @syntax.Expr,
+  candidate : @untyped_ast.Node,
 ) -> ExprMatch? {
   let bindings : @hashmap.HashMap[String, BoundValue] = @hashmap.HashMap([])
   match_expr_pattern_with_bindings(compiled, candidate, bindings)
@@ -42,11 +45,11 @@ pub fn match_expr_pattern(
 /// mutate the caller's context.
 pub fn match_expr_pattern_with_bindings(
   compiled : CompiledExprPattern,
-  candidate : @syntax.Expr,
+  candidate : @untyped_ast.Node,
   initial_bindings : @hashmap.HashMap[String, BoundValue],
 ) -> ExprMatch? {
   let bindings = initial_bindings.copy()
-  if match_expr(compiled.ast, candidate, compiled, bindings) {
+  if match_node(compiled.ast, candidate, compiled, bindings) {
     Some({ root: candidate, bindings })
   } else {
     None
@@ -54,1019 +57,259 @@ pub fn match_expr_pattern_with_bindings(
 }
 
 ///|
-fn match_expr(
-  pattern : @syntax.Expr,
-  candidate : @syntax.Expr,
+fn match_node(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   if match_expr_placeholder(pattern, candidate, compiled, bindings)
     is Some(result) {
     result
+  } else if match_pattern_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    result
   } else {
-    match (pattern, candidate) {
-      (Ident(id=pid, ..), Ident(id=cid, ..)) =>
-        match_var(pid, cid, compiled, bindings)
-      (Hole(kind=pk, ..), Hole(kind=ck, ..)) => hole_equal(pk, ck)
-      (Constant(c=pc, ..), Constant(c=cc, ..)) => constant_equal(pc, cc)
-      (
-        ArrayAugmentedSet(op=pop, array=pa, index=pi, value=pv, ..),
-        ArrayAugmentedSet(op=cop, array=ca, index=ci, value=cv, ..),
-      ) =>
-        match_var(pop, cop, compiled, bindings) &&
-        match_expr(pa, ca, compiled, bindings) &&
-        match_expr(pi, ci, compiled, bindings) &&
-        match_expr(pv, cv, compiled, bindings)
-      (ArrayGet(array=pa, index=pi, ..), ArrayGet(array=ca, index=ci, ..)) =>
-        match_expr(pa, ca, compiled, bindings) &&
-        match_expr(pi, ci, compiled, bindings)
-      (
-        ArrayGetSlice(array=pa, start_index=ps, end_index=pe, ..),
-        ArrayGetSlice(array=ca, start_index=cs, end_index=ce, ..),
-      ) =>
-        match_expr(pa, ca, compiled, bindings) &&
-        option_match(ps, cs, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        option_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
-      (
-        ArraySet(array=pa, index=pi, value=pv, ..),
-        ArraySet(array=ca, index=ci, value=cv, ..),
-      ) =>
-        match_expr(pa, ca, compiled, bindings) &&
-        match_expr(pi, ci, compiled, bindings) &&
-        match_expr(pv, cv, compiled, bindings)
-      (ArraySpread(elems=pe, ..), ArraySpread(elems=ce, ..)) =>
-        list_match(pe, ce, (p, c) => {
-          match_spreadable_elem(p, c, compiled, bindings)
-        })
-      (As(expr=pe, trait_=pt, ..), As(expr=ce, trait_=ct, ..)) =>
-        type_name_equal(pt, ct) && match_expr(pe, ce, compiled, bindings)
-      (
-        Assign(var_=pv, expr=pe, augmented_by=pa, ..),
-        Assign(var_=cv, expr=ce, augmented_by=ca, ..),
-      ) =>
-        match_var(pv, cv, compiled, bindings) &&
-        option_match(pa, ca, (p, c) => match_var(p, c, compiled, bindings)) &&
-        match_expr(pe, ce, compiled, bindings)
-      (Break(arg=pa, label=pl, ..), Break(arg=ca, label=cl, ..)) =>
-        option_match(pa, ca, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-      (Constraint(expr=pe, ty=pt, ..), Constraint(expr=ce, ty=ct, ..)) =>
-        type_equal(pt, ct) && match_expr(pe, ce, compiled, bindings)
-      (Continue(args=pa, label=pl, ..), Continue(args=ca, label=cl, ..)) =>
-        list_match(pa, ca, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-      (Defer(expr=pe, body=pb, ..), Defer(expr=ce, body=cb, ..)) =>
-        match_expr(pe, ce, compiled, bindings) &&
-        match_expr(pb, cb, compiled, bindings)
-      (Infix(op=pop, lhs=pl, rhs=pr, ..), Infix(op=cop, lhs=cl, rhs=cr, ..)) =>
-        match_var(pop, cop, compiled, bindings) &&
-        match_expr(pl, cl, compiled, bindings) &&
-        match_expr(pr, cr, compiled, bindings)
-      (Apply(func=pf, args=pa, ..), Apply(func=cf, args=ca, ..)) =>
-        match_expr(pf, cf, compiled, bindings) &&
-        list_match(pa, ca, (p, c) => match_argument(p, c, compiled, bindings))
-      (
-        DotApply(self=ps, method_name=pm, args=pa, return_self=prs, ..),
-        DotApply(self=cs, method_name=cm, args=ca, return_self=crs, ..),
-      ) =>
-        prs == crs &&
-        match_expr(ps, cs, compiled, bindings) &&
-        match_label(pm, cm, compiled, bindings) &&
-        list_match(pa, ca, (p, c) => match_argument(p, c, compiled, bindings))
-      (Field(record=pr, accessor=pa, ..), Field(record=cr, accessor=ca, ..)) =>
-        match_expr(pr, cr, compiled, bindings) &&
-        match_accessor(pa, ca, compiled, bindings)
-      (
-        ForEach(
-          binders=pb,
-          expr=pe,
-          init=pi,
-          continue_block=pcont,
-          body=pbody,
-          else_block=pelse,
-          where_clause=pwhere,
-          label=pl,
-          ..
-        ),
-        ForEach(
-          binders=cb,
-          expr=ce,
-          init=ci,
-          continue_block=ccont,
-          body=cbody,
-          else_block=celse,
-          where_clause=cwhere,
-          label=cl,
-          ..
-        ),
-      ) =>
-        list_match(pb, cb, (p, c) => {
-          option_match(p, c, (p, c) => match_binder(p, c, compiled, bindings))
-        }) &&
-        match_expr(pe, ce, compiled, bindings) &&
-        list_match(pi, ci, (p, c) => {
-          match_binder_expr_pair(p, c, compiled, bindings)
-        }) &&
-        list_match(pcont, ccont, (p, c) => {
-          match_binder_expr_pair(p, c, compiled, bindings)
-        }) &&
-        match_expr(pbody, cbody, compiled, bindings) &&
-        option_match(pelse, celse, (p, c) => {
-          match_expr(p, c, compiled, bindings)
-        }) &&
-        option_match(pwhere, cwhere, (p, c) => {
-          match_where_clause(p, c, compiled, bindings)
-        }) &&
-        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-      (Function(func=pf, ..), Function(func=cf, ..)) =>
-        match_func(pf, cf, compiled, bindings)
-      (
-        Guard(cond=pc, otherwise=po, body=pb, ..),
-        Guard(cond=cc, otherwise=co, body=cb, ..),
-      ) =>
-        match_expr(pc, cc, compiled, bindings) &&
-        option_match(po, co, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        match_expr(pb, cb, compiled, bindings)
-      (If(cond=pc, ifso=ps, ifnot=pn, ..), If(cond=cc, ifso=cs, ifnot=cn, ..)) =>
-        match_expr(pc, cc, compiled, bindings) &&
-        match_expr(ps, cs, compiled, bindings) &&
-        option_match(pn, cn, (p, c) => match_expr(p, c, compiled, bindings))
-      (Interp(elems=pe, ..), Interp(elems=ce, ..)) =>
-        list_match(pe, ce, (p, c) => match_interp_elem(p, c, compiled, bindings))
-      (Is(expr=pe, pat=pp, ..), Is(expr=ce, pat=cp, ..)) =>
-        match_expr(pe, ce, compiled, bindings) &&
-        match_pattern(pp, cp, compiled, bindings)
-      (
-        Method(type_name=pt, method_name=pm, ..),
-        Method(type_name=ct, method_name=cm, ..),
-      ) => type_name_equal(pt, ct) && match_label(pm, cm, compiled, bindings)
-      (
-        Let(pattern=pp, expr=pe, body=pb, ..),
-        Let(pattern=cp, expr=ce, body=cb, ..),
-      ) =>
-        match_pattern(pp, cp, compiled, bindings) &&
-        match_expr(pe, ce, compiled, bindings) &&
-        (pb is Unit(faked=true, ..) || match_expr(pb, cb, compiled, bindings))
-      (LetAnd(bindings=pb, body=pbody, ..), LetAnd(bindings=cb, body=cbody, ..)) =>
-        list_match(pb, cb, (p, c) => {
-          match_let_and_binding(p, c, compiled, bindings)
-        }) &&
-        match_expr(pbody, cbody, compiled, bindings)
-      (
-        LetFn(name=pn, func=pf, body=pb, ..),
-        LetFn(name=cn, func=cf, body=cb, ..),
-      ) =>
-        match_binder(pn, cn, compiled, bindings) &&
-        match_func(pf, cf, compiled, bindings) &&
-        match_expr(pb, cb, compiled, bindings)
-      (
-        LetMut(binder=pb, ty=pt, expr=pe, body=pbody, ..),
-        LetMut(binder=cb, ty=ct, expr=ce, body=cbody, ..),
-      ) =>
-        match_binder(pb, cb, compiled, bindings) &&
-        option_match(pt, ct, type_equal) &&
-        match_expr(pe, ce, compiled, bindings) &&
-        match_expr(pbody, cbody, compiled, bindings)
-      (Map(elems=pe, ..), Map(elems=ce, ..)) =>
-        list_match(pe, ce, (p, c) => {
-          match_map_expr_elem(p, c, compiled, bindings)
-        })
-      (Match(expr=pe, cases=pc, ..), Match(expr=ce, cases=cc, ..)) =>
-        match_expr(pe, ce, compiled, bindings) &&
-        list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings))
-      (Constr(constr=pc, ..), Constr(constr=cc, ..)) =>
-        match_constructor(pc, cc, compiled, bindings)
-      (MultilineString(elems=pe, ..), MultilineString(elems=ce, ..)) =>
-        list_match(pe, ce, (p, c) => {
-          match_multiline_string_elem(p, c, compiled, bindings)
-        })
-      (
-        Mutate(record=pr, accessor=pa, field=pf, augmented_by=paug, ..),
-        Mutate(record=cr, accessor=ca, field=cf, augmented_by=caug, ..),
-      ) =>
-        match_expr(pr, cr, compiled, bindings) &&
-        match_accessor(pa, ca, compiled, bindings) &&
-        match_expr(pf, cf, compiled, bindings) &&
-        option_match(paug, caug, (p, c) => match_var(p, c, compiled, bindings))
-      (Pipe(lhs=pl, rhs=pr, ..), Pipe(lhs=cl, rhs=cr, ..)) =>
-        match_expr(pl, cl, compiled, bindings) &&
-        match_expr(pr, cr, compiled, bindings)
-      (RevPipe(lhs=pl, rhs=pr, ..), RevPipe(lhs=cl, rhs=cr, ..)) =>
-        match_expr(pl, cl, compiled, bindings) &&
-        match_expr(pr, cr, compiled, bindings)
-      (Implies(lhs=pl, rhs=pr, ..), Implies(lhs=cl, rhs=cr, ..)) =>
-        match_expr(pl, cl, compiled, bindings) &&
-        match_expr(pr, cr, compiled, bindings)
-      (
-        IsLexMatch(expr=pe, strategy=ps, pat=pp, ..),
-        IsLexMatch(expr=ce, strategy=cs, pat=cp, ..),
-      ) =>
-        match_expr(pe, ce, compiled, bindings) &&
-        option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
-        list_match(pp, cp, (p, c) => {
-          match_lex_top_pattern(p, c, compiled, bindings)
-        })
-      (
-        LexMatch(strategy=ps, expr=pe, cases=pc, ..),
-        LexMatch(strategy=cs, expr=ce, cases=cc, ..),
-      ) =>
-        option_match(ps, cs, (p, c) => match_label(p, c, compiled, bindings)) &&
-        match_expr(pe, ce, compiled, bindings) &&
-        list_match(pc, cc, (p, c) => match_lex_case(p, c, compiled, bindings))
-      (
-        ListComprehension(kind=pk, guard_=pg, body=pb, ..),
-        ListComprehension(kind=ck, guard_=cg, body=cb, ..),
-      ) =>
-        match_list_comprehension_kind(pk, ck, compiled, bindings) &&
-        option_match(pg, cg, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        match_expr(pb, cb, compiled, bindings)
-      (ProofAssert(expr=pe, ..), ProofAssert(expr=ce, ..)) =>
-        match_expr(pe, ce, compiled, bindings)
-      (ProofLet(binder=pb, expr=pe, ..), ProofLet(binder=cb, expr=ce, ..)) =>
-        match_binder(pb, cb, compiled, bindings) &&
-        match_expr(pe, ce, compiled, bindings)
-      (
-        Quantifier(kind=pk, binder=pb, binder_ty=pt, body=pe, ..),
-        Quantifier(kind=ck, binder=cb, binder_ty=ct, body=ce, ..),
-      ) =>
-        predicate_quantifier_kind_equal(pk, ck) &&
-        match_binder(pb, cb, compiled, bindings) &&
-        type_equal(pt, ct) &&
-        match_expr(pe, ce, compiled, bindings)
-      (
-        RegexMatch(expr=pe, pat=pp, bindings=pb, ..),
-        RegexMatch(expr=ce, pat=cp, bindings=cb, ..),
-      ) =>
-        match_expr(pe, ce, compiled, bindings) &&
-        match_regex_pattern(pp, cp, compiled, bindings) &&
-        list_match(pb, cb, (p, c) => {
-          match_regex_binding(p, c, compiled, bindings)
-        })
-      (Raise(err_value=pe, ..), Raise(err_value=ce, ..)) =>
-        match_expr(pe, ce, compiled, bindings)
-      (
-        Record(type_name=pt, fields=pf, trailing=ptr, ..),
-        Record(type_name=ct, fields=cf, trailing=ctr, ..),
-      ) =>
-        option_match(pt, ct, type_name_equal) &&
-        trailing_mark_equal(ptr, ctr) &&
-        list_match(pf, cf, (p, c) => match_field_def(p, c, compiled, bindings))
-      (
-        RecordUpdate(type_name=pt, record=pr, fields=pf, ..),
-        RecordUpdate(type_name=ct, record=cr, fields=cf, ..),
-      ) =>
-        option_match(pt, ct, type_name_equal) &&
-        match_expr(pr, cr, compiled, bindings) &&
-        list_match(pf, cf, (p, c) => match_field_def(p, c, compiled, bindings))
-      (Return(return_value=pv, ..), Return(return_value=cv, ..)) =>
-        option_match(pv, cv, (p, c) => match_expr(p, c, compiled, bindings))
-      (Array(exprs=pe, ..), Array(exprs=ce, ..)) =>
-        list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
-      (Tuple(exprs=pe, ..), Tuple(exprs=ce, ..)) =>
-        list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings))
-      (Group(expr=pe, group=pg, ..), Group(expr=ce, group=cg, ..)) =>
-        group_equal(pg, cg) && match_expr(pe, ce, compiled, bindings)
-      (
-        Sequence(exprs=pe, last_expr=pl, ..),
-        Sequence(exprs=ce, last_expr=cl, ..),
-      ) =>
-        list_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        match_expr(pl, cl, compiled, bindings)
-      (StaticAssert(asserts=pa, body=pb), StaticAssert(asserts=ca, body=cb)) =>
-        list_match(pa, ca, static_assertion_equal) &&
-        match_expr(pb, cb, compiled, bindings)
-      (
-        TemplateWriting(expr=pe, template=pt, ..),
-        TemplateWriting(expr=ce, template=ct, ..),
-      ) =>
-        match_expr(pe, ce, compiled, bindings) &&
-        match_expr(pt, ct, compiled, bindings)
-      (
-        For(
-          binders=pb,
-          condition=pc,
-          continue_block=pcont,
-          body=pbody,
-          for_else=pelse,
-          where_clause=pwhere,
-          label=plabel,
-          ..
-        ),
-        For(
-          binders=cb,
-          condition=cc,
-          continue_block=ccont,
-          body=cbody,
-          for_else=celse,
-          where_clause=cwhere,
-          label=clabel,
-          ..
-        ),
-      ) =>
-        list_match(pb, cb, (p, c) => {
-          match_binder_expr_pair(p, c, compiled, bindings)
-        }) &&
-        option_match(pc, cc, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        list_match(pcont, ccont, (p, c) => {
-          match_binder_expr_pair(p, c, compiled, bindings)
-        }) &&
-        match_expr(pbody, cbody, compiled, bindings) &&
-        option_match(pelse, celse, (p, c) => {
-          match_expr(p, c, compiled, bindings)
-        }) &&
-        option_match(pwhere, cwhere, (p, c) => {
-          match_where_clause(p, c, compiled, bindings)
-        }) &&
-        option_match(plabel, clabel, (p, c) => {
-          match_label(p, c, compiled, bindings)
-        })
-      (Unit(faked=pf, ..), Unit(faked=cf, ..)) => pf == cf
-      (TryOperator(body=pb, kind=pk, ..), TryOperator(body=cb, kind=ck, ..)) =>
-        try_operator_kind_equal(pk, ck) &&
-        match_expr(pb, cb, compiled, bindings)
-      (
-        Try(body=pb, catch_=pc, try_else=pelse, has_try=phas, ..),
-        Try(body=cb, catch_=cc, try_else=celse, has_try=chas, ..),
-      ) =>
-        phas == chas &&
-        match_expr(pb, cb, compiled, bindings) &&
-        list_match(pc, cc, (p, c) => match_case(p, c, compiled, bindings)) &&
-        option_match(pelse, celse, (p, c) => {
-          list_match(p, c, (p, c) => match_case(p, c, compiled, bindings))
-        })
-      (Unary(op=po, expr=pe, ..), Unary(op=co, expr=ce, ..)) =>
-        match_var(po, co, compiled, bindings) &&
-        match_expr(pe, ce, compiled, bindings)
-      (
-        While(loop_cond=pc, loop_body=pb, while_else=pe, label=pl, ..),
-        While(loop_cond=cc, loop_body=cb, while_else=ce, label=cl, ..),
-      ) =>
-        match_expr(pc, cc, compiled, bindings) &&
-        match_expr(pb, cb, compiled, bindings) &&
-        option_match(pe, ce, (p, c) => match_expr(p, c, compiled, bindings)) &&
-        option_match(pl, cl, (p, c) => match_label(p, c, compiled, bindings))
-      _ => false
+    match pattern.kind {
+      Expr_Let => match_let_node(pattern, candidate, compiled, bindings)
+      InterpElem_Source => candidate.kind == InterpElem_Source
+      Var => match_var(pattern, candidate, compiled, bindings)
+      Binder => match_binder(pattern, candidate, compiled, bindings)
+      Label => match_label(pattern, candidate, compiled, bindings)
+      Constructor => match_constructor(pattern, candidate, compiled, bindings)
+      TypeName => match_type_name(pattern, candidate, compiled, bindings)
+      _ => structural_match(pattern, candidate, compiled, bindings)
     }
   }
 }
 
 ///|
-// Handles rule-pattern placeholders before the structural matcher falls back to
-// literal AST comparison.
 fn match_expr_placeholder(
-  pattern : @syntax.Expr,
-  candidate : @syntax.Expr,
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
-  match pattern {
-    Ident(id~, ..) =>
-      if @id.normalize_identifier_name_from_var(id) is Some(name) {
-        if is_ignore_placeholder(name) {
-          Some(true)
-        } else if is_special_expr_metavar(compiled, name) ||
-          contains_name(compiled.expr_metavars, name) {
-          Some(bind_value(bindings, name, Expr(candidate)))
-        } else if contains_name(compiled.identifier_metavars, name) {
-          if @id.normalize_identifier_name_from_expr(candidate)
-            is Some(candidate_name) {
-            Some(bind_value(bindings, name, Identifier(candidate_name)))
-          } else {
-            Some(false)
-          }
-        } else if contains_name(compiled.constant_metavars, name) {
-          match candidate {
-            Constant(c~, ..) => Some(bind_value(bindings, name, Constant(c)))
-            _ => Some(false)
-          }
-        } else {
-          None
-        }
-      } else {
-        None
-      }
-    _ => None
+  if pattern.kind != Expr_Ident {
+    return None
   }
-}
-
-///|
-fn match_argument(
-  pattern : @syntax.Argument,
-  candidate : @syntax.Argument,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match_argument_kind(pattern.kind, candidate.kind, compiled, bindings) &&
-  match_expr(pattern.value, candidate.value, compiled, bindings)
-}
-
-///|
-fn match_argument_kind(
-  pattern : @syntax.ArgumentKind,
-  candidate : @syntax.ArgumentKind,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Positional, Positional) => true
-    (Labelled(pl), Labelled(cl)) => match_label(pl, cl, compiled, bindings)
-    (LabelledPun(pl), LabelledPun(cl)) =>
-      match_label(pl, cl, compiled, bindings)
-    (LabelledOption(label=pl, ..), LabelledOption(label=cl, ..)) =>
-      match_label(pl, cl, compiled, bindings)
-    (LabelledOptionPun(label=pl, ..), LabelledOptionPun(label=cl, ..)) =>
-      match_label(pl, cl, compiled, bindings)
-    _ => false
-  }
-}
-
-///|
-fn match_accessor(
-  pattern : @syntax.Accessor,
-  candidate : @syntax.Accessor,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Label(pl), Label(cl)) => match_label(pl, cl, compiled, bindings)
-    (Index(tuple_index=pi, ..), Index(tuple_index=ci, ..)) => pi == ci
-    (Newtype(..), Newtype(..)) => true
-    _ => false
-  }
-}
-
-///|
-fn match_binder_expr_pair(
-  pattern : (@syntax.Binder, @syntax.Expr),
-  candidate : (@syntax.Binder, @syntax.Expr),
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  let (pb, pe) = pattern
-  let (cb, ce) = candidate
-  match_binder(pb, cb, compiled, bindings) &&
-  match_expr(pe, ce, compiled, bindings)
-}
-
-///|
-fn match_let_and_binding(
-  pattern : (@syntax.Binder, @syntax.Type?, @syntax.Func),
-  candidate : (@syntax.Binder, @syntax.Type?, @syntax.Func),
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  let (pb, pt, pf) = pattern
-  let (cb, ct, cf) = candidate
-  match_binder(pb, cb, compiled, bindings) &&
-  option_match(pt, ct, type_equal) &&
-  match_func(pf, cf, compiled, bindings)
-}
-
-///|
-fn match_func(
-  pattern : @syntax.Func,
-  candidate : @syntax.Func,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  fn_kind_equal(pattern.kind, candidate.kind) &&
-  error_type_equal(pattern.error_type, candidate.error_type) &&
-  option_location_presence_equal(pattern.is_async, candidate.is_async) &&
-  option_match(pattern.return_type, candidate.return_type, type_equal) &&
-  list_match(pattern.parameters, candidate.parameters, (p, c) => {
-    match_parameter(p, c, compiled, bindings)
-  }) &&
-  match_expr(pattern.body, candidate.body, compiled, bindings)
-}
-
-///|
-fn match_parameter(
-  pattern : @syntax.Parameter,
-  candidate : @syntax.Parameter,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (DiscardPositional(ty=pt, ..), DiscardPositional(ty=ct, ..)) =>
-      option_match(pt, ct, type_equal)
-    (Labelled(binder=pb, ty=pt), Labelled(binder=cb, ty=ct)) =>
-      match_binder(pb, cb, compiled, bindings) &&
-      option_match(pt, ct, type_equal)
-    (
-      Optional(binder=pb, default=pd, ty=pt),
-      Optional(binder=cb, default=cd, ty=ct),
-    ) =>
-      match_binder(pb, cb, compiled, bindings) &&
-      option_match(pt, ct, type_equal) &&
-      match_expr(pd, cd, compiled, bindings)
-    (Positional(binder=pb, ty=pt), Positional(binder=cb, ty=ct)) =>
-      match_binder(pb, cb, compiled, bindings) &&
-      option_match(pt, ct, type_equal)
-    (QuestionOptional(binder=pb, ty=pt), QuestionOptional(binder=cb, ty=ct)) =>
-      match_binder(pb, cb, compiled, bindings) &&
-      option_match(pt, ct, type_equal)
-    _ => false
-  }
-}
-
-///|
-fn match_pattern(
-  pattern : @syntax.Pattern,
-  candidate : @syntax.Pattern,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match pattern {
-    Var(binder) => {
-      let name = binder.name
-      if parse_pattern_metavar_name(name) is Some(meta_name) {
-        bind_value(bindings, meta_name, Pattern(candidate))
-      } else if is_ignore_placeholder(name) {
-        true
-      } else if contains_name(compiled.identifier_metavars, name) {
-        if @id.normalize_identifier_name_from_pattern(candidate)
-          is Some(candidate_name) {
-          bind_value(bindings, name, Identifier(candidate_name))
-        } else {
-          false
-        }
-      } else if contains_name(compiled.constant_metavars, name) {
-        match candidate {
-          Constant(c~, ..) => bind_value(bindings, name, Constant(c))
-          _ => false
-        }
-      } else {
-        match candidate {
-          Var(candidate_binder) => binder_equal(binder, candidate_binder)
-          _ => false
-        }
-      }
+  guard expr_ident_name(pattern) is Some(name) else { return None }
+  if is_ignore_placeholder(name) {
+    Some(true)
+  } else if is_special_expr_metavar(compiled, name) ||
+    contains_name(compiled.expr_metavars, name) {
+    Some(bind_value(bindings, name, candidate))
+  } else if contains_name(compiled.identifier_metavars, name) {
+    match normalize_expr(candidate) {
+      Some(candidate_name) =>
+        Some(
+          bind_value(bindings, name, string_binding(candidate_name, candidate)),
+        )
+      None => Some(false)
     }
-    Any(..) =>
-      match candidate {
-        Any(..) => true
-        _ => false
-      }
-    Alias(pat=pp, alias_=pa, ..) =>
-      match candidate {
-        Alias(pat=cp, alias_=ca, ..) =>
-          match_pattern(pp, cp, compiled, bindings) &&
-          match_binder(pa, ca, compiled, bindings)
-        _ => false
-      }
-    Array(pats=pp, ..) =>
-      match candidate {
-        Array(pats=cp, ..) => match_array_patterns(pp, cp, compiled, bindings)
-        _ => false
-      }
-    Constant(c=pc, ..) =>
-      match candidate {
-        Constant(c=cc, ..) => constant_equal(pc, cc)
-        _ => false
-      }
-    Constr(constr=pc, args=pa, is_open=po, ..) =>
-      match candidate {
-        Constr(constr=cc, args=ca, is_open=co, ..) =>
-          po == co &&
-          match_constructor(pc, cc, compiled, bindings) &&
-          option_match(pa, ca, (p, c) => {
-            list_match(p, c, (p, c) => {
-              match_constr_pat_arg(p, c, compiled, bindings)
-            })
-          })
-        _ => false
-      }
-    Constraint(pat=pp, ty=pt, ..) =>
-      match candidate {
-        Constraint(pat=cp, ty=ct, ..) =>
-          type_equal(pt, ct) && match_pattern(pp, cp, compiled, bindings)
-        _ => false
-      }
-    Map(elems=pe, is_closed=pc, ..) =>
-      match candidate {
-        Map(elems=ce, is_closed=cc, ..) =>
-          pc == cc &&
-          list_match(pe, ce, (p, c) => {
-            match_map_pat_elem(p, c, compiled, bindings)
-          })
-        _ => false
-      }
-    Or(pat1=pl, pat2=pr, ..) =>
-      match candidate {
-        Or(pat1=cl, pat2=cr, ..) =>
-          match_pattern(pl, cl, compiled, bindings) &&
-          match_pattern(pr, cr, compiled, bindings)
-        _ => false
-      }
-    Range(lhs=pl, rhs=pr, kind=pk, ..) =>
-      match candidate {
-        Range(lhs=cl, rhs=cr, kind=ck, ..) =>
-          range_kind_equal(pk, ck) &&
-          match_pattern(pl, cl, compiled, bindings) &&
-          match_pattern(pr, cr, compiled, bindings)
-        _ => false
-      }
-    Record(fields=pf, is_closed=pc, ..) =>
-      match candidate {
-        Record(fields=cf, is_closed=cc, ..) =>
-          pc == cc &&
-          list_match(pf, cf, (p, c) => match_field_pat(p, c, compiled, bindings))
-        _ => false
-      }
-    SpecialConstr(binder=pb, args=pa, ..) =>
-      match candidate {
-        SpecialConstr(binder=cb, args=ca, ..) =>
-          match_binder(pb, cb, compiled, bindings) &&
-          list_match(pa, ca, (p, c) => {
-            match_constr_pat_arg(p, c, compiled, bindings)
-          })
-        _ => false
-      }
-    Tuple(pats=pp, ..) =>
-      match candidate {
-        Tuple(pats=cp, ..) =>
-          list_match(pp, cp, (p, c) => match_pattern(p, c, compiled, bindings))
-        _ => false
-      }
+  } else if contains_name(compiled.constant_metavars, name) {
+    match expr_constant(candidate) {
+      Some(constant) => Some(bind_value(bindings, name, constant))
+      None => Some(false)
+    }
+  } else {
+    None
   }
 }
 
 ///|
-fn match_array_patterns(
-  pattern : @syntax.ArrayPatterns,
-  candidate : @syntax.ArrayPatterns,
+fn match_pattern_placeholder(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Closed(patterns), Closed(candidates)) =>
-      list_match(patterns, candidates, (p, c) => {
-        match_array_pattern(p, c, compiled, bindings)
-      })
-    (Open(pl, pr, pb), Open(cl, cr, cb)) =>
-      dot_dot_binder_equal(pb, cb) &&
-      list_match(pl, cl, (p, c) => match_array_pattern(p, c, compiled, bindings)) &&
-      list_match(pr, cr, (p, c) => match_array_pattern(p, c, compiled, bindings))
-    _ => false
+) -> Bool? {
+  if pattern.kind != Pattern_Var {
+    return None
+  }
+  guard pattern_var_name(pattern) is Some(name) else { return None }
+  if parse_pattern_metavar_name(name) is Some(meta_name) {
+    Some(bind_value(bindings, meta_name, candidate))
+  } else if is_ignore_placeholder(name) {
+    Some(true)
+  } else if contains_name(compiled.identifier_metavars, name) {
+    match normalize_pattern(candidate) {
+      Some(candidate_name) =>
+        Some(
+          bind_value(bindings, name, string_binding(candidate_name, candidate)),
+        )
+      None => Some(false)
+    }
+  } else if contains_name(compiled.constant_metavars, name) {
+    match pattern_constant(candidate) {
+      Some(constant) => Some(bind_value(bindings, name, constant))
+      None => Some(false)
+    }
+  } else {
+    None
   }
 }
 
 ///|
-fn match_array_pattern(
-  pattern : @syntax.ArrayPattern,
-  candidate : @syntax.ArrayPattern,
+fn match_let_node(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match (pattern, candidate) {
-    (BytesSpread(bytes=left, ..), BytesSpread(bytes=right, ..)) => left == right
-    (ConstSpread(binder=pb, pkg=pp, ..), ConstSpread(binder=cb, pkg=cp, ..)) =>
-      pp == cp && match_binder(pb, cb, compiled, bindings)
-    (Pattern(pattern), Pattern(candidate)) =>
-      match_pattern(pattern, candidate, compiled, bindings)
-    (StringSpread(str=left, ..), StringSpread(str=right, ..)) => left == right
-    _ => false
+  if candidate.kind != Expr_Let {
+    return false
+  }
+  guard child(pattern, "pattern") is Some(pattern_pat) else { return false }
+  guard child(candidate, "pattern") is Some(candidate_pat) else { return false }
+  guard child(pattern, "expr") is Some(pattern_expr) else { return false }
+  guard child(candidate, "expr") is Some(candidate_expr) else { return false }
+  guard child(pattern, "body") is Some(pattern_body) else { return false }
+  guard child(candidate, "body") is Some(candidate_body) else { return false }
+  match_node(pattern_pat, candidate_pat, compiled, bindings) &&
+  match_node(pattern_expr, candidate_expr, compiled, bindings) &&
+  (
+    is_faked_unit(pattern_body) ||
+    match_node(pattern_body, candidate_body, compiled, bindings)
+  )
+}
+
+///|
+fn structural_match(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern.kind, candidate.kind) {
+    (Leaf(_), Leaf(_)) => pattern.kind == candidate.kind
+    _ =>
+      pattern.kind == candidate.kind &&
+      match_children(pattern.children, candidate.children, compiled, bindings)
   }
 }
 
 ///|
-fn match_constr_pat_arg(
-  pattern : @syntax.ConstrPatArg,
-  candidate : @syntax.ConstrPatArg,
+fn match_children(
+  pattern : FixedArray[(String?, @untyped_ast.Node)],
+  candidate : FixedArray[(String?, @untyped_ast.Node)],
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match_argument_kind(pattern.kind, candidate.kind, compiled, bindings) &&
-  match_pattern(pattern.pat, candidate.pat, compiled, bindings)
-}
-
-///|
-fn match_map_pat_elem(
-  pattern : @syntax.MapPatElem,
-  candidate : @syntax.MapPatElem,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  pattern.match_absent == candidate.match_absent &&
-  constant_equal(pattern.key, candidate.key) &&
-  match_pattern(pattern.pat, candidate.pat, compiled, bindings)
-}
-
-///|
-fn match_field_pat(
-  pattern : @syntax.FieldPat,
-  candidate : @syntax.FieldPat,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  pattern.is_pun == candidate.is_pun &&
-  match_label(pattern.label, candidate.label, compiled, bindings) &&
-  match_pattern(pattern.pattern, candidate.pattern, compiled, bindings)
-}
-
-///|
-fn match_spreadable_elem(
-  pattern : @syntax.SpreadableElem,
-  candidate : @syntax.SpreadableElem,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Regular(pattern), Regular(candidate)) =>
-      match_expr(pattern, candidate, compiled, bindings)
-    (Spread(expr=pattern, ..), Spread(expr=candidate, ..)) =>
-      match_expr(pattern, candidate, compiled, bindings)
-    _ => false
+  if pattern.length() != candidate.length() {
+    return false
   }
-}
-
-///|
-fn match_interp_elem(
-  pattern : @syntax.InterpElem,
-  candidate : @syntax.InterpElem,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Expr(expr=pattern, ..), Expr(expr=candidate, ..)) =>
-      match_expr(pattern, candidate, compiled, bindings)
-    (Literal(repr=left, ..), Literal(repr=right, ..)) => left == right
-    // Parser token internals are not compared here; non-expression
-    // interpolation sources currently match by node kind only.
-    (Source(_), Source(_)) => true
-    _ => false
+  for index in 0..<pattern.length() {
+    let (pattern_name, pattern_value) = pattern[index]
+    let (candidate_name, candidate_value) = candidate[index]
+    if pattern_name != candidate_name ||
+      !match_node(pattern_value, candidate_value, compiled, bindings) {
+      return false
+    }
   }
-}
-
-///|
-fn match_multiline_string_elem(
-  pattern : @syntax.MultilineStringElem,
-  candidate : @syntax.MultilineStringElem,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (String(left), String(right)) => left == right
-    (Interp(left), Interp(right)) =>
-      list_match(left, right, (p, c) => {
-        match_interp_elem(p, c, compiled, bindings)
-      })
-    _ => false
-  }
-}
-
-///|
-fn match_map_expr_elem(
-  pattern : @syntax.MapExprElem,
-  candidate : @syntax.MapExprElem,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  constant_equal(pattern.key, candidate.key) &&
-  match_expr(pattern.expr, candidate.expr, compiled, bindings)
-}
-
-///|
-fn match_case(
-  pattern : @syntax.Case,
-  candidate : @syntax.Case,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match_pattern(pattern.pattern, candidate.pattern, compiled, bindings) &&
-  option_match(pattern.guard_, candidate.guard_, (p, c) => {
-    match_expr(p, c, compiled, bindings)
-  }) &&
-  match_expr(pattern.body, candidate.body, compiled, bindings)
-}
-
-///|
-fn match_field_def(
-  pattern : @syntax.FieldDef,
-  candidate : @syntax.FieldDef,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  pattern.is_pun == candidate.is_pun &&
-  match_label(pattern.label, candidate.label, compiled, bindings) &&
-  match_expr(pattern.expr, candidate.expr, compiled, bindings)
-}
-
-///|
-fn match_where_clause(
-  pattern : @syntax.WhereClause,
-  candidate : @syntax.WhereClause,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  list_match(pattern.fields, candidate.fields, (p, c) => {
-    match_field_def(p, c, compiled, bindings)
-  })
-}
-
-///|
-fn match_list_comprehension_kind(
-  pattern : @syntax.ListComprehensionKind,
-  candidate : @syntax.ListComprehensionKind,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (
-      For(binders=pb, condition=pc, continue_block=pcont, ..),
-      For(binders=cb, condition=cc, continue_block=ccont, ..),
-    ) =>
-      list_match(pb, cb, (p, c) => {
-        match_binder_expr_pair(p, c, compiled, bindings)
-      }) &&
-      option_match(pc, cc, (p, c) => match_expr(p, c, compiled, bindings)) &&
-      list_match(pcont, ccont, (p, c) => {
-        match_binder_expr_pair(p, c, compiled, bindings)
-      })
-    (
-      Foreach(binders=pb, expr=pe, init=pi, continue_block=pcont),
-      Foreach(binders=cb, expr=ce, init=ci, continue_block=ccont),
-    ) =>
-      list_match(pb, cb, (p, c) => {
-        option_match(p, c, (p, c) => match_binder(p, c, compiled, bindings))
-      }) &&
-      match_expr(pe, ce, compiled, bindings) &&
-      list_match(pi, ci, (p, c) => {
-        match_binder_expr_pair(p, c, compiled, bindings)
-      }) &&
-      list_match(pcont, ccont, (p, c) => {
-        match_binder_expr_pair(p, c, compiled, bindings)
-      })
-    _ => false
-  }
-}
-
-///|
-fn match_lex_case(
-  pattern : @syntax.LexCase,
-  candidate : @syntax.LexCase,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  list_match(pattern.pat, candidate.pat, (p, c) => {
-    match_lex_top_pattern(p, c, compiled, bindings)
-  }) &&
-  option_match(pattern.guard_, candidate.guard_, (p, c) => {
-    match_expr(p, c, compiled, bindings)
-  }) &&
-  match_expr(pattern.body, candidate.body, compiled, bindings)
-}
-
-///|
-fn match_lex_top_pattern(
-  pattern : @syntax.LexTopPattern,
-  candidate : @syntax.LexTopPattern,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Binder(pattern), Binder(candidate)) =>
-      match_binder(pattern, candidate, compiled, bindings)
-    (Pattern(pattern), Pattern(candidate)) =>
-      match_lex_pattern(pattern, candidate, compiled, bindings)
-    (Wildcard(..), Wildcard(..)) => true
-    _ => false
-  }
-}
-
-///|
-fn match_lex_pattern(
-  pattern : @syntax.LexPattern,
-  candidate : @syntax.LexPattern,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Alias(pat=pp, binder=pb, ..), Alias(pat=cp, binder=cb, ..)) =>
-      match_lex_pattern(pp, cp, compiled, bindings) &&
-      match_binder(pb, cb, compiled, bindings)
-    (ConstantRef(lid=pl, ..), ConstantRef(lid=cl, ..)) =>
-      long_ident_equal(pl, cl)
-    (Regex(lit=pl, offset=po, ..), Regex(lit=cl, offset=co, ..)) =>
-      pl == cl && po == co
-    (RegexInterp(elems=pe, ..), RegexInterp(elems=ce, ..)) =>
-      list_match(pe, ce, (p, c) => match_interp_elem(p, c, compiled, bindings))
-    (Sequence(pats=pp, ..), Sequence(pats=cp, ..)) =>
-      list_match(pp, cp, (p, c) => match_lex_pattern(p, c, compiled, bindings))
-    _ => false
-  }
-}
-
-///|
-fn match_regex_pattern(
-  pattern : @syntax.RegexPattern,
-  candidate : @syntax.RegexPattern,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (Alias(pat=pp, binder=pb, ..), Alias(pat=cp, binder=cb, ..)) =>
-      match_regex_pattern(pp, cp, compiled, bindings) &&
-      match_binder(pb, cb, compiled, bindings)
-    (Alternation(pat1=pl, pat2=pr, ..), Alternation(pat1=cl, pat2=cr, ..))
-    | (Sequence(pat1=pl, pat2=pr, ..), Sequence(pat1=cl, pat2=cr, ..)) =>
-      match_regex_pattern(pl, cl, compiled, bindings) &&
-      match_regex_pattern(pr, cr, compiled, bindings)
-    (Literal(lit=pl, ..), Literal(lit=cl, ..)) => pl == cl
-    (Reference(lid=pl, ..), Reference(lid=cl, ..)) => long_ident_equal(pl, cl)
-    _ => false
-  }
-}
-
-///|
-fn match_regex_binding(
-  pattern : (@syntax.Label, @syntax.Binder?),
-  candidate : (@syntax.Label, @syntax.Binder?),
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  let (pattern_label, pattern_binder) = pattern
-  let (candidate_label, candidate_binder) = candidate
-  match_label(pattern_label, candidate_label, compiled, bindings) &&
-  option_match(pattern_binder, candidate_binder, (p, c) => {
-    match_binder(p, c, compiled, bindings)
-  })
+  true
 }
 
 ///|
 fn match_var(
-  pattern : @syntax.Var,
-  candidate : @syntax.Var,
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match_long_ident(pattern.name, candidate.name, compiled, bindings)
+  if candidate.kind != Var {
+    return false
+  }
+  match (child(pattern, "name"), child(candidate, "name")) {
+    (Some(pattern_name), Some(candidate_name)) =>
+      match_long_ident(pattern_name, candidate_name, compiled, bindings)
+    _ => false
+  }
 }
 
 ///|
 fn match_long_ident(
-  pattern : @syntax.LongIdent,
-  candidate : @syntax.LongIdent,
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match (pattern, candidate) {
-    (Ident(name=pattern_name), _) =>
+  match pattern.kind {
+    LongIdent_Ident => {
+      guard leaf_string_child(pattern, "value") is Some(pattern_name) else {
+        return false
+      }
+      guard normalized_long_ident(candidate) is Some(candidate_name) else {
+        return false
+      }
       match_identifier_name(
-        pattern_name,
-        normalized_long_ident(candidate),
-        normalized_long_ident(candidate),
-        compiled,
-        bindings,
+        pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
       )
-    (
-      Dot(pkg=pattern_pkg, id=pattern_id),
-      Dot(pkg=candidate_pkg, id=candidate_id),
-    ) =>
+    }
+    LongIdent_Dot => {
+      if candidate.kind != LongIdent_Dot {
+        return false
+      }
+      guard leaf_string_child(pattern, "pkg") is Some(pattern_pkg) else {
+        return false
+      }
+      guard leaf_string_child(candidate, "pkg") is Some(candidate_pkg) else {
+        return false
+      }
+      guard leaf_string_child(pattern, "id") is Some(pattern_id) else {
+        return false
+      }
+      guard leaf_string_child(candidate, "id") is Some(candidate_id) else {
+        return false
+      }
+      guard normalized_long_ident(candidate) is Some(bound_candidate) else {
+        return false
+      }
       pattern_pkg == candidate_pkg &&
       match_identifier_name(
-        pattern_id,
-        candidate_id,
-        normalized_long_ident(candidate),
-        compiled,
-        bindings,
+        pattern_id, candidate_id, bound_candidate, candidate, compiled, bindings,
       )
-    _ => false
+    }
+    _ => structural_match(pattern, candidate, compiled, bindings)
   }
 }
 
 ///|
 fn match_binder(
-  pattern : @syntax.Binder,
-  candidate : @syntax.Binder,
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  let name = pattern.name
-  match_identifier_name(
-    name,
-    candidate.name,
-    candidate.name,
-    compiled,
-    bindings,
-  )
+  if candidate.kind != Binder {
+    return false
+  }
+  match (binder_name(pattern), binder_name(candidate)) {
+    (Some(pattern_name), Some(candidate_name)) =>
+      match_identifier_name(
+        pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
+      )
+    _ => false
+  }
 }
 
 ///|
 fn match_label(
-  pattern : @syntax.Label,
-  candidate : @syntax.Label,
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  let name = pattern.name
-  match_identifier_name(
-    name,
-    candidate.name,
-    candidate.name,
-    compiled,
-    bindings,
-  )
+  if candidate.kind != Label {
+    return false
+  }
+  match (label_name(pattern), label_name(candidate)) {
+    (Some(pattern_name), Some(candidate_name)) =>
+      match_identifier_name(
+        pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
+      )
+    _ => false
+  }
 }
 
 ///|
@@ -1074,23 +317,110 @@ fn match_identifier_name(
   pattern_name : String,
   literal_candidate_name : String,
   bound_candidate_name : String,
+  candidate_source : @untyped_ast.Node,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
   if is_ignore_placeholder(pattern_name) {
     true
   } else if contains_name(compiled.identifier_metavars, pattern_name) {
-    bind_value(bindings, pattern_name, Identifier(bound_candidate_name))
+    bind_value(
+      bindings,
+      pattern_name,
+      string_binding(bound_candidate_name, candidate_source),
+    )
   } else {
     pattern_name == literal_candidate_name
   }
 }
 
 ///|
-fn normalized_long_ident(long_ident : @syntax.LongIdent) -> String {
-  match long_ident {
-    Ident(name~) => name
-    Dot(pkg~, id~) => "@\{pkg}.\{id}"
+fn match_type_name(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  if candidate.kind != TypeName {
+    return false
+  }
+  guard child(pattern, "name") is Some(pattern_name) else { return false }
+  guard child(candidate, "name") is Some(candidate_name) else { return false }
+  leaf_bool_child(pattern, "is_object") ==
+  leaf_bool_child(candidate, "is_object") &&
+  match_long_ident(pattern_name, candidate_name, compiled, bindings)
+}
+
+///|
+fn match_constructor(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  if candidate.kind != Constructor {
+    return false
+  }
+  guard constructor_name(pattern) is Some(pattern_name) else { return false }
+  guard constructor_name(candidate) is Some(candidate_name) else {
+    return false
+  }
+  guard child(pattern, "extra_info") is Some(pattern_extra) else {
+    return false
+  }
+  guard child(candidate, "extra_info") is Some(candidate_extra) else {
+    return false
+  }
+  if contains_name(compiled.identifier_metavars, pattern_name) {
+    let extra_matches = pattern_extra.kind == ConstructorExtraInfo_NoExtraInfo ||
+      match_constructor_extra_info(
+        pattern_extra, candidate_extra, compiled, bindings,
+      )
+    extra_matches &&
+    bind_value(
+      bindings,
+      pattern_name,
+      string_binding(normalized_constructor(candidate), candidate),
+    )
+  } else if is_ignore_placeholder(pattern_name) {
+    true
+  } else {
+    pattern_name == candidate_name &&
+    match_constructor_extra_info(
+      pattern_extra, candidate_extra, compiled, bindings,
+    )
+  }
+}
+
+///|
+fn match_constructor_extra_info(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  match (pattern.kind, candidate.kind) {
+    (ConstructorExtraInfo_NoExtraInfo, ConstructorExtraInfo_NoExtraInfo) => true
+    (ConstructorExtraInfo_Package, ConstructorExtraInfo_Package) =>
+      leaf_string_child(pattern, "value") ==
+      leaf_string_child(candidate, "value")
+    (ConstructorExtraInfo_TypeName, ConstructorExtraInfo_TypeName) =>
+      match (child(pattern, "value"), child(candidate, "value")) {
+        (Some(pattern_type), Some(candidate_type)) =>
+          match_type_name(pattern_type, candidate_type, compiled, bindings)
+        _ => false
+      }
+    (
+      ConstructorExtraInfo_TypeNameWithConstrPackage,
+      ConstructorExtraInfo_TypeNameWithConstrPackage,
+    ) =>
+      leaf_string_child(pattern, "pkg") == leaf_string_child(candidate, "pkg") &&
+      (match (child(pattern, "type_name"), child(candidate, "type_name")) {
+        (Some(pattern_type), Some(candidate_type)) =>
+          match_type_name(pattern_type, candidate_type, compiled, bindings)
+        _ => false
+      })
+    _ => false
   }
 }
 
@@ -1109,30 +439,13 @@ fn bind_value(
 }
 
 ///|
+fn string_binding(value : String, source : @untyped_ast.Node) -> BoundValue {
+  { kind: Leaf(PString(value)), loc: source.loc, children: [] }
+}
+
+///|
 fn bound_value_equal(left : BoundValue, right : BoundValue) -> Bool {
-  match (left, right) {
-    (Expr(left), Expr(right)) => expr_bound_equal(left, right)
-    (Identifier(left), Identifier(right)) => left == right
-    (Constant(left), Constant(right)) => constant_equal(left, right)
-    (Pattern(left), Pattern(right)) => pattern_bound_equal(left, right)
-    _ => false
-  }
-}
-
-///|
-fn expr_bound_equal(left : @syntax.Expr, right : @syntax.Expr) -> Bool {
-  node_equal_ignoring_loc(
-    @untyped_ast.from_expr(left),
-    @untyped_ast.from_expr(right),
-  )
-}
-
-///|
-fn pattern_bound_equal(left : @syntax.Pattern, right : @syntax.Pattern) -> Bool {
-  node_equal_ignoring_loc(
-    @untyped_ast.from_pattern(left),
-    @untyped_ast.from_pattern(right),
-  )
+  node_equal_ignoring_loc(left, right)
 }
 
 ///|
@@ -1168,115 +481,207 @@ fn children_equal_ignoring_loc(
 }
 
 ///|
-fn binder_equal(left : @syntax.Binder, right : @syntax.Binder) -> Bool {
-  left.name == right.name
-}
-
-///|
-fn long_ident_equal(
-  left : @syntax.LongIdent,
-  right : @syntax.LongIdent,
-) -> Bool {
-  match (left, right) {
-    (Ident(name=left), Ident(name=right)) => left == right
-    (Dot(pkg=left_pkg, id=left_id), Dot(pkg=right_pkg, id=right_id)) =>
-      left_pkg == right_pkg && left_id == right_id
-    _ => false
-  }
-}
-
-///|
-fn type_name_equal(left : @syntax.TypeName, right : @syntax.TypeName) -> Bool {
-  left.is_object == right.is_object && long_ident_equal(left.name, right.name)
-}
-
-///|
-fn match_type_name(
-  pattern : @syntax.TypeName,
-  candidate : @syntax.TypeName,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  pattern.is_object == candidate.is_object &&
-  match_long_ident(pattern.name, candidate.name, compiled, bindings)
-}
-
-///|
-fn match_constructor(
-  pattern : @syntax.Constructor,
-  candidate : @syntax.Constructor,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  let pattern_name = pattern.name.name
-  if contains_name(compiled.identifier_metavars, pattern_name) {
-    let extra_matches = match pattern.extra_info {
-      NoExtraInfo => true
-      _ =>
-        match_constructor_extra_info(
-          pattern.extra_info,
-          candidate.extra_info,
-          compiled,
-          bindings,
-        )
+fn child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
+  for entry in node.children {
+    let (child_name, value) = entry
+    if child_name == Some(name) {
+      return Some(value)
     }
-    extra_matches &&
-    bind_value(
-      bindings,
-      pattern_name,
-      Identifier(normalized_constructor(candidate)),
-    )
-  } else if is_ignore_placeholder(pattern_name) {
-    true
+  }
+  None
+}
+
+///|
+fn leaf_string(node : @untyped_ast.Node) -> String? {
+  match node.kind {
+    Leaf(PString(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn leaf_bool(node : @untyped_ast.Node) -> Bool? {
+  match node.kind {
+    Leaf(PBool(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn leaf_string_child(node : @untyped_ast.Node, name : String) -> String? {
+  if child(node, name) is Some(value) {
+    leaf_string(value)
   } else {
-    constr_name_equal(pattern.name, candidate.name) &&
-    match_constructor_extra_info(
-      pattern.extra_info,
-      candidate.extra_info,
-      compiled,
-      bindings,
-    )
+    None
   }
 }
 
 ///|
-fn match_constructor_extra_info(
-  pattern : @syntax.ConstructorExtraInfo,
-  candidate : @syntax.ConstructorExtraInfo,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern, candidate) {
-    (NoExtraInfo, NoExtraInfo) => true
-    (Package(left), Package(right)) => left == right
-    (TypeName(left), TypeName(right)) =>
-      match_type_name(left, right, compiled, bindings)
-    (
-      TypeNameWithConstrPackage(type_name=left_type, pkg=left_pkg),
-      TypeNameWithConstrPackage(type_name=right_type, pkg=right_pkg),
-    ) =>
-      left_pkg == right_pkg &&
-      match_type_name(left_type, right_type, compiled, bindings)
-    _ => false
+fn leaf_bool_child(node : @untyped_ast.Node, name : String) -> Bool? {
+  if child(node, name) is Some(value) {
+    leaf_bool(value)
+  } else {
+    None
   }
 }
 
 ///|
-fn normalized_constructor(constr : @syntax.Constructor) -> String {
-  let name = constr.name.name
-  match constr.extra_info {
-    NoExtraInfo => name
-    Package(pkg) => "@\{pkg}.\{name}"
-    TypeName(type_name) => "\{normalized_type_name(type_name)}::\{name}"
-    TypeNameWithConstrPackage(type_name~, pkg~) =>
-      "\{normalized_type_name(type_name)}::@\{pkg}.\{name}"
+fn first_child(node : @untyped_ast.Node) -> @untyped_ast.Node? {
+  if node.children.length() == 0 {
+    None
+  } else {
+    let (_, value) = node.children[0]
+    Some(value)
   }
 }
 
 ///|
-fn normalized_type_name(type_name : @syntax.TypeName) -> String {
-  let name = normalized_long_ident(type_name.name)
-  if type_name.is_object {
+fn expr_ident_name(node : @untyped_ast.Node) -> String? {
+  if child(node, "id") is Some(var_node) {
+    normalize_var(var_node)
+  } else {
+    None
+  }
+}
+
+///|
+fn expr_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
+  if node.kind == Expr_Constant {
+    child(node, "constant")
+  } else {
+    None
+  }
+}
+
+///|
+fn pattern_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
+  if node.kind == Pattern_Constant {
+    child(node, "constant")
+  } else {
+    None
+  }
+}
+
+///|
+fn pattern_var_name(node : @untyped_ast.Node) -> String? {
+  if first_child(node) is Some(binder) {
+    binder_name(binder)
+  } else {
+    None
+  }
+}
+
+///|
+fn normalize_expr(node : @untyped_ast.Node) -> String? {
+  if node.kind == Expr_Ident {
+    expr_ident_name(node)
+  } else {
+    None
+  }
+}
+
+///|
+fn normalize_pattern(node : @untyped_ast.Node) -> String? {
+  if node.kind == Pattern_Var {
+    pattern_var_name(node)
+  } else {
+    None
+  }
+}
+
+///|
+fn normalize_var(node : @untyped_ast.Node) -> String? {
+  if node.kind == Var {
+    if child(node, "name") is Some(name) {
+      normalized_long_ident(name)
+    } else {
+      None
+    }
+  } else {
+    None
+  }
+}
+
+///|
+fn normalized_long_ident(node : @untyped_ast.Node) -> String? {
+  match node.kind {
+    LongIdent_Ident => leaf_string_child(node, "value")
+    LongIdent_Dot =>
+      match (leaf_string_child(node, "pkg"), leaf_string_child(node, "id")) {
+        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn binder_name(node : @untyped_ast.Node) -> String? {
+  if node.kind == Binder {
+    leaf_string_child(node, "name")
+  } else {
+    None
+  }
+}
+
+///|
+fn label_name(node : @untyped_ast.Node) -> String? {
+  if node.kind == Label {
+    leaf_string_child(node, "name")
+  } else {
+    None
+  }
+}
+
+///|
+fn constructor_name(node : @untyped_ast.Node) -> String? {
+  guard child(node, "name") is Some(name_node) else { return None }
+  leaf_string_child(name_node, "name")
+}
+
+///|
+fn normalized_constructor(constr : @untyped_ast.Node) -> String {
+  let name = constructor_name(constr).unwrap_or("")
+  match child(constr, "extra_info") {
+    Some(extra) =>
+      match extra.kind {
+        ConstructorExtraInfo_NoExtraInfo => name
+        ConstructorExtraInfo_Package =>
+          if leaf_string_child(extra, "value") is Some(pkg) {
+            "@\{pkg}.\{name}"
+          } else {
+            name
+          }
+        ConstructorExtraInfo_TypeName =>
+          if child(extra, "value") is Some(type_name) {
+            "\{normalized_type_name(type_name)}::\{name}"
+          } else {
+            name
+          }
+        ConstructorExtraInfo_TypeNameWithConstrPackage =>
+          if child(extra, "type_name") is Some(type_name) {
+            if leaf_string_child(extra, "pkg") is Some(pkg) {
+              "\{normalized_type_name(type_name)}::@\{pkg}.\{name}"
+            } else {
+              "\{normalized_type_name(type_name)}::\{name}"
+            }
+          } else {
+            name
+          }
+        _ => name
+      }
+    None => name
+  }
+}
+
+///|
+fn normalized_type_name(type_name : @untyped_ast.Node) -> String {
+  let name = if child(type_name, "name") is Some(long_ident) {
+    normalized_long_ident(long_ident).unwrap_or("")
+  } else {
+    ""
+  }
+  if leaf_bool_child(type_name, "is_object") == Some(true) {
     "object \{name}"
   } else {
     name
@@ -1284,225 +689,8 @@ fn normalized_type_name(type_name : @syntax.TypeName) -> String {
 }
 
 ///|
-fn constr_name_equal(
-  left : @syntax.ConstrName,
-  right : @syntax.ConstrName,
-) -> Bool {
-  left.name == right.name
-}
-
-///|
-fn type_equal(left : @syntax.Type, right : @syntax.Type) -> Bool {
-  match (left, right) {
-    (Any(..), Any(..)) => true
-    (
-      Arrow(args=left_args, res=left_res, err=left_err, is_async=left_async, ..),
-      Arrow(
-        args=right_args,
-        res=right_res,
-        err=right_err,
-        is_async=right_async,
-        ..
-      ),
-    ) =>
-      option_location_presence_equal(left_async, right_async) &&
-      error_type_equal(left_err, right_err) &&
-      list_match(left_args, right_args, type_equal) &&
-      type_equal(left_res, right_res)
-    (
-      Name(constr_id=left_id, tys=left_tys, ..),
-      Name(constr_id=right_id, tys=right_tys, ..),
-    ) =>
-      constr_id_equal(left_id, right_id) &&
-      list_match(left_tys, right_tys, type_equal)
-    (Object(left), Object(right)) => constr_id_equal(left, right)
-    (Option(ty=left, ..), Option(ty=right, ..)) => type_equal(left, right)
-    (Tuple(tys=left, ..), Tuple(tys=right, ..)) =>
-      list_match(left, right, type_equal)
-    _ => false
-  }
-}
-
-///|
-fn constr_id_equal(left : @syntax.ConstrId, right : @syntax.ConstrId) -> Bool {
-  long_ident_equal(left.id, right.id)
-}
-
-///|
-fn error_type_equal(
-  left : @syntax.ErrorType,
-  right : @syntax.ErrorType,
-) -> Bool {
-  match (left, right) {
-    (DefaultErrorType(..), DefaultErrorType(..)) => true
-    (ErrorType(ty=left), ErrorType(ty=right)) => type_equal(left, right)
-    (MaybeError(ty=left), MaybeError(ty=right)) => type_equal(left, right)
-    (NoErrorType, NoErrorType) => true
-    (Noraise(..), Noraise(..)) => true
-    _ => false
-  }
-}
-
-///|
-fn fn_kind_equal(left : @syntax.FnKind, right : @syntax.FnKind) -> Bool {
-  match (left, right) {
-    (Arrow, Arrow) => true
-    (Lambda, Lambda) => true
-    _ => false
-  }
-}
-
-///|
-fn range_kind_equal(
-  left : @syntax.RangeKind,
-  right : @syntax.RangeKind,
-) -> Bool {
-  match (left, right) {
-    (Exclusive, Exclusive) => true
-    (Inclusive, Inclusive) => true
-    (InclusiveMissingEqual, InclusiveMissingEqual) => true
-    _ => false
-  }
-}
-
-///|
-fn predicate_quantifier_kind_equal(
-  left : @syntax.PredicateQuantifierKind,
-  right : @syntax.PredicateQuantifierKind,
-) -> Bool {
-  match (left, right) {
-    (Exists, Exists) => true
-    (Forall, Forall) => true
-    _ => false
-  }
-}
-
-///|
-fn static_assertion_equal(
-  left : @syntax.StaticAssertion,
-  right : @syntax.StaticAssertion,
-) -> Bool {
-  left.msg == right.msg &&
-  long_ident_equal(left.trait_, right.trait_) &&
-  type_equal(left.ty, right.ty)
-}
-
-///|
-fn dot_dot_binder_equal(
-  left : @syntax.DotDotBinder,
-  right : @syntax.DotDotBinder,
-) -> Bool {
-  match (left, right) {
-    (Binder(left), Binder(right)) => binder_equal(left, right)
-    (BinderAs(left), BinderAs(right)) => binder_equal(left, right)
-    (NoBinder, NoBinder) => true
-    (Underscore, Underscore) => true
-    _ => false
-  }
-}
-
-///|
-fn trailing_mark_equal(
-  left : @syntax.TrailingMark,
-  right : @syntax.TrailingMark,
-) -> Bool {
-  match (left, right) {
-    (Comma, Comma) => true
-    (None, None) => true
-    (Semi, Semi) => true
-    _ => false
-  }
-}
-
-///|
-fn try_operator_kind_equal(
-  left : @syntax.TryOperatorKind,
-  right : @syntax.TryOperatorKind,
-) -> Bool {
-  match (left, right) {
-    (Exclamation, Exclamation) => true
-    (Question, Question) => true
-    _ => false
-  }
-}
-
-///|
-fn option_location_presence_equal(
-  left : @basic.Location?,
-  right : @basic.Location?,
-) -> Bool {
-  match (left, right) {
-    (None, None) => true
-    (Some(_), Some(_)) => true
-    _ => false
-  }
-}
-
-///|
-fn constant_equal(left : @syntax.Constant, right : @syntax.Constant) -> Bool {
-  match (left, right) {
-    (BigInt(left), BigInt(right)) => left == right
-    (Bool(left), Bool(right)) => left == right
-    (Byte(left), Byte(right)) => left == right
-    (Bytes(left), Bytes(right)) => left == right
-    (Char(left), Char(right)) => left == right
-    (Double(left), Double(right)) => left == right
-    (Float(left), Float(right)) => left == right
-    (Int(left), Int(right)) => left == right
-    (Int64(left), Int64(right)) => left == right
-    (Regex(left), Regex(right)) => left == right
-    (String(left), String(right)) => left == right
-    (UInt(left), UInt(right)) => left == right
-    (UInt64(left), UInt64(right)) => left == right
-    _ => false
-  }
-}
-
-///|
-fn group_equal(left : @syntax.Group, right : @syntax.Group) -> Bool {
-  match (left, right) {
-    (Brace, Brace) => true
-    (Paren, Paren) => true
-    _ => false
-  }
-}
-
-///|
-fn hole_equal(left : @syntax.Hole, right : @syntax.Hole) -> Bool {
-  match (left, right) {
-    (Incomplete, Incomplete) => true
-    (Synthesized, Synthesized) => true
-    (Todo, Todo) => true
-    _ => false
-  }
-}
-
-///|
-fn[A] option_match(left : A?, right : A?, equal : (A, A) -> Bool) -> Bool {
-  match (left, right) {
-    (None, None) => true
-    (Some(left), Some(right)) => equal(left, right)
-    _ => false
-  }
-}
-
-///|
-fn[A] list_match(
-  left : @list.List[A],
-  right : @list.List[A],
-  equal : (A, A) -> Bool,
-) -> Bool {
-  let left_array = left.to_array()
-  let right_array = right.to_array()
-  if left_array.length() != right_array.length() {
-    return false
-  }
-  for index in 0..<left_array.length() {
-    if !equal(left_array[index], right_array[index]) {
-      return false
-    }
-  }
-  true
+fn is_faked_unit(node : @untyped_ast.Node) -> Bool {
+  node.kind == Expr_Unit && leaf_bool_child(node, "faked") == Some(true)
 }
 
 ///|

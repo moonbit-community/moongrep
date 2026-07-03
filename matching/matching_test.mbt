@@ -1,5 +1,5 @@
 ///|
-fn parse_expr(source : String) -> @syntax.Expr raise {
+fn parse_syntax_expr(source : String) -> @syntax.Expr raise {
   let tokens = @lexer.tokens_from_string(
       source,
       comment=true,
@@ -8,6 +8,11 @@ fn parse_expr(source : String) -> @syntax.Expr raise {
   let (expr, reports) = @handrolled_parser.parse_expr(tokens)
   guard reports is [] else { fail("expected expression to parse: \{source}") }
   expr
+}
+
+///|
+fn parse_expr(source : String) -> @untyped_ast.Node raise {
+  @untyped_ast.from_expr(parse_syntax_expr(source))
 }
 
 ///|
@@ -36,12 +41,16 @@ fn test_pattern_tuple(items : Array[@syntax.Pattern]) -> @syntax.Pattern {
 }
 
 ///|
-fn test_match_pattern(pattern : @syntax.Pattern) -> @syntax.Expr {
-  Match(
-    expr=test_ident("input"),
-    cases=@list.from_array([{ pattern, guard_: None, body: test_ident("body") }]),
-    match_loc=test_loc(),
-    loc=test_loc(),
+fn test_match_pattern(pattern : @syntax.Pattern) -> @untyped_ast.Node {
+  @untyped_ast.from_expr(
+    Match(
+      expr=test_ident("input"),
+      cases=@list.from_array([
+        { pattern, guard_: None, body: test_ident("body") },
+      ]),
+      match_loc=test_loc(),
+      loc=test_loc(),
+    ),
   )
 }
 
@@ -61,16 +70,18 @@ fn test_ident(name : String) -> @syntax.Expr {
 }
 
 ///|
-fn test_implies(lhs : String, rhs : String) -> @syntax.Expr {
-  @syntax.Expr::Implies(
-    lhs=test_ident(lhs),
-    rhs=test_ident(rhs),
-    loc=test_loc(),
+fn test_implies(lhs : String, rhs : String) -> @untyped_ast.Node {
+  @untyped_ast.from_expr(
+    @syntax.Expr::Implies(
+      lhs=test_ident(lhs),
+      rhs=test_ident(rhs),
+      loc=test_loc(),
+    ),
   )
 }
 
 ///|
-fn test_foreach(
+fn test_foreach_syntax(
   init : String,
   continue_value : String,
   where_value : String,
@@ -93,6 +104,48 @@ fn test_foreach(
     label=None,
     loc=test_loc(),
   )
+}
+
+///|
+fn test_foreach(
+  init : String,
+  continue_value : String,
+  where_value : String,
+) -> @untyped_ast.Node {
+  @untyped_ast.from_expr(test_foreach_syntax(init, continue_value, where_value))
+}
+
+///|
+fn test_node_child(
+  node : @untyped_ast.Node,
+  name : String,
+) -> @untyped_ast.Node? {
+  for entry in node.children {
+    let (child_name, value) = entry
+    if child_name == Some(name) {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
+fn test_node_leaf_string(node : @untyped_ast.Node) -> String? {
+  match node.kind {
+    Leaf(PString(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn test_pattern_constructor_name(node : @untyped_ast.Node) -> String? {
+  guard node.kind == Pattern_Constr else { return None }
+  guard test_node_child(node, "constr") is Some(constr) else { return None }
+  guard test_node_child(constr, "name") is Some(name_node) else { return None }
+  guard test_node_child(name_node, "name") is Some(name_leaf) else {
+    return None
+  }
+  test_node_leaf_string(name_leaf)
 }
 
 ///|
@@ -277,8 +330,12 @@ test "pattern metavar captures whole pattern AST" {
     )
     is Some(result) {
     match result.bindings.get("item") {
-      Some(Pattern(Constr(constr~, ..))) =>
-        inspect(constr.name.name, content="Some")
+      Some(node) => {
+        guard test_pattern_constructor_name(node) is Some(name) else {
+          fail("expected constructor pattern binding")
+        }
+        inspect(name, content="Some")
+      }
       _ => fail("expected pattern binding")
     }
   } else {

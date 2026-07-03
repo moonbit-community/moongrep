@@ -1,16 +1,17 @@
 ///|
 /// A compiled expression pattern.
 ///
-/// `ast` is the parsed pattern expression. `expr_metavars` bind whole
-/// expression AST nodes, `identifier_metavars` bind normalized identifier
-/// strings, and `constant_metavars` bind literal constants. Pattern metavars
-/// are represented directly in `ast` as `$(name:pat)` pattern variables and
-/// bind whole pattern AST nodes.
+/// `ast` is the untyped AST node for the parsed pattern expression.
+/// `expr_metavars` bind whole expression AST nodes, `identifier_metavars`
+/// bind normalized identifier strings encoded as leaf string nodes, and
+/// `constant_metavars` bind literal constant nodes. Pattern metavars are
+/// represented directly in `ast` as `$(name:pat)` pattern variables and bind
+/// whole pattern AST nodes.
 /// `target_metavar` and `source_metavar` are reserved bare-expression
 /// placeholders injected by the rules package for `__TARGET__` and
 /// `__SOURCE__`.
 pub(all) struct CompiledExprPattern {
-  ast : @syntax.Expr
+  ast : @untyped_ast.Node
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
@@ -21,25 +22,20 @@ pub(all) struct CompiledExprPattern {
 ///|
 /// Values captured while matching a `CompiledExprPattern`.
 ///
-/// Expression metavars capture whole expressions. Identifier metavars capture
-/// the normalized name as `Identifier`. Constant metavars capture parser
-/// constants. Pattern metavars capture whole parser patterns.
-pub(all) enum BoundValue {
-  Expr(@syntax.Expr)
-  Identifier(String)
-  Constant(@syntax.Constant)
-  Pattern(@syntax.Pattern)
-}
+/// Every binding is stored directly as an untyped AST node. Expression,
+/// constant, and pattern metavars capture their matched nodes. Identifier
+/// metavars capture their normalized name in a `Leaf(PString(_))` node.
+pub type BoundValue = @untyped_ast.Node
 
 ///|
 /// Result of a successful expression-pattern match.
 ///
-/// `root` is the candidate expression originally passed to the matcher.
+/// `root` is the candidate expression node originally passed to the matcher.
 /// `bindings` is the effective binding context after the match. For
 /// `match_expr_pattern` it contains fresh captures; for
 /// `match_expr_pattern_with_bindings` it contains a copy of the initial
 /// bindings plus any new captures.
 pub(all) struct ExprMatch {
-  root : @syntax.Expr
+  root : @untyped_ast.Node
   bindings : @hashmap.HashMap[String, BoundValue]
 }

@@ -338,7 +338,7 @@ fn compile_pattern_with_effective_metavars(
     pattern_metavars,
   )
   let compiled : @matching.CompiledExprPattern = {
-    ast,
+    ast: @untyped_ast.from_expr(ast),
     expr_metavars,
     identifier_metavars,
     constant_metavars,

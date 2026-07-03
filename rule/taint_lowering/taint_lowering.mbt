@@ -100,7 +100,8 @@ fn taint_pattern_matches(
   pattern : CompiledRulePattern,
   expr : @syntax.Expr,
 ) -> Bool {
-  @matching.match_expr_pattern(pattern.compiled, expr) is Some(_)
+  @matching.match_expr_pattern(pattern.compiled, @untyped_ast.from_expr(expr))
+  is Some(_)
 }
 
 ///|
