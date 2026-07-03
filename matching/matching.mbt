@@ -1140,57 +1140,31 @@ fn node_equal_ignoring_loc(
   left : @untyped_ast.Node,
   right : @untyped_ast.Node,
 ) -> Bool {
-  left.kind == right.kind &&
-  children_equal_ignoring_loc(left.children, right.children)
+  match (left.kind, right.kind) {
+    (Leaf(_), Leaf(_)) => left.kind == right.kind
+    _ =>
+      left.kind == right.kind &&
+      children_equal_ignoring_loc(left.children, right.children)
+  }
 }
 
 ///|
 fn children_equal_ignoring_loc(
-  left : @untyped_ast.NodeChildren,
-  right : @untyped_ast.NodeChildren,
+  left : FixedArray[(String?, @untyped_ast.Node)],
+  right : FixedArray[(String?, @untyped_ast.Node)],
 ) -> Bool {
-  match (left, right) {
-    (AstFields(left), AstFields(right)) =>
-      left.length() == right.length() &&
-      ({
-        for index in 0..<left.length() {
-          let (left_name, left_value) = left[index]
-          let (right_name, right_value) = right[index]
-          if left_name != right_name ||
-            !value_equal_ignoring_loc(left_value, right_value) {
-            return false
-          }
-        }
-        true
-      })
-    (AstItems(left), AstItems(right)) =>
-      left.length() == right.length() &&
-      ({
-        for index in 0..<left.length() {
-          if !value_equal_ignoring_loc(left[index], right[index]) {
-            return false
-          }
-        }
-        true
-      })
-    _ => false
-  }
-}
-
-///|
-fn value_equal_ignoring_loc(
-  left : @untyped_ast.Value,
-  right : @untyped_ast.Value,
-) -> Bool {
-  match (left, right) {
-    (AstNode(left), AstNode(right)) => node_equal_ignoring_loc(left, right)
-    (AstNull, AstNull) => true
-    (AstBool(left), AstBool(right)) => left == right
-    (AstString(left), AstString(right)) => left == right
-    (AstNumber(left, repr=left_repr), AstNumber(right, repr=right_repr)) =>
-      left == right && left_repr == right_repr
-    _ => false
-  }
+  left.length() == right.length() &&
+  ({
+    for index in 0..<left.length() {
+      let (left_name, left_value) = left[index]
+      let (right_name, right_value) = right[index]
+      if left_name != right_name ||
+        !node_equal_ignoring_loc(left_value, right_value) {
+        return false
+      }
+    }
+    true
+  })
 }
 
 ///|
