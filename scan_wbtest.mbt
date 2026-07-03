@@ -47,7 +47,6 @@ fn skip_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
-    matcher_mode: @matching.AstMatcher,
   }
 }
 
@@ -62,7 +61,6 @@ fn exclude_dir_scan_options() -> CliOptions {
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
-    matcher_mode: @matching.AstMatcher,
   }
 }
 
@@ -77,7 +75,6 @@ fn single_rule_file_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
-    matcher_mode: @matching.AstMatcher,
   }
 }
 
@@ -92,7 +89,6 @@ fn verbose_rules_scan_options() -> CliOptions {
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
-    matcher_mode: @matching.AstMatcher,
   }
 }
 

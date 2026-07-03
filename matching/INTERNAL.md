@@ -58,27 +58,17 @@ Constant metavars store `Constant(@syntax.Constant)`. Expression placeholders
 accept only `Expr::Constant`, pattern placeholders accept only
 `Pattern::Constant`, and repeated uses compare with `constant_equal`.
 
-Pattern metavars store `Pattern(@syntax.Pattern)`. Repeated uses compare the
-captured pattern AST with `pattern_equal_ignoring_loc`, so source locations do
+Pattern metavars store `Pattern(@syntax.Pattern)`. Repeated `Expr` and
+`Pattern` bindings are compared after converting the parser AST value with
+`@untyped_ast.from_expr` or `@untyped_ast.from_pattern`, so source locations do
 not affect equality.
 
-## Equality Is Location-Insensitive but Not Complete
+## Equality Is Location-Insensitive
 
-The matcher ignores source locations. It compares the semantic fields that
-matter for each supported AST node, using helper functions such as
-`var_equal`, `type_equal`, `constant_equal`, and `argument_kind_equal`.
-
-The equality used for repeated captures is intentionally smaller than the full
-root matcher:
-
-- `expr_equal_ignoring_loc` supports common expression shapes such as
-  identifiers, holes, constants, infix, calls, dot calls, fields, methods,
-  constructors, arrays, tuples, groups, sequences, `for`, and `unit`
-
-If a new `match_expr` branch is added and that node can be captured by a
-repeated expression metavar, update the relevant equality helper too. Otherwise a
-single occurrence may match while repeated occurrences fail even when the ASTs
-look identical.
+The matcher ignores source locations when comparing repeated expression and
+pattern captures. The comparison walks the untyped AST node kind and child
+values, so it can cover parser shapes even when the root matcher has specialized
+matching logic for that syntax.
 
 `option_location_presence_equal` compares only whether async/location-like
 fields are present, not their concrete locations.

@@ -399,8 +399,9 @@ moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints loaded rule
 ids and directory traversal progress before warnings and match results.
 
-`MOONGREP_NEW_MATCHER=1` enables the experimental untyped AST matcher for
-`scan`. Unset values and values other than `1` keep the default AST matcher.
+The scanner uses the untyped AST matcher by default. Repeated `exp` and `pat`
+captures are compared by structural untyped AST equality while ignoring source
+locations.
 
 ## Worked Examples
 
@@ -417,8 +418,8 @@ patterns:
 Why it works:
 
 - `expr` is declared inline as an `exp` metavar
-- both occurrences must bind to equal parser AST nodes for a repeated expression
-  form supported by the current equality helper
+- both occurrences must bind to equal untyped AST nodes for a repeated expression
+  with source locations ignored
 - the rule can match more than simple names
 
 ### Binder and use must share one source-level name
@@ -437,7 +438,7 @@ patterns:
 Why it works:
 
 - `counter` is compared by normalized identifier name, not by raw AST equality
-- `start`, `limit`, and `body` are matched as parser AST nodes
+- `start`, `limit`, and `body` are expression captures stored as parser AST nodes
 
 ### Same rule, multiple shapes
 

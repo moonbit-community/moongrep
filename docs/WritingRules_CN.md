@@ -291,7 +291,7 @@ moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 
 `--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，扫描器使用 `.`。`--verbose` 会在 warning 和匹配结果之前打印已加载的 rule id 和目录遍历进度。
 
-`MOONGREP_NEW_MATCHER=1` 会为 `scan` 启用实验性的 untyped AST matcher。未设置该环境变量或值不是 `1` 时，扫描器仍使用默认 AST matcher。
+扫描器默认使用 untyped AST matcher。重复的 `exp` 和 `pat` 捕获会按忽略源码位置的 untyped AST 结构相等性进行比较。
 
 ## 完整示例
 
@@ -308,7 +308,7 @@ patterns:
 为什么它能工作：
 
 - `expr` 被声明为 `exp` 元变量
-- 两次出现必须绑定到相等的表达式 AST node，且该重复表达式形式被当前 equality helper 支持
+- 两次出现必须绑定到忽略源码位置后相等的 untyped AST 节点
 - 该规则可以匹配比简单名称更复杂的内容
 
 ### Binder 和使用处必须共享同一个源码层面名称
@@ -327,7 +327,7 @@ patterns:
 为什么它能工作：
 
 - `counter` 按归一化后的标识符名称比较，而不是按原始 AST 相等性比较
-- `start`、`limit` 和 `body` 按表达式 AST node 匹配
+- `start`、`limit` 和 `body` 是以 parser AST 节点保存的表达式捕获
 
 ### 同一规则，多个 shape
 
