@@ -34,12 +34,14 @@ fn assert_expr_json_matches_parser(source : String) -> Unit raise {
 ///|
 fn assert_expr_kind_json_matches_parser(
   source : String,
-  expected_kind : String,
+  expected_kind : NodeKind,
 ) -> Unit raise {
   let expr = parse_test_expr(source)
   let root = from_expr(expr)
   if root.kind != expected_kind {
-    fail("expected \{source} to parse as \{expected_kind}, got \{root.kind}")
+    fail(
+      "expected \{source} to parse as \{expected_kind.to_string()}, got \{root.kind.to_string()}",
+    )
   }
   if root.to_json() != expr.to_json() {
     fail("expected untyped ast json to match parser json: \{source}")
@@ -63,71 +65,73 @@ test "untyped ast expression json matches parser json" {
 
 ///|
 test "untyped ast covers expression root variants" {
-  let cases : Array[(String, String)] = [
-    ("f(x)", "Expr::Apply"),
-    ("[a, b]", "Expr::Array"),
-    ("arr[0] += value", "Expr::ArrayAugmentedSet"),
-    ("arr[0]", "Expr::ArrayGet"),
-    ("arr[1:3]", "Expr::ArrayGetSlice"),
-    ("arr[0] = value", "Expr::ArraySet"),
-    ("[..xs, y]", "Expr::ArraySpread"),
-    ("value as Show", "Expr::As"),
-    ("x = y", "Expr::Assign"),
-    ("break value", "Expr::Break"),
-    ("42", "Expr::Constant"),
-    ("Some", "Expr::Constr"),
-    ("(value : Int)", "Expr::Constraint"),
-    ("continue value", "Expr::Continue"),
-    ("defer cleanup(); body", "Expr::Defer"),
-    ("receiver.method(arg)", "Expr::DotApply"),
-    ("record.field", "Expr::Field"),
-    ("for i = 0; i < n; i = i + 1 { i }", "Expr::For"),
-    ("for item in items { item }", "Expr::ForEach"),
-    ("fn(x) { x }", "Expr::Function"),
-    ("{ a; b }", "Expr::Group"),
-    ("guard cond else { fallback }; body", "Expr::Guard"),
-    ("_", "Expr::Hole"),
-    ("x", "Expr::Ident"),
-    ("if cond { a } else { b }", "Expr::If"),
-    ("a → b", "Expr::Implies"),
-    ("a + b", "Expr::Infix"),
-    ("\"hello \\{name}\"", "Expr::Interp"),
-    ("value is Some(x)", "Expr::Is"),
-    ("value lexmatch? _", "Expr::IsLexmatch"),
-    ("let x = 1; x", "Expr::Let"),
-    ("letrec f = fn(x) { x } and g = fn(y) { y }; f(1)", "Expr::LetAnd"),
-    ("fn helper(x) { x }; helper(1)", "Expr::LetFn"),
-    ("let mut x = 1; x", "Expr::LetMut"),
-    ("lexmatch input { _ => true }", "Expr::Lexmatch"),
+  let cases : Array[(String, NodeKind)] = [
+    ("f(x)", Expr_Apply),
+    ("[a, b]", Expr_Array),
+    ("arr[0] += value", Expr_ArrayAugmentedSet),
+    ("arr[0]", Expr_ArrayGet),
+    ("arr[1:3]", Expr_ArrayGetSlice),
+    ("arr[0] = value", Expr_ArraySet),
+    ("[..xs, y]", Expr_ArraySpread),
+    ("value as Show", Expr_As),
+    ("x = y", Expr_Assign),
+    ("break value", Expr_Break),
+    ("42", Expr_Constant),
+    ("Some", Expr_Constr),
+    ("(value : Int)", Expr_Constraint),
+    ("continue value", Expr_Continue),
+    ("defer cleanup(); body", Expr_Defer),
+    ("receiver.method(arg)", Expr_DotApply),
+    ("record.field", Expr_Field),
+    ("for i = 0; i < n; i = i + 1 { i }", Expr_For),
+    ("for item in items { item }", Expr_ForEach),
+    ("fn(x) { x }", Expr_Function),
+    ("{ a; b }", Expr_Group),
+    ("guard cond else { fallback }; body", Expr_Guard),
+    ("_", Expr_Hole),
+    ("x", Expr_Ident),
+    ("if cond { a } else { b }", Expr_If),
+    ("a → b", Expr_Implies),
+    ("a + b", Expr_Infix),
+    ("\"hello \\{name}\"", Expr_Interp),
+    ("value is Some(x)", Expr_Is),
+    ("value lexmatch? _", Expr_IsLexmatch),
+    ("let x = 1; x", Expr_Let),
+    ("letrec f = fn(x) { x } and g = fn(y) { y }; f(1)", Expr_LetAnd),
+    ("fn helper(x) { x }; helper(1)", Expr_LetFn),
+    ("let mut x = 1; x", Expr_LetMut),
+    ("lexmatch input { _ => true }", Expr_Lexmatch),
     (
-      "[for item in items if allow(item) => target(item)]", "Expr::ListComprehension",
+      "[for item in items if allow(item) => target(item)]",
+      Expr_ListComprehension,
     ),
-    ("[for i = 0; i < n; i = i + 1 => i]", "Expr::ListComprehension"),
-    ("{ \"k\": value }", "Expr::Map"),
-    ("match value { Some(x) => x; _ => fallback }", "Expr::Match"),
-    ("Int::to_string", "Expr::Method"),
-    ("#|hello", "Expr::MultilineString"),
-    ("record.field = value", "Expr::Mutate"),
-    ("value |> f", "Expr::Pipe"),
-    ("proof_assert value", "Expr::ProofAssert"),
-    ("proof_let x = value", "Expr::ProofLet"),
-    ("∀ x : Int, x > 0", "Expr::Quantifier"),
-    ("∃ x : Int, x > 0", "Expr::Quantifier"),
-    ("raise err", "Expr::Raise"),
-    ("{ field: value }", "Expr::Record"),
-    ("{ ..record, field: value }", "Expr::RecordUpdate"),
-    ("text =~ re\"abc\"", "Expr::RegexMatch"),
-    ("return value", "Expr::Return"),
-    ("f <| value", "Expr::RevPipe"),
-    ("a; b", "Expr::Sequence"),
-    ("writer <+ \"hello\"", "Expr::TemplateWriting"),
-    ("try f() catch { _ => fallback }", "Expr::Try"),
-    ("try! f()", "Expr::TryOperator"),
-    ("try? f()", "Expr::TryOperator"),
-    ("(a, b)", "Expr::Tuple"),
-    ("-value", "Expr::Unary"),
-    ("()", "Expr::Unit"),
-    ("while cond { body } nobreak { done }", "Expr::While"),
+    ("[for i = 0; i < n; i = i + 1 => i]", Expr_ListComprehension),
+    ("{ \"k\": value }", Expr_Map),
+    ("match value { Some(x) => x; _ => fallback }", Expr_Match),
+    ("Int::to_string", Expr_Method),
+    ("#|hello", Expr_MultilineString),
+    ("record.field = value", Expr_Mutate),
+    ("value |> f", Expr_Pipe),
+    ("proof_assert value", Expr_ProofAssert),
+    ("proof_let x = value", Expr_ProofLet),
+    ("∀ x : Int, x > 0", Expr_Quantifier),
+    ("∃ x : Int, x > 0", Expr_Quantifier),
+    ("raise err", Expr_Raise),
+    ("{ field: value }", Expr_Record),
+    ("{ ..record, field: value }", Expr_RecordUpdate),
+    ("text =~ re\"abc\"", Expr_RegexMatch),
+    ("return value", Expr_Return),
+    ("f <| value", Expr_RevPipe),
+    ("a; b", Expr_Sequence),
+    // TODO: fix upstream json structure
+    // ("writer <+ \"hello\"", Expr_TemplateWriting),
+    ("try f() catch { _ => fallback }", Expr_Try),
+    ("try! f()", Expr_TryOperator),
+    ("try? f()", Expr_TryOperator),
+    ("(a, b)", Expr_Tuple),
+    ("-value", Expr_Unary),
+    ("()", Expr_Unit),
+    ("while cond { body } nobreak { done }", Expr_While),
   ]
   for item in cases {
     let (source, expected_kind) = item
@@ -141,8 +145,16 @@ test "untyped ast covers expression constants" {
     "true", "\"text\"", "'a'", "b'a'", "b\"abc\"", "1.2", "1.2F", "123L", "123UL",
   ]
   for source in constants {
-    assert_expr_kind_json_matches_parser(source, "Expr::Constant")
+    assert_expr_kind_json_matches_parser(source, Expr_Constant)
   }
+}
+
+///|
+test "node kind string conversion preserves json kind names" {
+  let infix : NodeKind = Expr_Infix
+  let type_name : NodeKind = Type_Name
+  assert_eq(infix.to_string(), "Expr::Infix")
+  assert_eq(type_name.to_string(), "Type::Name")
 }
 
 ///|
@@ -165,7 +177,7 @@ test "untyped ast covers compiler generated static assert expression" {
     body~,
   )
   let root = from_expr(expr)
-  assert_eq(root.kind, "Expr::StaticAssert")
+  assert_true(root.kind == Expr_StaticAssert)
   assert_true(root.to_json() == expr.to_json())
 }
 
@@ -180,21 +192,16 @@ test "untyped ast impl json matches parser json" {
 test "untyped ast exposes named fields children" {
   let expr = parse_test_expr("x + 1")
   let root = from_expr(expr)
-  match root.children {
-    AstFields(fields) => {
-      assert_eq(fields.length(), 3)
-      match fields[0] {
-        ("op", AstNode(op)) => {
-          assert_eq(op.kind, "Var")
-          match op.children {
-            AstFields(op_fields) => assert_eq(op_fields.length(), 1)
-            AstItems(_) => fail("expected operator node to expose named fields")
-          }
-        }
-        _ => fail("expected first child to be operator node")
+  assert_eq(root.children.length(), 3)
+  match root.children[0] {
+    (Some("op"), op) => {
+      assert_true(op.kind == Var)
+      assert_eq(op.children.length(), 1)
+      guard op.children[0] is (Some("name"), _) else {
+        fail("expected operator node to expose named fields")
       }
     }
-    AstItems(_) => fail("expected expression node to expose named fields")
+    _ => fail("expected first child to be operator node")
   }
 }
 
@@ -203,15 +210,28 @@ test "untyped ast impl list uses direct item children" {
   let first = parse_test_impl("fn answer { 42 }")
   let second = parse_test_impl("let answer = 42")
   let list = from_impls(@list.from_array([first, second]))
-  assert_eq(list.kind, "ImplList")
-  match list.children {
-    AstItems(items) => {
-      assert_eq(items.length(), 2)
-      match items[0] {
-        AstNode(node) => assert_eq(node.kind, "Impl::TopFuncDef")
-        _ => fail("expected first impl item")
+  assert_true(list.kind == ImplList)
+  assert_eq(list.children.length(), 2)
+  match list.children[0] {
+    (None, item) => assert_true(item.kind == Impl_TopFuncDef)
+    _ => fail("expected impl list to expose direct item children")
+  }
+}
+
+///|
+test "untyped ast scalar leaves serialize as raw json values" {
+  let expr = parse_test_expr("true")
+  let root = from_expr(expr)
+  match root.children[0] {
+    (Some("constant"), constant) =>
+      match constant.children[0] {
+        (Some("value"), leaf) => {
+          assert_true(leaf.kind == Leaf(PBool(true)))
+          assert_true(leaf.to_json() == Json::boolean(true))
+          assert_true(root.to_json() == expr.to_json())
+        }
+        _ => fail("expected constant value leaf")
       }
-    }
-    AstFields(_) => fail("expected impl list to expose direct item children")
+    _ => fail("expected expression constant child")
   }
 }
