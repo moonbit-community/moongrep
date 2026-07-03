@@ -47,22 +47,15 @@ constant metavar 会存储 `Constant(@syntax.Constant)`。表达式占位符只�
 `Expr::Constant`，pattern 占位符只接受 `Pattern::Constant`，重复使用时通过
 `constant_equal` 比较。
 
-pattern metavar 会存储 `Pattern(@syntax.Pattern)`。重复使用时通过
-`pattern_equal_ignoring_loc` 比较捕获到的 pattern AST，因此源码位置不会影响相等性。
+pattern metavar 会存储 `Pattern(@syntax.Pattern)`。重复的 `Expr` 和 `Pattern`
+绑定会先通过 `@untyped_ast.from_expr` 或 `@untyped_ast.from_pattern` 从 parser
+AST 转成 untyped AST 后再比较，因此源码位置不会影响相等性。
 
-## 相等性忽略位置但并不完整
+## 相等性忽略位置
 
-matcher 会忽略源码位置。它使用 `var_equal`、`type_equal`、`constant_equal`
-和 `argument_kind_equal` 等辅助函数，比较每个已支持 AST 节点中重要的语义字段。
-
-重复捕获使用的相等性有意小于完整的根 matcher：
-
-- `expr_equal_ignoring_loc` 支持常见表达式形状，例如 identifier、hole、
-  constant、infix、call、dot call、field、method、constructor、array、
-  tuple、group、sequence、`for` 和 `unit`
-
-如果新增了 `match_expr` 分支，并且该节点可以被重复的 expression metavar 捕获，
-也要同步更新相关的相等性辅助函数。否则，单次出现可能能匹配，但重复出现时即使 AST 看起来相同也会失败。
+matcher 在比较重复的 expression 和 pattern 捕获时会忽略源码位置。比较过程会遍历
+untyped AST 的节点 kind 和子值，因此即使某些语法在根 matcher 中有专门的匹配逻辑，
+重复捕获比较也可以覆盖这些 parser 形状。
 
 `option_location_presence_equal` 只比较 async/location-like 字段是否存在，
 不比较它们的具体位置。

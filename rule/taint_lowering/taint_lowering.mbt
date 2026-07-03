@@ -19,15 +19,6 @@ pub fn lower_compiled_taint_rule(
   rule : CompiledRule,
   taint_rule : CompiledTaintRule,
 ) -> @taint.TaintSpec {
-  lower_compiled_taint_rule_with_matcher(rule, taint_rule, @matching.AstMatcher)
-}
-
-///|
-pub fn lower_compiled_taint_rule_with_matcher(
-  rule : CompiledRule,
-  taint_rule : CompiledTaintRule,
-  matcher_mode : @matching.MatcherMode,
-) -> @taint.TaintSpec {
   {
     rule_id: rule.rule_id,
     sources: [],
@@ -35,7 +26,7 @@ pub fn lower_compiled_taint_rule_with_matcher(
     unknown_call_policy: NoEffect,
     max_fixpoint_iterations: 6,
     custom_transfer_call: call => {
-      transfer_compiled_taint_call(rule.rule_id, taint_rule, matcher_mode, call)
+      transfer_compiled_taint_call(rule.rule_id, taint_rule, call)
     },
   }
 }
@@ -47,7 +38,6 @@ pub fn lower_compiled_taint_rule_with_matcher(
 fn transfer_compiled_taint_call(
   rule_id : String,
   taint_rule : CompiledTaintRule,
-  matcher_mode : @matching.MatcherMode,
   call : @taint.CallInfo,
 ) -> @taint.CallTransfer? {
   let mut matched = false
@@ -55,11 +45,7 @@ fn transfer_compiled_taint_call(
   let killed_paths : Array[@taint.StoragePath] = []
   let findings : Array[@taint.SinkFinding] = []
   for index in 0..<taint_rule.sources.length() {
-    if taint_pattern_matches(
-        taint_rule.sources[index].pattern,
-        call.ast,
-        matcher_mode,
-      ) {
+    if taint_pattern_matches(taint_rule.sources[index].pattern, call.ast) {
       matched = true
       return_taint.push({
         path: [],
@@ -76,7 +62,7 @@ fn transfer_compiled_taint_call(
   }
   for index in 0..<taint_rule.sanitizers.length() {
     let sanitizer = taint_rule.sanitizers[index]
-    if taint_pattern_matches(sanitizer.pattern, call.ast, matcher_mode) {
+    if taint_pattern_matches(sanitizer.pattern, call.ast) {
       matched = true
       if target_value(call, sanitizer.target) is Some(target) &&
         target.path is Some(path) {
@@ -86,7 +72,7 @@ fn transfer_compiled_taint_call(
   }
   for index in 0..<taint_rule.sinks.length() {
     let sink = taint_rule.sinks[index]
-    if taint_pattern_matches(sink.pattern, call.ast, matcher_mode) {
+    if taint_pattern_matches(sink.pattern, call.ast) {
       matched = true
       if target_value(call, sink.target) is Some(target) {
         let origins = origins_from_taint_tree(target.taint)
@@ -113,10 +99,8 @@ fn transfer_compiled_taint_call(
 fn taint_pattern_matches(
   pattern : CompiledRulePattern,
   expr : @syntax.Expr,
-  matcher_mode : @matching.MatcherMode,
 ) -> Bool {
-  @matching.match_expr_pattern_with_mode(pattern.compiled, expr, matcher_mode)
-  is Some(_)
+  @matching.match_expr_pattern(pattern.compiled, expr) is Some(_)
 }
 
 ///|

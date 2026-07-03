@@ -76,19 +76,19 @@ fn untyped_match(
   compiled : CompiledExprPattern,
   candidate : String,
 ) -> ExprMatch? raise {
-  match_expr_pattern_untyped(compiled, parse_untyped_test_expr(candidate))
+  match_expr_pattern(compiled, parse_untyped_test_expr(candidate))
 }
 
 ///|
-test "untyped matcher compares structural equality" {
+test "default matcher compares untyped structural equality" {
   assert_true(
-    expr_matches_untyped(
+    expr_matches(
       parse_untyped_test_expr("f(1, x)"),
       parse_untyped_test_expr("f(1, x)"),
     ),
   )
   assert_false(
-    expr_matches_untyped(
+    expr_matches(
       parse_untyped_test_expr("f(1, x)"),
       parse_untyped_test_expr("f(2, x)"),
     ),
@@ -96,7 +96,7 @@ test "untyped matcher compares structural equality" {
 }
 
 ///|
-test "untyped matcher binds repeated expression metavars" {
+test "default matcher binds repeated expression metavars" {
   let compiled = untyped_compiled(parse_untyped_test_expr("value + value"), expr_metavars=[
     "value",
   ])
@@ -105,7 +105,7 @@ test "untyped matcher binds repeated expression metavars" {
 }
 
 ///|
-test "untyped matcher normalizes identifier metavars" {
+test "default matcher normalizes identifier metavars" {
   let compiled = untyped_compiled(
     parse_untyped_test_expr("@int.callee(callee)"),
     identifier_metavars=["callee"],
@@ -116,7 +116,7 @@ test "untyped matcher normalizes identifier metavars" {
 }
 
 ///|
-test "untyped matcher binds constants and preserves guard values" {
+test "default matcher binds constants and preserves guard values" {
   let compiled = untyped_compiled(
     parse_untyped_test_expr("match input { lit => lit }"),
     expr_metavars=["input"],
@@ -137,7 +137,7 @@ test "untyped matcher binds constants and preserves guard values" {
 }
 
 ///|
-test "untyped matcher captures repeated pattern metavars" {
+test "default matcher captures repeated pattern metavars" {
   let compiled = untyped_compiled(
     untyped_test_match_pattern(
       untyped_test_pattern_tuple([
@@ -160,7 +160,7 @@ test "untyped matcher captures repeated pattern metavars" {
 }
 
 ///|
-test "untyped matcher supports target and source placeholders" {
+test "default matcher supports target and source placeholders" {
   let target_compiled = untyped_compiled(
     parse_untyped_test_expr("__TARGET__"),
     target_metavar=Some("__TARGET__"),
@@ -168,9 +168,7 @@ test "untyped matcher supports target and source placeholders" {
   if untyped_match(target_compiled, "sink(value)") is Some(result) {
     match result.bindings.get("__TARGET__") {
       Some(Expr(expr)) =>
-        assert_true(
-          expr_matches_untyped(expr, parse_untyped_test_expr("sink(value)")),
-        )
+        assert_true(expr_matches(expr, parse_untyped_test_expr("sink(value)")))
       _ => fail("expected target expression binding")
     }
   } else {
@@ -181,27 +179,4 @@ test "untyped matcher supports target and source placeholders" {
     source_metavar=Some("__SOURCE__"),
   )
   assert_true(untyped_match(source_compiled, "source()") is Some(_))
-}
-
-///|
-test "matcher dispatcher selects untyped mode" {
-  let compiled = untyped_compiled(parse_untyped_test_expr("value + value"), expr_metavars=[
-    "value",
-  ])
-  assert_true(
-    match_expr_pattern_with_mode(
-      compiled,
-      parse_untyped_test_expr("make() + make()"),
-      UntypedAstMatcher,
-    )
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern_with_mode(
-      compiled,
-      parse_untyped_test_expr("make() + other()"),
-      UntypedAstMatcher,
-    )
-    is Some(_),
-  )
 }

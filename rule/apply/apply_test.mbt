@@ -55,21 +55,6 @@ fn apply_structural_rule_findings(
 }
 
 ///|
-fn apply_structural_rule_findings_untyped(
-  source : String,
-  rule_source : String,
-) -> Array[RuleFinding] raise {
-  let rules = compile_rule_source(rule_source)
-  let impls = parse_impls(source)
-  apply_structural_rules_with_matcher(
-    "sample.mbt",
-    impls,
-    rules,
-    @matching.UntypedAstMatcher,
-  )
-}
-
-///|
 test "apply structural rule matches repeated subtree once" {
   let rule_source =
     #|id: example
@@ -1174,7 +1159,7 @@ test "apply structural rule visits top let definitions" {
 }
 
 ///|
-test "untyped structural matcher matches repeated if expression" {
+test "default structural matcher matches repeated if expression" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1188,13 +1173,13 @@ test "untyped structural matcher matches repeated if expression" {
     #|  (if ready { a } else { b }) == (if ready { a } else { c })
     #|}
     #|
-  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
 }
 
 ///|
-test "untyped structural matcher prunes descendants with patterns-not" {
+test "default structural matcher prunes descendants with patterns-not" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1210,7 +1195,7 @@ test "untyped structural matcher prunes descendants with patterns-not" {
     #|  target()
     #|}
     #|
-  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
@@ -1219,7 +1204,7 @@ test "untyped structural matcher prunes descendants with patterns-not" {
 }
 
 ///|
-test "untyped structural matcher carries inside target bindings" {
+test "default structural matcher carries inside target bindings" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1234,13 +1219,13 @@ test "untyped structural matcher carries inside target bindings" {
     #|  wrapper(if ready { a } else { b }, target(if ready { a } else { c }))
     #|}
     #|
-  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
-test "untyped structural matcher respects shadowed inherited identifiers" {
+test "default structural matcher respects shadowed inherited identifiers" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1258,13 +1243,13 @@ test "untyped structural matcher respects shadowed inherited identifiers" {
     #|  wrapper(x, target(x))
     #|}
     #|
-  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
-test "untyped structural matcher applies id and const guards" {
+test "default structural matcher applies id and const guards" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1282,7 +1267,7 @@ test "untyped structural matcher applies id and const guards" {
     #|  danger_call("ok")
     #|}
     #|
-  let hits = apply_structural_rule_findings_untyped(source, rule_source)
+  let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
 }
 
@@ -1365,7 +1350,7 @@ test "apply taint rule reports source reaching sink" {
 }
 
 ///|
-test "untyped taint matcher applies source sink and sanitizer patterns" {
+test "default taint matcher applies source sink and sanitizer patterns" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1385,11 +1370,10 @@ test "untyped taint matcher applies source sink and sanitizer patterns" {
     #|  tagged_sink(if ready { a } else { b }, if ready { a } else { b }, clean(if ready { a } else { b }, if ready { a } else { b }, dirty))
     #|}
     #|
-  let hits = apply_taint_rules_with_matcher(
+  let hits = apply_taint_rules(
     "sample.mbt",
     parse_impls(source),
     compile_rule_source(rule_source),
-    @matching.UntypedAstMatcher,
   )
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")

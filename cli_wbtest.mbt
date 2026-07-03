@@ -28,22 +28,6 @@ fn expect_rule_file(options : CliOptions, expected : String) -> Unit raise {
 }
 
 ///|
-fn expect_ast_matcher(options : CliOptions) -> Unit raise {
-  match options.matcher_mode {
-    @matching.AstMatcher => ()
-    @matching.UntypedAstMatcher => fail("expected AST matcher")
-  }
-}
-
-///|
-fn expect_untyped_matcher(options : CliOptions) -> Unit raise {
-  match options.matcher_mode {
-    @matching.UntypedAstMatcher => ()
-    @matching.AstMatcher => fail("expected untyped matcher")
-  }
-}
-
-///|
 test "cli args require rules or pattern option" {
   expect_cli_usage([], 2)
   expect_cli_usage(["src"], 2)
@@ -107,37 +91,7 @@ test "cli args parse rules root and default scan root" {
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
       assert_false(options.no_color)
-      expect_ast_matcher(options)
     }
-    _ => fail("unexpected command")
-  }
-}
-
-///|
-test "cli args enable untyped matcher only when env is one" {
-  match parse_cli_command(["scan", "--rules", "custom-rules"]) {
-    ("scan", Some(options), None) => expect_ast_matcher(options)
-    _ => fail("unexpected command")
-  }
-  match
-    parse_cli_command(["scan", "--rules", "custom-rules"], env={
-      "MOONGREP_NEW_MATCHER": "0",
-    }) {
-    ("scan", Some(options), None) => expect_ast_matcher(options)
-    _ => fail("unexpected command")
-  }
-  match
-    parse_cli_command(["scan", "--rules", "custom-rules"], env={
-      "MOONGREP_NEW_MATCHER": "true",
-    }) {
-    ("scan", Some(options), None) => expect_ast_matcher(options)
-    _ => fail("unexpected command")
-  }
-  match
-    parse_cli_command(["scan", "--rules", "custom-rules"], env={
-      "MOONGREP_NEW_MATCHER": "1",
-    }) {
-    ("scan", Some(options), None) => expect_untyped_matcher(options)
     _ => fail("unexpected command")
   }
 }

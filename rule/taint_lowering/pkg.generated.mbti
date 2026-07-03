@@ -2,15 +2,12 @@
 package "moonbit-community/moongrep/rule/taint_lowering"
 
 import {
-  "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/taint",
 }
 
 // Values
 pub fn lower_compiled_taint_rule(@model.CompiledRule, @model.CompiledTaintRule) -> @taint.TaintSpec
-
-pub fn lower_compiled_taint_rule_with_matcher(@model.CompiledRule, @model.CompiledTaintRule, @matching.MatcherMode) -> @taint.TaintSpec
 
 // Errors
 

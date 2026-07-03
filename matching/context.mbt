@@ -19,13 +19,6 @@ pub(all) struct CompiledExprPattern {
 }
 
 ///|
-/// Selects the expression-pattern matcher implementation.
-pub(all) enum MatcherMode {
-  AstMatcher
-  UntypedAstMatcher
-}
-
-///|
 /// Values captured while matching a `CompiledExprPattern`.
 ///
 /// Expression metavars capture whole expressions. Identifier metavars capture
