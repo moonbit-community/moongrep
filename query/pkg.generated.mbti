@@ -1,0 +1,20 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/query"
+
+import {
+  "moonbit-community/moongrep/untyped_ast",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+type ExprQuery
+pub fn ExprQuery::ExprQuery(String) -> Self raise
+pub fn ExprQuery::matches_all(Self, source_name~ : String, String) -> ArrayView[Map[String, @untyped_ast.Node]] raise
+
+// Type aliases
+
+// Traits
+

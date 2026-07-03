@@ -1,0 +1,12 @@
+import {
+  "moonbit-community/moongrep/matching",
+  "moonbit-community/moongrep/rule/compile" @rule_compile,
+  "moonbit-community/moongrep/rule/model" @rule_model,
+  "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
+  "moonbit-community/moongrep/rule/traverse" @rule_traverse,
+  "moonbit-community/moongrep/untyped_ast",
+  "moonbitlang/core/hashmap",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser",
+  "moonbitlang/parser/syntax",
+}
