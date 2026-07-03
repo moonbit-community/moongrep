@@ -669,7 +669,7 @@ pub(all) struct Node {
   kind : NodeKind
   loc : @basic.Location
   children : FixedArray[(String?, Node)]
-}
+} derive(Debug)
 
 ///|
 pub fn Node::to_json(self : Node) -> Json {

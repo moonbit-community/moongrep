@@ -26,7 +26,8 @@ pub(all) struct Node {
   kind : NodeKind
   loc : @basic.Location
   children : FixedArray[(String?, Node)]
-}
+} derive(@debug.Debug)
+pub fn Node::contains_unshadowed(Self, id~ : String) -> Bool
 pub fn Node::to_json(Self) -> Json
 pub impl ToJson for Node
 

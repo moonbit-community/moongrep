@@ -206,6 +206,57 @@ test "untyped ast exposes named fields children" {
 }
 
 ///|
+test "node contains_unshadowed tracks identifier uses through local shadowing" {
+  assert_true(
+    from_expr(parse_test_expr("target + 1")).contains_unshadowed(id="target"),
+  )
+  assert_false(
+    from_expr(parse_test_expr("let target = source; target")).contains_unshadowed(
+      id="target",
+    ),
+  )
+  assert_true(
+    from_expr(parse_test_expr("let other = target; other")).contains_unshadowed(
+      id="target",
+    ),
+  )
+  assert_false(
+    from_expr(parse_test_expr("let mut target = source; target")).contains_unshadowed(
+      id="target",
+    ),
+  )
+  assert_true(
+    from_expr(parse_test_expr("let mut other = target; other")).contains_unshadowed(
+      id="target",
+    ),
+  )
+}
+
+///|
+test "node contains_unshadowed tracks identifier uses through function and match scopes" {
+  assert_false(
+    from_expr(parse_test_expr("fn(target) { target }")).contains_unshadowed(
+      id="target",
+    ),
+  )
+  assert_true(
+    from_expr(parse_test_expr("fn(other) { target }")).contains_unshadowed(
+      id="target",
+    ),
+  )
+  assert_false(
+    from_expr(parse_test_expr("match input { Some(target) => target }")).contains_unshadowed(
+      id="target",
+    ),
+  )
+  assert_true(
+    from_expr(parse_test_expr("match target { Some(other) => other }")).contains_unshadowed(
+      id="target",
+    ),
+  )
+}
+
+///|
 test "untyped ast impl list uses direct item children" {
   let first = parse_test_impl("fn answer { 42 }")
   let second = parse_test_impl("let answer = 42")
