@@ -350,7 +350,6 @@ pub(all) enum NodeKind {
   Visibility_Pub
   WhereClause
   WhereClause_FieldList
-  LocationJson
   Leaf(NodePayload)
 } derive(Eq, @debug.Debug)
 pub fn NodeKind::to_string(Self) -> String

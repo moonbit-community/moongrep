@@ -2,6 +2,7 @@ import {
   "moonbit-community/moongrep/rule/syntax_id" @id,
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
+  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/parser/syntax",
   "moonbitlang/core/list",
 }

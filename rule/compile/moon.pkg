@@ -4,6 +4,7 @@ import {
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/rule/prefilter",
   "moonbit-community/moongrep/rule/traverse",
+  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/lexer",
   "moonbitlang/parser/handrolled_parser",
   "moonbitlang/parser/syntax",

@@ -154,8 +154,154 @@ fn required_literals_from_compiled_pattern(
   pattern : CompiledRulePattern,
 ) -> Array[String] {
   let literals : Array[String] = []
-  collect_expr_literals(pattern.compiled.ast, pattern.compiled, literals)
+  collect_node_literals(pattern.compiled.ast, pattern.compiled, literals)
   unique_literals(literals)
+}
+
+///|
+fn collect_node_literals(
+  node : @untyped_ast.Node,
+  compiled : @matching.CompiledExprPattern,
+  literals : Array[String],
+) -> Unit {
+  match node.kind {
+    Var =>
+      if prefilter_normalize_var(node) is Some(name) {
+        if !is_filter_placeholder(name, compiled) {
+          push_literal(literals, name)
+        }
+      }
+    Binder | Label =>
+      if prefilter_leaf_string_child(node, "name") is Some(name) {
+        if !is_filter_placeholder(name, compiled) {
+          push_literal(literals, name)
+        }
+      }
+    ConstrName =>
+      if prefilter_leaf_string_child(node, "name") is Some(name) {
+        if !is_filter_placeholder(name, compiled) {
+          push_literal(literals, name)
+        }
+      }
+    Constant_BigInt
+    | Constant_Byte
+    | Constant_Bytes
+    | Constant_Char
+    | Constant_Double
+    | Constant_Float
+    | Constant_Int64
+    | Constant_Regex
+    | Constant_String
+    | Constant_UInt
+    | Constant_UInt64 =>
+      if prefilter_first_leaf_string(node) is Some(value) {
+        push_literal(literals, value)
+      }
+    Constant_Int =>
+      if prefilter_first_leaf_string(node) is Some(value) {
+        if value.length() >= 2 {
+          push_literal(literals, value)
+        }
+      }
+    Constant_Bool =>
+      if prefilter_first_leaf_bool(node) is Some(value) {
+        push_literal(literals, "\{value}")
+      }
+    InterpElem_Literal =>
+      if prefilter_leaf_string_child(node, "repr") is Some(value) {
+        push_literal(literals, value)
+      }
+    MultilineString_String =>
+      if prefilter_leaf_string_child(node, "value") is Some(value) {
+        push_literal(literals, value)
+      }
+    Leaf(_) => ()
+    _ =>
+      for entry in node.children {
+        let (_, child) = entry
+        collect_node_literals(child, compiled, literals)
+      }
+  }
+}
+
+///|
+fn prefilter_child(
+  node : @untyped_ast.Node,
+  name : String,
+) -> @untyped_ast.Node? {
+  for entry in node.children {
+    let (child_name, value) = entry
+    if child_name == Some(name) {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
+fn prefilter_leaf_string(node : @untyped_ast.Node) -> String? {
+  match node.kind {
+    Leaf(PString(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn prefilter_leaf_bool(node : @untyped_ast.Node) -> Bool? {
+  match node.kind {
+    Leaf(PBool(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn prefilter_leaf_string_child(
+  node : @untyped_ast.Node,
+  name : String,
+) -> String? {
+  if prefilter_child(node, name) is Some(value) {
+    prefilter_leaf_string(value)
+  } else {
+    None
+  }
+}
+
+///|
+fn prefilter_first_leaf_string(node : @untyped_ast.Node) -> String? {
+  if node.children.length() == 0 {
+    None
+  } else {
+    let (_, value) = node.children[0]
+    prefilter_leaf_string(value)
+  }
+}
+
+///|
+fn prefilter_first_leaf_bool(node : @untyped_ast.Node) -> Bool? {
+  if node.children.length() == 0 {
+    None
+  } else {
+    let (_, value) = node.children[0]
+    prefilter_leaf_bool(value)
+  }
+}
+
+///|
+fn prefilter_normalize_var(node : @untyped_ast.Node) -> String? {
+  guard prefilter_child(node, "name") is Some(long_ident) else { return None }
+  match long_ident.kind {
+    LongIdent_Ident => prefilter_leaf_string_child(long_ident, "value")
+    LongIdent_Dot =>
+      match
+        (
+          prefilter_leaf_string_child(long_ident, "pkg"),
+          prefilter_leaf_string_child(long_ident, "id"),
+        ) {
+        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
+        _ => None
+      }
+    _ => None
+  }
 }
 
 ///|

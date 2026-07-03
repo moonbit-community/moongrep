@@ -1,7 +1,7 @@
 ///|
 // AST structural matching used to try every pattern at every collected
 // expression. These buckets keep the same observable behavior while skipping
-// patterns whose root AST constructor cannot match the candidate expression.
+// patterns whose root AST node kind cannot match the candidate expression.
 //
 // The optimization is deliberately conservative:
 //
@@ -10,9 +10,9 @@
 //   ignore placeholders can match many root constructors, so they go into the
 //   wildcard bucket.
 // * Identifier and constant root captures are precise enough to bucket as
-//   `Ident` and `Constant`.
-// * Literal structural patterns are bucketed by their parsed root
-//   `@syntax.Expr` constructor, for example `Apply`, `Infix`, or `Field`.
+//   `Expr_Ident` and `Expr_Constant`.
+// * Literal structural patterns are bucketed by their untyped root node kind,
+//   for example `Expr_Apply`, `Expr_Infix`, or `Expr_Field`.
 //
 // Each bucket stores the original pattern index. When a candidate expression is
 // checked, wildcard patterns and the matching keyed bucket are merged by that
@@ -32,17 +32,17 @@ priv struct IndexedCompiledRulePattern {
 }
 
 ///|
+priv struct KeyedCompiledRulePatterns {
+  key : @untyped_ast.NodeKind
+  patterns : Array[IndexedCompiledRulePattern]
+}
+
+///|
 // Wildcard patterns are always eligible. Keyed patterns are only eligible when
 // the candidate expression has the same root constructor key.
 priv struct ExprPatternBuckets {
   wildcard : Array[IndexedCompiledRulePattern]
-  keyed : Map[String, Array[IndexedCompiledRulePattern]]
-}
-
-///|
-// The key must stay disjoint from real `@syntax.Expr` constructor names.
-fn ast_bucket_wildcard_key() -> String {
-  "*"
+  keyed : Array[KeyedCompiledRulePatterns]
 }
 
 ///|
@@ -69,71 +69,13 @@ fn ast_bucket_is_ignore_placeholder(name : String) -> Bool {
 }
 
 ///|
-// Maps a candidate expression to the exact structural root used for bucketing.
-// This must stay aligned with root cases handled by `matching.match_expr`.
-fn expr_root_key(expr : @syntax.Expr) -> String {
-  match expr {
-    Apply(..) => "Apply"
-    Array(..) => "Array"
-    ArrayAugmentedSet(..) => "ArrayAugmentedSet"
-    ArrayGet(..) => "ArrayGet"
-    ArrayGetSlice(..) => "ArrayGetSlice"
-    ArraySet(..) => "ArraySet"
-    ArraySpread(..) => "ArraySpread"
-    As(..) => "As"
-    Assign(..) => "Assign"
-    Break(..) => "Break"
-    Constant(..) => "Constant"
-    Constr(..) => "Constr"
-    Constraint(..) => "Constraint"
-    Continue(..) => "Continue"
-    Defer(..) => "Defer"
-    DotApply(..) => "DotApply"
-    Field(..) => "Field"
-    For(..) => "For"
-    ForEach(..) => "ForEach"
-    Function(..) => "Function"
-    Group(..) => "Group"
-    Guard(..) => "Guard"
-    Hole(..) => "Hole"
-    Ident(..) => "Ident"
-    If(..) => "If"
-    Implies(..) => "Implies"
-    Infix(..) => "Infix"
-    Interp(..) => "Interp"
-    Is(..) => "Is"
-    IsLexMatch(..) => "IsLexMatch"
-    Let(..) => "Let"
-    LetAnd(..) => "LetAnd"
-    LetFn(..) => "LetFn"
-    LetMut(..) => "LetMut"
-    LexMatch(..) => "LexMatch"
-    ListComprehension(..) => "ListComprehension"
-    Map(..) => "Map"
-    Match(..) => "Match"
-    Method(..) => "Method"
-    MultilineString(..) => "MultilineString"
-    Mutate(..) => "Mutate"
-    Pipe(..) => "Pipe"
-    ProofAssert(..) => "ProofAssert"
-    ProofLet(..) => "ProofLet"
-    Quantifier(..) => "Quantifier"
-    Raise(..) => "Raise"
-    Record(..) => "Record"
-    RecordUpdate(..) => "RecordUpdate"
-    RegexMatch(..) => "RegexMatch"
-    Return(..) => "Return"
-    RevPipe(..) => "RevPipe"
-    Sequence(..) => "Sequence"
-    StaticAssert(..) => "StaticAssert"
-    TemplateWriting(..) => "TemplateWriting"
-    Try(..) => "Try"
-    TryOperator(..) => "TryOperator"
-    Tuple(..) => "Tuple"
-    Unary(..) => "Unary"
-    Unit(..) => "Unit"
-    While(..) => "While"
-  }
+fn expr_root_key(expr : @syntax.Expr) -> @untyped_ast.NodeKind {
+  @untyped_ast.from_expr(expr).kind
+}
+
+///|
+fn node_root_key(node : @untyped_ast.Node) -> @untyped_ast.NodeKind {
+  node.kind
 }
 
 ///|
@@ -143,16 +85,16 @@ fn expr_root_key(expr : @syntax.Expr) -> String {
 fn compiled_root_ident_key(
   compiled : @matching.CompiledExprPattern,
   name : String,
-) -> String? {
+) -> @untyped_ast.NodeKind?? {
   if ast_bucket_is_ignore_placeholder(name) ||
     compiled.target_metavar == Some(name) ||
     compiled.source_metavar == Some(name) ||
     ast_bucket_contains_name(compiled.expr_metavars, name) {
-    Some(ast_bucket_wildcard_key())
+    Some(None)
   } else if ast_bucket_contains_name(compiled.identifier_metavars, name) {
-    Some("Ident")
+    Some(Some(Expr_Ident))
   } else if ast_bucket_contains_name(compiled.constant_metavars, name) {
-    Some("Constant")
+    Some(Some(Expr_Constant))
   } else {
     None
   }
@@ -162,30 +104,35 @@ fn compiled_root_ident_key(
 // Computes the conservative root key for a compiled pattern. A wildcard key
 // means "do not filter by root"; every other key is safe to compare directly
 // with `expr_root_key(candidate)`.
-fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> String {
+fn compiled_pattern_root_key(
+  pattern : CompiledRulePattern,
+) -> @untyped_ast.NodeKind? {
   let compiled = pattern.compiled
-  match compiled.ast {
-    Ident(id~, ..) =>
-      if @id.normalize_identifier_name_from_var(id) is Some(name) {
-        if compiled_root_ident_key(compiled, name) is Some(key) {
-          key
-        } else {
-          expr_root_key(compiled.ast)
-        }
+  if compiled.ast.kind == Expr_Ident {
+    if ast_bucket_expr_ident_name(compiled.ast) is Some(name) {
+      if compiled_root_ident_key(compiled, name) is Some(key) {
+        key
       } else {
-        expr_root_key(compiled.ast)
+        Some(node_root_key(compiled.ast))
       }
-    _ => expr_root_key(compiled.ast)
+    } else {
+      Some(node_root_key(compiled.ast))
+    }
+  } else {
+    Some(node_root_key(compiled.ast))
   }
 }
 
 ///|
 // Used by `inside-expr` before running the full outer pattern matcher.
 fn ast_bucket_root_key_matches(
-  pattern_key : String,
+  pattern_key : @untyped_ast.NodeKind?,
   expr : @syntax.Expr,
 ) -> Bool {
-  pattern_key == ast_bucket_wildcard_key() || pattern_key == expr_root_key(expr)
+  match pattern_key {
+    None => true
+    Some(key) => key == expr_root_key(expr)
+  }
 }
 
 ///|
@@ -195,17 +142,13 @@ fn ExprPatternBuckets::from_patterns(
   patterns : Array[CompiledRulePattern],
 ) -> ExprPatternBuckets {
   let wildcard : Array[IndexedCompiledRulePattern] = []
-  let keyed : Map[String, Array[IndexedCompiledRulePattern]] = {}
+  let keyed : Array[KeyedCompiledRulePatterns] = []
   for index in 0..<patterns.length() {
     let indexed = { pattern_index: index, pattern: patterns[index] }
     let key = compiled_pattern_root_key(patterns[index])
-    if key == ast_bucket_wildcard_key() {
-      wildcard.push(indexed)
-    } else if keyed.get(key) is Some(items) {
-      items.push(indexed)
-      keyed[key] = items
-    } else {
-      keyed[key] = [indexed]
+    match key {
+      None => wildcard.push(indexed)
+      Some(key) => push_keyed_pattern(keyed, key, indexed)
     }
   }
   { wildcard, keyed }
@@ -218,12 +161,101 @@ fn ExprPatternBuckets::patterns_for_expr(
   self : ExprPatternBuckets,
   expr : @syntax.Expr,
 ) -> Array[IndexedCompiledRulePattern] {
-  let keyed = if self.keyed.get(expr_root_key(expr)) is Some(items) {
+  self.patterns_for_node(@untyped_ast.from_expr(expr))
+}
+
+///|
+fn ExprPatternBuckets::patterns_for_node(
+  self : ExprPatternBuckets,
+  node : @untyped_ast.Node,
+) -> Array[IndexedCompiledRulePattern] {
+  let keyed = if keyed_patterns_for_key(self.keyed, node_root_key(node))
+    is Some(items) {
     items
   } else {
     []
   }
   merge_indexed_patterns(self.wildcard, keyed)
+}
+
+///|
+fn push_keyed_pattern(
+  keyed : Array[KeyedCompiledRulePatterns],
+  key : @untyped_ast.NodeKind,
+  indexed : IndexedCompiledRulePattern,
+) -> Unit {
+  for index in 0..<keyed.length() {
+    if keyed[index].key == key {
+      keyed[index].patterns.push(indexed)
+      return
+    }
+  }
+  keyed.push({ key, patterns: [indexed] })
+}
+
+///|
+fn keyed_patterns_for_key(
+  keyed : Array[KeyedCompiledRulePatterns],
+  key : @untyped_ast.NodeKind,
+) -> Array[IndexedCompiledRulePattern]? {
+  for entry in keyed {
+    if entry.key == key {
+      return Some(entry.patterns)
+    }
+  }
+  None
+}
+
+///|
+fn ast_bucket_child(
+  node : @untyped_ast.Node,
+  name : String,
+) -> @untyped_ast.Node? {
+  for entry in node.children {
+    let (child_name, value) = entry
+    if child_name == Some(name) {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
+fn ast_bucket_leaf_string(node : @untyped_ast.Node) -> String? {
+  match node.kind {
+    Leaf(PString(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn ast_bucket_expr_ident_name(node : @untyped_ast.Node) -> String? {
+  guard ast_bucket_child(node, "id") is Some(var_node) else { return None }
+  guard ast_bucket_child(var_node, "name") is Some(long_ident) else {
+    return None
+  }
+  match long_ident.kind {
+    LongIdent_Ident =>
+      if ast_bucket_child(long_ident, "value") is Some(value) {
+        ast_bucket_leaf_string(value)
+      } else {
+        None
+      }
+    LongIdent_Dot =>
+      match
+        (
+          ast_bucket_child(long_ident, "pkg"),
+          ast_bucket_child(long_ident, "id"),
+        ) {
+        (Some(pkg), Some(id)) =>
+          match (ast_bucket_leaf_string(pkg), ast_bucket_leaf_string(id)) {
+            (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
+            _ => None
+          }
+        _ => None
+      }
+    _ => None
+  }
 }
 
 ///|

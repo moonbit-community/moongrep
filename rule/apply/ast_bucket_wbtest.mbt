@@ -50,7 +50,7 @@ fn compile_bucket_inside_pattern(source : String) -> CompiledRulePattern raise {
 ///|
 fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
   let compiled : @matching.CompiledExprPattern = {
-    ast: parse_bucket_expr(shape),
+    ast: @untyped_ast.from_expr(parse_bucket_expr(shape)),
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
@@ -58,6 +58,14 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
     source_metavar: Some("__SOURCE__"),
   }
   { source: { shape, guards: {} }, compiled, guards: [] }
+}
+
+///|
+fn root_key_signature(key : @untyped_ast.NodeKind?) -> String {
+  match key {
+    None => "*"
+    Some(kind) => kind.to_string()
+  }
 }
 
 ///|
@@ -82,7 +90,7 @@ fn int_array_signature(values : Array[Int]) -> String {
 
 ///|
 test "ast bucket treats broad root placeholders as wildcard" {
-  let wildcard = ast_bucket_wildcard_key()
+  let wildcard = "*"
   let exp_rule_source =
     #|id: example
     #|description: Expression root.
@@ -106,10 +114,22 @@ test "ast bucket treats broad root placeholders as wildcard" {
   let ignore_pattern = compile_bucket_structural_patterns(ignore_rule_source)[0]
   let target_pattern = compile_bucket_inside_pattern(target_rule_source)
   let source_pattern = manual_source_pattern("__SOURCE__")
-  inspect(compiled_pattern_root_key(exp_pattern), content=wildcard)
-  inspect(compiled_pattern_root_key(ignore_pattern), content=wildcard)
-  inspect(compiled_pattern_root_key(target_pattern), content=wildcard)
-  inspect(compiled_pattern_root_key(source_pattern), content=wildcard)
+  inspect(
+    root_key_signature(compiled_pattern_root_key(exp_pattern)),
+    content=wildcard,
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(ignore_pattern)),
+    content=wildcard,
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(target_pattern)),
+    content=wildcard,
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(source_pattern)),
+    content=wildcard,
+  )
 }
 
 ///|
@@ -123,9 +143,18 @@ test "ast bucket keeps id and const root metavars precise" {
     #|  - shape: target()
     #|
   let patterns = compile_bucket_structural_patterns(rule_source)
-  inspect(compiled_pattern_root_key(patterns[0]), content="Ident")
-  inspect(compiled_pattern_root_key(patterns[1]), content="Constant")
-  inspect(compiled_pattern_root_key(patterns[2]), content="Apply")
+  inspect(
+    root_key_signature(compiled_pattern_root_key(patterns[0])),
+    content="Expr::Ident",
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(patterns[1])),
+    content="Expr::Constant",
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(patterns[2])),
+    content="Expr::Apply",
+  )
 }
 
 ///|

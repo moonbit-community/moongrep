@@ -2,29 +2,22 @@
 package "moonbit-community/moongrep/matching"
 
 import {
+  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/core/hashmap",
-  "moonbitlang/parser/syntax",
 }
 
 // Values
-pub fn expr_matches(@syntax.Expr, @syntax.Expr) -> Bool
+pub fn expr_matches(@untyped_ast.Node, @untyped_ast.Node) -> Bool
 
-pub fn match_expr_pattern(CompiledExprPattern, @syntax.Expr) -> ExprMatch?
+pub fn match_expr_pattern(CompiledExprPattern, @untyped_ast.Node) -> ExprMatch?
 
-pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @syntax.Expr, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
+pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @untyped_ast.Node, @hashmap.HashMap[String, @untyped_ast.Node]) -> ExprMatch?
 
 // Errors
 
 // Types and methods
-pub(all) enum BoundValue {
-  Expr(@syntax.Expr)
-  Identifier(String)
-  Constant(@syntax.Constant)
-  Pattern(@syntax.Pattern)
-}
-
 pub(all) struct CompiledExprPattern {
-  ast : @syntax.Expr
+  ast : @untyped_ast.Node
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
@@ -33,11 +26,12 @@ pub(all) struct CompiledExprPattern {
 }
 
 pub(all) struct ExprMatch {
-  root : @syntax.Expr
-  bindings : @hashmap.HashMap[String, BoundValue]
+  root : @untyped_ast.Node
+  bindings : @hashmap.HashMap[String, @untyped_ast.Node]
 }
 
 // Type aliases
+pub using @untyped_ast {type Node as BoundValue}
 
 // Traits
 
