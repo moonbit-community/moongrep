@@ -9,6 +9,8 @@ import {
 }
 
 // Values
+pub fn collect_node_scoped_exprs(Node, Array[ScopedNodeExpr]) -> Unit
+
 pub fn from_expr(@syntax.Expr) -> Node
 
 pub fn from_impl(@syntax.Impl) -> Node
@@ -18,6 +20,8 @@ pub fn from_impls(@list.List[@syntax.Impl]) -> Node
 pub fn from_pattern(@syntax.Pattern) -> Node
 
 pub fn from_type(@syntax.Type) -> Node
+
+pub fn visit_node_scoped_exprs(Node, (ScopedNodeExpr) -> NodeVisitAction) -> Unit
 
 // Errors
 
@@ -361,6 +365,16 @@ pub(all) enum NodePayload {
   PString(String)
   PBool(Bool)
 } derive(Eq, @debug.Debug)
+
+pub(all) enum NodeVisitAction {
+  NodeVisitContinue
+  NodeVisitPrune
+}
+
+pub(all) struct ScopedNodeExpr {
+  expr : Node
+  shadowed_names : Array[String]
+}
 
 // Type aliases
 

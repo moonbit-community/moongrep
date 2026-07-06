@@ -69,6 +69,72 @@ fn assert_contains_unshadowed(
 }
 
 ///|
+fn node_test_child(node : Node, name : String) -> Node? {
+  for entry in node.children {
+    let (child_name, value) = entry
+    if child_name == Some(name) {
+      return Some(value)
+    }
+  }
+  None
+}
+
+///|
+fn node_test_leaf_string(node : Node) -> String? {
+  match node.kind {
+    Leaf(PString(value)) => Some(value)
+    _ => None
+  }
+}
+
+///|
+fn node_test_leaf_string_child(node : Node, name : String) -> String? {
+  if node_test_child(node, name) is Some(child) {
+    node_test_leaf_string(child)
+  } else {
+    None
+  }
+}
+
+///|
+fn node_test_long_ident_name(node : Node) -> String? {
+  match node.kind {
+    LongIdent_Ident => node_test_leaf_string_child(node, "value")
+    LongIdent_Dot =>
+      match
+        (
+          node_test_leaf_string_child(node, "pkg"),
+          node_test_leaf_string_child(node, "id"),
+        ) {
+        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
+        _ => None
+      }
+    _ => None
+  }
+}
+
+///|
+fn node_test_expr_ident_name(node : Node) -> String? {
+  guard node.kind == Expr_Ident else { return None }
+  guard node_test_child(node, "id") is Some(var_node) else { return None }
+  guard node_test_child(var_node, "name") is Some(long_ident) else {
+    return None
+  }
+  node_test_long_ident_name(long_ident)
+}
+
+///|
+fn scoped_expr_ident_shadow_sets(source : String) -> Array[String] raise {
+  let exprs : Array[ScopedNodeExpr] = []
+  collect_node_scoped_exprs(from_expr(parse_test_expr(source)), exprs)
+  [
+    for scoped in exprs if node_test_expr_ident_name(scoped.expr) is Some(name) => {
+      "\{name}:\{scoped.shadowed_names.join(",")}"
+    }
+  ]
+}
+
+///|
 test "untyped ast expression json matches parser json" {
   assert_expr_json_matches_parser("x + 1")
   assert_expr_json_matches_parser("try f() catch { _ => fallback }")
@@ -217,6 +283,73 @@ test "untyped ast exposes named fields children" {
     }
     _ => fail("expected first child to be operator node")
   }
+}
+
+///|
+test "node scoped traversal shadows let body but not initializer" {
+  assert_eq(
+    scoped_expr_ident_shadow_sets("let target = source; target").join("|"),
+    "source:|target:target",
+  )
+}
+
+///|
+test "node scoped traversal shadows function parameters in body" {
+  assert_eq(
+    scoped_expr_ident_shadow_sets("fn(target) { target + source }").join("|"),
+    "target:target|source:target",
+  )
+}
+
+///|
+test "node scoped traversal shadows match case guard and body" {
+  assert_eq(
+    scoped_expr_ident_shadow_sets(
+      "match input { Some(target) if target > 0 => target + source }",
+    ).join("|"),
+    "input:|target:target|target:target|source:target",
+  )
+}
+
+///|
+test "node scoped traversal propagates condition binders through true branches" {
+  assert_eq(
+    scoped_expr_ident_shadow_sets(
+      "if maybe is Some(target) && target > 0 { target } else { fallback }",
+    ).join("|"),
+    "maybe:|target:target|target:target|fallback:",
+  )
+  assert_eq(
+    scoped_expr_ident_shadow_sets(
+      "guard maybe is Some(target) else { fallback }; target",
+    ).join("|"),
+    "maybe:|fallback:|target:target",
+  )
+}
+
+///|
+test "node scoped traversal tracks list comprehension scopes" {
+  assert_eq(
+    scoped_expr_ident_shadow_sets(
+      "[for item in items if maybe is Some(target) => item + target + source]",
+    ).join("|"),
+    "items:|maybe:item|item:item,target|target:item,target|source:item,target",
+  )
+}
+
+///|
+test "node scoped visitor prune skips children" {
+  let visited : Array[String] = []
+  visit_node_scoped_exprs(from_expr(parse_test_expr("target + source")), fn(
+    scoped,
+  ) {
+    match node_test_expr_ident_name(scoped.expr) {
+      Some(name) => visited.push(name)
+      None => ()
+    }
+    NodeVisitPrune
+  })
+  assert_eq(visited.join("|"), "")
 }
 
 ///|
