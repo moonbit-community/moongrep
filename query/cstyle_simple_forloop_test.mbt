@@ -18,25 +18,25 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
     #|for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
     #|  $(body:exp)
     #|}
-  let matches = ExprQuery::ExprQuery(pattern).matches_all(
+  let captures = ExprQuery::ExprQuery(pattern).captures(
     source_name="sample.mbt",
     source,
   )
-  assert_eq(matches.length(), 3)
-  let filtered : Array[Map[String, @untyped_ast.Node]] = []
-  for captures in matches {
-    if captures.get("counter") is Some(counter_node) &&
+  assert_eq(captures.length(), 3)
+  let filtered_capture_maps : Array[Map[String, @untyped_ast.Node]] = []
+  for capture in captures {
+    if capture.get("counter") is Some(counter_node) &&
       counter_node.kind is Leaf(PString(counter_name)) &&
-      captures.get("body") is Some(body) {
+      capture.get("body") is Some(body) {
       // unused variable in for loop body
       if !body.contains_unshadowed(id=counter_name) {
-        filtered.push(captures)
+        filtered_capture_maps.push(capture)
       }
     }
   }
-  assert_eq(filtered.length(), 2)
+  assert_eq(filtered_capture_maps.length(), 2)
   debug_inspect(
-    filtered[0].get("counter").unwrap(),
+    filtered_capture_maps[0].get("counter").unwrap(),
     content=(
       #|{
       #|  kind: Leaf(PString("i")),
@@ -49,7 +49,7 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
     ),
   )
   debug_inspect(
-    filtered[1].get("counter").unwrap(),
+    filtered_capture_maps[1].get("counter").unwrap(),
     content=(
       #|{
       #|  kind: Leaf(PString("k")),
