@@ -834,6 +834,71 @@ test "inside expr only patterns-not respects shadowed inherited identifiers" {
 }
 
 ///|
+test "inside expr condition binders shadow inherited identifiers" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target call.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: target($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, if maybe is Some(x) { target(x) } else { fallback });
+    #|  wrapper(x, if maybe is Some(x) && ready { target(x) } else { fallback });
+    #|  wrapper(x, if maybe is Some(x) && target(x) { fallback } else { fallback });
+    #|  wrapper(x, {
+    #|    guard maybe is Some(x) else { fallback }
+    #|    target(x)
+    #|  });
+    #|  wrapper(x, match value { _ if maybe is Some(x) => target(x) });
+    #|  wrapper(x, while maybe is Some(x) { target(x) });
+    #|  wrapper(x, for i = 0; maybe is Some(x); i = target(x) { target(x) });
+    #|  wrapper(x, [for i = 0; maybe is Some(x); i = i + 1 => target(x)]);
+    #|  wrapper(x, [for i = 0; i < 1; i = i + 1 if maybe is Some(x) => target(x)]);
+    #|  wrapper(x, if ready { target(x) } else { fallback });
+    #|  wrapper(x, if maybe is Some(y) { target(x) } else { fallback })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 2)
+  assert_eq(hits[0].loc.start.lnum, 14)
+  assert_eq(hits[1].loc.start.lnum, 15)
+}
+
+///|
+test "inside expr patterns-not ignores condition-shadowed inherited identifiers" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped target without same-name target call.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns-not:
+    #|  - shape: target($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(x, if maybe is Some(x) { target(x) } else { fallback });
+    #|  wrapper(x, if maybe is Some(x) && target(x) { fallback } else { fallback });
+    #|  wrapper(x, {
+    #|    guard maybe is Some(x) else { fallback }
+    #|    target(x)
+    #|  });
+    #|  wrapper(x, match value { _ if maybe is Some(x) => target(x) });
+    #|  wrapper(x, while maybe is Some(x) { target(x) });
+    #|  wrapper(x, for i = 0; maybe is Some(x); i = i + 1 { target(x) });
+    #|  wrapper(x, [for i = 0; maybe is Some(x); i = i + 1 => target(x)]);
+    #|  wrapper(x, [for i = 0; i < 1; i = i + 1 if maybe is Some(x) => target(x)]);
+    #|  wrapper(x, if ready { target(x) } else { fallback });
+    #|  wrapper(x, if maybe is Some(y) { target(x) } else { fallback })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 8)
+}
+
+///|
 test "apply structural root patterns preserve pattern indexes" {
   let rule_source =
     #|id: example
