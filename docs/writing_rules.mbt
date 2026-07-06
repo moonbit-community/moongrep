@@ -30,9 +30,10 @@ let _embed_writingrules_md : String =
   #|
   #|Each YAML file must contain exactly one document, and that document must be a
   #|mapping. A complete rule file requires string `id` and `description` fields,
-  #|rejects unknown top-level keys, and uses exactly one of these top-level modes:
+  #|rejects unknown top-level keys, and chooses one of these rule modes:
   #|
-  #|- `patterns`: structural expression matching
+  #|- structural: non-empty `patterns`, or `inside-expr` with `patterns`,
+  #|  `patterns-not`, or both
   #|- `taint`: intraprocedural taint modeling compiled to the `taint` package
   #|
   #|`patterns` must be a non-empty array when present. Structural rules may also
@@ -222,7 +223,7 @@ let _embed_writingrules_md : String =
   #|  - shape: $(expr:exp) == $(expr:exp)
   #|```
   #|
-  #|This is a good fit for supported repeated expression shapes such as:
+  #|This is a good fit for whole-expression comparisons such as:
   #|
   #|- `x == x`
   #|- `user.profile.name == user.profile.name`
@@ -287,14 +288,14 @@ let _embed_writingrules_md : String =
   #|- it must place exactly one supported `__TARGET__`; place it where a whole
   #|  expression is expected so runtime traversal can search that subtree
   #|- `__TARGET__` is reserved and must not be used as an inline metavar name
-  #|- inner `patterns` must not contain `__TARGET__`; the target placeholder
-  #|  selects the subtree to search, but it is not a binding available to inner
-  #|  shapes
+  #|- inner `patterns` and `patterns-not` must not contain `__TARGET__`; the target
+  #|  placeholder selects the subtree to search, but it is not a binding available
+  #|  to inner shapes
   #|- inherited `id` captures observe lexical shadowing inside the searched target
   #|  subtree
-  #|- inner `patterns` reference outer captures by repeating the same inline
-  #|  metavar form, such as `$(prefix:exp)`; using the same name with a different
-  #|  kind is rejected
+  #|- inner `patterns` and `patterns-not` reference outer captures by repeating the
+  #|  same inline metavar form, such as `$(prefix:exp)`; using the same name with a
+  #|  different kind is rejected
   #|
   #|### 3.6 Use `patterns-not` to prune blocked branches
   #|
@@ -442,7 +443,7 @@ let _embed_writingrules_md : String =
   #|Why it works:
   #|
   #|- `counter` is compared by normalized identifier name, not by raw AST equality
-  #|- `start`, `limit`, and `body` are expression captures stored as parser AST nodes
+  #|- `start`, `limit`, and `body` are expression captures stored as untyped AST nodes
   #|
   #|### Same rule, multiple shapes
   #|
@@ -487,9 +488,9 @@ let _embed_writingrules_md : String =
   #|
   #|### A rule with `guard` fails to load
   #|
-  #|Check that `guard` is under a structural `patterns` entry, that it is a
-  #|mapping, and that every key names an `id` or `const` capture visible to that
-  #|pattern. `guard` is still rejected in taint clauses.
+  #|Check that `guard` is under a structural `patterns` or `patterns-not` entry,
+  #|that it is a mapping, and that every key names an `id` or `const` capture
+  #|visible to that pattern. `guard` is still rejected in taint clauses.
   #|
   #|## Testing Workflow
   #|

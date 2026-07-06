@@ -12,7 +12,7 @@ import {
   "moonbitlang/lexer@0.3.7",
 }
 
-readme = "README.mbt.md"
+readme = "README.md"
 
 repository = "https://github.com/moonbit-community/moongrep"
 

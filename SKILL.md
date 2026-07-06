@@ -16,18 +16,20 @@ moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern>)... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern>)... [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
 optional when `--rule <rule-file>` or at least one `--pattern <pattern>` is
-supplied. The long rules option accepts both `--rules <rules-root>` and
-`--rules=<rules-root>` forms. Use `--rule <rule-file>` to load exactly one YAML
-rule file. Inline patterns are treated as anonymous structural rules whose rule
-id is the pattern string itself. One optional positional `scan-root` may appear
-in the `scan` argument list and defaults to `.`. If the rules or rule option
-appears multiple times, the last value wins. Repeated `--pattern` values are
-appended as separate anonymous rules.
+supplied, or when `--enable-builtin-rules` is enabled. The long rules option
+accepts both `--rules <rules-root>` and `--rules=<rules-root>` forms. Use
+`--rule <rule-file>` to load exactly one YAML rule file. Inline patterns are
+treated as anonymous structural rules whose rule id is the pattern string
+itself. `--enable-builtin-rules` loads the embedded builtin rules in addition
+to any rules and inline patterns supplied on the command line. One optional
+positional `scan-root` may appear in the `scan` argument list and defaults to
+`.`. If the rules or rule option appears multiple times, the last value wins.
+Repeated `--pattern` values are appended as separate anonymous rules.
 
 Use `--exclude-dir <dir>...` to skip directory names or paths while recursively
 scanning the source tree. When passing multiple excluded directories after one
@@ -35,10 +37,11 @@ flag, put `scan-root` before `--exclude-dir`; repeated `--exclude-dir <dir>` and
 `--exclude-dir=<dir>` forms are also accepted.
 
 Usage errors print a message and exit with code 2: missing `scan` command,
-missing both rules and pattern options, missing option value, unknown options,
-or more than one scan root. Non-usage errors, including unreadable paths, an
-empty rules directory, invalid YAML/schema/shape, or source read failures,
-abort the run; the CLI prints the error and exits with code 1.
+missing all rule sources (`--rules`, `--rule`, `--pattern`, and
+`--enable-builtin-rules`), missing option value, unknown options, or more than
+one scan root. Non-usage errors, including unreadable paths, an empty rules
+directory, invalid YAML/schema/shape, or source read failures, abort the run;
+the CLI prints the error and exits with code 1.
 
 Pass `--verbose` to print loaded rule ids and the directory traversal progress
 before warnings and match results.
@@ -56,6 +59,7 @@ moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules
 moon runwasm moonbit-community/moongrep -- scan -r path/to/rules
 moon runwasm moonbit-community/moongrep -- scan --rule path/to/rule.yaml
 moon runwasm moonbit-community/moongrep -- scan --pattern 'target()'
+moon runwasm moonbit-community/moongrep -- scan --enable-builtin-rules
 ```
 
 The scanner recursively reads `.mbt` files. When descending from `scan-root`,

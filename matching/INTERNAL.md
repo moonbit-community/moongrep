@@ -42,36 +42,34 @@ in whole expression positions. For example, undeclared `__x` is literal: only
 
 ## Binding Kinds
 
-`BoundValue` stores `Expr` for whole-expression captures, `Pattern` for
-whole-pattern captures, `Identifier` for normalized name captures, or `Constant`
-for parsed constants.
+`BoundValue` is `@untyped_ast.Node`.
 
-Expression metavars capture the candidate expression at that position.
-Repeated uses compare the parsed expression structure, ignoring locations.
+Every binding is stored directly as an untyped AST node. Expression, constant,
+and pattern metavars bind their matched nodes. Identifier metavars bind the
+normalized name encoded as a `Leaf(PString(_))` node.
 
-Identifier metavars store `Identifier(String)`. Expr, var, and pattern values
-go through `untyped_ast` normalization helpers where possible. Binder and label
-matching uses the candidate name directly because those nodes already carry the
-short name being compared.
+Expression metavars capture the candidate expression node at that position.
+Repeated uses compare node structure and leaf values while ignoring source
+locations.
 
-Constant metavars store `Constant(@syntax.Constant)`. Expression placeholders
-accept only `Expr::Constant`, pattern placeholders accept only
-`Pattern::Constant`, and repeated uses compare with `constant_equal`.
+Identifier metavars normalize source-level names before binding. Expr, var, and
+pattern values go through `untyped_ast` normalization helpers where possible.
+Binder and label matching uses the candidate name directly because those nodes
+already carry the short name being compared.
 
-Pattern metavars store `Pattern(@syntax.Pattern)`. Repeated `Expr` and
-`Pattern` bindings are compared after converting the parser AST value with
-`@untyped_ast.from_expr` or `@untyped_ast.from_pattern`, so source locations do
-not affect equality.
+Constant placeholders accept only constant expression or pattern nodes. Pattern
+metavars bind whole pattern nodes. Repeated constant and pattern captures use
+the same untyped-node equality as all other bindings.
 
 ## Equality Is Location-Insensitive
 
 The matcher ignores source locations when comparing repeated expression and
-pattern captures. The comparison walks the untyped AST node kind and child
-values, so it can cover parser shapes even when the root matcher has specialized
-matching logic for that syntax.
+pattern captures. Repeated binding comparison is handled by
+`bound_value_equal`, which delegates to `node_equal_ignoring_loc`.
 
-`option_location_presence_equal` compares only whether async/location-like
-fields are present, not their concrete locations.
+`node_equal_ignoring_loc` requires the same node kind and recursively compares
+child labels and child values in order. Leaf values compare through their node
+kind. The `loc` field is ignored throughout the walk.
 
 ## Let Head Matching
 
@@ -97,9 +95,8 @@ traverse the target body normally.
 
 ## Exactness and Small Exceptions
 
-Most AST nodes require the same node kind and exact list lengths. `list_match`
-converts MoonBit lists to arrays, checks equal lengths first, and then compares
-children in order.
+Most AST nodes require the same node kind and exact child list lengths. The
+untyped matcher compares children in stored order after checking equal lengths.
 
 Notable exactness details:
 

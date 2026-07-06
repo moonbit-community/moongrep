@@ -34,31 +34,29 @@
 
 ## 绑定种类
 
-`BoundValue` 存储四种值：用于完整表达式捕获的 `Expr`、用于完整 pattern 捕获的
-`Pattern`、用于归一化名称捕获的 `Identifier`，以及用于解析后常量的 `Constant`。
+`BoundValue` 是 `@untyped_ast.Node`。
 
-expression metavar 会捕获该位置上的候选表达式。重复使用时比较解析后的表达式结构，
-并忽略源码位置。
+每个绑定都会直接存为 untyped AST 节点。expression、constant 和 pattern
+metavar 绑定它们匹配到的节点。identifier metavar 会把归一化名称编码成
+`Leaf(PString(_))` 节点。
 
-identifier metavar 会存储 `Identifier(String)`。Expr、var 和 pattern 值会在可能时经过
+expression metavar 会捕获该位置上的候选表达式节点。重复使用时比较节点结构和 leaf
+值，并忽略源码位置。
+
+identifier metavar 会在绑定前归一化源码层面的名称。Expr、var 和 pattern 值会在可能时经过
 `untyped_ast` 规范化 helper。Binder 和 label 匹配直接使用候选名称，因为这些节点已经携带了用于比较的短名称。
 
-constant metavar 会存储 `Constant(@syntax.Constant)`。表达式占位符只接受
-`Expr::Constant`，pattern 占位符只接受 `Pattern::Constant`，重复使用时通过
-`constant_equal` 比较。
-
-pattern metavar 会存储 `Pattern(@syntax.Pattern)`。重复的 `Expr` 和 `Pattern`
-绑定会先通过 `@untyped_ast.from_expr` 或 `@untyped_ast.from_pattern` 从 parser
-AST 转成 untyped AST 后再比较，因此源码位置不会影响相等性。
+constant 占位符只接受常量表达式或常量 pattern 节点。pattern metavar 绑定完整
+pattern 节点。重复的 constant 和 pattern 捕获使用与所有其他绑定相同的 untyped
+节点相等性。
 
 ## 相等性忽略位置
 
-matcher 在比较重复的 expression 和 pattern 捕获时会忽略源码位置。比较过程会遍历
-untyped AST 的节点 kind 和子值，因此即使某些语法在根 matcher 中有专门的匹配逻辑，
-重复捕获比较也可以覆盖这些 parser 形状。
+matcher 在比较重复的 expression 和 pattern 捕获时会忽略源码位置。重复绑定比较由
+`bound_value_equal` 处理，并委托给 `node_equal_ignoring_loc`。
 
-`option_location_presence_equal` 只比较 async/location-like 字段是否存在，
-不比较它们的具体位置。
+`node_equal_ignoring_loc` 要求节点 kind 相同，并按顺序递归比较子节点标签和子值。
+Leaf 值通过节点 kind 比较；整个遍历都会忽略 `loc` 字段。
 
 ## Let 头部匹配
 
@@ -81,8 +79,8 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `
 
 ## 精确性和小例外
 
-大多数 AST 节点都要求节点种类相同且列表长度完全一致。`list_match`
-会把 MoonBit list 转成 array，先检查长度相等，再按顺序比较子节点。
+大多数 AST 节点都要求节点种类相同且子节点列表长度完全一致。untyped matcher
+会先检查长度相等，再按存储顺序比较子节点。
 
 值得注意的精确性细节：
 
