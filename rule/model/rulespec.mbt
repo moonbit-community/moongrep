@@ -12,8 +12,8 @@ pub(all) suberror RuleLoadError {
 ///
 /// `shape` must be a valid MoonBit expression. Inline `$(name:exp)`,
 /// `$(name:id)`, `$(name:const)`, and `$(name:pat)` placeholders in the shape
-/// are discovered during compilation. `guard`, when present, maps id or const
-/// capture names to regex strings.
+/// are discovered during compilation. `guard`, when present, maps
+/// `$`-prefixed id or const capture names to regex strings.
 pub(all) struct RulePatternSpec {
   shape : String
   guards : Map[String, String]

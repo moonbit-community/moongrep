@@ -11,12 +11,13 @@ Run the scanner with a rule directory and an optional scan target directory or
 ```bash
 moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules path/to/src
 moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
+moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --guard '{$callee: "^safe_"}' path/to/src
 ```
 
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern>)... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
@@ -29,7 +30,9 @@ itself. `--enable-builtin-rules` loads the embedded builtin rules in addition
 to any rules and inline patterns supplied on the command line. One optional
 positional `scan-root` may appear in the `scan` argument list and defaults to
 `.`. If the rules or rule option appears multiple times, the last value wins.
-Repeated `--pattern` values are appended as separate anonymous rules.
+Repeated `--pattern` values are appended as separate anonymous rules. Use
+`--guard <guard>` after an anonymous `--pattern` to attach a YAML guard map with
+`$`-prefixed metavariable keys, using the same schema as rule-file `guard`.
 
 Use `--exclude-dir <dir>...` to skip directory names or paths while recursively
 scanning the source tree. When passing multiple excluded directories after one
@@ -38,8 +41,9 @@ flag, put `scan-root` before `--exclude-dir`; repeated `--exclude-dir <dir>` and
 
 Usage errors print a message and exit with code 2: missing `scan` command,
 missing all rule sources (`--rules`, `--rule`, `--pattern`, and
-`--enable-builtin-rules`), missing option value, unknown options, or more than
-one scan root. Non-usage errors, including unreadable paths, an empty rules
+`--enable-builtin-rules`), missing option value, misplaced or malformed
+`--guard`, unknown options, or more than one scan root. Non-usage errors,
+including unreadable paths, an empty rules
 directory, invalid YAML/schema/shape, or source read failures, abort the run;
 the CLI prints the error and exits with code 1.
 
@@ -59,6 +63,7 @@ moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules
 moon runwasm moonbit-community/moongrep -- scan -r path/to/rules
 moon runwasm moonbit-community/moongrep -- scan --rule path/to/rule.yaml
 moon runwasm moonbit-community/moongrep -- scan --pattern 'target()'
+moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --guard '{$callee: "^safe_"}'
 moon runwasm moonbit-community/moongrep -- scan --enable-builtin-rules
 ```
 

@@ -9,6 +9,7 @@ import {
   "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
   "moonbit-community/moongrep/untyped_ast",
   "moonbit-community/miniio",
+  "moonbit-community/yaml",
   "moonbitlang/core/argparse",
   "moonbitlang/core/json",
   "moonbitlang/core/list",

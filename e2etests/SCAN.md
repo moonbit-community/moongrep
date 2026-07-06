@@ -87,6 +87,19 @@ source:
 3 | }
 ```
 
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@html\\.render$", $value: "raw"}' testdata/guard
+testdata/guard/hit.mbt:2:3-2:22
+rule: $(callee:id)($(value:const))
+description:
+  Anonymous CLI pattern.
+source:
+1 | fn sample {
+2 >   @html.render("raw")
+3 |   @html.render("safe")
+4 |   render("raw")
+```
+
 ## Rule filtering
 
 ```mooncram

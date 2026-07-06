@@ -166,16 +166,16 @@ fn load_scan_rules(
 
 ///|
 fn anonymous_pattern_rule(
-  pattern : String,
+  pattern : @rule_model.RulePatternSpec,
   _index : Int,
 ) -> @rule_model.RawRuleSpec {
   {
-    path: pattern,
-    rule_id: pattern,
+    path: pattern.shape,
+    rule_id: pattern.shape,
     description: "Anonymous CLI pattern.",
     definition: Structural({
       inside_expr: None,
-      patterns: [{ shape: pattern, guards: {} }],
+      patterns: [pattern],
       patterns_not: [],
       patterns_not_mode: @rule_model.StructuralPatternsNotMode::PruneOnNegative,
     }),

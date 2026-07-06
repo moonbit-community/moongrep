@@ -93,7 +93,7 @@ Structural entries in `patterns` and `patterns-not` use this object schema.
 Only these keys are accepted:
 
 - `shape` (required): YAML string containing one MoonBit expression snippet
-- `guard` (optional): YAML mapping from capture name to regex string
+- `guard` (optional): YAML mapping from `$`-prefixed capture name to regex string
 
 Unknown keys inside a pattern object are rejected.
 
@@ -357,14 +357,14 @@ name, `lit`.
 ## Guards
 
 Structural pattern objects may include an optional `guard` map. A guard key is a
-capture name without `$`, and the value is a regex string:
+`$`-prefixed capture name, and the value is a regex string:
 
 ```yaml
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"
 ```
 
 Only `id` and `const` captures can be guarded. A guard key that refers to an
@@ -666,7 +666,7 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - `$(name:exp)` appears outside a bare expression position
 - `$(name:const)` appears outside a constant expression or constant pattern position
 - `$(name:pat)` appears outside a bare pattern position
-- a guard key references an unknown, `exp`, or `pat` capture
+- a guard key is not `$`-prefixed, or references an unknown, `exp`, or `pat` capture
 - a guard regex is invalid
 - `inside-expr` does not contain exactly one binding-capable `__TARGET__`
 - a structural `patterns` or `patterns-not` entry contains binding-capable
@@ -769,8 +769,8 @@ description: |
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"
 ```
 
 The shape captures any one-argument call with a constant argument. The guards

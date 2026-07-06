@@ -320,8 +320,8 @@ test "validate compiles patterns-not inline metavars and guards" {
     #|patterns-not:
     #|  - shape: allow($(name:id), $(lit:const))
     #|    guard:
-    #|      name: "^safe_"
-    #|      lit: "^ok$"
+    #|      $name: "^safe_"
+    #|      $lit: "^ok$"
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -503,10 +503,10 @@ test "validate rejects unknown guard key" {
     #|patterns:
     #|  - shape: $(name:id)
     #|    guard:
-    #|      other: "^safe_"
+    #|      $other: "^safe_"
     #|
   expect_compile_invalid(
-    source, "patterns[0].guard.other references unknown metavar",
+    source, "patterns[0].guard.$other references unknown metavar",
   )
 }
 
@@ -518,10 +518,10 @@ test "validate rejects guard on exp and pat metavars" {
     #|patterns:
     #|  - shape: sink($(value:exp))
     #|    guard:
-    #|      value: "^safe_"
+    #|      $value: "^safe_"
     #|
   expect_compile_invalid(
-    exp_source, "patterns[0].guard.value cannot reference exp metavar value",
+    exp_source, "patterns[0].guard.$value cannot reference exp metavar value",
   )
   let pat_source =
     #|id: example
@@ -529,10 +529,10 @@ test "validate rejects guard on exp and pat metavars" {
     #|patterns:
     #|  - shape: match input { $(item:pat) => body }
     #|    guard:
-    #|      item: "^Some"
+    #|      $item: "^Some"
     #|
   expect_compile_invalid(
-    pat_source, "patterns[0].guard.item cannot reference pat metavar item",
+    pat_source, "patterns[0].guard.$item cannot reference pat metavar item",
   )
 }
 
@@ -544,9 +544,9 @@ test "validate rejects invalid guard regex" {
     #|patterns:
     #|  - shape: $(name:id)
     #|    guard:
-    #|      name: "("
+    #|      $name: "("
     #|
-  expect_compile_invalid(source, "patterns[0].guard.name has invalid regex")
+  expect_compile_invalid(source, "patterns[0].guard.$name has invalid regex")
 }
 
 ///|
@@ -558,8 +558,8 @@ test "validate allows inner guard to reference inside expr id and const captures
     #|patterns:
     #|  - shape: call($(name:id), $(lit:const))
     #|    guard:
-    #|      name: "^safe_"
-    #|      lit: "^ok$"
+    #|      $name: "^safe_"
+    #|      $lit: "^ok$"
     #|
   let rules = compile_one(source)
   match rules[0].definition {

@@ -4,5 +4,5 @@ description: |
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"

@@ -75,7 +75,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 只接受这些键：
 
 - `shape`（必需）：包含一个 MoonBit 表达式片段的 YAML 字符串
-- `guard`（可选）：从捕获名到正则字符串的 YAML 映射
+- `guard`（可选）：从 `$` 前缀捕获名到正则字符串的 YAML 映射
 
 pattern object 中的未知键会被拒绝。
 
@@ -294,15 +294,15 @@ patterns:
 
 ## Guard
 
-结构规则的 pattern object 可以包含可选的 `guard` 映射。guard 的键是不带
-`$` 的捕获名，值是正则字符串：
+结构规则的 pattern object 可以包含可选的 `guard` 映射。guard 的键是带
+`$` 前缀的捕获名，值是正则字符串：
 
 ```yaml
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"
 ```
 
 只有 `id` 和 `const` 捕获可以被 guard 过滤。guard 键如果引用 `exp` 捕获、
@@ -540,7 +540,7 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `$(name:exp)` 出现在裸表达式位置之外
 - `$(name:const)` 出现在常量表达式或常量 pattern 位置之外
 - `$(name:pat)` 出现在裸 pattern 位置之外
-- guard 键引用未知捕获、`exp` 捕获或 `pat` 捕获
+- guard 键没有 `$` 前缀，或引用未知捕获、`exp` 捕获或 `pat` 捕获
 - guard 正则无效
 - `inside-expr` 没有且只有一个可绑定的 `__TARGET__`
 - 结构规则的 `patterns` 或 `patterns-not` 条目包含可绑定的 `__TARGET__`
@@ -603,8 +603,8 @@ description: |
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"
 ```
 
 shape 会捕获任意单参数且参数为常量的调用。guard 随后只保留归一化 callee 为
