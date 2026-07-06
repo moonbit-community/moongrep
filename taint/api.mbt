@@ -2,9 +2,9 @@
 /// Analyzes one function or method AST node using one taint specification.
 ///
 /// Raises `TaintAnalysisError::UnsupportedFunctionLike` when `node` is not a
-/// supported function-like parser implementation.
+/// supported function-like implementation node.
 pub fn analyze_function_like(
-  node : @syntax.Impl,
+  node : @untyped_ast.Node,
   spec : TaintSpec,
 ) -> AnalysisResult raise {
   analyze_single_function_like(node, spec)
@@ -15,7 +15,7 @@ pub fn analyze_function_like(
 ///
 /// Results are returned in the same order as `rules`.
 pub fn analyze_function_like_multi(
-  node : @syntax.Impl,
+  node : @untyped_ast.Node,
   rules : Array[TaintSpec],
 ) -> Array[AnalysisResult] raise {
   let results : Array[AnalysisResult] = []

@@ -2,7 +2,7 @@
 using @compile {compile_rules}
 
 ///|
-fn parse_single_taint_impl(source : String) -> @syntax.Impl raise {
+fn parse_single_taint_impl(source : String) -> @untyped_ast.Node raise {
   let (impls, reports) = @parser.parse_string(
     source,
     name="taint lowering test",
@@ -10,7 +10,7 @@ fn parse_single_taint_impl(source : String) -> @syntax.Impl raise {
   guard reports is [] else { fail("expected source to parse") }
   let nodes = impls.to_array()
   guard nodes is [node] else { fail("expected exactly one impl") }
-  node
+  @untyped_ast.from_impl(node)
 }
 
 ///|

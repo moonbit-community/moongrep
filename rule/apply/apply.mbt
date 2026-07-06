@@ -192,10 +192,11 @@ pub fn apply_taint_rules_to_impl(
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
+  let untyped_node = @untyped_ast.from_impl(node)
   for rule in rules {
     match rule.definition {
       Taint(taint_rule) =>
-        apply_taint_rule_to_impl(file, rule, taint_rule, node, hits)
+        apply_taint_rule_to_impl(file, rule, taint_rule, untyped_node, hits)
       _ => ()
     }
   }
@@ -207,7 +208,7 @@ fn apply_taint_rule_to_impl(
   file : String,
   rule : CompiledRule,
   taint_rule : CompiledTaintRule,
-  node : @syntax.Impl,
+  node : @untyped_ast.Node,
   hits : Array[RuleFinding],
 ) -> Unit raise {
   let spec = lower_compiled_taint_rule(rule, taint_rule)

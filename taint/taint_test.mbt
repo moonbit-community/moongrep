@@ -9,12 +9,12 @@ test "taint package exposes public path and site models" {
 }
 
 ///|
-fn parse_single_impl(source : String) -> @syntax.Impl raise {
+fn parse_single_impl(source : String) -> @untyped_ast.Node raise {
   let (impls, reports) = @parser.parse_string(source, name="taint test")
   guard reports is [] else { fail("expected source to parse") }
   let nodes = impls.to_array()
   guard nodes is [node] else { fail("expected exactly one impl") }
-  node
+  @untyped_ast.from_impl(node)
 }
 
 ///|
@@ -36,6 +36,51 @@ fn simple_spec(
     max_fixpoint_iterations: 6,
     custom_transfer_call: no_custom_transfer,
   }
+}
+
+///|
+fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
+  let findings : Array[SinkFinding] = []
+  if call.ast.kind == Expr_Apply &&
+    call.arguments is [arg] &&
+    arg.expr.kind == Expr_Ident {
+    findings.push({
+      rule_id: "test/node-transfer",
+      sink_id: "node-kinds",
+      sink_loc: arg.loc,
+      sink_site: arg.site,
+      origins: [
+        {
+          rule_id: "test/node-transfer",
+          origin_id: "observed-node",
+          site: arg.site,
+          note: None,
+        },
+      ],
+    })
+  }
+  Some({ return_taint: [], killed_paths: [], findings })
+}
+
+///|
+test "taint engine passes untyped nodes to custom transfer" {
+  let source =
+    #|fn sample(input) {
+    #|  sink(input)
+    #|}
+    #|
+  let node = parse_single_impl(source)
+  let result = analyze_function_like(node, {
+    rule_id: "test/node-transfer",
+    sources: [],
+    call_models: [],
+    unknown_call_policy: NoEffect,
+    max_fixpoint_iterations: 6,
+    custom_transfer_call: inspect_node_transfer,
+  })
+  inspect(result.function_name, content="sample")
+  assert_eq(result.findings.length(), 1)
+  inspect(result.findings[0].sink_id, content="node-kinds")
 }
 
 ///|
