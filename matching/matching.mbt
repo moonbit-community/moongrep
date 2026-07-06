@@ -93,14 +93,16 @@ fn match_expr_placeholder(
   if pattern.kind != Expr_Ident {
     return None
   }
-  guard expr_ident_name(pattern) is Some(name) else { return None }
+  guard pattern.normalized_expr_identifier_name() is Some(name) else {
+    return None
+  }
   if is_ignore_placeholder(name) {
     Some(true)
   } else if is_special_expr_metavar(compiled, name) ||
     contains_name(compiled.expr_metavars, name) {
     Some(bind_value(bindings, name, candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
-    match normalize_expr(candidate) {
+    match candidate.normalized_expr_identifier_name() {
       Some(candidate_name) =>
         Some(
           bind_value(bindings, name, string_binding(candidate_name, candidate)),
@@ -127,13 +129,15 @@ fn match_pattern_placeholder(
   if pattern.kind != Pattern_Var {
     return None
   }
-  guard pattern_var_name(pattern) is Some(name) else { return None }
+  guard pattern.normalized_pattern_identifier_name() is Some(name) else {
+    return None
+  }
   if parse_pattern_metavar_name(name) is Some(meta_name) {
     Some(bind_value(bindings, meta_name, candidate))
   } else if is_ignore_placeholder(name) {
     Some(true)
   } else if contains_name(compiled.identifier_metavars, name) {
-    match normalize_pattern(candidate) {
+    match candidate.normalized_pattern_identifier_name() {
       Some(candidate_name) =>
         Some(
           bind_value(bindings, name, string_binding(candidate_name, candidate)),
@@ -239,7 +243,7 @@ fn match_long_ident(
       guard leaf_string_child(pattern, "value") is Some(pattern_name) else {
         return false
       }
-      guard normalized_long_ident(candidate) is Some(candidate_name) else {
+      guard candidate.normalized_long_ident() is Some(candidate_name) else {
         return false
       }
       match_identifier_name(
@@ -262,7 +266,7 @@ fn match_long_ident(
       guard leaf_string_child(candidate, "id") is Some(candidate_id) else {
         return false
       }
-      guard normalized_long_ident(candidate) is Some(bound_candidate) else {
+      guard candidate.normalized_long_ident() is Some(bound_candidate) else {
         return false
       }
       pattern_pkg == candidate_pkg &&
@@ -284,7 +288,7 @@ fn match_binder(
   if candidate.kind != Binder {
     return false
   }
-  match (binder_name(pattern), binder_name(candidate)) {
+  match (pattern.normalized_binder_name(), candidate.normalized_binder_name()) {
     (Some(pattern_name), Some(candidate_name)) =>
       match_identifier_name(
         pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
@@ -303,7 +307,7 @@ fn match_label(
   if candidate.kind != Label {
     return false
   }
-  match (label_name(pattern), label_name(candidate)) {
+  match (pattern.normalized_label_name(), candidate.normalized_label_name()) {
     (Some(pattern_name), Some(candidate_name)) =>
       match_identifier_name(
         pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
@@ -526,25 +530,6 @@ fn leaf_bool_child(node : @untyped_ast.Node, name : String) -> Bool? {
 }
 
 ///|
-fn first_child(node : @untyped_ast.Node) -> @untyped_ast.Node? {
-  if node.children.length() == 0 {
-    None
-  } else {
-    let (_, value) = node.children[0]
-    Some(value)
-  }
-}
-
-///|
-fn expr_ident_name(node : @untyped_ast.Node) -> String? {
-  if child(node, "id") is Some(var_node) {
-    normalize_var(var_node)
-  } else {
-    None
-  }
-}
-
-///|
 fn expr_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
   if node.kind == Expr_Constant {
     child(node, "constant")
@@ -557,77 +542,6 @@ fn expr_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
 fn pattern_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
   if node.kind == Pattern_Constant {
     child(node, "constant")
-  } else {
-    None
-  }
-}
-
-///|
-fn pattern_var_name(node : @untyped_ast.Node) -> String? {
-  if first_child(node) is Some(binder) {
-    binder_name(binder)
-  } else {
-    None
-  }
-}
-
-///|
-fn normalize_expr(node : @untyped_ast.Node) -> String? {
-  if node.kind == Expr_Ident {
-    expr_ident_name(node)
-  } else {
-    None
-  }
-}
-
-///|
-fn normalize_pattern(node : @untyped_ast.Node) -> String? {
-  if node.kind == Pattern_Var {
-    pattern_var_name(node)
-  } else {
-    None
-  }
-}
-
-///|
-fn normalize_var(node : @untyped_ast.Node) -> String? {
-  if node.kind == Var {
-    if child(node, "name") is Some(name) {
-      normalized_long_ident(name)
-    } else {
-      None
-    }
-  } else {
-    None
-  }
-}
-
-///|
-fn normalized_long_ident(node : @untyped_ast.Node) -> String? {
-  match node.kind {
-    LongIdent_Ident => leaf_string_child(node, "value")
-    LongIdent_Dot =>
-      match (leaf_string_child(node, "pkg"), leaf_string_child(node, "id")) {
-        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
-        _ => None
-      }
-    _ => None
-  }
-}
-
-///|
-fn binder_name(node : @untyped_ast.Node) -> String? {
-  if node.kind == Binder {
-    leaf_string_child(node, "name")
-  } else {
-    None
-  }
-}
-
-///|
-fn label_name(node : @untyped_ast.Node) -> String? {
-  if node.kind == Label {
-    leaf_string_child(node, "name")
   } else {
     None
   }
@@ -677,7 +591,7 @@ fn normalized_constructor(constr : @untyped_ast.Node) -> String {
 ///|
 fn normalized_type_name(type_name : @untyped_ast.Node) -> String {
   let name = if child(type_name, "name") is Some(long_ident) {
-    normalized_long_ident(long_ident).unwrap_or("")
+    long_ident.normalized_long_ident().unwrap_or("")
   } else {
     ""
   }

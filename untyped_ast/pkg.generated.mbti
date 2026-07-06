@@ -32,6 +32,12 @@ pub(all) struct Node {
   children : FixedArray[(String?, Node)]
 } derive(@debug.Debug)
 pub fn Node::contains_unshadowed(Self, id~ : String) -> Bool
+pub fn Node::normalized_binder_name(Self) -> String?
+pub fn Node::normalized_expr_identifier_name(Self) -> String?
+pub fn Node::normalized_label_name(Self) -> String?
+pub fn Node::normalized_long_ident(Self) -> String?
+pub fn Node::normalized_pattern_identifier_name(Self) -> String?
+pub fn Node::normalized_var_name(Self) -> String?
 pub fn Node::to_json(Self) -> Json
 pub impl ToJson for Node
 

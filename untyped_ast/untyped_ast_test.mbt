@@ -135,6 +135,144 @@ fn scoped_expr_ident_shadow_sets(source : String) -> Array[String] raise {
 }
 
 ///|
+fn test_loc() -> @basic.Location {
+  @syntax.no_location
+}
+
+///|
+fn test_var(name : @syntax.LongIdent) -> @syntax.Var {
+  { name, loc: test_loc() }
+}
+
+///|
+fn test_binder(name : String) -> @syntax.Binder {
+  { name, loc: test_loc() }
+}
+
+///|
+fn test_label(name : String) -> @syntax.Label {
+  { name, loc: test_loc() }
+}
+
+///|
+fn test_expr_ident(name : @syntax.LongIdent) -> Node {
+  from_expr(@syntax.Expr::Ident(id=test_var(name), loc=test_loc()))
+}
+
+///|
+fn test_pattern_var(name : String) -> Node {
+  from_pattern(@syntax.Pattern::Var(test_binder(name)))
+}
+
+///|
+fn require_test_child(node : Node, name : String) -> Node {
+  match node_test_child(node, name) {
+    Some(child) => child
+    None => abort("expected child \{name}")
+  }
+}
+
+///|
+fn require_test_first_child(node : Node) -> Node {
+  guard node.children.length() > 0 else { abort("expected first child") }
+  let (_, child) = node.children[0]
+  child
+}
+
+///|
+fn test_leaf_string(value : String) -> Node {
+  { kind: Leaf(PString(value)), loc: test_loc(), children: [] }
+}
+
+///|
+test "node normalized identifier methods return supported names" {
+  let expr = test_expr_ident(Ident(name="target"))
+  let var_node = require_test_child(expr, "id")
+  let long_ident = require_test_child(var_node, "name")
+  let pattern = test_pattern_var("binding")
+  let binder = require_test_first_child(pattern)
+  let label = from_expr(
+      @syntax.Expr::Break(
+        arg=None,
+        label=Some(test_label("exit")),
+        loc=test_loc(),
+      ),
+    )
+    |> fn(root) { require_test_child(root, "label") }
+
+  debug_inspect(long_ident.normalized_long_ident(), content="Some(\"target\")")
+  debug_inspect(var_node.normalized_var_name(), content="Some(\"target\")")
+  debug_inspect(binder.normalized_binder_name(), content="Some(\"binding\")")
+  debug_inspect(label.normalized_label_name(), content="Some(\"exit\")")
+  debug_inspect(
+    expr.normalized_expr_identifier_name(),
+    content="Some(\"target\")",
+  )
+  debug_inspect(
+    pattern.normalized_pattern_identifier_name(),
+    content="Some(\"binding\")",
+  )
+}
+
+///|
+test "node normalized qualified identifiers include package qualifier" {
+  let expr = test_expr_ident(Dot(pkg="pkg", id="target"))
+  let var_node = require_test_child(expr, "id")
+  let long_ident = require_test_child(var_node, "name")
+  debug_inspect(
+    long_ident.normalized_long_ident(),
+    content="Some(\"@pkg.target\")",
+  )
+  debug_inspect(var_node.normalized_var_name(), content="Some(\"@pkg.target\")")
+  debug_inspect(
+    expr.normalized_expr_identifier_name(),
+    content="Some(\"@pkg.target\")",
+  )
+}
+
+///|
+test "node normalized identifier methods reject unexpected shapes" {
+  let wrong = test_expr_ident(Ident(name="target"))
+  let malformed_long_ident : Node = {
+    kind: LongIdent_Ident,
+    loc: test_loc(),
+    children: FixedArray::from_array([(Some("value"), wrong)]),
+  }
+  let malformed_var : Node = {
+    kind: Var,
+    loc: test_loc(),
+    children: FixedArray::from_array([(Some("name"), malformed_long_ident)]),
+  }
+  let malformed_binder : Node = {
+    kind: Binder,
+    loc: test_loc(),
+    children: FixedArray::from_array([(Some("name"), wrong)]),
+  }
+  let malformed_label : Node = {
+    kind: Label,
+    loc: test_loc(),
+    children: FixedArray::from_array([(Some("name"), wrong)]),
+  }
+
+  debug_inspect(wrong.normalized_long_ident(), content="None")
+  debug_inspect(wrong.normalized_var_name(), content="None")
+  debug_inspect(wrong.normalized_binder_name(), content="None")
+  debug_inspect(wrong.normalized_label_name(), content="None")
+  debug_inspect(
+    test_leaf_string("target").normalized_expr_identifier_name(),
+    content="None",
+  )
+  debug_inspect(
+    test_leaf_string("target").normalized_pattern_identifier_name(),
+    content="None",
+  )
+  debug_inspect(malformed_long_ident.normalized_long_ident(), content="None")
+  debug_inspect(malformed_var.normalized_var_name(), content="None")
+  debug_inspect(malformed_binder.normalized_binder_name(), content="None")
+  debug_inspect(malformed_label.normalized_label_name(), content="None")
+}
+
+///|
 test "untyped ast expression json matches parser json" {
   assert_expr_json_matches_parser("x + 1")
   assert_expr_json_matches_parser("try f() catch { _ => fallback }")
