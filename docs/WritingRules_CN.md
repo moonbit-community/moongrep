@@ -14,14 +14,14 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 规则 id 来自规则文件目录加 YAML `id`。例如，当 `rules` 是规则根目录时，`rules/security/raw.yaml` 中的 `id: raw-html` 会变成 `security/raw-html`。直接位于规则根目录下的文件只使用其 `id`。文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属由文件位置编码。
 
-每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `id` 和 `description`，会拒绝未知顶层键，并且使用且只使用以下顶层模式之一：
+每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `id` 和 `description`，会拒绝未知顶层键，并且选择以下规则模式之一：
 
-- `patterns`：结构化表达式匹配
+- 结构模式：非空 `patterns`，或 `inside-expr` 搭配 `patterns`、`patterns-not`，或两者同时存在
 - `taint`：过程内污点建模，编译到 `taint` package
 
 `patterns` 必须是非空数组。未知键会在每个 schema 层级被拒绝：顶层规则键、`taint` 键和规则子句键。
 
-结构规则还可以添加可选顶层 `inside-expr`。它会过滤外层表达式、绑定外层内联捕获，然后使用内部 `patterns` 搜索捕获到的 `__TARGET__` 表达式子树。
+结构规则还可以添加可选顶层 `inside-expr`。它会过滤外层表达式、绑定外层内联捕获，然后使用内部 `patterns` 或 `patterns-not` 搜索捕获到的 `__TARGET__` 表达式子树。
 
 ## 心智模型
 
@@ -107,7 +107,7 @@ patterns:
   - shape: $(expr:exp) == $(expr:exp)
 ```
 
-当同一个源码层面的名称必须在 binder、标识符表达式、pattern 变量、标签或简单变量目标之间保持一致时，请使用 `$(name:id)`：
+当同一个源码层面的名称必须在定义和使用的地方保持一致时, 请使用 `$(name:id)`
 
 ```yaml
 patterns:
@@ -146,7 +146,7 @@ patterns:
   - shape: $(expr:exp) == $(expr:exp)
 ```
 
-它适合支持的重复表达式形状，例如：
+它适合完整表达式比较，例如：
 
 - `x == x`
 - `user.profile.name == user.profile.name`
@@ -327,7 +327,7 @@ patterns:
 为什么它能工作：
 
 - `counter` 按归一化后的标识符名称比较，而不是按原始 AST 相等性比较
-- `start`、`limit` 和 `body` 是以 parser AST 节点保存的表达式捕获
+- `start`、`limit` 和 `body` 是以 untyped AST 节点保存的表达式捕获
 
 ### 同一规则，多个 shape
 
@@ -369,7 +369,7 @@ patterns:
 
 ### 带 `guard` 的规则加载失败
 
-请检查 `guard` 是否位于结构规则的 `patterns` 条目下，是否是映射，并且每个键
+请检查 `guard` 是否位于结构规则的 `patterns` 或 `patterns-not` 条目下，是否是映射，并且每个键
 都引用了该 pattern 可见的 `id` 或 `const` 捕获。taint 子句中仍然会拒绝
 `guard`。
 

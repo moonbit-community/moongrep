@@ -62,7 +62,7 @@ Only these top-level keys are accepted:
 
 - `id` (required): non-empty YAML string that must not contain `/`
 - `description` (required): YAML string
-- `patterns` (required for ordinary structural rules): non-empty YAML array
+- `patterns` (optional for structural rules): non-empty YAML array
 - `patterns-not` (optional for structural rules): non-empty YAML array using
   the same object schema as `patterns`
 - `inside-expr` (optional for structural rules): YAML string containing one
@@ -73,7 +73,8 @@ Unknown top-level keys are rejected.
 
 Each rule must choose exactly one rule mode:
 
-- structural mode: `patterns`, or `inside-expr` with `patterns-not`
+- structural mode: `patterns`, optionally with `patterns-not`; or
+  `inside-expr` with `patterns`, `patterns-not`, or both
 - taint mode: `taint`
 
 `patterns` and `taint` are mutually exclusive. `inside-expr` and `patterns-not`
@@ -257,13 +258,11 @@ make(value) == make(other)
 different syntactic roles, such as once as a binder and later as an identifier
 expression. Use `id` for that.
 
-Repeated `exp` equality is currently guaranteed for common expression forms,
-including identifiers, holes, constants, unit, infix expressions, calls, method
-calls, field access, method references, constructor expressions, grouped
-expressions, blocks, array literals, tuple literals, and `for` expressions.
-Some expression forms can be matched once but are not yet supported for
-repeated equality. If a repeated `exp` capture uses an unsupported equality
-form, that match fails rather than producing a hit.
+Repeated `exp` equality is currently guaranteed because captured values are
+compared as untyped AST nodes by node kind and child values, ignoring source
+locations. It is not limited to a fixed list of expression shapes. Semantic
+equivalents with different AST structure still do not match unless a
+placeholder absorbs the difference.
 
 ### `id`
 
@@ -386,7 +385,7 @@ and booleans as `true` or `false`.
 ## Structural Rules
 
 A structural rule has a non-empty `patterns` array, or has `inside-expr` with
-non-empty `patterns-not`.
+non-empty `patterns`, non-empty `patterns-not`, or both.
 
 ```yaml
 id: repeated-equality

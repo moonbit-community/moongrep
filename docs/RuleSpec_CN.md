@@ -51,7 +51,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 - `id`（必需）：非空 YAML 字符串，且不能包含 `/`
 - `description`（必需）：YAML 字符串
-- `patterns`（结构规则必需）：非空 YAML 数组
+- `patterns`（结构规则可选）：非空 YAML 数组
 - `patterns-not`（结构规则可选）：与 `patterns` 使用相同条目 schema 的非空 YAML 数组
 - `inside-expr`（结构规则可选）：包含一个 MoonBit 表达式片段的 YAML 字符串，作为外层上下文
 - `taint`（污点规则必需）：YAML 映射
@@ -60,7 +60,8 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 每条规则必须且只能选择一种规则模式：
 
-- 结构模式：`patterns`，或带 `patterns-not` 的 `inside-expr`
+- 结构模式：`patterns`，可选搭配 `patterns-not`；或 `inside-expr`
+  搭配 `patterns`、`patterns-not`，或两者同时存在
 - 污点模式：`taint`
 
 `patterns` 和 `taint` 互斥。`inside-expr` 和 `patterns-not` 只对结构规则有效；它们在污点规则中会被拒绝。`patterns-not` 必须和 `patterns` 或 `inside-expr` 一起出现；没有 `patterns` 的 `inside-expr` 规则必须包含 `patterns-not`。
@@ -69,7 +70,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ### Pattern Objects
 
-结构规则中的 `patterns` 条目使用以下对象 schema。
+结构规则中的 `patterns` 和 `patterns-not` 条目使用以下对象 schema。
 
 只接受这些键：
 
@@ -210,7 +211,7 @@ make(value) == make(other)
 
 当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`exp` 通常不是合适选择。此时应使用 `id`。
 
-重复 `exp` 相等性目前保证支持常见表达式形式，包括标识符、hole、常量、unit、中缀表达式、调用、方法调用、字段访问、方法引用、构造器表达式、分组表达式、块、数组字面量、元组字面量和 `for` 表达式。某些表达式形式可以单次匹配，但尚不支持重复相等性。如果重复 `exp` 捕获使用了不支持的相等形式，该次匹配会失败，而不会产生命中。
+重复 `exp` 相等性由 untyped AST 节点比较保证：比较节点 kind 和子值，并忽略源码位置。它不再限定为一组固定表达式形状。AST 结构不同的语义等价代码仍然不会匹配，除非差异被占位符吸收。
 
 ### `id`
 
@@ -318,8 +319,8 @@ Guard 会在结构 AST 匹配成功后检查。单个 pattern object 中的所�
 
 ## 结构规则
 
-结构规则具有非空 `patterns` 数组，或者具有 `inside-expr` 和非空
-`patterns-not`。
+结构规则具有非空 `patterns` 数组，或者具有 `inside-expr` 并搭配非空
+`patterns`、非空 `patterns-not`，或两者同时存在。
 
 ```yaml
 id: repeated-equality
@@ -369,7 +370,8 @@ patterns-not:
 
 ### `inside-expr`
 
-`inside-expr` 将结构规则限制在更大的表达式上下文内部匹配。
+`inside-expr` 将结构规则限制在更大的表达式上下文内部匹配。它可以搭配
+`patterns`、`patterns-not`，或两者同时使用。
 
 ```yaml
 id: wrapped-target
@@ -513,9 +515,10 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 缺少必需键
 - `id`、`description`、`inside-expr` 或 `shape` 不是 YAML 字符串
 - `id` 为空或包含 `/`
-- 规则没有且只有一个 `patterns` 或 `taint`
+- 规则没有选择结构模式或污点模式
 - taint 规则中出现 `inside-expr`
 - `inside-expr` 存在但不是字符串
+- `inside-expr` 存在但没有 `patterns` 或 `patterns-not`
 - `patterns` 不是数组或为空
 - `patterns` 条目不是映射
 - `patterns-not` 不是数组或为空
@@ -540,8 +543,9 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - guard 键引用未知捕获、`exp` 捕获或 `pat` 捕获
 - guard 正则无效
 - `inside-expr` 没有且只有一个可绑定的 `__TARGET__`
-- 结构规则的 `patterns` 条目包含可绑定的 `__TARGET__`
-- 结构规则的 `patterns` 条目用不同 kind 使用了继承自 `inside-expr` 的元变量名
+- 结构规则的 `patterns` 或 `patterns-not` 条目包含可绑定的 `__TARGET__`
+- 结构规则的 `patterns` 或 `patterns-not` 条目用不同 kind 使用了继承自
+  `inside-expr` 的元变量名
 - taint source 包含可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有且只有一个可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置
