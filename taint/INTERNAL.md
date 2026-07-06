@@ -144,6 +144,22 @@ Pattern binding is structural and type-agnostic. It does not inspect MoonBit
 type declarations, constructor definitions, field definitions, or collection
 lengths.
 
+When a whole value is tainted at the empty relative path, destructuring also
+copies that whole-value taint into each destructured binder. This lets
+`input is Some(item)` treat `item` as derived from a tainted `input` even though
+constructor payloads are not resolved through type information.
+
+Lexical binders are restored after their scope. The evaluator records the root
+names introduced by `let`, case patterns, catch and try-else patterns,
+lex/regex patterns, loop binders, and local function names. After the scoped
+body is evaluated, entries for those roots are restored from the pre-scope base
+state, while mutations to non-shadowed roots are preserved.
+
+Condition patterns create a separate true-branch state. `is`, `lexmatch?`,
+regex matches, grouped conditions, and `&&` expose their binders only to the
+true branch or loop body/continue path. Else branches, loop else blocks, and
+post-scope expressions use the base state without those condition binders.
+
 ## Calls
 
 All call syntaxes are normalized to `CallInfo` before transfer logic runs:
@@ -211,8 +227,9 @@ unconditional `return` is not reported.
 
 Branches are path-insensitive:
 
-- `if` evaluates the condition once, evaluates both branches from the same
-  post-condition state, and merges normal branch states and values
+- `if` evaluates the condition once, evaluates the true branch from the
+  condition true-state, evaluates the false branch from the base post-condition
+  state, restores condition binders, and merges normal branch states and values
 - `match` and `catch` bind each case independently, merge normal case states,
   and keep exit states only when no normal case exists
 - `try` propagates `return`, `break`, and `continue` immediately; `raise`

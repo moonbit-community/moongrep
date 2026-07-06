@@ -25,6 +25,15 @@ priv struct EvalArgumentsResult {
 }
 
 ///|
+priv struct ConditionEval {
+  base_state : TaintState
+  true_state : TaintState
+  bound_roots : Array[String]
+  flow : FlowExit
+  value : TaintTree
+}
+
+///|
 fn normal_result(state : TaintState, value : TaintTree) -> EvalResult {
   { state, value, flow: FlowNormal }
 }
@@ -126,6 +135,8 @@ fn eval_expr(
       eval_if(cond, ifso, ifnot, state, spec, findings)
     Match(expr=scrutinee, cases~, ..) =>
       eval_match(scrutinee, cases, state, spec, findings)
+    LexMatch(expr=scrutinee, cases~, ..) =>
+      eval_lex_match(scrutinee, cases, state, spec, findings)
     Try(body~, catch_~, try_else~, ..) =>
       eval_try(body, catch_, try_else, state, spec, findings)
     While(loop_cond~, loop_body~, while_else~, ..) =>
@@ -147,8 +158,19 @@ fn eval_expr(
         binders, collection, init, continue_block, body, else_block, state, spec,
         findings,
       )
-    LetFn(body~, ..) | LetAnd(body~, ..) =>
-      eval_expr(body, state, spec, findings)
+    LetFn(name~, body~, ..) => {
+      let roots : Array[String] = []
+      add_binder_root_name(roots, name)
+      eval_clean_root_scope(body, roots, state, spec, findings)
+    }
+    LetAnd(bindings~, body~, ..) =>
+      eval_clean_root_scope(
+        body,
+        let_and_bound_roots(bindings),
+        state,
+        spec,
+        findings,
+      )
     Function(..) => normal_result(state, [])
     Return(return_value=Some(value), ..) => {
       let result = eval_expr(value, state, spec, findings)
@@ -337,7 +359,21 @@ fn eval_let(
     return bound
   }
   let bound_state = bind_pattern(pattern, bound.value, bound.state)
-  eval_expr(body, bound_state, spec, findings)
+  let result = eval_expr(body, bound_state, spec, findings)
+  restore_result_scoped_roots(result, bound.state, pattern_bound_roots(pattern))
+}
+
+///|
+fn eval_clean_root_scope(
+  body : @syntax.Expr,
+  roots : Array[String],
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let scoped = clean_bind_roots(state, roots)
+  let result = eval_expr(body, scoped, spec, findings)
+  restore_result_scoped_roots(result, state, roots)
 }
 
 ///|
@@ -917,6 +953,222 @@ fn callee_name_from_expr(expr : @syntax.Expr) -> String? {
 }
 
 ///|
+fn copy_root_names(names : Array[String]) -> Array[String] {
+  let copied : Array[String] = []
+  for name in names {
+    copied.push(name)
+  }
+  copied
+}
+
+///|
+fn add_unique_root_name(names : Array[String], name : String) -> Unit {
+  for existing in names {
+    if existing == name {
+      return
+    }
+  }
+  names.push(name)
+}
+
+///|
+fn add_binder_root_name(names : Array[String], binder : @syntax.Binder) -> Unit {
+  add_unique_root_name(names, binder.name)
+}
+
+///|
+fn root_name_in(root : String, names : Array[String]) -> Bool {
+  for name in names {
+    if root == name {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn merge_root_names(
+  left : Array[String],
+  right : Array[String],
+) -> Array[String] {
+  let merged = copy_root_names(left)
+  for name in right {
+    add_unique_root_name(merged, name)
+  }
+  merged
+}
+
+///|
+fn restore_scoped_roots(
+  base : TaintState,
+  scoped : TaintState,
+  roots : Array[String],
+) -> TaintState {
+  if roots.is_empty() {
+    return scoped
+  }
+  let entries : Array[StateEntry] = []
+  for entry in scoped.entries {
+    if !root_name_in(entry.path.root, roots) {
+      merge_state_entry(entries, entry.path, entry.origins)
+    }
+  }
+  for entry in base.entries {
+    if root_name_in(entry.path.root, roots) {
+      merge_state_entry(entries, entry.path, entry.origins)
+    }
+  }
+  { entries, }
+}
+
+///|
+fn restore_result_scoped_roots(
+  result : EvalResult,
+  base : TaintState,
+  roots : Array[String],
+) -> EvalResult {
+  {
+    state: restore_scoped_roots(base, result.state, roots),
+    value: result.value,
+    flow: result.flow,
+  }
+}
+
+///|
+fn clean_bind_roots(state : TaintState, roots : Array[String]) -> TaintState {
+  let mut next = state
+  for root in roots {
+    next = state_write_path(next, { root, segments: [] }, [])
+  }
+  next
+}
+
+///|
+fn tree_root_taint(tree : TaintTree) -> TaintTree {
+  let root : TaintTree = []
+  for entry in tree {
+    if entry.path.is_empty() {
+      merge_relative_entry(root, [], entry.origins)
+    }
+  }
+  root
+}
+
+///|
+fn tree_project_for_binding(
+  tree : TaintTree,
+  segment : PathSegment,
+) -> TaintTree {
+  tree_merge(tree_project(tree, [segment]), tree_root_taint(tree))
+}
+
+///|
+fn pattern_bound_roots(pattern : @syntax.Pattern) -> Array[String] {
+  let roots : Array[String] = []
+  add_pattern_bound_roots(roots, pattern)
+  roots
+}
+
+///|
+fn add_pattern_bound_roots(
+  roots : Array[String],
+  pattern : @syntax.Pattern,
+) -> Unit {
+  match pattern {
+    Var(binder) => add_binder_root_name(roots, binder)
+    Alias(pat~, alias_~, ..) => {
+      add_pattern_bound_roots(roots, pat)
+      add_binder_root_name(roots, alias_)
+    }
+    Constraint(pat~, ..) => add_pattern_bound_roots(roots, pat)
+    Tuple(pats~, ..) =>
+      for pat in pats {
+        add_pattern_bound_roots(roots, pat)
+      }
+    Record(fields~, ..) =>
+      for field in fields {
+        add_pattern_bound_roots(roots, field.pattern)
+      }
+    Map(elems~, ..) =>
+      for elem in elems {
+        add_pattern_bound_roots(roots, elem.pat)
+      }
+    Array(pats~, ..) => add_array_pattern_bound_roots(roots, pats)
+    Constr(args=Some(args), ..) =>
+      for arg in args {
+        add_pattern_bound_roots(roots, arg.pat)
+      }
+    Constr(args=None, ..) => ()
+    SpecialConstr(args~, ..) =>
+      for arg in args {
+        add_pattern_bound_roots(roots, arg.pat)
+      }
+    Or(pat1~, pat2~, ..) | Range(lhs=pat1, rhs=pat2, ..) => {
+      add_pattern_bound_roots(roots, pat1)
+      add_pattern_bound_roots(roots, pat2)
+    }
+    Any(..) | Constant(..) => ()
+  }
+}
+
+///|
+fn add_array_pattern_bound_roots(
+  roots : Array[String],
+  patterns : @syntax.ArrayPatterns,
+) -> Unit {
+  match patterns {
+    Closed(items) =>
+      for item in items {
+        add_array_pattern_item_bound_roots(roots, item)
+      }
+    Open(left, right, middle) => {
+      for item in left {
+        add_array_pattern_item_bound_roots(roots, item)
+      }
+      for item in right {
+        add_array_pattern_item_bound_roots(roots, item)
+      }
+      add_dot_dot_binder_bound_roots(roots, middle)
+    }
+  }
+}
+
+///|
+fn add_array_pattern_item_bound_roots(
+  roots : Array[String],
+  item : @syntax.ArrayPattern,
+) -> Unit {
+  match item {
+    Pattern(pattern) => add_pattern_bound_roots(roots, pattern)
+    ConstSpread(binder~, ..) => add_binder_root_name(roots, binder)
+    BytesSpread(..) | StringSpread(..) => ()
+  }
+}
+
+///|
+fn add_dot_dot_binder_bound_roots(
+  roots : Array[String],
+  binder : @syntax.DotDotBinder,
+) -> Unit {
+  match binder {
+    Binder(binder) | BinderAs(binder) => add_binder_root_name(roots, binder)
+    NoBinder | Underscore => ()
+  }
+}
+
+///|
+fn let_and_bound_roots(
+  bindings : @list.List[(@syntax.Binder, @syntax.Type?, @syntax.Func)],
+) -> Array[String] {
+  let roots : Array[String] = []
+  for binding in bindings {
+    let (binder, _ty, _func) = binding
+    add_binder_root_name(roots, binder)
+  }
+  roots
+}
+
+///|
 fn bind_pattern(
   pattern : @syntax.Pattern,
   value : TaintTree,
@@ -936,7 +1188,7 @@ fn bind_pattern(
       for index in 0..<items.length() {
         next = bind_pattern(
           items[index],
-          tree_project(value, [TupleIndex(index)]),
+          tree_project_for_binding(value, TupleIndex(index)),
           next,
         )
       }
@@ -947,9 +1199,16 @@ fn bind_pattern(
       for field in fields.to_array() {
         next = bind_pattern(
           field.pattern,
-          tree_project(value, [Field(field.label.name)]),
+          tree_project_for_binding(value, Field(field.label.name)),
           next,
         )
+      }
+      next
+    }
+    Map(elems~, ..) => {
+      let mut next = state
+      for elem in elems.to_array() {
+        next = bind_pattern(elem.pat, value, next)
       }
       next
     }
@@ -961,7 +1220,7 @@ fn bind_pattern(
         let segment = segment_from_argument_kind(items[index].kind, index)
         next = bind_pattern(
           items[index].pat,
-          tree_project(value, [segment]),
+          tree_project_for_binding(value, segment),
           next,
         )
       }
@@ -974,7 +1233,7 @@ fn bind_pattern(
         let segment = segment_from_argument_kind(items[index].kind, index)
         next = bind_pattern(
           items[index].pat,
-          tree_project(value, [segment]),
+          tree_project_for_binding(value, segment),
           next,
         )
       }
@@ -1013,7 +1272,7 @@ fn bind_array_pattern(
           state_write_path(
             next,
             { root: binder.name, segments: [] },
-            tree_project(value, [AnyIndex]),
+            tree_project_for_binding(value, AnyIndex),
           )
         NoBinder | Underscore => next
       }
@@ -1049,15 +1308,371 @@ fn bind_array_pattern_item(
 ) -> TaintState {
   match item {
     Pattern(pattern) =>
-      bind_pattern(pattern, tree_project(value, [segment]), state)
+      bind_pattern(pattern, tree_project_for_binding(value, segment), state)
     ConstSpread(binder~, ..) =>
       state_write_path(
         state,
         { root: binder.name, segments: [] },
-        tree_project(value, [segment]),
+        tree_project_for_binding(value, segment),
       )
     BytesSpread(..) | StringSpread(..) => state
   }
+}
+
+///|
+fn condition_from_eval_result(result : EvalResult) -> ConditionEval {
+  {
+    base_state: result.state,
+    true_state: result.state,
+    bound_roots: [],
+    flow: result.flow,
+    value: result.value,
+  }
+}
+
+///|
+fn eval_condition_scope(
+  cond : @syntax.Expr,
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> ConditionEval {
+  match cond {
+    Group(expr~, ..) | Constraint(expr~, ..) =>
+      eval_condition_scope(expr, state, spec, findings)
+    Is(expr~, pat~, ..) => {
+      let matched = eval_expr(expr, state, spec, findings)
+      if matched.flow != FlowNormal {
+        return condition_from_eval_result(matched)
+      }
+      let roots = pattern_bound_roots(pat)
+      {
+        base_state: matched.state,
+        true_state: bind_pattern(pat, matched.value, matched.state),
+        bound_roots: roots,
+        flow: FlowNormal,
+        value: matched.value,
+      }
+    }
+    IsLexMatch(expr~, pat~, ..) => {
+      let matched = eval_expr(expr, state, spec, findings)
+      if matched.flow != FlowNormal {
+        return condition_from_eval_result(matched)
+      }
+      let pattern_result = eval_lex_top_pattern_exprs(
+        pat,
+        matched.state,
+        spec,
+        findings,
+      )
+      if pattern_result.flow != FlowNormal {
+        return condition_from_eval_result(pattern_result)
+      }
+      let roots = lex_top_patterns_bound_roots(pat)
+      {
+        base_state: pattern_result.state,
+        true_state: bind_lex_top_patterns(
+          pat,
+          matched.value,
+          pattern_result.state,
+        ),
+        bound_roots: roots,
+        flow: FlowNormal,
+        value: matched.value,
+      }
+    }
+    RegexMatch(expr~, pat~, bindings~, ..) => {
+      let matched = eval_expr(expr, state, spec, findings)
+      if matched.flow != FlowNormal {
+        return condition_from_eval_result(matched)
+      }
+      let roots = merge_root_names(
+        regex_pattern_bound_roots(pat),
+        regex_bindings_bound_roots(bindings),
+      )
+      let pattern_state = bind_regex_pattern(pat, matched.value, matched.state)
+      {
+        base_state: matched.state,
+        true_state: bind_regex_bindings(bindings, matched.value, pattern_state),
+        bound_roots: roots,
+        flow: FlowNormal,
+        value: matched.value,
+      }
+    }
+    Infix(op~, lhs~, rhs~, ..) =>
+      if is_logical_and_var(op) {
+        eval_and_condition_scope(lhs, rhs, state, spec, findings)
+      } else {
+        condition_from_eval_result(eval_expr(cond, state, spec, findings))
+      }
+    _ => condition_from_eval_result(eval_expr(cond, state, spec, findings))
+  }
+}
+
+///|
+fn eval_and_condition_scope(
+  lhs : @syntax.Expr,
+  rhs : @syntax.Expr,
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> ConditionEval {
+  let left = eval_condition_scope(lhs, state, spec, findings)
+  if left.flow != FlowNormal {
+    return left
+  }
+  let right = eval_condition_scope(rhs, left.true_state, spec, findings)
+  let base = restore_scoped_roots(
+    left.base_state,
+    right.base_state,
+    left.bound_roots,
+  )
+  {
+    base_state: base,
+    true_state: right.true_state,
+    bound_roots: merge_root_names(left.bound_roots, right.bound_roots),
+    flow: right.flow,
+    value: tree_merge(left.value, right.value),
+  }
+}
+
+///|
+fn is_logical_and_var(op : @syntax.Var) -> Bool {
+  @id.normalize_identifier_name_from_var(op) == Some("&&")
+}
+
+///|
+fn eval_lex_top_pattern_exprs(
+  patterns : @list.List[@syntax.LexTopPattern],
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let mut current = state
+  let mut value : TaintTree = []
+  for pattern in patterns {
+    let result = match pattern {
+      Pattern(pattern) =>
+        eval_lex_pattern_exprs(pattern, current, spec, findings)
+      Binder(_) | Wildcard(..) => normal_result(current, [])
+    }
+    if result.flow != FlowNormal {
+      return result
+    }
+    current = result.state
+    value = tree_merge(value, result.value)
+  }
+  normal_result(current, value)
+}
+
+///|
+fn eval_lex_pattern_exprs(
+  pattern : @syntax.LexPattern,
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  match pattern {
+    Alias(pat~, ..) => eval_lex_pattern_exprs(pat, state, spec, findings)
+    RegexInterp(elems~, ..) => eval_interp_elems(elems, state, spec, findings)
+    Sequence(pats~, ..) => {
+      let mut current = state
+      let mut value : TaintTree = []
+      for pat in pats {
+        let result = eval_lex_pattern_exprs(pat, current, spec, findings)
+        if result.flow != FlowNormal {
+          return result
+        }
+        current = result.state
+        value = tree_merge(value, result.value)
+      }
+      normal_result(current, value)
+    }
+    ConstantRef(..) | Regex(..) => normal_result(state, [])
+  }
+}
+
+///|
+fn eval_interp_elems(
+  elems : @list.List[@syntax.InterpElem],
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let mut current = state
+  let mut value : TaintTree = []
+  for elem in elems {
+    match elem {
+      Expr(expr~, ..) => {
+        let result = eval_expr(expr, current, spec, findings)
+        if result.flow != FlowNormal {
+          return result
+        }
+        current = result.state
+        value = tree_merge(value, result.value)
+      }
+      Literal(..) | Source(_) => ()
+    }
+  }
+  normal_result(current, value)
+}
+
+///|
+fn lex_top_patterns_bound_roots(
+  patterns : @list.List[@syntax.LexTopPattern],
+) -> Array[String] {
+  let roots : Array[String] = []
+  for pattern in patterns {
+    add_lex_top_pattern_bound_roots(roots, pattern)
+  }
+  roots
+}
+
+///|
+fn add_lex_top_pattern_bound_roots(
+  roots : Array[String],
+  pattern : @syntax.LexTopPattern,
+) -> Unit {
+  match pattern {
+    Binder(binder) => add_binder_root_name(roots, binder)
+    Pattern(pattern) => add_lex_pattern_bound_roots(roots, pattern)
+    Wildcard(..) => ()
+  }
+}
+
+///|
+fn add_lex_pattern_bound_roots(
+  roots : Array[String],
+  pattern : @syntax.LexPattern,
+) -> Unit {
+  match pattern {
+    Alias(pat~, binder~, ..) => {
+      add_lex_pattern_bound_roots(roots, pat)
+      add_binder_root_name(roots, binder)
+    }
+    Sequence(pats~, ..) =>
+      for pat in pats {
+        add_lex_pattern_bound_roots(roots, pat)
+      }
+    ConstantRef(..) | Regex(..) | RegexInterp(..) => ()
+  }
+}
+
+///|
+fn bind_lex_top_patterns(
+  patterns : @list.List[@syntax.LexTopPattern],
+  value : TaintTree,
+  state : TaintState,
+) -> TaintState {
+  let mut next = state
+  for pattern in patterns {
+    next = match pattern {
+      Binder(binder) =>
+        state_write_path(next, { root: binder.name, segments: [] }, value)
+      Pattern(pattern) => bind_lex_pattern(pattern, value, next)
+      Wildcard(..) => next
+    }
+  }
+  next
+}
+
+///|
+fn bind_lex_pattern(
+  pattern : @syntax.LexPattern,
+  value : TaintTree,
+  state : TaintState,
+) -> TaintState {
+  match pattern {
+    Alias(pat~, binder~, ..) => {
+      let next = bind_lex_pattern(pat, value, state)
+      state_write_path(next, { root: binder.name, segments: [] }, value)
+    }
+    Sequence(pats~, ..) => {
+      let mut next = state
+      for pat in pats {
+        next = bind_lex_pattern(pat, value, next)
+      }
+      next
+    }
+    ConstantRef(..) | Regex(..) | RegexInterp(..) => state
+  }
+}
+
+///|
+fn regex_pattern_bound_roots(pattern : @syntax.RegexPattern) -> Array[String] {
+  let roots : Array[String] = []
+  add_regex_pattern_bound_roots(roots, pattern)
+  roots
+}
+
+///|
+fn add_regex_pattern_bound_roots(
+  roots : Array[String],
+  pattern : @syntax.RegexPattern,
+) -> Unit {
+  match pattern {
+    Alias(pat~, binder~, ..) => {
+      add_regex_pattern_bound_roots(roots, pat)
+      add_binder_root_name(roots, binder)
+    }
+    Alternation(pat1~, pat2~, ..) | Sequence(pat1~, pat2~, ..) => {
+      add_regex_pattern_bound_roots(roots, pat1)
+      add_regex_pattern_bound_roots(roots, pat2)
+    }
+    Literal(..) | Reference(..) => ()
+  }
+}
+
+///|
+fn regex_bindings_bound_roots(
+  bindings : @list.List[(@syntax.Label, @syntax.Binder?)],
+) -> Array[String] {
+  let roots : Array[String] = []
+  for binding in bindings {
+    let (_label, binder) = binding
+    if binder is Some(binder) {
+      add_binder_root_name(roots, binder)
+    }
+  }
+  roots
+}
+
+///|
+fn bind_regex_pattern(
+  pattern : @syntax.RegexPattern,
+  value : TaintTree,
+  state : TaintState,
+) -> TaintState {
+  match pattern {
+    Alias(pat~, binder~, ..) => {
+      let next = bind_regex_pattern(pat, value, state)
+      state_write_path(next, { root: binder.name, segments: [] }, value)
+    }
+    Alternation(pat1~, pat2~, ..) =>
+      state_merge(
+        bind_regex_pattern(pat1, value, state),
+        bind_regex_pattern(pat2, value, state),
+      )
+    Sequence(pat1~, pat2~, ..) =>
+      bind_regex_pattern(pat2, value, bind_regex_pattern(pat1, value, state))
+    Literal(..) | Reference(..) => state
+  }
+}
+
+///|
+fn bind_regex_bindings(
+  bindings : @list.List[(@syntax.Label, @syntax.Binder?)],
+  value : TaintTree,
+  state : TaintState,
+) -> TaintState {
+  let mut next = state
+  for binding in bindings {
+    let (_label, binder) = binding
+    if binder is Some(binder) {
+      next = state_write_path(next, { root: binder.name, segments: [] }, value)
+    }
+  }
+  next
 }
 
 ///|
@@ -1069,16 +1684,32 @@ fn eval_if(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let cond_result = eval_expr(cond, state, spec, findings)
+  let cond_result = eval_condition_scope(cond, state, spec, findings)
   if cond_result.flow != FlowNormal {
-    return cond_result
+    return {
+      state: cond_result.base_state,
+      value: cond_result.value,
+      flow: cond_result.flow,
+    }
   }
-  let then_result = eval_expr(ifso, cond_result.state, spec, findings)
+  let then_result = restore_result_scoped_roots(
+    eval_expr(ifso, cond_result.true_state, spec, findings),
+    cond_result.base_state,
+    cond_result.bound_roots,
+  )
   let else_result = if ifnot is Some(expr) {
-    eval_expr(expr, cond_result.state, spec, findings)
+    eval_expr(expr, cond_result.base_state, spec, findings)
   } else {
-    normal_result(cond_result.state, [])
+    normal_result(cond_result.base_state, [])
   }
+  merge_branch_results(then_result, else_result)
+}
+
+///|
+fn merge_branch_results(
+  then_result : EvalResult,
+  else_result : EvalResult,
+) -> EvalResult {
   if then_result.flow != FlowNormal && else_result.flow == FlowNormal {
     return else_result
   }
@@ -1092,6 +1723,36 @@ fn eval_if(
     state_merge(then_result.state, else_result.state),
     tree_merge(then_result.value, else_result.value),
   )
+}
+
+///|
+fn eval_guard(
+  cond : @syntax.Expr,
+  otherwise : @syntax.Expr?,
+  body : @syntax.Expr,
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let cond_result = eval_condition_scope(cond, state, spec, findings)
+  if cond_result.flow != FlowNormal {
+    return {
+      state: cond_result.base_state,
+      value: cond_result.value,
+      flow: cond_result.flow,
+    }
+  }
+  let body_result = restore_result_scoped_roots(
+    eval_expr(body, cond_result.true_state, spec, findings),
+    cond_result.base_state,
+    cond_result.bound_roots,
+  )
+  let else_result = if otherwise is Some(expr) {
+    eval_expr(expr, cond_result.base_state, spec, findings)
+  } else {
+    normal_result(cond_result.base_state, [])
+  }
+  merge_branch_results(body_result, else_result)
 }
 
 ///|
@@ -1112,21 +1773,13 @@ fn eval_match(
   let mut exit_flow = FlowNormal
   let mut exit_value : TaintTree = []
   for case in cases.to_array() {
-    let bound = bind_pattern(
-      case.pattern,
+    let case_result = eval_pattern_case(
+      case,
       scrutinee_result.value,
       scrutinee_result.state,
+      spec,
+      findings,
     )
-    let case_result = if case.guard_ is Some(guard_expr) {
-      let guard_result = eval_expr(guard_expr, bound, spec, findings)
-      if guard_result.flow == FlowNormal {
-        eval_expr(case.body, guard_result.state, spec, findings)
-      } else {
-        guard_result
-      }
-    } else {
-      eval_expr(case.body, bound, spec, findings)
-    }
     if case_result.flow == FlowNormal {
       normal_states.push(case_result.state)
       branch_value = tree_merge(branch_value, case_result.value)
@@ -1145,6 +1798,122 @@ fn eval_match(
   } else {
     normal_result(scrutinee_result.state, [])
   }
+}
+
+///|
+fn eval_pattern_case(
+  case : @syntax.Case,
+  value : TaintTree,
+  base_state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let roots = pattern_bound_roots(case.pattern)
+  let bound = bind_pattern(case.pattern, value, base_state)
+  let result = if case.guard_ is Some(guard_expr) {
+    let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
+    if guard_result.flow == FlowNormal {
+      restore_result_scoped_roots(
+        eval_expr(case.body, guard_result.true_state, spec, findings),
+        guard_result.base_state,
+        guard_result.bound_roots,
+      )
+    } else {
+      {
+        state: guard_result.base_state,
+        value: guard_result.value,
+        flow: guard_result.flow,
+      }
+    }
+  } else {
+    eval_expr(case.body, bound, spec, findings)
+  }
+  restore_result_scoped_roots(result, base_state, roots)
+}
+
+///|
+fn eval_lex_match(
+  scrutinee : @syntax.Expr,
+  cases : @list.List[@syntax.LexCase],
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
+  if scrutinee_result.flow != FlowNormal {
+    return scrutinee_result
+  }
+  let normal_states : Array[TaintState] = []
+  let mut branch_value : TaintTree = []
+  let exit_states : Array[TaintState] = []
+  let mut exit_flow = FlowNormal
+  let mut exit_value : TaintTree = []
+  for case in cases.to_array() {
+    let case_result = eval_lex_case(
+      case,
+      scrutinee_result.value,
+      scrutinee_result.state,
+      spec,
+      findings,
+    )
+    if case_result.flow == FlowNormal {
+      normal_states.push(case_result.state)
+      branch_value = tree_merge(branch_value, case_result.value)
+    } else {
+      if exit_states.is_empty() {
+        exit_flow = case_result.flow
+        exit_value = case_result.value
+      }
+      exit_states.push(case_result.state)
+    }
+  }
+  if normal_states.length() > 0 {
+    normal_result(state_merge_all(normal_states), branch_value)
+  } else if exit_states.length() > 0 {
+    flow_result(exit_flow, state_merge_all(exit_states), exit_value)
+  } else {
+    normal_result(scrutinee_result.state, [])
+  }
+}
+
+///|
+fn eval_lex_case(
+  case : @syntax.LexCase,
+  value : TaintTree,
+  base_state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let pattern_result = eval_lex_top_pattern_exprs(
+    case.pat,
+    base_state,
+    spec,
+    findings,
+  )
+  if pattern_result.flow != FlowNormal {
+    return pattern_result
+  }
+  let roots = lex_top_patterns_bound_roots(case.pat)
+  let bound = bind_lex_top_patterns(case.pat, value, pattern_result.state)
+  let result = if case.guard_ is Some(guard_expr) {
+    let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
+    if guard_result.flow == FlowNormal {
+      restore_result_scoped_roots(
+        eval_expr(case.body, guard_result.true_state, spec, findings),
+        guard_result.base_state,
+        guard_result.bound_roots,
+      )
+    } else {
+      {
+        state: guard_result.base_state,
+        value: guard_result.value,
+        flow: guard_result.flow,
+      }
+    }
+  } else {
+    eval_expr(case.body, bound, spec, findings)
+  }
+  restore_result_scoped_roots(result, pattern_result.state, roots)
 }
 
 ///|
@@ -1168,7 +1937,7 @@ fn eval_try(
   let branch_states : Array[TaintState] = [body_result.state]
   let mut branch_value = body_result.value
   for case in catch_.to_array() {
-    let result = eval_expr(case.body, body_result.state, spec, findings)
+    let result = eval_pattern_case(case, [], body_result.state, spec, findings)
     if result.flow == FlowNormal {
       branch_states.push(result.state)
       branch_value = tree_merge(branch_value, result.value)
@@ -1176,7 +1945,13 @@ fn eval_try(
   }
   if try_else is Some(cases) {
     for case in cases.to_array() {
-      let result = eval_expr(case.body, body_result.state, spec, findings)
+      let result = eval_pattern_case(
+        case,
+        body_result.value,
+        body_result.state,
+        spec,
+        findings,
+      )
       if result.flow == FlowNormal {
         branch_states.push(result.state)
         branch_value = tree_merge(branch_value, result.value)
@@ -1199,17 +1974,13 @@ fn eval_catch_cases(
   let mut exit_flow = FlowRaise
   let mut exit_value = raised.value
   for case in catch_.to_array() {
-    let bound = bind_pattern(case.pattern, raised.value, raised.state)
-    let case_result = if case.guard_ is Some(guard_expr) {
-      let guard_result = eval_expr(guard_expr, bound, spec, findings)
-      if guard_result.flow == FlowNormal {
-        eval_expr(case.body, guard_result.state, spec, findings)
-      } else {
-        guard_result
-      }
-    } else {
-      eval_expr(case.body, bound, spec, findings)
-    }
+    let case_result = eval_pattern_case(
+      case,
+      raised.value,
+      raised.state,
+      spec,
+      findings,
+    )
     if case_result.flow == FlowNormal {
       normal_states.push(case_result.state)
       branch_value = tree_merge(branch_value, case_result.value)
@@ -1239,25 +2010,33 @@ fn eval_while(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let cond_result = eval_expr(loop_cond, state, spec, findings)
-  if cond_result.flow != FlowNormal {
-    return cond_result
-  }
-  let mut current = cond_result.state
+  let mut current = state
   let mut iteration = 0
-  // Loops are interpreted to a bounded fixpoint. The condition is evaluated
-  // once before the body fixpoint; the state is joined after each body
-  // iteration and stops early once another pass adds no new taint facts.
+  // Loops are interpreted to a bounded fixpoint. The condition is evaluated on
+  // each abstract iteration so condition pattern bindings are scoped to the
+  // body and restored before the loop state is joined.
   while iteration < spec.max_fixpoint_iterations {
-    let body_result = eval_expr(loop_body, current, spec, findings)
+    let cond_result = eval_condition_scope(loop_cond, current, spec, findings)
+    if cond_result.flow != FlowNormal {
+      return {
+        state: cond_result.base_state,
+        value: cond_result.value,
+        flow: cond_result.flow,
+      }
+    }
+    let body_result = restore_result_scoped_roots(
+      eval_expr(loop_body, cond_result.true_state, spec, findings),
+      cond_result.base_state,
+      cond_result.bound_roots,
+    )
     if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
       return body_result
     }
     if body_result.flow == FlowBreak {
-      current = state_merge(current, body_result.state)
+      current = state_merge(cond_result.base_state, body_result.state)
       break
     }
-    let joined = state_merge(current, body_result.state)
+    let joined = state_merge(cond_result.base_state, body_result.state)
     if state_equiv(joined, current) {
       break
     }
@@ -1286,67 +2065,119 @@ fn eval_for(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
+  let loop_roots : Array[String] = []
+  let mut loop_base = state
   let mut current = state
   for pair in binders.to_array() {
     let (binder, expr) = pair
     let result = eval_expr(expr, current, spec, findings)
     if result.flow != FlowNormal {
-      return result
+      return restore_result_scoped_roots(result, loop_base, loop_roots)
     }
+    current = result.state
+    loop_base = restore_scoped_roots(loop_base, current, loop_roots)
+    add_binder_root_name(loop_roots, binder)
     current = state_write_path(
-      result.state,
+      current,
       { root: binder.name, segments: [] },
       result.value,
     )
   }
-  if condition is Some(expr) {
-    let result = eval_expr(expr, current, spec, findings)
-    if result.flow != FlowNormal {
-      return result
-    }
-    current = result.state
-  }
   let mut iteration = 0
-  // `for` uses the same bounded fixpoint strategy as `while`. The optional
-  // condition is evaluated once before the body fixpoint, and the continue block
-  // is applied between body evaluation and the join.
+  // `for` uses the same bounded fixpoint strategy as `while`. Loop binders stay
+  // available to condition/body/continue/else expressions and are restored
+  // after the loop expression finishes.
   while iteration < spec.max_fixpoint_iterations {
-    let body_result = eval_expr(body, current, spec, findings)
+    let cond_result = if condition is Some(expr) {
+      eval_condition_scope(expr, current, spec, findings)
+    } else {
+      {
+        base_state: current,
+        true_state: current,
+        bound_roots: [],
+        flow: FlowNormal,
+        value: [],
+      }
+    }
+    if cond_result.flow != FlowNormal {
+      return restore_result_scoped_roots(
+        {
+          state: cond_result.base_state,
+          value: cond_result.value,
+          flow: cond_result.flow,
+        },
+        loop_base,
+        loop_roots,
+      )
+    }
+    let raw_body_result = eval_expr(
+      body,
+      cond_result.true_state,
+      spec,
+      findings,
+    )
+    let body_result = restore_result_scoped_roots(
+      raw_body_result,
+      cond_result.base_state,
+      cond_result.bound_roots,
+    )
     if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
-      return body_result
+      return restore_result_scoped_roots(body_result, loop_base, loop_roots)
     }
     if body_result.flow == FlowBreak {
-      current = state_merge(current, body_result.state)
+      current = state_merge(cond_result.base_state, body_result.state)
       break
     }
-    let mut next = body_result.state
+    let mut next = raw_body_result.state
     for pair in continue_block.to_array() {
       let (binder, expr) = pair
       let result = eval_expr(expr, next, spec, findings)
       if result.flow != FlowNormal {
-        return result
+        let restored = restore_result_scoped_roots(
+          result,
+          cond_result.base_state,
+          cond_result.bound_roots,
+        )
+        return restore_result_scoped_roots(restored, loop_base, loop_roots)
       }
+      next = result.state
+      let base_candidate = restore_scoped_roots(
+        cond_result.base_state,
+        next,
+        cond_result.bound_roots,
+      )
+      loop_base = restore_scoped_roots(loop_base, base_candidate, loop_roots)
+      add_binder_root_name(loop_roots, binder)
       next = state_write_path(
-        result.state,
+        next,
         { root: binder.name, segments: [] },
         result.value,
       )
     }
-    let joined = state_merge(current, next)
+    next = restore_scoped_roots(
+      cond_result.base_state,
+      next,
+      cond_result.bound_roots,
+    )
+    let joined = state_merge(cond_result.base_state, next)
     if state_equiv(joined, current) {
       break
     }
     current = joined
     iteration = iteration + 1
   }
-  if for_else is Some(expr) {
-    let else_result = eval_expr(expr, current, spec, findings)
-    if else_result.flow != FlowNormal {
-      return else_result
-    }
-    normal_result(state_merge(current, else_result.state), else_result.value)
+  let result = if for_else is Some(expr) {
+    eval_expr(expr, current, spec, findings)
   } else {
     normal_result(current, [])
+  }
+  if result.flow != FlowNormal {
+    restore_result_scoped_roots(result, loop_base, loop_roots)
+  } else {
+    normal_result(
+      restore_scoped_roots(loop_base, result.state, loop_roots),
+      result.value,
+    )
   }
 }
 
@@ -1366,25 +2197,31 @@ fn eval_for_each(
   if collection_result.flow != FlowNormal {
     return collection_result
   }
+  let loop_roots : Array[String] = []
+  let mut loop_base = collection_result.state
   let mut current = collection_result.state
   for pair in init.to_array() {
     let (binder, expr) = pair
     let result = eval_expr(expr, current, spec, findings)
     if result.flow != FlowNormal {
-      return result
+      return restore_result_scoped_roots(result, loop_base, loop_roots)
     }
+    current = result.state
+    loop_base = restore_scoped_roots(loop_base, current, loop_roots)
+    add_binder_root_name(loop_roots, binder)
     current = state_write_path(
-      result.state,
+      current,
       { root: binder.name, segments: [] },
       result.value,
     )
   }
   for binder in binders.to_array() {
     if binder is Some(binder) {
+      add_binder_root_name(loop_roots, binder)
       current = state_write_path(
         current,
         { root: binder.name, segments: [] },
-        tree_project(collection_result.value, [AnyIndex]),
+        tree_project_for_binding(collection_result.value, AnyIndex),
       )
     }
   }
@@ -1394,7 +2231,7 @@ fn eval_for_each(
   while iteration < spec.max_fixpoint_iterations {
     let body_result = eval_expr(body, current, spec, findings)
     if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
-      return body_result
+      return restore_result_scoped_roots(body_result, loop_base, loop_roots)
     }
     if body_result.flow == FlowBreak {
       current = state_merge(current, body_result.state)
@@ -1405,10 +2242,13 @@ fn eval_for_each(
       let (binder, expr) = pair
       let result = eval_expr(expr, next, spec, findings)
       if result.flow != FlowNormal {
-        return result
+        return restore_result_scoped_roots(result, loop_base, loop_roots)
       }
+      next = result.state
+      loop_base = restore_scoped_roots(loop_base, next, loop_roots)
+      add_binder_root_name(loop_roots, binder)
       next = state_write_path(
-        result.state,
+        next,
         { root: binder.name, segments: [] },
         result.value,
       )
@@ -1420,14 +2260,18 @@ fn eval_for_each(
     current = joined
     iteration = iteration + 1
   }
-  if else_block is Some(expr) {
-    let else_result = eval_expr(expr, current, spec, findings)
-    if else_result.flow != FlowNormal {
-      return else_result
-    }
-    normal_result(state_merge(current, else_result.state), else_result.value)
+  let result = if else_block is Some(expr) {
+    eval_expr(expr, current, spec, findings)
   } else {
     normal_result(current, [])
+  }
+  if result.flow != FlowNormal {
+    restore_result_scoped_roots(result, loop_base, loop_roots)
+  } else {
+    normal_result(
+      restore_scoped_roots(loop_base, result.state, loop_roots),
+      result.value,
+    )
   }
 }
 
@@ -1460,16 +2304,26 @@ fn eval_unknown_expr(
     }
     Defer(expr~, body~, ..) =>
       eval_children([expr, body], state, spec, findings)
-    Guard(cond~, otherwise~, body~, ..) => {
-      let children : Array[@syntax.Expr] = [cond]
-      if otherwise is Some(expr) {
-        children.push(expr)
-      }
-      children.push(body)
-      eval_children(children, state, spec, findings)
-    }
-    Is(expr~, ..) | IsLexMatch(expr~, ..) | RegexMatch(expr~, ..) =>
+    Guard(cond~, otherwise~, body~, ..) =>
+      eval_guard(cond, otherwise, body, state, spec, findings)
+    Is(expr~, ..) | RegexMatch(expr~, ..) =>
       eval_expr(expr, state, spec, findings)
+    IsLexMatch(expr~, pat~, ..) => {
+      let matched = eval_expr(expr, state, spec, findings)
+      if matched.flow != FlowNormal {
+        return matched
+      }
+      let pattern_result = eval_lex_top_pattern_exprs(
+        pat,
+        matched.state,
+        spec,
+        findings,
+      )
+      if pattern_result.flow != FlowNormal {
+        return pattern_result
+      }
+      normal_result(pattern_result.state, matched.value)
+    }
     Interp(elems~, ..) => {
       let mut current = state
       let mut value : TaintTree = []

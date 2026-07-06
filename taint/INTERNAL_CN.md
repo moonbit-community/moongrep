@@ -124,6 +124,18 @@ assignment 和 mutation 会在左侧可表示为存储路径时通过 `state_wri
 
 Pattern 绑定是结构化且类型无关的。它不会检查 MoonBit 类型声明、constructor 定义、field 定义或 collection 长度。
 
+当整个值在空相对路径上带有污点时，解构也会把这份 whole-value 污点复制到每个被解构出的
+binder 中。这样即使不解析 constructor payload 的类型信息，`input is Some(item)` 也会把
+`item` 视为来自被污染的 `input`。
+
+词法 binder 会在离开作用域后恢复。求值器会记录 `let`、case pattern、catch 和 try-else
+pattern、lex/regex pattern、循环 binder 以及局部函数名引入的 root name。 scoped body 求值后，
+这些 root 的条目会从进入作用域前的 base state 恢复；对未被 shadow 的 root 的 mutation 会被保留。
+
+条件 pattern 会创建单独的 true-branch state。`is`、`lexmatch?`、regex match、grouped
+condition 和 `&&` 只会在 true branch 或 loop body/continue 路径中暴露它们的 binder。
+else branch、loop else block 以及作用域之后的表达式使用不含这些条件 binder 的 base state。
+
 ## 调用
 
 所有调用语法都会先规范化为 `CallInfo`，然后再执行 transfer 逻辑：
@@ -187,8 +199,8 @@ receiver/argument taint。
 
 分支是 path-insensitive 的：
 
-- `if` 会求值一次 condition，从同一个 post-condition state 分别求值两个分支，
-  并合并 normal 分支状态和值
+- `if` 会求值一次 condition，从 condition true-state 求值 true branch，从 base
+  post-condition state 求值 false branch，恢复条件 binder，然后合并 normal 分支状态和值
 - `match` 和 `catch` 会独立绑定每个 case，合并 normal case 状态，并且仅在没有 normal case 时保留 exit state
 - `try` 会立即传播 `return`、`break` 和 `continue`；`raise` 会分派给 catch case
 - 当 `try` body 正常完成时，catch 和 try-else case body 也会从 post-body state 出发，作为可能的 normal 分支求值

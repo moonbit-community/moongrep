@@ -39,6 +39,21 @@ fn simple_spec(
 }
 
 ///|
+fn analyze_single_entry_sink(
+  source : String,
+  root : String,
+) -> AnalysisResult raise {
+  let path : StoragePath = { root, segments: [] }
+  let node = parse_single_impl(source)
+  analyze_function_like(
+    node,
+    simple_spec(sources=[EntryPath(path, "entry:\{root}", None)], call_models=[
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+    ]),
+  )
+}
+
+///|
 test "taint engine reports entry parameter source reaching sink argument" {
   let source =
     #|fn sample(input) {
@@ -335,5 +350,142 @@ test "taint engine does not execute call transfer after argument return" {
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
+  assert_eq(result.findings.length(), 0)
+}
+
+///|
+test "taint engine condition pattern shadows outer root only in if true branch" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  if clean is Some(input) {
+    #|    sink(input)
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 0)
+}
+
+///|
+test "taint engine condition pattern binds tainted value in if true branch" {
+  let source =
+    #|fn sample(input) {
+    #|  if input is Some(item) {
+    #|    sink(item)
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine restores match case binder before following expression" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  match clean {
+    #|    input => ()
+    #|  };
+    #|  sink(input)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine match case binder shadows outer root in case body" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  match clean {
+    #|    input => sink(input)
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 0)
+}
+
+///|
+test "taint engine restores catch binder before following expression" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  try {
+    #|    raise clean
+    #|  } catch {
+    #|    input => ()
+    #|  };
+    #|  sink(input)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine guard condition binder applies in continuation body" {
+  let source =
+    #|fn sample(input) {
+    #|  guard input is Some(item) else { return () };
+    #|  sink(item)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine while condition binder applies only in loop body" {
+  let source =
+    #|fn sample(input) {
+    #|  while input is Some(item) {
+    #|    sink(item);
+    #|    break
+    #|  };
+    #|  sink(item)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine for condition binder applies only in loop body" {
+  let source =
+    #|fn sample(input) {
+    #|  for cursor = input; cursor is Some(item); {
+    #|    sink(item);
+    #|    break
+    #|  };
+    #|  sink(item)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine restores for loop binder before following expression" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  for input = clean; ; {
+    #|    break
+    #|  };
+    #|  sink(input)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine local function name shadows outer root in let-fn body" {
+  let source =
+    #|fn sample(helper, clean) {
+    #|  fn helper() { clean };
+    #|  sink(helper)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "helper")
   assert_eq(result.findings.length(), 0)
 }
