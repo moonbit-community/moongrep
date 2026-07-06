@@ -54,9 +54,19 @@ pub fn ExprQuery::captures(
   for node in impls {
     let impl_source = source_text_for_impl(source, node)
     if @rule_prefilter.rule_is_relevant_to_source(self.rule, impl_source) {
-      collect_impl_matches(self.pattern, node, matches)
+      collect_node_matches(self.pattern, @untyped_ast.from_impl(node), matches)
     }
   }
+  matches
+}
+
+///|
+pub fn ExprQuery::captures_from_ast(
+  self : ExprQuery,
+  ast~ : @untyped_ast.Node,
+) -> ArrayView[Map[String, @untyped_ast.Node]] {
+  let matches : Array[Map[String, @untyped_ast.Node]] = []
+  collect_node_matches(self.pattern, ast, matches)
   matches
 }
 
@@ -76,14 +86,12 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
 }
 
 ///|
-fn collect_impl_matches(
+fn collect_node_matches(
   pattern : CompiledRulePattern,
-  node : @syntax.Impl,
+  ast : @untyped_ast.Node,
   matches : Array[Map[String, @untyped_ast.Node]],
 ) -> Unit {
-  @untyped_ast.visit_node_scoped_expr_roots(@untyped_ast.from_impl(node), fn(
-    scoped_expr,
-  ) {
+  @untyped_ast.visit_node_scoped_expr_roots(ast, fn(scoped_expr) {
     collect_scoped_node_matches(pattern, scoped_expr, matches)
     @untyped_ast.NodeVisitAction::NodeVisitPrune
   })

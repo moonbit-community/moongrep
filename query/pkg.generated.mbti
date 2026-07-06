@@ -13,6 +13,7 @@ import {
 type ExprQuery
 pub fn ExprQuery::ExprQuery(String) -> Self raise
 pub fn ExprQuery::captures(Self, source_name~ : String, String) -> ArrayView[Map[String, @untyped_ast.Node]] raise
+pub fn ExprQuery::captures_from_ast(Self, ast~ : @untyped_ast.Node) -> ArrayView[Map[String, @untyped_ast.Node]]
 
 // Type aliases
 
