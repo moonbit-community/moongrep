@@ -55,6 +55,20 @@ fn assert_impl_json_matches_parser(source : String) -> Unit raise {
 }
 
 ///|
+fn assert_contains_unshadowed(
+  source : String,
+  id : String,
+  expected : Bool,
+) -> Unit raise {
+  let actual = from_expr(parse_test_expr(source)).contains_unshadowed(id~)
+  if actual != expected {
+    fail(
+      "expected contains_unshadowed(\{id}) for \{source} to be \{expected}, got \{actual}",
+    )
+  }
+}
+
+///|
 test "untyped ast expression json matches parser json" {
   assert_expr_json_matches_parser("x + 1")
   assert_expr_json_matches_parser("try f() catch { _ => fallback }")
@@ -253,6 +267,69 @@ test "node contains_unshadowed tracks identifier uses through function and match
     from_expr(parse_test_expr("match target { Some(other) => other }")).contains_unshadowed(
       id="target",
     ),
+  )
+}
+
+///|
+test "node contains_unshadowed tracks conditional pattern scopes" {
+  assert_contains_unshadowed(
+    "if maybe is Some(target) { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "if (maybe is Some(target)) { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "if target is Some(other) { other }", "target", true,
+  )
+  assert_contains_unshadowed(
+    "if maybe is Some(target) && target > 0 { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "if maybe is Some(target) || target > 0 { target }", "target", true,
+  )
+  assert_contains_unshadowed(
+    "guard maybe is Some(target) else { fallback }; target", "target", false,
+  )
+  assert_contains_unshadowed(
+    "guard maybe is Some(target) else { target }; fallback", "target", true,
+  )
+  assert_contains_unshadowed(
+    "match x { _ if other is Some(target) => target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "match x { _ if target is Some(other) => other }", "target", true,
+  )
+  assert_contains_unshadowed(
+    "while maybe is Some(target) { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "while maybe is Some(target) { () } nobreak { target }", "target", true,
+  )
+  assert_contains_unshadowed(
+    "if s lexmatch? (\"a\", target) { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "if s =~ (re\".\" as target) { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "if s =~ (re\".\", before=target) { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "for i = 0; maybe is Some(target); i = i + 1 { target }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "for i = 0; maybe is Some(target); i = target { () }", "target", false,
+  )
+  assert_contains_unshadowed(
+    "for i = 0; maybe is Some(target); i = i + 1 { () } nobreak { target }", "target",
+    true,
+  )
+  assert_contains_unshadowed(
+    "[for i = 0; maybe is Some(target); i = i + 1 => target]", "target", false,
+  )
+  assert_contains_unshadowed(
+    "[for i = 0; i < 1; i = i + 1 if maybe is Some(target) => target]", "target",
+    false,
   )
 }
 

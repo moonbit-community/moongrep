@@ -13,6 +13,10 @@ fn contains_unshadowed_node(node : Node, id : String, shadowed~ : Bool) -> Bool 
   match node.kind {
     Expr_Let => contains_let_unshadowed(node, id, shadowed)
     Expr_LetMut => contains_let_mut_unshadowed(node, id, shadowed)
+    Expr_Infix => contains_infix_unshadowed(node, id, shadowed)
+    Expr_If => contains_if_unshadowed(node, id, shadowed)
+    Expr_Guard => contains_guard_unshadowed(node, id, shadowed)
+    Expr_While => contains_while_unshadowed(node, id, shadowed)
     Expr_For => contains_for_unshadowed(node, id, shadowed)
     Expr_ForEach => contains_foreach_unshadowed(node, id, shadowed)
     Expr_Match => contains_match_unshadowed(node, id, shadowed)
@@ -56,17 +60,69 @@ fn contains_let_mut_unshadowed(
 }
 
 ///|
+fn contains_infix_unshadowed(node : Node, id : String, shadowed : Bool) -> Bool {
+  if contains_infix_op(node, "&&") {
+    contains_named_child_unshadowed(node, "lhs", id, shadowed) ||
+    contains_named_child_unshadowed(
+      node,
+      "rhs",
+      id,
+      shadowed || contains_named_child_condition_binding(node, "lhs", id),
+    )
+  } else {
+    contains_children_unshadowed(node, id, shadowed)
+  }
+}
+
+///|
+fn contains_if_unshadowed(node : Node, id : String, shadowed : Bool) -> Bool {
+  if contains_named_child_unshadowed(node, "cond", id, shadowed) {
+    return true
+  }
+  let true_shadowed = shadowed ||
+    contains_named_child_condition_binding(node, "cond", id)
+  contains_named_child_unshadowed(node, "ifso", id, true_shadowed) ||
+  contains_named_child_unshadowed(node, "ifnot", id, shadowed)
+}
+
+///|
+fn contains_guard_unshadowed(node : Node, id : String, shadowed : Bool) -> Bool {
+  if contains_named_child_unshadowed(node, "cond", id, shadowed) {
+    return true
+  }
+  let true_shadowed = shadowed ||
+    contains_named_child_condition_binding(node, "cond", id)
+  contains_named_child_unshadowed(node, "otherwise", id, shadowed) ||
+  contains_named_child_unshadowed(node, "body", id, true_shadowed)
+}
+
+///|
+fn contains_while_unshadowed(node : Node, id : String, shadowed : Bool) -> Bool {
+  if contains_named_child_unshadowed(node, "loop_cond", id, shadowed) {
+    return true
+  }
+  let true_shadowed = shadowed ||
+    contains_named_child_condition_binding(node, "loop_cond", id)
+  contains_named_child_unshadowed(node, "loop_body", id, true_shadowed) ||
+  contains_named_child_unshadowed(node, "while_else", id, shadowed)
+}
+
+///|
 fn contains_for_unshadowed(node : Node, id : String, shadowed : Bool) -> Bool {
   if contains_binding_list_exprs_unshadowed(node, "binders", id, shadowed) {
     return true
   }
   let loop_shadowed = shadowed ||
     contains_binding_list_binding(node, "binders", id)
-  contains_named_child_unshadowed(node, "condition", id, loop_shadowed) ||
+  if contains_named_child_unshadowed(node, "condition", id, loop_shadowed) {
+    return true
+  }
+  let true_shadowed = loop_shadowed ||
+    contains_named_child_condition_binding(node, "condition", id)
   contains_binding_list_exprs_unshadowed(
-    node, "continue_block", id, loop_shadowed,
+    node, "continue_block", id, true_shadowed,
   ) ||
-  contains_named_child_unshadowed(node, "body", id, loop_shadowed) ||
+  contains_named_child_unshadowed(node, "body", id, true_shadowed) ||
   contains_named_child_unshadowed(node, "for_else", id, loop_shadowed) ||
   contains_named_child_unshadowed(node, "where_clause", id, loop_shadowed)
 }
@@ -124,8 +180,15 @@ fn contains_list_comprehension_unshadowed(
   } else {
     shadowed
   }
-  contains_named_child_unshadowed(node, "guard", id, body_shadowed) ||
-  contains_named_child_unshadowed(node, "body", id, body_shadowed)
+  if contains_named_child_unshadowed(node, "guard", id, body_shadowed) {
+    return true
+  }
+  contains_named_child_unshadowed(
+    node,
+    "body",
+    id,
+    body_shadowed || contains_named_child_condition_binding(node, "guard", id),
+  )
 }
 
 ///|
@@ -141,13 +204,17 @@ fn contains_list_comprehension_kind_unshadowed(
       }
       let loop_shadowed = shadowed ||
         contains_binding_list_binding(kind, "binders", id)
-      if contains_named_child_unshadowed(kind, "condition", id, loop_shadowed) ||
-        contains_binding_list_exprs_unshadowed(
-          kind, "continue_block", id, loop_shadowed,
+      if contains_named_child_unshadowed(kind, "condition", id, loop_shadowed) {
+        return None
+      }
+      let true_shadowed = loop_shadowed ||
+        contains_named_child_condition_binding(kind, "condition", id)
+      if contains_binding_list_exprs_unshadowed(
+          kind, "continue_block", id, true_shadowed,
         ) {
         None
       } else {
-        Some(loop_shadowed)
+        Some(true_shadowed)
       }
     }
     Expr_ListComprehension_Kind_Foreach => {
@@ -275,8 +342,12 @@ fn contains_case_list_unshadowed(
     let (_, case) = entry
     let case_shadowed = shadowed ||
       contains_named_child_binding(case, pattern_name, id)
-    if contains_named_child_unshadowed(case, "guard", id, case_shadowed) ||
-      contains_named_child_unshadowed(case, "body", id, case_shadowed) {
+    if contains_named_child_unshadowed(case, "guard", id, case_shadowed) {
+      return true
+    }
+    let body_shadowed = case_shadowed ||
+      contains_named_child_condition_binding(case, "guard", id)
+    if contains_named_child_unshadowed(case, "body", id, body_shadowed) {
       return true
     }
   }
@@ -326,6 +397,46 @@ fn contains_children_unshadowed(
     }
   }
   false
+}
+
+///|
+fn contains_named_child_condition_binding(
+  node : Node,
+  name : String,
+  id : String,
+) -> Bool {
+  match contains_child(node, name) {
+    Some(child) => contains_condition_binding(child, id)
+    None => false
+  }
+}
+
+///|
+fn contains_condition_binding(node : Node, id : String) -> Bool {
+  match node.kind {
+    Expr_Group => contains_named_child_condition_binding(node, "expr", id)
+    Expr_Is => contains_named_child_binding(node, "pat", id)
+    Expr_IsLexmatch => contains_named_child_binding(node, "pat", id)
+    Expr_RegexMatch =>
+      contains_named_child_binding(node, "pat", id) ||
+      contains_named_child_binding(node, "bindings", id)
+    Expr_Infix =>
+      if contains_infix_op(node, "&&") {
+        contains_named_child_condition_binding(node, "lhs", id) ||
+        contains_named_child_condition_binding(node, "rhs", id)
+      } else {
+        false
+      }
+    _ => false
+  }
+}
+
+///|
+fn contains_infix_op(node : Node, op : String) -> Bool {
+  match contains_child(node, "op") {
+    Some(op_node) => contains_var_name(op_node) == Some(op)
+    None => false
+  }
 }
 
 ///|
@@ -428,6 +539,13 @@ fn contains_binding_name(node : Node, id : String) -> Bool {
     }
   }
   false
+}
+
+///|
+fn contains_var_name(node : Node) -> String? {
+  guard node.kind == Var else { return None }
+  guard contains_child(node, "name") is Some(long_ident) else { return None }
+  contains_long_ident_name(long_ident)
 }
 
 ///|
