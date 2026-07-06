@@ -166,7 +166,7 @@ fn collect_node_literals(
 ) -> Unit {
   match node.kind {
     Var =>
-      if prefilter_normalize_var(node) is Some(name) {
+      if node.normalized_var_name() is Some(name) {
         if !is_filter_placeholder(name, compiled) {
           push_literal(literals, name)
         }
@@ -283,24 +283,6 @@ fn prefilter_first_leaf_bool(node : @untyped_ast.Node) -> Bool? {
   } else {
     let (_, value) = node.children[0]
     prefilter_leaf_bool(value)
-  }
-}
-
-///|
-fn prefilter_normalize_var(node : @untyped_ast.Node) -> String? {
-  guard prefilter_child(node, "name") is Some(long_ident) else { return None }
-  match long_ident.kind {
-    LongIdent_Ident => prefilter_leaf_string_child(long_ident, "value")
-    LongIdent_Dot =>
-      match
-        (
-          prefilter_leaf_string_child(long_ident, "pkg"),
-          prefilter_leaf_string_child(long_ident, "id"),
-        ) {
-        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
-        _ => None
-      }
-    _ => None
   }
 }
 

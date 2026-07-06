@@ -109,7 +109,7 @@ fn compiled_pattern_root_key(
 ) -> @untyped_ast.NodeKind? {
   let compiled = pattern.compiled
   if compiled.ast.kind == Expr_Ident {
-    if ast_bucket_expr_ident_name(compiled.ast) is Some(name) {
+    if compiled.ast.normalized_expr_identifier_name() is Some(name) {
       if compiled_root_ident_key(compiled, name) is Some(key) {
         key
       } else {
@@ -204,58 +204,6 @@ fn keyed_patterns_for_key(
     }
   }
   None
-}
-
-///|
-fn ast_bucket_child(
-  node : @untyped_ast.Node,
-  name : String,
-) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, value) = entry
-    if child_name == Some(name) {
-      return Some(value)
-    }
-  }
-  None
-}
-
-///|
-fn ast_bucket_leaf_string(node : @untyped_ast.Node) -> String? {
-  match node.kind {
-    Leaf(PString(value)) => Some(value)
-    _ => None
-  }
-}
-
-///|
-fn ast_bucket_expr_ident_name(node : @untyped_ast.Node) -> String? {
-  guard ast_bucket_child(node, "id") is Some(var_node) else { return None }
-  guard ast_bucket_child(var_node, "name") is Some(long_ident) else {
-    return None
-  }
-  match long_ident.kind {
-    LongIdent_Ident =>
-      if ast_bucket_child(long_ident, "value") is Some(value) {
-        ast_bucket_leaf_string(value)
-      } else {
-        None
-      }
-    LongIdent_Dot =>
-      match
-        (
-          ast_bucket_child(long_ident, "pkg"),
-          ast_bucket_child(long_ident, "id"),
-        ) {
-        (Some(pkg), Some(id)) =>
-          match (ast_bucket_leaf_string(pkg), ast_bucket_leaf_string(id)) {
-            (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
-            _ => None
-          }
-        _ => None
-      }
-    _ => None
-  }
 }
 
 ///|
