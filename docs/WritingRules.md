@@ -354,11 +354,11 @@ regex filter:
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"
 ```
 
-Guard keys are capture names without `$`. Values are regex strings with
+Guard keys are `$`-prefixed capture names. Values are regex strings with
 contains semantics; use `^...$` for whole-value matching. `id` guards see
 normalized names such as `name` or `@pkg.name`. `const` guards see parser
 constant values, such as `raw` for `"raw"`, `42` for `42`, and `true` for

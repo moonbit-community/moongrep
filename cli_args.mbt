@@ -9,7 +9,7 @@ priv suberror CliError {
 priv struct CliOptions {
   rules_root : String?
   rule_file : String?
-  patterns : Array[String]
+  patterns : Array[@rule_model.RulePatternSpec]
   scan_root : String
   exclude_dirs : Array[String]
   verbose : Bool
@@ -58,6 +58,11 @@ let scan_command : @argparse.Command = @argparse.Command(
       "pattern",
       action=@argparse.OptionAction::Append,
       about="Anonymous structural pattern to match.",
+    ),
+    @argparse.OptionArg(
+      "guard",
+      action=@argparse.OptionAction::Append,
+      about="YAML guard map for the preceding anonymous pattern.",
     ),
     @argparse.OptionArg(
       "exclude-dir",
@@ -218,6 +223,7 @@ fn dump_cli_command(
 fn scan_cli_options(
   scan_matches : @argparse.Matches,
   env : Map[String, String],
+  argv : Array[String],
 ) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
   let enable_builtin_rules = cli_flag_enabled(
@@ -227,7 +233,7 @@ fn scan_cli_options(
   let no_color = no_color_enabled(env)
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
-  let patterns = all_cli_values(scan_matches.values, "pattern")
+  let patterns = parse_scan_pattern_specs(argv)
   let exclude_dirs = normalize_scan_exclude_dirs(
     all_cli_values(scan_matches.values, "exclude-dir"),
   )
@@ -256,6 +262,115 @@ fn scan_cli_options(
     enable_builtin_rules,
     no_color,
   }
+}
+
+///|
+fn parse_scan_pattern_specs(
+  argv : Array[String],
+) -> Array[@rule_model.RulePatternSpec] raise {
+  let patterns : Array[@rule_model.RulePatternSpec] = []
+  let has_guard : Array[Bool] = []
+  let mut index = 1
+  while index < argv.length() {
+    let arg = argv[index]
+    if arg == "--pattern" {
+      if index + 1 >= argv.length() {
+        raise CliError::Usage(
+          message="missing value for --pattern",
+          exit_code=2,
+        )
+      }
+      patterns.push({ shape: argv[index + 1], guards: {} })
+      has_guard.push(false)
+      index += 2
+    } else if arg.has_prefix("--pattern=") {
+      patterns.push({
+        shape: arg["--pattern=".length():].to_owned(),
+        guards: {},
+      })
+      has_guard.push(false)
+      index += 1
+    } else if arg == "--guard" {
+      if index + 1 >= argv.length() {
+        raise CliError::Usage(message="missing value for --guard", exit_code=2)
+      }
+      attach_scan_guard(
+        patterns,
+        has_guard,
+        parse_cli_guard_map(argv[index + 1]),
+      )
+      index += 2
+    } else if arg.has_prefix("--guard=") {
+      attach_scan_guard(
+        patterns,
+        has_guard,
+        parse_cli_guard_map(arg["--guard=".length():].to_owned()),
+      )
+      index += 1
+    } else {
+      index += 1
+    }
+  }
+  patterns
+}
+
+///|
+fn attach_scan_guard(
+  patterns : Array[@rule_model.RulePatternSpec],
+  has_guard : Array[Bool],
+  guards : Map[String, String],
+) -> Unit raise {
+  let mut index = patterns.length()
+  while index > 0 {
+    index -= 1
+    if !has_guard[index] {
+      let shape = patterns[index].shape
+      patterns[index] = { shape, guards }
+      has_guard[index] = true
+      return
+    }
+  }
+  let message = if patterns.is_empty() {
+    "--guard requires a preceding --pattern"
+  } else {
+    "duplicate --guard for anonymous --pattern"
+  }
+  raise CliError::Usage(message~, exit_code=2)
+}
+
+///|
+fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
+  let docs = @yaml.Yaml::load_from_string(source) catch {
+    err =>
+      raise CliError::Usage(message="invalid --guard YAML: \{err}", exit_code=2)
+  }
+  if docs.length() != 1 {
+    raise CliError::Usage(
+      message="--guard must contain exactly one YAML document",
+      exit_code=2,
+    )
+  }
+  guard docs[0] is Map(map) else {
+    raise CliError::Usage(message="--guard must be a YAML mapping", exit_code=2)
+  }
+  let guards : Map[String, String] = {}
+  for key, value in map {
+    if !key.has_prefix("$") || key.length() <= 1 {
+      raise CliError::Usage(
+        message="guard key \{key} must be a $-prefixed metavar name",
+        exit_code=2,
+      )
+    }
+    match value {
+      String(regex_source) => guards[key] = regex_source
+      _ =>
+        raise CliError::Usage(
+          message="--guard.\{key} must be a string",
+          exit_code=2,
+        )
+    }
+  }
+  guards
 }
 
 ///|
@@ -318,7 +433,7 @@ fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches, env)), None)
+      ("scan", Some(scan_cli_options(scan_matches, env, normalized_argv)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)

@@ -247,6 +247,7 @@ fn parse_guard_map(
     Some(Map(guard_map)) => {
       let guards : Map[String, String] = {}
       for key, value in guard_map {
+        ensure_guard_key(key, path)
         match value {
           String(regex_source) => guards[key] = regex_source
           _ =>
@@ -263,6 +264,16 @@ fn parse_guard_map(
         path~,
         info="\{clause_context}.guard must be a mapping",
       )
+  }
+}
+
+///|
+fn ensure_guard_key(key : String, path : String) -> Unit raise {
+  if !key.has_prefix("$") || key.length() <= 1 {
+    raise invalid_rule(
+      path~,
+      info="guard key \{key} must be a $-prefixed metavar name",
+    )
   }
 }
 

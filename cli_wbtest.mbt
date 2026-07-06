@@ -28,6 +28,30 @@ fn expect_rule_file(options : CliOptions, expected : String) -> Unit raise {
 }
 
 ///|
+fn expect_no_patterns(options : CliOptions) -> Unit raise {
+  assert_eq(options.patterns.length(), 0)
+}
+
+///|
+fn expect_pattern_shape(
+  options : CliOptions,
+  index : Int,
+  expected : String,
+) -> Unit raise {
+  inspect(options.patterns[index].shape, content=expected)
+}
+
+///|
+fn expect_pattern_guard(
+  options : CliOptions,
+  index : Int,
+  key : String,
+  expected : String,
+) -> Unit raise {
+  inspect(options.patterns[index].guards[key], content=expected)
+}
+
+///|
 test "cli args require rules or pattern option" {
   expect_cli_usage([], 2)
   expect_cli_usage(["src"], 2)
@@ -86,7 +110,7 @@ test "cli args parse rules root and default scan root" {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       assert_true(options.rule_file is None)
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -131,7 +155,7 @@ test "cli args parse single rule file and default scan root" {
     ("scan", Some(options), None) => {
       assert_true(options.rules_root is None)
       expect_rule_file(options, "custom-rules/example.yaml")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -145,7 +169,7 @@ test "cli args parse explicit scan root" {
   match parse_cli_command(["scan", "--rules", "custom-rules", "src"]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -160,7 +184,7 @@ test "cli args parse scan verbose flag" {
     parse_cli_command(["scan", "--rules", "custom-rules", "--verbose", "src"]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_true(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -199,7 +223,7 @@ test "cli args parse argparse option input forms" {
   match parse_cli_command(["scan", "--rules=inline-rules"]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "inline-rules")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -209,7 +233,7 @@ test "cli args parse argparse option input forms" {
   match parse_cli_command(["scan", "-r", "short-rules", "src"]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "short-rules")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -226,7 +250,7 @@ test "cli args keep the last rules option" {
     ]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "new-rules")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
@@ -243,13 +267,85 @@ test "cli args parse anonymous patterns without rules root" {
     ]) {
     ("scan", Some(options), None) => {
       assert_true(options.rules_root is None)
-      debug_inspect(options.patterns, content="[\"target()\", \"other()\"]")
+      assert_eq(options.patterns.length(), 2)
+      expect_pattern_shape(options, 0, "target()")
+      expect_pattern_shape(options, 1, "other()")
+      assert_eq(options.patterns[0].guards.length(), 0)
+      assert_eq(options.patterns[1].guards.length(), 0)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
+}
+
+///|
+test "cli args parse anonymous pattern guard" {
+  match
+    parse_cli_command([
+      "scan", "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}",
+      "src",
+    ]) {
+    ("scan", Some(options), None) => {
+      assert_true(options.rules_root is None)
+      assert_eq(options.patterns.length(), 1)
+      expect_pattern_shape(options, 0, "$(callee:id)()")
+      expect_pattern_guard(options, 0, "$callee", "^safe_")
+      inspect(options.scan_root, content="src")
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse multiple anonymous pattern guard pairs in order" {
+  match
+    parse_cli_command([
+      "scan", "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}",
+      "--pattern", "sink($(value:const))", "--guard", "{$value: \"^ok$\"}", "src",
+    ]) {
+    ("scan", Some(options), None) => {
+      assert_eq(options.patterns.length(), 2)
+      expect_pattern_shape(options, 0, "$(callee:id)()")
+      expect_pattern_shape(options, 1, "sink($(value:const))")
+      expect_pattern_guard(options, 0, "$callee", "^safe_")
+      expect_pattern_guard(options, 1, "$value", "^ok$")
+      inspect(options.scan_root, content="src")
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args reject guard without pattern and duplicate pattern guard" {
+  expect_cli_usage(
+    ["scan", "--rules", "custom-rules", "--guard", "{$callee: \"^safe_\"}"],
+    2,
+  )
+  expect_cli_usage(
+    [
+      "scan", "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}",
+      "--guard", "{$callee: \"^other\"}", "src",
+    ],
+    2,
+  )
+}
+
+///|
+test "cli args reject malformed guard yaml" {
+  expect_cli_usage(
+    ["scan", "--pattern", "$(callee:id)()", "--guard", "{", "src"],
+    2,
+  )
+  expect_cli_usage(
+    ["scan", "--pattern", "$(callee:id)()", "--guard", "[]", "src"],
+    2,
+  )
+  expect_cli_usage(
+    ["scan", "--pattern", "$(callee:id)()", "--guard", "{$callee: 1}", "src"],
+    2,
+  )
 }
 
 ///|
@@ -262,7 +358,7 @@ test "cli args parse builtin rules flag without rules root" {
   match parse_cli_command(["scan", "--enable-builtin-rules", "src"]) {
     ("scan", Some(options), None) => {
       assert_true(options.rules_root is None)
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_true(options.enable_builtin_rules)
     }
@@ -286,7 +382,7 @@ test "cli args from runtime drop executable name" {
     ) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
-      debug_inspect(options.patterns, content="[]")
+      expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)

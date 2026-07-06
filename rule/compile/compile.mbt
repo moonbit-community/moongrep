@@ -360,16 +360,17 @@ fn compile_guards(
   pattern_metavars : Array[String],
 ) -> Array[CompiledRuleGuard] raise {
   let guards : Array[CompiledRuleGuard] = []
-  for name, regex_source in raw_guards {
+  for raw_name, regex_source in raw_guards {
+    let name = guard_metavar_name(path, raw_name)
     let capture_kind = guard_capture_kind(
-      path, context, name, expr_metavars, identifier_metavars, constant_metavars,
+      path, context, raw_name, name, expr_metavars, identifier_metavars, constant_metavars,
       pattern_metavars,
     )
     let regex = Regex::Regex(regex_source) catch {
       _ =>
         raise RuleLoadError::InvalidRule(
           path~,
-          info="\{context}.guard.\{name} has invalid regex",
+          info="\{context}.guard.\{raw_name} has invalid regex",
         )
     }
     guards.push({ name, capture_kind, regex_source, regex })
@@ -378,9 +379,21 @@ fn compile_guards(
 }
 
 ///|
+fn guard_metavar_name(path : String, raw_name : String) -> String raise {
+  if !raw_name.has_prefix("$") || raw_name.length() <= 1 {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="guard key \{raw_name} must be a $-prefixed metavar name",
+    )
+  }
+  raw_name[1:].to_owned()
+}
+
+///|
 fn guard_capture_kind(
   path : String,
   context : String,
+  raw_name : String,
   name : String,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
@@ -394,17 +407,17 @@ fn guard_capture_kind(
   } else if array_contains(expr_metavars, name) {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.guard.\{name} cannot reference exp metavar \{name}",
+      info="\{context}.guard.\{raw_name} cannot reference exp metavar \{name}",
     )
   } else if array_contains(pattern_metavars, name) {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.guard.\{name} cannot reference pat metavar \{name}",
+      info="\{context}.guard.\{raw_name} cannot reference pat metavar \{name}",
     )
   } else {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{context}.guard.\{name} references unknown metavar",
+      info="\{context}.guard.\{raw_name} references unknown metavar",
     )
   }
 }

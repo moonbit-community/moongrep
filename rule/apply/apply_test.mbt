@@ -241,7 +241,7 @@ test "apply structural id guard filters matches" {
     #|patterns:
     #|  - shape: $(callee:id)()
     #|    guard:
-    #|      callee: "^safe_"
+    #|      $callee: "^safe_"
     #|
   let source =
     #|fn sample {
@@ -267,7 +267,7 @@ test "apply structural const guard filters strings numbers and bools" {
     #|patterns:
     #|  - shape: sink($(value:const))
     #|    guard:
-    #|      value: "^(danger|42|true)$"
+    #|      $value: "^(danger|42|true)$"
     #|
   let source =
     #|fn sample {
@@ -295,8 +295,8 @@ test "apply structural multiple guards use and semantics" {
     #|patterns:
     #|  - shape: $(callee:id)($(value:const))
     #|    guard:
-    #|      callee: "^safe_"
-    #|      value: "^ok$"
+    #|      $callee: "^safe_"
+    #|      $value: "^ok$"
     #|
   let source =
     #|fn sample {
@@ -323,7 +323,7 @@ test "apply inside expr and inner guards filter inherited bindings" {
     #|patterns:
     #|  - shape: call($(name:id))
     #|    guard:
-    #|      name: "^safe_.*ok$"
+    #|      $name: "^safe_.*ok$"
     #|
   let source =
     #|fn sample {
@@ -351,8 +351,8 @@ test "apply structural rule matches guards inside expr" {
     #|patterns:
     #|  - shape: call($(name:id), $(value:const))
     #|    guard:
-    #|      name: "^safe_.*ok$"
-    #|      value: "^(42|true)$"
+    #|      $name: "^safe_.*ok$"
+    #|      $value: "^(42|true)$"
     #|
   let source =
     #|fn sample {
@@ -1350,8 +1350,8 @@ test "default structural matcher applies id and const guards" {
     #|patterns:
     #|  - shape: $(callee:id)($(value:const))
     #|    guard:
-    #|      callee: "^safe_"
-    #|      value: "^ok$"
+    #|      $callee: "^safe_"
+    #|      $value: "^ok$"
     #|
   let source =
     #|fn sample {

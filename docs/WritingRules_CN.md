@@ -252,11 +252,11 @@ patterns-not:
 patterns:
   - shape: $(callee:id)($(value:const))
     guard:
-      callee: "^@html\\.render$"
-      value: "danger|raw"
+      $callee: "^@html\\.render$"
+      $value: "danger|raw"
 ```
 
-Guard 键是不带 `$` 的捕获名。值是正则字符串，使用包含匹配语义；如果需要整串
+Guard 键是带 `$` 前缀的捕获名。值是正则字符串，使用包含匹配语义；如果需要整串
 匹配，请写 `^...$`。`id` guard 看到的是归一化名称，例如 `name` 或
 `@pkg.name`。`const` guard 看到的是 parser 常量值，例如 `"raw"` 对应 `raw`，
 `42` 对应 `42`，`true` 对应 `true`。

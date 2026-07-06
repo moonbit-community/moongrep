@@ -79,6 +79,25 @@ fn single_rule_file_scan_options() -> CliOptions {
 }
 
 ///|
+fn guarded_cli_pattern_scan_options() -> CliOptions {
+  {
+    rules_root: None,
+    rule_file: None,
+    patterns: [
+      {
+        shape: "$(callee:id)($(value:const))",
+        guards: { "$callee": "^@html\\.render$", "$value": "raw" },
+      },
+    ],
+    scan_root: "testdata/guard",
+    exclude_dirs: [],
+    verbose: false,
+    enable_builtin_rules: false,
+    no_color: false,
+  }
+}
+
+///|
 fn verbose_rules_scan_options() -> CliOptions {
   {
     rules_root: Some("testdata/recursive-rule-discovery-rules"),
@@ -147,6 +166,16 @@ test "scan loads only the configured single rule file" {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"example:4\"]")
+}
+
+///|
+test "scan anonymous guarded pattern filters matches" {
+  let result = collect_directory_hits(guarded_cli_pattern_scan_options())
+  let summaries : Array[String] = []
+  for hit in result.hits {
+    summaries.push(scan_hit_line_summary(hit))
+  }
+  debug_inspect(summaries, content="[\"$(callee:id)($(value:const)):2\"]")
 }
 
 ///|

@@ -34,6 +34,7 @@ Options:
   -r, --rules <rules>          Directory containing YAML rules.
   --rule <rule>                Single YAML rule file.
   --pattern <pattern>          Anonymous structural pattern to match.
+  --guard <guard>              YAML guard map for the preceding anonymous pattern.
   --exclude-dir <exclude-dir>  Directory name or path to skip while recursively scanning.
 ```
 

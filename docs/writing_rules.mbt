@@ -173,9 +173,8 @@ let _embed_writingrules_md : String =
   #|  - shape: $(expr:exp) == $(expr:exp)
   #|```
   #|
-  #|Use `$(name:id)` when the same source-level name must be consistent across
-  #|binders, identifier expressions, pattern variables, labels, or simple variable
-  #|targets:
+  #|Use `$(name:id)` when the same source-level name must remain consistent between
+  #|its definition and use sites:
   #|
   #|```yaml
   #|patterns:
@@ -359,11 +358,11 @@ let _embed_writingrules_md : String =
   #|patterns:
   #|  - shape: $(callee:id)($(value:const))
   #|    guard:
-  #|      callee: "^@html\\.render$"
-  #|      value: "danger|raw"
+  #|      $callee: "^@html\\.render$"
+  #|      $value: "danger|raw"
   #|```
   #|
-  #|Guard keys are capture names without `$`. Values are regex strings with
+  #|Guard keys are `$`-prefixed capture names. Values are regex strings with
   #|contains semantics; use `^...$` for whole-value matching. `id` guards see
   #|normalized names such as `name` or `@pkg.name`. `const` guards see parser
   #|constant values, such as `raw` for `"raw"`, `42` for `42`, and `true` for

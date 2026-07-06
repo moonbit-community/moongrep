@@ -196,16 +196,16 @@ test "model parses structural pattern guard map" {
     #|patterns:
     #|  - shape: $(callee:id)($(value:const))
     #|    guard:
-    #|      callee: "^@html\\.render$"
-    #|      value: "danger|raw"
+    #|      $callee: "^@html\\.render$"
+    #|      $value: "danger|raw"
     #|
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
     Structural(spec) => {
-      inspect(spec.patterns[0].guards["callee"], content="^@html\\.render$")
-      inspect(spec.patterns[0].guards["value"], content="danger|raw")
+      inspect(spec.patterns[0].guards["$callee"], content="^@html\\.render$")
+      inspect(spec.patterns[0].guards["$value"], content="danger|raw")
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -221,8 +221,8 @@ test "model parses structural patterns-not shape and guard map" {
     #|patterns-not:
     #|  - shape: safe($(callee:id), $(literal:const))
     #|    guard:
-    #|      callee: "^allow_"
-    #|      literal: "^ok$"
+    #|      $callee: "^allow_"
+    #|      $literal: "^ok$"
     #|
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
@@ -235,8 +235,8 @@ test "model parses structural patterns-not shape and guard map" {
         spec.patterns_not[0].shape,
         content="safe($(callee:id), $(literal:const))",
       )
-      inspect(spec.patterns_not[0].guards["callee"], content="^allow_")
-      inspect(spec.patterns_not[0].guards["literal"], content="^ok$")
+      inspect(spec.patterns_not[0].guards["$callee"], content="^allow_")
+      inspect(spec.patterns_not[0].guards["$literal"], content="^ok$")
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -440,10 +440,21 @@ test "model rejects malformed structural guard schema" {
     #|patterns:
     #|  - shape: $(name:id)
     #|    guard:
-    #|      name: 1
+    #|      $name: 1
     #|
   expect_invalid_rule_info(
-    non_string_value, "patterns[0].guard.name must be a string",
+    non_string_value, "patterns[0].guard.$name must be a string",
+  )
+  let bare_guard_key =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(name:id)
+    #|    guard:
+    #|      name: "^safe_"
+    #|
+  expect_invalid_rule_info(
+    bare_guard_key, "guard key name must be a $-prefixed metavar name",
   )
 }
 
