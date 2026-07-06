@@ -35,7 +35,7 @@ pub fn ExprQuery::ExprQuery(pattern : String) -> ExprQuery raise {
 }
 
 ///|
-pub fn ExprQuery::matches_all(
+pub fn ExprQuery::captures(
   self : ExprQuery,
   source_name~ : String,
   source : String,

@@ -42,7 +42,7 @@ test "query matches simple expression and returns empty capture map" {
     #|  target()
     #|}
     #|
-  let matches = query.matches_all(source_name="sample.mbt", source)
+  let matches = query.captures(source_name="sample.mbt", source)
   assert_eq(matches.length(), 1)
   assert_eq(matches[0].length(), 0)
 }
@@ -56,7 +56,7 @@ test "query captures one repeated expression and rejects non-repeated candidates
     #|  make() + other()
     #|}
     #|
-  let matches = query.matches_all(source_name="sample.mbt", source)
+  let matches = query.captures(source_name="sample.mbt", source)
   assert_eq(matches.length(), 1)
   guard matches[0].get("value") is Some(value) else {
     fail("expected value capture")
@@ -72,7 +72,7 @@ test "query captures identifiers and constants by metavar name" {
     #|  sink(@math.abs)
     #|}
     #|
-  let id_matches = id_query.matches_all(source_name="sample.mbt", id_source)
+  let id_matches = id_query.captures(source_name="sample.mbt", id_source)
   assert_eq(id_matches.length(), 1)
   guard id_matches[0].get("callee") is Some(callee) else {
     fail("expected callee capture")
@@ -89,7 +89,7 @@ test "query captures identifiers and constants by metavar name" {
     #|  sink(42)
     #|}
     #|
-  let const_matches = const_query.matches_all(
+  let const_matches = const_query.captures(
     source_name="sample.mbt",
     const_source,
   )
@@ -118,7 +118,7 @@ test "query prefilter skips irrelevant invalid source" {
     #|  this is not valid MoonBit
     #|}
     #|
-  let matches = query.matches_all(source_name="bad.mbt", source)
+  let matches = query.captures(source_name="bad.mbt", source)
   assert_eq(matches.length(), 0)
 }
 
@@ -130,7 +130,7 @@ test "query raises parse error when relevant source is invalid" {
     #|  target(
     #|}
     #|
-  try query.matches_all(source_name="bad.mbt", source) catch {
+  try query.captures(source_name="bad.mbt", source) catch {
     err => inspect("\{to_repr(err)}".contains("parse"), content="true")
   } noraise {
     _ => fail("expected parse error")
