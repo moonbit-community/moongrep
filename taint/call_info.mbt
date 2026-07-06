@@ -17,7 +17,7 @@ pub(all) enum CallKind {
 pub(all) struct CallArgument {
   index : Int
   label : String?
-  expr : @syntax.Expr
+  expr : @untyped_ast.Node
   loc : @basic.Location
   path : StoragePath?
   site : ValueSite
@@ -31,7 +31,7 @@ pub(all) struct CallArgument {
 /// reverse-pipe calls into this structure so transfer logic can be shared.
 pub(all) struct CallInfo {
   kind : CallKind
-  ast : @syntax.Expr
+  ast : @untyped_ast.Node
   loc : @basic.Location
   callee_name : String?
   receiver_path : StoragePath?

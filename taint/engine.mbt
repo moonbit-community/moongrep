@@ -49,7 +49,7 @@ fn flow_result(
 
 ///|
 fn analyze_single_function_like(
-  node : @syntax.Impl,
+  node : @untyped_ast.Node,
   spec : TaintSpec,
 ) -> AnalysisResult raise {
   let function_like = function_like_from_impl(node)
@@ -94,100 +94,271 @@ fn function_has_param_root(function_like : FunctionLike, root : String) -> Bool 
 
 ///|
 fn eval_expr(
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  match expr {
-    Ident(..) => eval_path_like(expr, state)
-    Field(record~, accessor~, ..) =>
-      eval_field_expr(expr, record, accessor, state, spec, findings)
-    ArrayGet(array~, index~, ..) =>
-      eval_array_get_expr(expr, array, index, state, spec, findings)
-    Tuple(exprs~, ..) => eval_tuple_expr(exprs, state, spec, findings)
-    Array(exprs~, ..) => eval_array_expr(exprs, state, spec, findings)
-    Record(fields~, ..) => eval_record_expr(fields, state, spec, findings)
-    Group(expr~, ..) | Constraint(expr~, ..) =>
-      eval_expr(expr, state, spec, findings)
-    Sequence(exprs~, last_expr~, ..) =>
-      eval_sequence(exprs, last_expr, state, spec, findings)
-    Let(pattern~, expr=bound_expr, body~, ..) =>
-      eval_let(pattern, bound_expr, body, state, spec, findings)
-    LetMut(binder~, expr=bound_expr, body~, ..) => {
-      let pattern = @syntax.Pattern::Var(binder)
-      eval_let(pattern, bound_expr, body, state, spec, findings)
-    }
-    Assign(var_~, expr=rhs, ..) => eval_assign(var_, rhs, state, spec, findings)
-    Mutate(record~, accessor~, field~, ..) =>
-      eval_mutate(record, accessor, field, state, spec, findings)
-    Apply(func~, args~, loc~) =>
-      eval_apply_call(expr, func, args, loc, state, spec, findings)
-    DotApply(self~, method_name~, args~, loc~, ..) =>
-      eval_dot_apply_call(
-        expr, self, method_name, args, loc, state, spec, findings,
-      )
-    Pipe(lhs~, rhs~, loc~) =>
-      eval_pipe_call(expr, lhs, rhs, loc, state, spec, findings)
-    RevPipe(lhs~, rhs~, loc~) =>
-      eval_rev_pipe_call(expr, lhs, rhs, loc, state, spec, findings)
-    If(cond~, ifso~, ifnot~, ..) =>
-      eval_if(cond, ifso, ifnot, state, spec, findings)
-    Match(expr=scrutinee, cases~, ..) =>
-      eval_match(scrutinee, cases, state, spec, findings)
-    LexMatch(expr=scrutinee, cases~, ..) =>
-      eval_lex_match(scrutinee, cases, state, spec, findings)
-    Try(body~, catch_~, try_else~, ..) =>
-      eval_try(body, catch_, try_else, state, spec, findings)
-    While(loop_cond~, loop_body~, while_else~, ..) =>
-      eval_while(loop_cond, loop_body, while_else, state, spec, findings)
-    For(binders~, condition~, continue_block~, body~, for_else~, ..) =>
-      eval_for(
-        binders, condition, continue_block, body, for_else, state, spec, findings,
-      )
-    ForEach(
-      binders~,
-      expr=collection,
-      init~,
-      continue_block~,
-      body~,
-      else_block~,
-      ..
-    ) =>
-      eval_for_each(
-        binders, collection, init, continue_block, body, else_block, state, spec,
-        findings,
-      )
-    LetFn(name~, body~, ..) => {
-      let roots : Array[String] = []
-      add_binder_root_name(roots, name)
-      eval_clean_root_scope(body, roots, state, spec, findings)
-    }
-    LetAnd(bindings~, body~, ..) =>
-      eval_clean_root_scope(
-        body,
-        let_and_bound_roots(bindings),
+  match expr.kind {
+    Expr_Ident => eval_path_like(expr, state)
+    Expr_Field =>
+      match (node_child(expr, "record"), node_child(expr, "accessor")) {
+        (Some(record), Some(accessor)) =>
+          eval_field_expr(expr, record, accessor, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_ArrayGet =>
+      match (node_child(expr, "array"), node_child(expr, "index")) {
+        (Some(array), Some(index)) =>
+          eval_array_get_expr(expr, array, index, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_Tuple =>
+      eval_tuple_expr(node_child_items(expr, "exprs"), state, spec, findings)
+    Expr_Array =>
+      eval_array_expr(node_child_items(expr, "exprs"), state, spec, findings)
+    Expr_Record =>
+      eval_record_expr(node_child_items(expr, "fields"), state, spec, findings)
+    Expr_Group | Expr_Constraint =>
+      match node_child(expr, "expr") {
+        Some(inner) => eval_expr(inner, state, spec, findings)
+        None => normal_result(state, [])
+      }
+    Expr_Sequence =>
+      match node_child(expr, "last_expr") {
+        Some(last_expr) =>
+          eval_sequence(
+            node_child_items(expr, "exprs"),
+            last_expr,
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
+    Expr_Let =>
+      match
+        (
+          node_child(expr, "pattern"),
+          node_child(expr, "expr"),
+          node_child(expr, "body"),
+        ) {
+        (Some(pattern), Some(bound_expr), Some(body)) =>
+          eval_let(pattern, bound_expr, body, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_LetMut =>
+      match
+        (
+          node_child(expr, "binder"),
+          node_child(expr, "expr"),
+          node_child(expr, "body"),
+        ) {
+        (Some(binder), Some(bound_expr), Some(body)) =>
+          eval_let_binder(binder, bound_expr, body, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_Assign =>
+      match (node_child(expr, "var"), node_child(expr, "expr")) {
+        (Some(var_), Some(rhs)) => eval_assign(var_, rhs, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_Mutate =>
+      match
+        (
+          node_child(expr, "record"),
+          node_child(expr, "accessor"),
+          node_child(expr, "field"),
+        ) {
+        (Some(record), Some(accessor), Some(field)) =>
+          eval_mutate(record, accessor, field, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_Apply =>
+      match (node_child(expr, "func"), node_child(expr, "args")) {
+        (Some(func), Some(args)) =>
+          eval_apply_call(expr, func, args, expr.loc, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_DotApply =>
+      match
+        (
+          node_child(expr, "self"),
+          node_child(expr, "method_name"),
+          node_child(expr, "args"),
+        ) {
+        (Some(self), Some(method_name), Some(args)) =>
+          eval_dot_apply_call(
+            expr,
+            self,
+            method_name,
+            args,
+            expr.loc,
+            state,
+            spec,
+            findings,
+          )
+        _ => normal_result(state, [])
+      }
+    Expr_Pipe =>
+      match (node_child(expr, "lhs"), node_child(expr, "rhs")) {
+        (Some(lhs), Some(rhs)) =>
+          eval_pipe_call(expr, lhs, rhs, expr.loc, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_RevPipe =>
+      match (node_child(expr, "lhs"), node_child(expr, "rhs")) {
+        (Some(lhs), Some(rhs)) =>
+          eval_rev_pipe_call(expr, lhs, rhs, expr.loc, state, spec, findings)
+        _ => normal_result(state, [])
+      }
+    Expr_If =>
+      match (node_child(expr, "cond"), node_child(expr, "ifso")) {
+        (Some(cond), Some(ifso)) =>
+          eval_if(
+            cond,
+            ifso,
+            node_optional_child(expr, "ifnot"),
+            state,
+            spec,
+            findings,
+          )
+        _ => normal_result(state, [])
+      }
+    Expr_Match =>
+      match node_child(expr, "expr") {
+        Some(scrutinee) =>
+          eval_match(
+            scrutinee,
+            node_child_items(expr, "cases"),
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
+    Expr_Lexmatch =>
+      match node_child(expr, "expr") {
+        Some(scrutinee) =>
+          eval_lex_match(
+            scrutinee,
+            node_child_items(expr, "cases"),
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
+    Expr_Try =>
+      match node_child(expr, "body") {
+        Some(body) =>
+          eval_try(
+            body,
+            node_child_items(expr, "catch"),
+            node_optional_child(expr, "try_else"),
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
+    Expr_While =>
+      match (node_child(expr, "loop_cond"), node_child(expr, "loop_body")) {
+        (Some(loop_cond), Some(loop_body)) =>
+          eval_while(
+            loop_cond,
+            loop_body,
+            node_optional_child(expr, "while_else"),
+            state,
+            spec,
+            findings,
+          )
+        _ => normal_result(state, [])
+      }
+    Expr_For =>
+      match node_child(expr, "body") {
+        Some(body) =>
+          eval_for(
+            node_child_items(expr, "binders"),
+            node_optional_child(expr, "condition"),
+            node_child_items(expr, "continue_block"),
+            body,
+            node_optional_child(expr, "for_else"),
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
+    Expr_ForEach =>
+      match (node_child(expr, "expr"), node_child(expr, "body")) {
+        (Some(collection), Some(body)) =>
+          eval_for_each(
+            node_child_items(expr, "binders"),
+            collection,
+            node_child_items(expr, "init"),
+            node_child_items(expr, "continue_block"),
+            body,
+            node_optional_child(expr, "else_block"),
+            state,
+            spec,
+            findings,
+          )
+        _ => normal_result(state, [])
+      }
+    Expr_LetFn =>
+      match (node_child(expr, "name"), node_child(expr, "body")) {
+        (Some(name), Some(body)) => {
+          let roots : Array[String] = []
+          add_binder_root_name(roots, name)
+          eval_clean_root_scope(body, roots, state, spec, findings)
+        }
+        _ => normal_result(state, [])
+      }
+    Expr_LetAnd =>
+      match node_child(expr, "body") {
+        Some(body) =>
+          eval_clean_root_scope(
+            body,
+            let_and_bound_roots(node_child_items(expr, "bindings")),
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
+    Expr_Function => normal_result(state, [])
+    Expr_Return =>
+      match node_optional_child(expr, "return_value") {
+        Some(value) => {
+          let result = eval_expr(value, state, spec, findings)
+          flow_result(FlowReturn, result.state, result.value)
+        }
+        None => flow_result(FlowReturn, state, [])
+      }
+    Expr_Break =>
+      match node_optional_child(expr, "arg") {
+        Some(value) => {
+          let result = eval_expr(value, state, spec, findings)
+          flow_result(FlowBreak, result.state, result.value)
+        }
+        None => flow_result(FlowBreak, state, [])
+      }
+    Expr_Raise =>
+      match node_child(expr, "err_value") {
+        Some(value) => {
+          let result = eval_expr(value, state, spec, findings)
+          flow_result(FlowRaise, result.state, result.value)
+        }
+        None => flow_result(FlowRaise, state, [])
+      }
+    Expr_Continue => {
+      let result = eval_children(
+        node_child_items(expr, "args"),
         state,
         spec,
         findings,
       )
-    Function(..) => normal_result(state, [])
-    Return(return_value=Some(value), ..) => {
-      let result = eval_expr(value, state, spec, findings)
-      flow_result(FlowReturn, result.state, result.value)
-    }
-    Return(return_value=None, ..) => flow_result(FlowReturn, state, [])
-    Break(arg=Some(value), ..) => {
-      let result = eval_expr(value, state, spec, findings)
-      flow_result(FlowBreak, result.state, result.value)
-    }
-    Break(arg=None, ..) => flow_result(FlowBreak, state, [])
-    Raise(err_value=value, ..) => {
-      let result = eval_expr(value, state, spec, findings)
-      flow_result(FlowRaise, result.state, result.value)
-    }
-    Continue(args~, ..) => {
-      let result = eval_expr_list(args, state, spec, findings)
       flow_result(FlowContinue, result.state, result.value)
     }
     _ => eval_unknown_expr(expr, state, spec, findings)
@@ -195,7 +366,7 @@ fn eval_expr(
 }
 
 ///|
-fn eval_path_like(expr : @syntax.Expr, state : TaintState) -> EvalResult {
+fn eval_path_like(expr : @untyped_ast.Node, state : TaintState) -> EvalResult {
   if storage_path_from_expr(expr) is Some(path) {
     normal_result(state, state_read_path(state, path))
   } else {
@@ -205,9 +376,9 @@ fn eval_path_like(expr : @syntax.Expr, state : TaintState) -> EvalResult {
 
 ///|
 fn eval_field_expr(
-  expr : @syntax.Expr,
-  record : @syntax.Expr,
-  accessor : @syntax.Accessor,
+  expr : @untyped_ast.Node,
+  record : @untyped_ast.Node,
+  accessor : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -232,9 +403,9 @@ fn eval_field_expr(
 
 ///|
 fn eval_array_get_expr(
-  expr : @syntax.Expr,
-  array : @syntax.Expr,
-  index : @syntax.Expr,
+  expr : @untyped_ast.Node,
+  array : @untyped_ast.Node,
+  index : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -259,16 +430,15 @@ fn eval_array_get_expr(
 
 ///|
 fn eval_tuple_expr(
-  exprs : @list.List[@syntax.Expr],
+  exprs : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
   let mut current = state
   let mut value : TaintTree = []
-  let items = exprs.to_array()
-  for index in 0..<items.length() {
-    let result = eval_expr(items[index], current, spec, findings)
+  for index in 0..<exprs.length() {
+    let result = eval_expr(exprs[index], current, spec, findings)
     if result.flow != FlowNormal {
       return result
     }
@@ -280,16 +450,15 @@ fn eval_tuple_expr(
 
 ///|
 fn eval_array_expr(
-  exprs : @list.List[@syntax.Expr],
+  exprs : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
   let mut current = state
   let mut value : TaintTree = []
-  let items = exprs.to_array()
-  for index in 0..<items.length() {
-    let result = eval_expr(items[index], current, spec, findings)
+  for index in 0..<exprs.length() {
+    let result = eval_expr(exprs[index], current, spec, findings)
     if result.flow != FlowNormal {
       return result
     }
@@ -305,37 +474,41 @@ fn eval_array_expr(
 
 ///|
 fn eval_record_expr(
-  fields : @list.List[@syntax.FieldDef],
+  fields : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
   let mut current = state
   let mut value : TaintTree = []
-  for field in fields.to_array() {
-    let result = eval_expr(field.expr, current, spec, findings)
-    if result.flow != FlowNormal {
-      return result
+  for field in fields {
+    match (node_child(field, "label"), node_child(field, "expr")) {
+      (Some(label), Some(expr)) => {
+        let result = eval_expr(expr, current, spec, findings)
+        if result.flow != FlowNormal {
+          return result
+        }
+        current = result.state
+        if node_label_name(label) is Some(name) {
+          value = tree_merge(value, tree_shift([Field(name)], result.value))
+        }
+      }
+      _ => ()
     }
-    current = result.state
-    value = tree_merge(
-      value,
-      tree_shift([Field(field.label.name)], result.value),
-    )
   }
   normal_result(current, value)
 }
 
 ///|
 fn eval_sequence(
-  exprs : @list.List[@syntax.Expr],
-  last_expr : @syntax.Expr,
+  exprs : Array[@untyped_ast.Node],
+  last_expr : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
   let mut current = state
-  for item in exprs.to_array() {
+  for item in exprs {
     let result = eval_expr(item, current, spec, findings)
     if result.flow != FlowNormal {
       return result
@@ -347,9 +520,9 @@ fn eval_sequence(
 
 ///|
 fn eval_let(
-  pattern : @syntax.Pattern,
-  bound_expr : @syntax.Expr,
-  body : @syntax.Expr,
+  pattern : @untyped_ast.Node,
+  bound_expr : @untyped_ast.Node,
+  body : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -364,8 +537,28 @@ fn eval_let(
 }
 
 ///|
+fn eval_let_binder(
+  binder : @untyped_ast.Node,
+  bound_expr : @untyped_ast.Node,
+  body : @untyped_ast.Node,
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let bound = eval_expr(bound_expr, state, spec, findings)
+  if bound.flow != FlowNormal {
+    return bound
+  }
+  let roots : Array[String] = []
+  add_binder_root_name(roots, binder)
+  let bound_state = bind_binder(binder, bound.value, bound.state)
+  let result = eval_expr(body, bound_state, spec, findings)
+  restore_result_scoped_roots(result, bound.state, roots)
+}
+
+///|
 fn eval_clean_root_scope(
-  body : @syntax.Expr,
+  body : @untyped_ast.Node,
   roots : Array[String],
   state : TaintState,
   spec : TaintSpec,
@@ -378,8 +571,8 @@ fn eval_clean_root_scope(
 
 ///|
 fn eval_assign(
-  var_ : @syntax.Var,
-  rhs : @syntax.Expr,
+  var_ : @untyped_ast.Node,
+  rhs : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -400,9 +593,9 @@ fn eval_assign(
 
 ///|
 fn eval_mutate(
-  record : @syntax.Expr,
-  accessor : @syntax.Accessor,
-  field : @syntax.Expr,
+  record : @untyped_ast.Node,
+  accessor : @untyped_ast.Node,
+  field : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -431,9 +624,9 @@ fn eval_mutate(
 
 ///|
 fn eval_apply_call(
-  ast : @syntax.Expr,
-  func : @syntax.Expr,
-  args : @list.List[@syntax.Argument],
+  ast : @untyped_ast.Node,
+  func : @untyped_ast.Node,
+  args : @untyped_ast.Node,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -462,10 +655,10 @@ fn eval_apply_call(
 
 ///|
 fn eval_dot_apply_call(
-  ast : @syntax.Expr,
-  self : @syntax.Expr,
-  method_name : @syntax.Label,
-  args : @list.List[@syntax.Argument],
+  ast : @untyped_ast.Node,
+  self : @untyped_ast.Node,
+  method_name : @untyped_ast.Node,
+  args : @untyped_ast.Node,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -485,7 +678,7 @@ fn eval_dot_apply_call(
     kind: CallKind::DotApply,
     ast,
     loc,
-    callee_name: Some(method_name.name),
+    callee_name: node_label_name(method_name),
     receiver_path,
     receiver_site: Some(receiver_site),
     receiver_taint: receiver.value,
@@ -496,9 +689,9 @@ fn eval_dot_apply_call(
 
 ///|
 fn eval_pipe_call(
-  ast : @syntax.Expr,
-  lhs : @syntax.Expr,
-  rhs : @syntax.Expr,
+  ast : @untyped_ast.Node,
+  lhs : @untyped_ast.Node,
+  rhs : @untyped_ast.Node,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -509,64 +702,83 @@ fn eval_pipe_call(
     return lhs_result
   }
   let lhs_arg = evaled_argument_from_result(0, None, lhs, lhs_result)
-  match rhs {
-    Apply(func~, args~, ..) => {
-      let func_result = eval_expr(func, lhs_result.state, spec, findings)
-      if func_result.flow != FlowNormal {
-        return func_result
+  match rhs.kind {
+    Expr_Apply =>
+      match (node_child(rhs, "func"), node_child(rhs, "args")) {
+        (Some(func), Some(args)) => {
+          let func_result = eval_expr(func, lhs_result.state, spec, findings)
+          if func_result.flow != FlowNormal {
+            return func_result
+          }
+          let args_result = eval_arguments(
+            args,
+            1,
+            func_result.state,
+            spec,
+            findings,
+          )
+          if args_result.flow != FlowNormal {
+            return flow_result(
+              args_result.flow,
+              args_result.state,
+              args_result.value,
+            )
+          }
+          let arguments = prepend_argument(lhs_arg, args_result.arguments)
+          let info = call_info_without_receiver(
+            CallKind::Pipe,
+            ast,
+            loc,
+            callee_name_from_expr(func),
+            arguments,
+          )
+          apply_call_transfer(info, args_result.state, spec, findings)
+        }
+        _ => normal_result(lhs_result.state, lhs_result.value)
       }
-      let args_result = eval_arguments(
-        args,
-        1,
-        func_result.state,
-        spec,
-        findings,
-      )
-      if args_result.flow != FlowNormal {
-        return flow_result(
-          args_result.flow,
-          args_result.state,
-          args_result.value,
-        )
+    Expr_DotApply =>
+      match
+        (
+          node_child(rhs, "self"),
+          node_child(rhs, "method_name"),
+          node_child(rhs, "args"),
+        ) {
+        (Some(self), Some(method_name), Some(args)) => {
+          let receiver = eval_expr(self, lhs_result.state, spec, findings)
+          if receiver.flow != FlowNormal {
+            return receiver
+          }
+          let receiver_path = storage_path_from_expr(self)
+          let receiver_site = site_for_expr(self, receiver_path)
+          let args_result = eval_arguments(
+            args,
+            1,
+            receiver.state,
+            spec,
+            findings,
+          )
+          if args_result.flow != FlowNormal {
+            return flow_result(
+              args_result.flow,
+              args_result.state,
+              args_result.value,
+            )
+          }
+          let arguments = prepend_argument(lhs_arg, args_result.arguments)
+          let info = {
+            kind: CallKind::Pipe,
+            ast,
+            loc,
+            callee_name: node_label_name(method_name),
+            receiver_path,
+            receiver_site: Some(receiver_site),
+            receiver_taint: receiver.value,
+            arguments,
+          }
+          apply_call_transfer(info, args_result.state, spec, findings)
+        }
+        _ => normal_result(lhs_result.state, lhs_result.value)
       }
-      let arguments = prepend_argument(lhs_arg, args_result.arguments)
-      let info = call_info_without_receiver(
-        CallKind::Pipe,
-        ast,
-        loc,
-        callee_name_from_expr(func),
-        arguments,
-      )
-      apply_call_transfer(info, args_result.state, spec, findings)
-    }
-    DotApply(self~, method_name~, args~, ..) => {
-      let receiver = eval_expr(self, lhs_result.state, spec, findings)
-      if receiver.flow != FlowNormal {
-        return receiver
-      }
-      let receiver_path = storage_path_from_expr(self)
-      let receiver_site = site_for_expr(self, receiver_path)
-      let args_result = eval_arguments(args, 1, receiver.state, spec, findings)
-      if args_result.flow != FlowNormal {
-        return flow_result(
-          args_result.flow,
-          args_result.state,
-          args_result.value,
-        )
-      }
-      let arguments = prepend_argument(lhs_arg, args_result.arguments)
-      let info = {
-        kind: CallKind::Pipe,
-        ast,
-        loc,
-        callee_name: Some(method_name.name),
-        receiver_path,
-        receiver_site: Some(receiver_site),
-        receiver_taint: receiver.value,
-        arguments,
-      }
-      apply_call_transfer(info, args_result.state, spec, findings)
-    }
     _ => {
       let rhs_result = eval_expr(rhs, lhs_result.state, spec, findings)
       if rhs_result.flow != FlowNormal {
@@ -586,9 +798,9 @@ fn eval_pipe_call(
 
 ///|
 fn eval_rev_pipe_call(
-  ast : @syntax.Expr,
-  lhs : @syntax.Expr,
-  rhs : @syntax.Expr,
+  ast : @untyped_ast.Node,
+  lhs : @untyped_ast.Node,
+  rhs : @untyped_ast.Node,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -615,7 +827,7 @@ fn eval_rev_pipe_call(
 
 ///|
 fn eval_arguments(
-  args : @list.List[@syntax.Argument],
+  args : @untyped_ast.Node,
   start_index : Int,
   state : TaintState,
   spec : TaintSpec,
@@ -623,27 +835,32 @@ fn eval_arguments(
 ) -> EvalArgumentsResult {
   let mut current = state
   let arguments : Array[CallArgument] = []
-  let raw = args.to_array()
+  let raw = node_items(args)
   for offset in 0..<raw.length() {
     let arg = raw[offset]
-    let result = eval_expr(arg.value, current, spec, findings)
-    if result.flow != FlowNormal {
-      return {
-        state: result.state,
-        arguments,
-        flow: result.flow,
-        value: result.value,
+    match (node_child(arg, "value"), node_child(arg, "kind")) {
+      (Some(value), Some(kind)) => {
+        let result = eval_expr(value, current, spec, findings)
+        if result.flow != FlowNormal {
+          return {
+            state: result.state,
+            arguments,
+            flow: result.flow,
+            value: result.value,
+          }
+        }
+        current = result.state
+        arguments.push(
+          call_argument_from_result(
+            start_index + offset,
+            argument_label(kind),
+            value,
+            result,
+          ),
+        )
       }
+      _ => ()
     }
-    current = result.state
-    arguments.push(
-      call_argument_from_result(
-        start_index + offset,
-        argument_label(arg.kind),
-        arg.value,
-        result,
-      ),
-    )
   }
   { state: current, arguments, flow: FlowNormal, value: [] }
 }
@@ -652,7 +869,7 @@ fn eval_arguments(
 fn evaled_argument_from_result(
   index : Int,
   label : String?,
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   result : EvalResult,
 ) -> CallArgument {
   call_argument_from_result(index, label, expr, result)
@@ -662,7 +879,7 @@ fn evaled_argument_from_result(
 fn call_argument_from_result(
   index : Int,
   label : String?,
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   result : EvalResult,
 ) -> CallArgument {
   let path = storage_path_from_expr(expr)
@@ -670,7 +887,7 @@ fn call_argument_from_result(
     index,
     label,
     expr,
-    loc: expr.loc(),
+    loc: expr.loc,
     path,
     site: site_for_expr(expr, path),
     taint: result.value,
@@ -692,7 +909,7 @@ fn prepend_argument(
 ///|
 fn call_info_without_receiver(
   kind : CallKind,
-  ast : @syntax.Expr,
+  ast : @untyped_ast.Node,
   loc : @basic.Location,
   callee_name : String?,
   arguments : Array[CallArgument],
@@ -933,21 +1150,41 @@ fn tree_shift(prefix : Array[PathSegment], tree : TaintTree) -> TaintTree {
 }
 
 ///|
-fn site_for_expr(expr : @syntax.Expr, path : StoragePath?) -> ValueSite {
+fn site_for_expr(expr : @untyped_ast.Node, path : StoragePath?) -> ValueSite {
   if path is Some(path) {
     Path(path)
   } else {
-    Expr(expr.loc(), None)
+    Expr(expr.loc, None)
   }
 }
 
 ///|
-fn callee_name_from_expr(expr : @syntax.Expr) -> String? {
-  match expr {
-    Ident(id~, ..) => @id.normalize_identifier_name_from_var(id)
-    Field(accessor=Label(label), ..) => Some(label.name)
-    Method(method_name~, ..) => Some(method_name.name)
-    Group(expr~, ..) | Constraint(expr~, ..) => callee_name_from_expr(expr)
+fn callee_name_from_expr(expr : @untyped_ast.Node) -> String? {
+  match expr.kind {
+    Expr_Ident =>
+      match node_child(expr, "id") {
+        Some(id) => node_var_name(id)
+        None => None
+      }
+    Expr_Field =>
+      match node_child(expr, "accessor") {
+        Some(accessor) =>
+          match accessor.kind {
+            Accessor_Label => node_first_label_name(accessor)
+            _ => None
+          }
+        None => None
+      }
+    Expr_Method =>
+      match node_child(expr, "method_name") {
+        Some(method_name) => node_label_name(method_name)
+        None => None
+      }
+    Expr_Group | Expr_Constraint =>
+      match node_child(expr, "expr") {
+        Some(inner) => callee_name_from_expr(inner)
+        None => None
+      }
     _ => None
   }
 }
@@ -972,8 +1209,13 @@ fn add_unique_root_name(names : Array[String], name : String) -> Unit {
 }
 
 ///|
-fn add_binder_root_name(names : Array[String], binder : @syntax.Binder) -> Unit {
-  add_unique_root_name(names, binder.name)
+fn add_binder_root_name(
+  names : Array[String],
+  binder : @untyped_ast.Node,
+) -> Unit {
+  if node_binder_name(binder) is Some(name) {
+    add_unique_root_name(names, name)
+  }
 }
 
 ///|
@@ -1063,7 +1305,7 @@ fn tree_project_for_binding(
 }
 
 ///|
-fn pattern_bound_roots(pattern : @syntax.Pattern) -> Array[String] {
+fn pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
   let roots : Array[String] = []
   add_pattern_bound_roots(roots, pattern)
   roots
@@ -1072,119 +1314,197 @@ fn pattern_bound_roots(pattern : @syntax.Pattern) -> Array[String] {
 ///|
 fn add_pattern_bound_roots(
   roots : Array[String],
-  pattern : @syntax.Pattern,
+  pattern : @untyped_ast.Node,
 ) -> Unit {
-  match pattern {
-    Var(binder) => add_binder_root_name(roots, binder)
-    Alias(pat~, alias_~, ..) => {
-      add_pattern_bound_roots(roots, pat)
-      add_binder_root_name(roots, alias_)
-    }
-    Constraint(pat~, ..) => add_pattern_bound_roots(roots, pat)
-    Tuple(pats~, ..) =>
-      for pat in pats {
+  match pattern.kind {
+    Pattern_Var =>
+      if node_first_child(pattern) is Some(binder) {
+        add_binder_root_name(roots, binder)
+      }
+    Pattern_Alias => {
+      if node_child(pattern, "pat") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
-    Record(fields~, ..) =>
-      for field in fields {
-        add_pattern_bound_roots(roots, field.pattern)
+      if node_child(pattern, "alias") is Some(alias_) {
+        add_binder_root_name(roots, alias_)
       }
-    Map(elems~, ..) =>
-      for elem in elems {
-        add_pattern_bound_roots(roots, elem.pat)
-      }
-    Array(pats~, ..) => add_array_pattern_bound_roots(roots, pats)
-    Constr(args=Some(args), ..) =>
-      for arg in args {
-        add_pattern_bound_roots(roots, arg.pat)
-      }
-    Constr(args=None, ..) => ()
-    SpecialConstr(args~, ..) =>
-      for arg in args {
-        add_pattern_bound_roots(roots, arg.pat)
-      }
-    Or(pat1~, pat2~, ..) | Range(lhs=pat1, rhs=pat2, ..) => {
-      add_pattern_bound_roots(roots, pat1)
-      add_pattern_bound_roots(roots, pat2)
     }
-    Any(..) | Constant(..) => ()
+    Pattern_Constraint =>
+      if node_child(pattern, "pat") is Some(pat) {
+        add_pattern_bound_roots(roots, pat)
+      }
+    Pattern_Tuple =>
+      for pat in node_child_items(pattern, "pats") {
+        add_pattern_bound_roots(roots, pat)
+      }
+    Pattern_Record =>
+      for field in node_child_items(pattern, "fields") {
+        if node_child(field, "pattern") is Some(pat) {
+          add_pattern_bound_roots(roots, pat)
+        }
+      }
+    Pattern_Map =>
+      for elem in node_child_items(pattern, "elems") {
+        if node_child(elem, "pat") is Some(pat) {
+          add_pattern_bound_roots(roots, pat)
+        }
+      }
+    Pattern_Array =>
+      if node_child(pattern, "pats") is Some(pats) {
+        add_array_pattern_bound_roots(roots, pats)
+      }
+    Pattern_Constr =>
+      for arg in node_optional_items(pattern, "args") {
+        if node_child(arg, "pat") is Some(pat) {
+          add_pattern_bound_roots(roots, pat)
+        }
+      }
+    Pattern_SpecialConstr =>
+      for arg in node_child_items(pattern, "args") {
+        if node_child(arg, "pat") is Some(pat) {
+          add_pattern_bound_roots(roots, pat)
+        }
+      }
+    Pattern_Or | Pattern_Range => {
+      if node_child(pattern, "pat1") is Some(pat) {
+        add_pattern_bound_roots(roots, pat)
+      }
+      if node_child(pattern, "pat2") is Some(pat) {
+        add_pattern_bound_roots(roots, pat)
+      }
+      if node_child(pattern, "lhs") is Some(pat) {
+        add_pattern_bound_roots(roots, pat)
+      }
+      if node_child(pattern, "rhs") is Some(pat) {
+        add_pattern_bound_roots(roots, pat)
+      }
+    }
+    Pattern_Any | Pattern_Constant => ()
+    _ => ()
   }
 }
 
 ///|
 fn add_array_pattern_bound_roots(
   roots : Array[String],
-  patterns : @syntax.ArrayPatterns,
+  patterns : @untyped_ast.Node,
 ) -> Unit {
-  match patterns {
-    Closed(items) =>
-      for item in items {
-        add_array_pattern_item_bound_roots(roots, item)
+  match patterns.kind {
+    ArrayPatterns_Closed =>
+      if node_first_child(patterns) is Some(items) {
+        for item in node_items(items) {
+          add_array_pattern_item_bound_roots(roots, item)
+        }
       }
-    Open(left, right, middle) => {
-      for item in left {
-        add_array_pattern_item_bound_roots(roots, item)
+    ArrayPatterns_Open => {
+      if node_child(patterns, "0") is Some(left) {
+        for item in node_items(left) {
+          add_array_pattern_item_bound_roots(roots, item)
+        }
       }
-      for item in right {
-        add_array_pattern_item_bound_roots(roots, item)
+      if node_child(patterns, "1") is Some(right) {
+        for item in node_items(right) {
+          add_array_pattern_item_bound_roots(roots, item)
+        }
       }
-      add_dot_dot_binder_bound_roots(roots, middle)
+      if node_child(patterns, "2") is Some(middle) {
+        add_dot_dot_binder_bound_roots(roots, middle)
+      }
     }
+    _ => ()
   }
 }
 
 ///|
 fn add_array_pattern_item_bound_roots(
   roots : Array[String],
-  item : @syntax.ArrayPattern,
+  item : @untyped_ast.Node,
 ) -> Unit {
-  match item {
-    Pattern(pattern) => add_pattern_bound_roots(roots, pattern)
-    ConstSpread(binder~, ..) => add_binder_root_name(roots, binder)
-    BytesSpread(..) | StringSpread(..) => ()
+  match item.kind {
+    ArrayPattern_Pattern =>
+      if node_first_child(item) is Some(pattern) {
+        add_pattern_bound_roots(roots, pattern)
+      }
+    ArrayPattern_ConstSpread =>
+      if node_child(item, "binder") is Some(binder) {
+        add_binder_root_name(roots, binder)
+      }
+    ArrayPattern_BytesSpread | ArrayPattern_StringSpread => ()
+    _ => ()
   }
 }
 
 ///|
 fn add_dot_dot_binder_bound_roots(
   roots : Array[String],
-  binder : @syntax.DotDotBinder,
+  binder : @untyped_ast.Node,
 ) -> Unit {
-  match binder {
-    Binder(binder) | BinderAs(binder) => add_binder_root_name(roots, binder)
-    NoBinder | Underscore => ()
+  match binder.kind {
+    DotDotBinder_Binder | DotDotBinder_BinderAs =>
+      if node_first_child(binder) is Some(value) {
+        add_binder_root_name(roots, value)
+      }
+    DotDotBinder_NoBinder | DotDotBinder_Underscore => ()
+    _ => ()
   }
 }
 
 ///|
-fn let_and_bound_roots(
-  bindings : @list.List[(@syntax.Binder, @syntax.Type?, @syntax.Func)],
-) -> Array[String] {
+fn let_and_bound_roots(bindings : Array[@untyped_ast.Node]) -> Array[String] {
   let roots : Array[String] = []
   for binding in bindings {
-    let (binder, _ty, _func) = binding
-    add_binder_root_name(roots, binder)
+    if node_child(binding, "binder") is Some(binder) {
+      add_binder_root_name(roots, binder)
+    }
   }
   roots
 }
 
 ///|
-fn bind_pattern(
-  pattern : @syntax.Pattern,
+fn bind_binder(
+  binder : @untyped_ast.Node,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match pattern {
-    Var(binder) =>
-      state_write_path(state, { root: binder.name, segments: [] }, value)
-    Alias(pat~, alias_~, ..) => {
-      let state = bind_pattern(pat, value, state)
-      state_write_path(state, { root: alias_.name, segments: [] }, value)
+  if node_binder_name(binder) is Some(name) {
+    state_write_path(state, { root: name, segments: [] }, value)
+  } else {
+    state
+  }
+}
+
+///|
+fn bind_pattern(
+  pattern : @untyped_ast.Node,
+  value : TaintTree,
+  state : TaintState,
+) -> TaintState {
+  match pattern.kind {
+    Pattern_Var =>
+      match node_first_child(pattern) {
+        Some(binder) => bind_binder(binder, value, state)
+        None => state
+      }
+    Pattern_Alias => {
+      let next = if node_child(pattern, "pat") is Some(pat) {
+        bind_pattern(pat, value, state)
+      } else {
+        state
+      }
+      if node_child(pattern, "alias") is Some(alias_) {
+        bind_binder(alias_, value, next)
+      } else {
+        next
+      }
     }
-    Constraint(pat~, ..) => bind_pattern(pat, value, state)
-    Tuple(pats~, ..) => {
+    Pattern_Constraint =>
+      match node_child(pattern, "pat") {
+        Some(pat) => bind_pattern(pat, value, state)
+        None => state
+      }
+    Pattern_Tuple => {
       let mut next = state
-      let items = pats.to_array()
+      let items = node_child_items(pattern, "pats")
       for index in 0..<items.length() {
         next = bind_pattern(
           items[index],
@@ -1194,95 +1514,142 @@ fn bind_pattern(
       }
       next
     }
-    Record(fields~, ..) => {
+    Pattern_Record => {
       let mut next = state
-      for field in fields.to_array() {
-        next = bind_pattern(
-          field.pattern,
-          tree_project_for_binding(value, Field(field.label.name)),
-          next,
-        )
+      for field in node_child_items(pattern, "fields") {
+        if node_child(field, "pattern") is Some(pat) &&
+          node_child(field, "label") is Some(label) &&
+          node_label_name(label) is Some(name) {
+          next = bind_pattern(
+            pat,
+            tree_project_for_binding(value, Field(name)),
+            next,
+          )
+        }
       }
       next
     }
-    Map(elems~, ..) => {
+    Pattern_Map => {
       let mut next = state
-      for elem in elems.to_array() {
-        next = bind_pattern(elem.pat, value, next)
+      for elem in node_child_items(pattern, "elems") {
+        if node_child(elem, "pat") is Some(pat) {
+          next = bind_pattern(pat, value, next)
+        }
       }
       next
     }
-    Array(pats~, ..) => bind_array_pattern(pats, value, state)
-    Constr(args=Some(args), ..) => {
+    Pattern_Array =>
+      match node_child(pattern, "pats") {
+        Some(pats) => bind_array_pattern(pats, value, state)
+        None => state
+      }
+    Pattern_Constr => {
       let mut next = state
-      let items = args.to_array()
+      let items = node_optional_items(pattern, "args")
       for index in 0..<items.length() {
-        let segment = segment_from_argument_kind(items[index].kind, index)
-        next = bind_pattern(
-          items[index].pat,
-          tree_project_for_binding(value, segment),
-          next,
-        )
+        match
+          (node_child(items[index], "pat"), node_child(items[index], "kind")) {
+          (Some(pat), Some(kind)) => {
+            let segment = segment_from_argument_kind(kind, index)
+            next = bind_pattern(
+              pat,
+              tree_project_for_binding(value, segment),
+              next,
+            )
+          }
+          _ => ()
+        }
       }
       next
     }
-    SpecialConstr(args~, ..) => {
+    Pattern_SpecialConstr => {
       let mut next = state
-      let items = args.to_array()
+      let items = node_child_items(pattern, "args")
       for index in 0..<items.length() {
-        let segment = segment_from_argument_kind(items[index].kind, index)
-        next = bind_pattern(
-          items[index].pat,
-          tree_project_for_binding(value, segment),
-          next,
-        )
+        match
+          (node_child(items[index], "pat"), node_child(items[index], "kind")) {
+          (Some(pat), Some(kind)) => {
+            let segment = segment_from_argument_kind(kind, index)
+            next = bind_pattern(
+              pat,
+              tree_project_for_binding(value, segment),
+              next,
+            )
+          }
+          _ => ()
+        }
       }
       next
     }
-    Or(pat1~, pat2~, ..) =>
-      state_merge(
-        bind_pattern(pat1, value, state),
-        bind_pattern(pat2, value, state),
-      )
+    Pattern_Or =>
+      match (node_child(pattern, "pat1"), node_child(pattern, "pat2")) {
+        (Some(pat1), Some(pat2)) =>
+          state_merge(
+            bind_pattern(pat1, value, state),
+            bind_pattern(pat2, value, state),
+          )
+        _ => state
+      }
     _ => state
   }
 }
 
 ///|
 fn bind_array_pattern(
-  pats : @syntax.ArrayPatterns,
+  pats : @untyped_ast.Node,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match pats {
-    Closed(items) => bind_array_pattern_items(items.to_array(), 0, value, state)
-    Open(left, right, middle) => {
-      let mut next = bind_array_pattern_items(left.to_array(), 0, value, state)
-      let right_items = right.to_array()
-      for index in 0..<right_items.length() {
-        next = bind_array_pattern_item(
-          right_items[index],
-          AnyIndex,
-          value,
-          next,
-        )
+  match pats.kind {
+    ArrayPatterns_Closed =>
+      if node_first_child(pats) is Some(items) {
+        bind_array_pattern_items(node_items(items), 0, value, state)
+      } else {
+        state
       }
-      match middle {
-        Binder(binder) | BinderAs(binder) =>
-          state_write_path(
+    ArrayPatterns_Open => {
+      let mut next = if node_child(pats, "0") is Some(left) {
+        bind_array_pattern_items(node_items(left), 0, value, state)
+      } else {
+        state
+      }
+      if node_child(pats, "1") is Some(right) {
+        let right_items = node_items(right)
+        for index in 0..<right_items.length() {
+          next = bind_array_pattern_item(
+            right_items[index],
+            AnyIndex,
+            value,
             next,
-            { root: binder.name, segments: [] },
-            tree_project_for_binding(value, AnyIndex),
           )
-        NoBinder | Underscore => next
+        }
+      }
+      if node_child(pats, "2") is Some(middle) {
+        match middle.kind {
+          DotDotBinder_Binder | DotDotBinder_BinderAs =>
+            if node_first_child(middle) is Some(binder) {
+              bind_binder(
+                binder,
+                tree_project_for_binding(value, AnyIndex),
+                next,
+              )
+            } else {
+              next
+            }
+          DotDotBinder_NoBinder | DotDotBinder_Underscore => next
+          _ => next
+        }
+      } else {
+        next
       }
     }
+    _ => state
   }
 }
 
 ///|
 fn bind_array_pattern_items(
-  items : Array[@syntax.ArrayPattern],
+  items : Array[@untyped_ast.Node],
   start : Int,
   value : TaintTree,
   state : TaintState,
@@ -1301,21 +1668,26 @@ fn bind_array_pattern_items(
 
 ///|
 fn bind_array_pattern_item(
-  item : @syntax.ArrayPattern,
+  item : @untyped_ast.Node,
   segment : PathSegment,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match item {
-    Pattern(pattern) =>
-      bind_pattern(pattern, tree_project_for_binding(value, segment), state)
-    ConstSpread(binder~, ..) =>
-      state_write_path(
-        state,
-        { root: binder.name, segments: [] },
-        tree_project_for_binding(value, segment),
-      )
-    BytesSpread(..) | StringSpread(..) => state
+  match item.kind {
+    ArrayPattern_Pattern =>
+      if node_first_child(item) is Some(pattern) {
+        bind_pattern(pattern, tree_project_for_binding(value, segment), state)
+      } else {
+        state
+      }
+    ArrayPattern_ConstSpread =>
+      if node_child(item, "binder") is Some(binder) {
+        bind_binder(binder, tree_project_for_binding(value, segment), state)
+      } else {
+        state
+      }
+    ArrayPattern_BytesSpread | ArrayPattern_StringSpread => state
+    _ => state
   }
 }
 
@@ -1332,75 +1704,102 @@ fn condition_from_eval_result(result : EvalResult) -> ConditionEval {
 
 ///|
 fn eval_condition_scope(
-  cond : @syntax.Expr,
+  cond : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> ConditionEval {
-  match cond {
-    Group(expr~, ..) | Constraint(expr~, ..) =>
-      eval_condition_scope(expr, state, spec, findings)
-    Is(expr~, pat~, ..) => {
-      let matched = eval_expr(expr, state, spec, findings)
-      if matched.flow != FlowNormal {
-        return condition_from_eval_result(matched)
+  match cond.kind {
+    Expr_Group | Expr_Constraint =>
+      match node_child(cond, "expr") {
+        Some(expr) => eval_condition_scope(expr, state, spec, findings)
+        None => condition_from_eval_result(normal_result(state, []))
       }
-      let roots = pattern_bound_roots(pat)
-      {
-        base_state: matched.state,
-        true_state: bind_pattern(pat, matched.value, matched.state),
-        bound_roots: roots,
-        flow: FlowNormal,
-        value: matched.value,
+    Expr_Is =>
+      match (node_child(cond, "expr"), node_child(cond, "pat")) {
+        (Some(expr), Some(pat)) => {
+          let matched = eval_expr(expr, state, spec, findings)
+          if matched.flow != FlowNormal {
+            return condition_from_eval_result(matched)
+          }
+          let roots = pattern_bound_roots(pat)
+          {
+            base_state: matched.state,
+            true_state: bind_pattern(pat, matched.value, matched.state),
+            bound_roots: roots,
+            flow: FlowNormal,
+            value: matched.value,
+          }
+        }
+        _ => condition_from_eval_result(normal_result(state, []))
       }
-    }
-    IsLexMatch(expr~, pat~, ..) => {
-      let matched = eval_expr(expr, state, spec, findings)
-      if matched.flow != FlowNormal {
-        return condition_from_eval_result(matched)
+    Expr_IsLexmatch =>
+      match node_child(cond, "expr") {
+        Some(expr) => {
+          let matched = eval_expr(expr, state, spec, findings)
+          if matched.flow != FlowNormal {
+            return condition_from_eval_result(matched)
+          }
+          let patterns = node_child_items(cond, "pat")
+          let pattern_result = eval_lex_top_pattern_exprs(
+            patterns,
+            matched.state,
+            spec,
+            findings,
+          )
+          if pattern_result.flow != FlowNormal {
+            return condition_from_eval_result(pattern_result)
+          }
+          let roots = lex_top_patterns_bound_roots(patterns)
+          {
+            base_state: pattern_result.state,
+            true_state: bind_lex_top_patterns(
+              patterns,
+              matched.value,
+              pattern_result.state,
+            ),
+            bound_roots: roots,
+            flow: FlowNormal,
+            value: matched.value,
+          }
+        }
+        None => condition_from_eval_result(normal_result(state, []))
       }
-      let pattern_result = eval_lex_top_pattern_exprs(
-        pat,
-        matched.state,
-        spec,
-        findings,
-      )
-      if pattern_result.flow != FlowNormal {
-        return condition_from_eval_result(pattern_result)
+    Expr_RegexMatch =>
+      match (node_child(cond, "expr"), node_child(cond, "pat")) {
+        (Some(expr), Some(pat)) => {
+          let matched = eval_expr(expr, state, spec, findings)
+          if matched.flow != FlowNormal {
+            return condition_from_eval_result(matched)
+          }
+          let bindings = node_child_items(cond, "bindings")
+          let roots = merge_root_names(
+            regex_pattern_bound_roots(pat),
+            regex_bindings_bound_roots(bindings),
+          )
+          let pattern_state = bind_regex_pattern(
+            pat,
+            matched.value,
+            matched.state,
+          )
+          {
+            base_state: matched.state,
+            true_state: bind_regex_bindings(
+              bindings,
+              matched.value,
+              pattern_state,
+            ),
+            bound_roots: roots,
+            flow: FlowNormal,
+            value: matched.value,
+          }
+        }
+        _ => condition_from_eval_result(normal_result(state, []))
       }
-      let roots = lex_top_patterns_bound_roots(pat)
-      {
-        base_state: pattern_result.state,
-        true_state: bind_lex_top_patterns(
-          pat,
-          matched.value,
-          pattern_result.state,
-        ),
-        bound_roots: roots,
-        flow: FlowNormal,
-        value: matched.value,
-      }
-    }
-    RegexMatch(expr~, pat~, bindings~, ..) => {
-      let matched = eval_expr(expr, state, spec, findings)
-      if matched.flow != FlowNormal {
-        return condition_from_eval_result(matched)
-      }
-      let roots = merge_root_names(
-        regex_pattern_bound_roots(pat),
-        regex_bindings_bound_roots(bindings),
-      )
-      let pattern_state = bind_regex_pattern(pat, matched.value, matched.state)
-      {
-        base_state: matched.state,
-        true_state: bind_regex_bindings(bindings, matched.value, pattern_state),
-        bound_roots: roots,
-        flow: FlowNormal,
-        value: matched.value,
-      }
-    }
-    Infix(op~, lhs~, rhs~, ..) =>
-      if is_logical_and_var(op) {
+    Expr_Infix =>
+      if is_logical_and_expr(cond) &&
+        node_child(cond, "lhs") is Some(lhs) &&
+        node_child(cond, "rhs") is Some(rhs) {
         eval_and_condition_scope(lhs, rhs, state, spec, findings)
       } else {
         condition_from_eval_result(eval_expr(cond, state, spec, findings))
@@ -1411,8 +1810,8 @@ fn eval_condition_scope(
 
 ///|
 fn eval_and_condition_scope(
-  lhs : @syntax.Expr,
-  rhs : @syntax.Expr,
+  lhs : @untyped_ast.Node,
+  rhs : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1437,13 +1836,16 @@ fn eval_and_condition_scope(
 }
 
 ///|
-fn is_logical_and_var(op : @syntax.Var) -> Bool {
-  @id.normalize_identifier_name_from_var(op) == Some("&&")
+fn is_logical_and_expr(expr : @untyped_ast.Node) -> Bool {
+  match node_child(expr, "op") {
+    Some(op) => node_var_name(op) == Some("&&")
+    None => false
+  }
 }
 
 ///|
 fn eval_lex_top_pattern_exprs(
-  patterns : @list.List[@syntax.LexTopPattern],
+  patterns : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1451,10 +1853,15 @@ fn eval_lex_top_pattern_exprs(
   let mut current = state
   let mut value : TaintTree = []
   for pattern in patterns {
-    let result = match pattern {
-      Pattern(pattern) =>
-        eval_lex_pattern_exprs(pattern, current, spec, findings)
-      Binder(_) | Wildcard(..) => normal_result(current, [])
+    let result = match pattern.kind {
+      LexTopPattern_Pattern =>
+        match node_first_child(pattern) {
+          Some(pat) => eval_lex_pattern_exprs(pat, current, spec, findings)
+          None => normal_result(current, [])
+        }
+      LexTopPattern_Binder | LexTopPattern_Wildcard =>
+        normal_result(current, [])
+      _ => normal_result(current, [])
     }
     if result.flow != FlowNormal {
       return result
@@ -1467,18 +1874,28 @@ fn eval_lex_top_pattern_exprs(
 
 ///|
 fn eval_lex_pattern_exprs(
-  pattern : @syntax.LexPattern,
+  pattern : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  match pattern {
-    Alias(pat~, ..) => eval_lex_pattern_exprs(pat, state, spec, findings)
-    RegexInterp(elems~, ..) => eval_interp_elems(elems, state, spec, findings)
-    Sequence(pats~, ..) => {
+  match pattern.kind {
+    LexPattern_Alias =>
+      match node_child(pattern, "pat") {
+        Some(pat) => eval_lex_pattern_exprs(pat, state, spec, findings)
+        None => normal_result(state, [])
+      }
+    LexPattern_RegexInterp =>
+      eval_interp_elems(
+        node_child_items(pattern, "elems"),
+        state,
+        spec,
+        findings,
+      )
+    LexPattern_Sequence => {
       let mut current = state
       let mut value : TaintTree = []
-      for pat in pats {
+      for pat in node_child_items(pattern, "pats") {
         let result = eval_lex_pattern_exprs(pat, current, spec, findings)
         if result.flow != FlowNormal {
           return result
@@ -1488,13 +1905,14 @@ fn eval_lex_pattern_exprs(
       }
       normal_result(current, value)
     }
-    ConstantRef(..) | Regex(..) => normal_result(state, [])
+    LexPattern_ConstantRef | LexPattern_Regex => normal_result(state, [])
+    _ => normal_result(state, [])
   }
 }
 
 ///|
 fn eval_interp_elems(
-  elems : @list.List[@syntax.InterpElem],
+  elems : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1502,16 +1920,18 @@ fn eval_interp_elems(
   let mut current = state
   let mut value : TaintTree = []
   for elem in elems {
-    match elem {
-      Expr(expr~, ..) => {
-        let result = eval_expr(expr, current, spec, findings)
-        if result.flow != FlowNormal {
-          return result
+    match elem.kind {
+      InterpElem_Expr =>
+        if node_child(elem, "expr") is Some(expr) {
+          let result = eval_expr(expr, current, spec, findings)
+          if result.flow != FlowNormal {
+            return result
+          }
+          current = result.state
+          value = tree_merge(value, result.value)
         }
-        current = result.state
-        value = tree_merge(value, result.value)
-      }
-      Literal(..) | Source(_) => ()
+      InterpElem_Literal | InterpElem_Source => ()
+      _ => ()
     }
   }
   normal_result(current, value)
@@ -1519,7 +1939,7 @@ fn eval_interp_elems(
 
 ///|
 fn lex_top_patterns_bound_roots(
-  patterns : @list.List[@syntax.LexTopPattern],
+  patterns : Array[@untyped_ast.Node],
 ) -> Array[String] {
   let roots : Array[String] = []
   for pattern in patterns {
@@ -1531,46 +1951,68 @@ fn lex_top_patterns_bound_roots(
 ///|
 fn add_lex_top_pattern_bound_roots(
   roots : Array[String],
-  pattern : @syntax.LexTopPattern,
+  pattern : @untyped_ast.Node,
 ) -> Unit {
-  match pattern {
-    Binder(binder) => add_binder_root_name(roots, binder)
-    Pattern(pattern) => add_lex_pattern_bound_roots(roots, pattern)
-    Wildcard(..) => ()
+  match pattern.kind {
+    LexTopPattern_Binder =>
+      if node_first_child(pattern) is Some(binder) {
+        add_binder_root_name(roots, binder)
+      }
+    LexTopPattern_Pattern =>
+      if node_first_child(pattern) is Some(pat) {
+        add_lex_pattern_bound_roots(roots, pat)
+      }
+    LexTopPattern_Wildcard => ()
+    _ => ()
   }
 }
 
 ///|
 fn add_lex_pattern_bound_roots(
   roots : Array[String],
-  pattern : @syntax.LexPattern,
+  pattern : @untyped_ast.Node,
 ) -> Unit {
-  match pattern {
-    Alias(pat~, binder~, ..) => {
-      add_lex_pattern_bound_roots(roots, pat)
-      add_binder_root_name(roots, binder)
-    }
-    Sequence(pats~, ..) =>
-      for pat in pats {
+  match pattern.kind {
+    LexPattern_Alias => {
+      if node_child(pattern, "pat") is Some(pat) {
         add_lex_pattern_bound_roots(roots, pat)
       }
-    ConstantRef(..) | Regex(..) | RegexInterp(..) => ()
+      if node_child(pattern, "binder") is Some(binder) {
+        add_binder_root_name(roots, binder)
+      }
+    }
+    LexPattern_Sequence =>
+      for pat in node_child_items(pattern, "pats") {
+        add_lex_pattern_bound_roots(roots, pat)
+      }
+    LexPattern_ConstantRef | LexPattern_Regex | LexPattern_RegexInterp => ()
+    _ => ()
   }
 }
 
 ///|
 fn bind_lex_top_patterns(
-  patterns : @list.List[@syntax.LexTopPattern],
+  patterns : Array[@untyped_ast.Node],
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
   let mut next = state
   for pattern in patterns {
-    next = match pattern {
-      Binder(binder) =>
-        state_write_path(next, { root: binder.name, segments: [] }, value)
-      Pattern(pattern) => bind_lex_pattern(pattern, value, next)
-      Wildcard(..) => next
+    next = match pattern.kind {
+      LexTopPattern_Binder =>
+        if node_first_child(pattern) is Some(binder) {
+          bind_binder(binder, value, next)
+        } else {
+          next
+        }
+      LexTopPattern_Pattern =>
+        if node_first_child(pattern) is Some(pat) {
+          bind_lex_pattern(pat, value, next)
+        } else {
+          next
+        }
+      LexTopPattern_Wildcard => next
+      _ => next
     }
   }
   next
@@ -1578,28 +2020,37 @@ fn bind_lex_top_patterns(
 
 ///|
 fn bind_lex_pattern(
-  pattern : @syntax.LexPattern,
+  pattern : @untyped_ast.Node,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match pattern {
-    Alias(pat~, binder~, ..) => {
-      let next = bind_lex_pattern(pat, value, state)
-      state_write_path(next, { root: binder.name, segments: [] }, value)
+  match pattern.kind {
+    LexPattern_Alias => {
+      let next = if node_child(pattern, "pat") is Some(pat) {
+        bind_lex_pattern(pat, value, state)
+      } else {
+        state
+      }
+      if node_child(pattern, "binder") is Some(binder) {
+        bind_binder(binder, value, next)
+      } else {
+        next
+      }
     }
-    Sequence(pats~, ..) => {
+    LexPattern_Sequence => {
       let mut next = state
-      for pat in pats {
+      for pat in node_child_items(pattern, "pats") {
         next = bind_lex_pattern(pat, value, next)
       }
       next
     }
-    ConstantRef(..) | Regex(..) | RegexInterp(..) => state
+    LexPattern_ConstantRef | LexPattern_Regex | LexPattern_RegexInterp => state
+    _ => state
   }
 }
 
 ///|
-fn regex_pattern_bound_roots(pattern : @syntax.RegexPattern) -> Array[String] {
+fn regex_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
   let roots : Array[String] = []
   add_regex_pattern_bound_roots(roots, pattern)
   roots
@@ -1608,29 +2059,37 @@ fn regex_pattern_bound_roots(pattern : @syntax.RegexPattern) -> Array[String] {
 ///|
 fn add_regex_pattern_bound_roots(
   roots : Array[String],
-  pattern : @syntax.RegexPattern,
+  pattern : @untyped_ast.Node,
 ) -> Unit {
-  match pattern {
-    Alias(pat~, binder~, ..) => {
-      add_regex_pattern_bound_roots(roots, pat)
-      add_binder_root_name(roots, binder)
+  match pattern.kind {
+    RegexPattern_Alias => {
+      if node_child(pattern, "pat") is Some(pat) {
+        add_regex_pattern_bound_roots(roots, pat)
+      }
+      if node_child(pattern, "binder") is Some(binder) {
+        add_binder_root_name(roots, binder)
+      }
     }
-    Alternation(pat1~, pat2~, ..) | Sequence(pat1~, pat2~, ..) => {
-      add_regex_pattern_bound_roots(roots, pat1)
-      add_regex_pattern_bound_roots(roots, pat2)
+    RegexPattern_Alternation | RegexPattern_Sequence => {
+      if node_child(pattern, "pat1") is Some(pat1) {
+        add_regex_pattern_bound_roots(roots, pat1)
+      }
+      if node_child(pattern, "pat2") is Some(pat2) {
+        add_regex_pattern_bound_roots(roots, pat2)
+      }
     }
-    Literal(..) | Reference(..) => ()
+    RegexPattern_Literal | RegexPattern_Reference => ()
+    _ => ()
   }
 }
 
 ///|
 fn regex_bindings_bound_roots(
-  bindings : @list.List[(@syntax.Label, @syntax.Binder?)],
+  bindings : Array[@untyped_ast.Node],
 ) -> Array[String] {
   let roots : Array[String] = []
   for binding in bindings {
-    let (_label, binder) = binding
-    if binder is Some(binder) {
+    if node_optional_child(binding, "binder") is Some(binder) {
       add_binder_root_name(roots, binder)
     }
   }
@@ -1639,37 +2098,57 @@ fn regex_bindings_bound_roots(
 
 ///|
 fn bind_regex_pattern(
-  pattern : @syntax.RegexPattern,
+  pattern : @untyped_ast.Node,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match pattern {
-    Alias(pat~, binder~, ..) => {
-      let next = bind_regex_pattern(pat, value, state)
-      state_write_path(next, { root: binder.name, segments: [] }, value)
+  match pattern.kind {
+    RegexPattern_Alias => {
+      let next = if node_child(pattern, "pat") is Some(pat) {
+        bind_regex_pattern(pat, value, state)
+      } else {
+        state
+      }
+      if node_child(pattern, "binder") is Some(binder) {
+        bind_binder(binder, value, next)
+      } else {
+        next
+      }
     }
-    Alternation(pat1~, pat2~, ..) =>
-      state_merge(
-        bind_regex_pattern(pat1, value, state),
-        bind_regex_pattern(pat2, value, state),
-      )
-    Sequence(pat1~, pat2~, ..) =>
-      bind_regex_pattern(pat2, value, bind_regex_pattern(pat1, value, state))
-    Literal(..) | Reference(..) => state
+    RegexPattern_Alternation =>
+      match (node_child(pattern, "pat1"), node_child(pattern, "pat2")) {
+        (Some(pat1), Some(pat2)) =>
+          state_merge(
+            bind_regex_pattern(pat1, value, state),
+            bind_regex_pattern(pat2, value, state),
+          )
+        _ => state
+      }
+    RegexPattern_Sequence =>
+      match (node_child(pattern, "pat1"), node_child(pattern, "pat2")) {
+        (Some(pat1), Some(pat2)) =>
+          bind_regex_pattern(
+            pat2,
+            value,
+            bind_regex_pattern(pat1, value, state),
+          )
+        _ => state
+      }
+    RegexPattern_Literal | RegexPattern_Reference => state
+    _ => state
   }
 }
 
 ///|
 fn bind_regex_bindings(
-  bindings : @list.List[(@syntax.Label, @syntax.Binder?)],
+  bindings : Array[@untyped_ast.Node],
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
   let mut next = state
   for binding in bindings {
-    let (_label, binder) = binding
-    if binder is Some(binder) {
-      next = state_write_path(next, { root: binder.name, segments: [] }, value)
+    if node_optional_child(binding, "binder") is Some(binder) {
+      next = bind_binder(binder, value, next)
     }
   }
   next
@@ -1677,9 +2156,9 @@ fn bind_regex_bindings(
 
 ///|
 fn eval_if(
-  cond : @syntax.Expr,
-  ifso : @syntax.Expr,
-  ifnot : @syntax.Expr?,
+  cond : @untyped_ast.Node,
+  ifso : @untyped_ast.Node,
+  ifnot : @untyped_ast.Node?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1727,9 +2206,9 @@ fn merge_branch_results(
 
 ///|
 fn eval_guard(
-  cond : @syntax.Expr,
-  otherwise : @syntax.Expr?,
-  body : @syntax.Expr,
+  cond : @untyped_ast.Node,
+  otherwise : @untyped_ast.Node?,
+  body : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1757,8 +2236,8 @@ fn eval_guard(
 
 ///|
 fn eval_match(
-  scrutinee : @syntax.Expr,
-  cases : @list.List[@syntax.Case],
+  scrutinee : @untyped_ast.Node,
+  cases : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1772,7 +2251,7 @@ fn eval_match(
   let exit_states : Array[TaintState] = []
   let mut exit_flow = FlowNormal
   let mut exit_value : TaintTree = []
-  for case in cases.to_array() {
+  for case in cases {
     let case_result = eval_pattern_case(
       case,
       scrutinee_result.value,
@@ -1802,19 +2281,27 @@ fn eval_match(
 
 ///|
 fn eval_pattern_case(
-  case : @syntax.Case,
+  case : @untyped_ast.Node,
   value : TaintTree,
   base_state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let roots = pattern_bound_roots(case.pattern)
-  let bound = bind_pattern(case.pattern, value, base_state)
-  let result = if case.guard_ is Some(guard_expr) {
+  let pattern = match node_child(case, "pattern") {
+    Some(pattern) => pattern
+    None => return normal_result(base_state, [])
+  }
+  let body = match node_child(case, "body") {
+    Some(body) => body
+    None => return normal_result(base_state, [])
+  }
+  let roots = pattern_bound_roots(pattern)
+  let bound = bind_pattern(pattern, value, base_state)
+  let result = if node_optional_child(case, "guard") is Some(guard_expr) {
     let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
     if guard_result.flow == FlowNormal {
       restore_result_scoped_roots(
-        eval_expr(case.body, guard_result.true_state, spec, findings),
+        eval_expr(body, guard_result.true_state, spec, findings),
         guard_result.base_state,
         guard_result.bound_roots,
       )
@@ -1826,15 +2313,15 @@ fn eval_pattern_case(
       }
     }
   } else {
-    eval_expr(case.body, bound, spec, findings)
+    eval_expr(body, bound, spec, findings)
   }
   restore_result_scoped_roots(result, base_state, roots)
 }
 
 ///|
 fn eval_lex_match(
-  scrutinee : @syntax.Expr,
-  cases : @list.List[@syntax.LexCase],
+  scrutinee : @untyped_ast.Node,
+  cases : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1848,7 +2335,7 @@ fn eval_lex_match(
   let exit_states : Array[TaintState] = []
   let mut exit_flow = FlowNormal
   let mut exit_value : TaintTree = []
-  for case in cases.to_array() {
+  for case in cases {
     let case_result = eval_lex_case(
       case,
       scrutinee_result.value,
@@ -1878,28 +2365,30 @@ fn eval_lex_match(
 
 ///|
 fn eval_lex_case(
-  case : @syntax.LexCase,
+  case : @untyped_ast.Node,
   value : TaintTree,
   base_state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
+  let patterns = node_child_items(case, "pat")
   let pattern_result = eval_lex_top_pattern_exprs(
-    case.pat,
-    base_state,
-    spec,
-    findings,
+    patterns, base_state, spec, findings,
   )
   if pattern_result.flow != FlowNormal {
     return pattern_result
   }
-  let roots = lex_top_patterns_bound_roots(case.pat)
-  let bound = bind_lex_top_patterns(case.pat, value, pattern_result.state)
-  let result = if case.guard_ is Some(guard_expr) {
+  let body = match node_child(case, "body") {
+    Some(body) => body
+    None => return normal_result(pattern_result.state, [])
+  }
+  let roots = lex_top_patterns_bound_roots(patterns)
+  let bound = bind_lex_top_patterns(patterns, value, pattern_result.state)
+  let result = if node_optional_child(case, "guard") is Some(guard_expr) {
     let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
     if guard_result.flow == FlowNormal {
       restore_result_scoped_roots(
-        eval_expr(case.body, guard_result.true_state, spec, findings),
+        eval_expr(body, guard_result.true_state, spec, findings),
         guard_result.base_state,
         guard_result.bound_roots,
       )
@@ -1911,16 +2400,16 @@ fn eval_lex_case(
       }
     }
   } else {
-    eval_expr(case.body, bound, spec, findings)
+    eval_expr(body, bound, spec, findings)
   }
   restore_result_scoped_roots(result, pattern_result.state, roots)
 }
 
 ///|
 fn eval_try(
-  body : @syntax.Expr,
-  catch_ : @list.List[@syntax.Case],
-  try_else : @list.List[@syntax.Case]?,
+  body : @untyped_ast.Node,
+  catch_ : Array[@untyped_ast.Node],
+  try_else : @untyped_ast.Node?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1936,7 +2425,7 @@ fn eval_try(
   }
   let branch_states : Array[TaintState] = [body_result.state]
   let mut branch_value = body_result.value
-  for case in catch_.to_array() {
+  for case in catch_ {
     let result = eval_pattern_case(case, [], body_result.state, spec, findings)
     if result.flow == FlowNormal {
       branch_states.push(result.state)
@@ -1944,7 +2433,7 @@ fn eval_try(
     }
   }
   if try_else is Some(cases) {
-    for case in cases.to_array() {
+    for case in node_items(cases) {
       let result = eval_pattern_case(
         case,
         body_result.value,
@@ -1964,7 +2453,7 @@ fn eval_try(
 ///|
 fn eval_catch_cases(
   raised : EvalResult,
-  catch_ : @list.List[@syntax.Case],
+  catch_ : Array[@untyped_ast.Node],
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
@@ -1973,7 +2462,7 @@ fn eval_catch_cases(
   let exit_states : Array[TaintState] = []
   let mut exit_flow = FlowRaise
   let mut exit_value = raised.value
-  for case in catch_.to_array() {
+  for case in catch_ {
     let case_result = eval_pattern_case(
       case,
       raised.value,
@@ -2003,9 +2492,9 @@ fn eval_catch_cases(
 
 ///|
 fn eval_while(
-  loop_cond : @syntax.Expr,
-  loop_body : @syntax.Expr,
-  while_else : @syntax.Expr?,
+  loop_cond : @untyped_ast.Node,
+  loop_body : @untyped_ast.Node,
+  while_else : @untyped_ast.Node?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2056,11 +2545,11 @@ fn eval_while(
 
 ///|
 fn eval_for(
-  binders : @list.List[(@syntax.Binder, @syntax.Expr)],
-  condition : @syntax.Expr?,
-  continue_block : @list.List[(@syntax.Binder, @syntax.Expr)],
-  body : @syntax.Expr,
-  for_else : @syntax.Expr?,
+  binders : Array[@untyped_ast.Node],
+  condition : @untyped_ast.Node?,
+  continue_block : Array[@untyped_ast.Node],
+  body : @untyped_ast.Node,
+  for_else : @untyped_ast.Node?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2068,20 +2557,20 @@ fn eval_for(
   let loop_roots : Array[String] = []
   let mut loop_base = state
   let mut current = state
-  for pair in binders.to_array() {
-    let (binder, expr) = pair
-    let result = eval_expr(expr, current, spec, findings)
-    if result.flow != FlowNormal {
-      return restore_result_scoped_roots(result, loop_base, loop_roots)
+  for pair in binders {
+    match (node_child(pair, "binder"), node_child(pair, "expr")) {
+      (Some(binder), Some(expr)) => {
+        let result = eval_expr(expr, current, spec, findings)
+        if result.flow != FlowNormal {
+          return restore_result_scoped_roots(result, loop_base, loop_roots)
+        }
+        current = result.state
+        loop_base = restore_scoped_roots(loop_base, current, loop_roots)
+        add_binder_root_name(loop_roots, binder)
+        current = bind_binder(binder, result.value, current)
+      }
+      _ => ()
     }
-    current = result.state
-    loop_base = restore_scoped_roots(loop_base, current, loop_roots)
-    add_binder_root_name(loop_roots, binder)
-    current = state_write_path(
-      current,
-      { root: binder.name, segments: [] },
-      result.value,
-    )
   }
   let mut iteration = 0
   // `for` uses the same bounded fixpoint strategy as `while`. Loop binders stay
@@ -2129,30 +2618,32 @@ fn eval_for(
       break
     }
     let mut next = raw_body_result.state
-    for pair in continue_block.to_array() {
-      let (binder, expr) = pair
-      let result = eval_expr(expr, next, spec, findings)
-      if result.flow != FlowNormal {
-        let restored = restore_result_scoped_roots(
-          result,
-          cond_result.base_state,
-          cond_result.bound_roots,
-        )
-        return restore_result_scoped_roots(restored, loop_base, loop_roots)
+    for pair in continue_block {
+      match (node_child(pair, "binder"), node_child(pair, "expr")) {
+        (Some(binder), Some(expr)) => {
+          let result = eval_expr(expr, next, spec, findings)
+          if result.flow != FlowNormal {
+            let restored = restore_result_scoped_roots(
+              result,
+              cond_result.base_state,
+              cond_result.bound_roots,
+            )
+            return restore_result_scoped_roots(restored, loop_base, loop_roots)
+          }
+          next = result.state
+          let base_candidate = restore_scoped_roots(
+            cond_result.base_state,
+            next,
+            cond_result.bound_roots,
+          )
+          loop_base = restore_scoped_roots(
+            loop_base, base_candidate, loop_roots,
+          )
+          add_binder_root_name(loop_roots, binder)
+          next = bind_binder(binder, result.value, next)
+        }
+        _ => ()
       }
-      next = result.state
-      let base_candidate = restore_scoped_roots(
-        cond_result.base_state,
-        next,
-        cond_result.bound_roots,
-      )
-      loop_base = restore_scoped_roots(loop_base, base_candidate, loop_roots)
-      add_binder_root_name(loop_roots, binder)
-      next = state_write_path(
-        next,
-        { root: binder.name, segments: [] },
-        result.value,
-      )
     }
     next = restore_scoped_roots(
       cond_result.base_state,
@@ -2183,12 +2674,12 @@ fn eval_for(
 
 ///|
 fn eval_for_each(
-  binders : @list.List[@syntax.Binder?],
-  collection : @syntax.Expr,
-  init : @list.List[(@syntax.Binder, @syntax.Expr)],
-  continue_block : @list.List[(@syntax.Binder, @syntax.Expr)],
-  body : @syntax.Expr,
-  else_block : @syntax.Expr?,
+  binders : Array[@untyped_ast.Node],
+  collection : @untyped_ast.Node,
+  init : Array[@untyped_ast.Node],
+  continue_block : Array[@untyped_ast.Node],
+  body : @untyped_ast.Node,
+  else_block : @untyped_ast.Node?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2200,28 +2691,28 @@ fn eval_for_each(
   let loop_roots : Array[String] = []
   let mut loop_base = collection_result.state
   let mut current = collection_result.state
-  for pair in init.to_array() {
-    let (binder, expr) = pair
-    let result = eval_expr(expr, current, spec, findings)
-    if result.flow != FlowNormal {
-      return restore_result_scoped_roots(result, loop_base, loop_roots)
+  for pair in init {
+    match (node_child(pair, "init"), node_child(pair, "expr")) {
+      (Some(binder), Some(expr)) => {
+        let result = eval_expr(expr, current, spec, findings)
+        if result.flow != FlowNormal {
+          return restore_result_scoped_roots(result, loop_base, loop_roots)
+        }
+        current = result.state
+        loop_base = restore_scoped_roots(loop_base, current, loop_roots)
+        add_binder_root_name(loop_roots, binder)
+        current = bind_binder(binder, result.value, current)
+      }
+      _ => ()
     }
-    current = result.state
-    loop_base = restore_scoped_roots(loop_base, current, loop_roots)
-    add_binder_root_name(loop_roots, binder)
-    current = state_write_path(
-      current,
-      { root: binder.name, segments: [] },
-      result.value,
-    )
   }
-  for binder in binders.to_array() {
-    if binder is Some(binder) {
+  for binder in binders {
+    if !node_is_null(binder) {
       add_binder_root_name(loop_roots, binder)
-      current = state_write_path(
-        current,
-        { root: binder.name, segments: [] },
+      current = bind_binder(
+        binder,
         tree_project_for_binding(collection_result.value, AnyIndex),
+        current,
       )
     }
   }
@@ -2238,20 +2729,20 @@ fn eval_for_each(
       break
     }
     let mut next = body_result.state
-    for pair in continue_block.to_array() {
-      let (binder, expr) = pair
-      let result = eval_expr(expr, next, spec, findings)
-      if result.flow != FlowNormal {
-        return restore_result_scoped_roots(result, loop_base, loop_roots)
+    for pair in continue_block {
+      match (node_child(pair, "binder"), node_child(pair, "expr")) {
+        (Some(binder), Some(expr)) => {
+          let result = eval_expr(expr, next, spec, findings)
+          if result.flow != FlowNormal {
+            return restore_result_scoped_roots(result, loop_base, loop_roots)
+          }
+          next = result.state
+          loop_base = restore_scoped_roots(loop_base, next, loop_roots)
+          add_binder_root_name(loop_roots, binder)
+          next = bind_binder(binder, result.value, next)
+        }
+        _ => ()
       }
-      next = result.state
-      loop_base = restore_scoped_roots(loop_base, next, loop_roots)
-      add_binder_root_name(loop_roots, binder)
-      next = state_write_path(
-        next,
-        { root: binder.name, segments: [] },
-        result.value,
-      )
     }
     let joined = state_merge(current, next)
     if state_equiv(joined, current) {
@@ -2277,108 +2768,162 @@ fn eval_for_each(
 
 ///|
 fn eval_unknown_expr(
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  match expr {
-    Infix(lhs~, rhs~, ..) => eval_children([lhs, rhs], state, spec, findings)
-    Unary(expr~, ..) => eval_expr(expr, state, spec, findings)
-    As(expr~, ..)
-    | TryOperator(body=expr, ..)
-    | ProofAssert(expr~, ..)
-    | TemplateWriting(expr~, ..) => eval_expr(expr, state, spec, findings)
-    ArraySet(array~, index~, value~, ..)
-    | ArrayAugmentedSet(array~, index~, value~, ..) =>
-      eval_children([array, index, value], state, spec, findings)
-    ArrayGetSlice(array~, start_index~, end_index~, ..) => {
-      let children : Array[@syntax.Expr] = [array]
-      if start_index is Some(expr) {
-        children.push(expr)
-      }
-      if end_index is Some(expr) {
-        children.push(expr)
-      }
-      eval_children(children, state, spec, findings)
-    }
-    Defer(expr~, body~, ..) =>
-      eval_children([expr, body], state, spec, findings)
-    Guard(cond~, otherwise~, body~, ..) =>
-      eval_guard(cond, otherwise, body, state, spec, findings)
-    Is(expr~, ..) | RegexMatch(expr~, ..) =>
-      eval_expr(expr, state, spec, findings)
-    IsLexMatch(expr~, pat~, ..) => {
-      let matched = eval_expr(expr, state, spec, findings)
-      if matched.flow != FlowNormal {
-        return matched
-      }
-      let pattern_result = eval_lex_top_pattern_exprs(
-        pat,
-        matched.state,
+  match expr.kind {
+    Expr_Infix =>
+      eval_children(
+        node_children_by_names(expr, ["lhs", "rhs"]),
+        state,
         spec,
         findings,
       )
-      if pattern_result.flow != FlowNormal {
-        return pattern_result
+    Expr_Unary =>
+      match node_child(expr, "expr") {
+        Some(inner) => eval_expr(inner, state, spec, findings)
+        None => normal_result(state, [])
       }
-      normal_result(pattern_result.state, matched.value)
-    }
-    Interp(elems~, ..) => {
-      let mut current = state
-      let mut value : TaintTree = []
-      for elem in elems.to_array() {
-        match elem {
-          Expr(expr~, ..) => {
-            let result = eval_expr(expr, current, spec, findings)
-            if result.flow != FlowNormal {
-              return result
-            }
-            current = result.state
-            value = tree_merge(value, result.value)
+    Expr_As | Expr_TryOperator | Expr_ProofAssert | Expr_TemplateWriting =>
+      match node_child(expr, "expr") {
+        Some(inner) => eval_expr(inner, state, spec, findings)
+        None =>
+          match node_child(expr, "body") {
+            Some(body) => eval_expr(body, state, spec, findings)
+            None => normal_result(state, [])
           }
-          Literal(..) | Source(_) => ()
-        }
       }
-      normal_result(current, value)
-    }
-    Map(elems~, ..) => {
+    Expr_ArraySet | Expr_ArrayAugmentedSet =>
+      eval_children(
+        node_children_by_names(expr, ["array", "index", "value"]),
+        state,
+        spec,
+        findings,
+      )
+    Expr_ArrayGetSlice =>
+      eval_children(
+        node_optional_children_by_names(expr, [
+          "array", "start_index", "end_index",
+        ]),
+        state,
+        spec,
+        findings,
+      )
+    Expr_Defer =>
+      eval_children(
+        node_children_by_names(expr, ["expr", "body"]),
+        state,
+        spec,
+        findings,
+      )
+    Expr_Guard =>
+      match (node_child(expr, "cond"), node_child(expr, "body")) {
+        (Some(cond), Some(body)) =>
+          eval_guard(
+            cond,
+            node_optional_child(expr, "otherwise"),
+            body,
+            state,
+            spec,
+            findings,
+          )
+        _ => normal_result(state, [])
+      }
+    Expr_Is | Expr_RegexMatch =>
+      match node_child(expr, "expr") {
+        Some(inner) => eval_expr(inner, state, spec, findings)
+        None => normal_result(state, [])
+      }
+    Expr_IsLexmatch =>
+      match node_child(expr, "expr") {
+        Some(inner) => {
+          let matched = eval_expr(inner, state, spec, findings)
+          if matched.flow != FlowNormal {
+            return matched
+          }
+          let pattern_result = eval_lex_top_pattern_exprs(
+            node_child_items(expr, "pat"),
+            matched.state,
+            spec,
+            findings,
+          )
+          if pattern_result.flow != FlowNormal {
+            return pattern_result
+          }
+          normal_result(pattern_result.state, matched.value)
+        }
+        None => normal_result(state, [])
+      }
+    Expr_Interp =>
+      eval_interp_elems(node_child_items(expr, "elems"), state, spec, findings)
+    Expr_Map => {
       let mut current = state
       let mut value : TaintTree = []
-      for elem in elems.to_array() {
-        let result = eval_expr(elem.expr, current, spec, findings)
-        if result.flow != FlowNormal {
-          return result
+      for elem in node_child_items(expr, "elems") {
+        if node_child(elem, "expr") is Some(child) {
+          let result = eval_expr(child, current, spec, findings)
+          if result.flow != FlowNormal {
+            return result
+          }
+          current = result.state
+          value = tree_merge(value, result.value)
         }
-        current = result.state
-        value = tree_merge(value, result.value)
       }
       normal_result(current, value)
     }
-    RecordUpdate(record~, fields~, ..) => {
-      let base = eval_expr(record, state, spec, findings)
-      if base.flow != FlowNormal {
-        return base
+    Expr_RecordUpdate =>
+      match node_child(expr, "record") {
+        Some(record) => {
+          let base = eval_expr(record, state, spec, findings)
+          if base.flow != FlowNormal {
+            return base
+          }
+          eval_record_expr(
+            node_child_items(expr, "fields"),
+            base.state,
+            spec,
+            findings,
+          )
+        }
+        None => normal_result(state, [])
       }
-      eval_record_expr(fields, base.state, spec, findings)
-    }
     _ => normal_result(state, [])
   }
 }
 
 ///|
-fn eval_expr_list(
-  exprs : @list.List[@syntax.Expr],
-  state : TaintState,
-  spec : TaintSpec,
-  findings : Array[SinkFinding],
-) -> EvalResult {
-  eval_children(exprs.to_array(), state, spec, findings)
+fn node_children_by_names(
+  node : @untyped_ast.Node,
+  names : Array[String],
+) -> Array[@untyped_ast.Node] {
+  let children : Array[@untyped_ast.Node] = []
+  for name in names {
+    if node_child(node, name) is Some(child) {
+      children.push(child)
+    }
+  }
+  children
+}
+
+///|
+fn node_optional_children_by_names(
+  node : @untyped_ast.Node,
+  names : Array[String],
+) -> Array[@untyped_ast.Node] {
+  let children : Array[@untyped_ast.Node] = []
+  for name in names {
+    if node_optional_child(node, name) is Some(child) {
+      children.push(child)
+    }
+  }
+  children
 }
 
 ///|
 fn eval_children(
-  children : Array[@syntax.Expr],
+  children : Array[@untyped_ast.Node],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],

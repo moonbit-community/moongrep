@@ -2,15 +2,15 @@
 package "moonbit-community/moongrep/taint"
 
 import {
+  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/core/debug",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser/syntax",
 }
 
 // Values
-pub fn analyze_function_like(@syntax.Impl, TaintSpec) -> AnalysisResult raise
+pub fn analyze_function_like(@untyped_ast.Node, TaintSpec) -> AnalysisResult raise
 
-pub fn analyze_function_like_multi(@syntax.Impl, Array[TaintSpec]) -> Array[AnalysisResult] raise
+pub fn analyze_function_like_multi(@untyped_ast.Node, Array[TaintSpec]) -> Array[AnalysisResult] raise
 
 // Errors
 pub suberror TaintAnalysisError {
@@ -28,7 +28,7 @@ pub(all) struct AnalysisResult {
 pub(all) struct CallArgument {
   index : Int
   label : String?
-  expr : @syntax.Expr
+  expr : @untyped_ast.Node
   loc : @basic.Location
   path : StoragePath?
   site : ValueSite
@@ -48,7 +48,7 @@ pub(all) enum CallEffect {
 
 pub(all) struct CallInfo {
   kind : CallKind
-  ast : @syntax.Expr
+  ast : @untyped_ast.Node
   loc : @basic.Location
   callee_name : String?
   receiver_path : StoragePath?

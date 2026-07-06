@@ -1,8 +1,6 @@
 import {
-  "moonbit-community/moongrep/rule/syntax_id" @id,
-  "moonbitlang/core/list",
+  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser/syntax",
   "moonbitlang/core/debug",
 }
 

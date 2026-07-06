@@ -4,11 +4,9 @@ import {
   "moonbit-community/moongrep/untyped_ast",
   "moonbit-community/moongrep/taint",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser/syntax",
 }
 
 import {
   "moonbit-community/moongrep/rule/compile",
   "moonbitlang/parser",
-  "moonbitlang/parser/syntax",
 } for "wbtest"

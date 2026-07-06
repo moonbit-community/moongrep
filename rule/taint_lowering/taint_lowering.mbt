@@ -98,10 +98,9 @@ fn transfer_compiled_taint_call(
 ///|
 fn taint_pattern_matches(
   pattern : CompiledRulePattern,
-  expr : @syntax.Expr,
+  node : @untyped_ast.Node,
 ) -> Bool {
-  @matching.match_expr_pattern(pattern.compiled, @untyped_ast.from_expr(expr))
-  is Some(_)
+  @matching.match_expr_pattern(pattern.compiled, node) is Some(_)
 }
 
 ///|
