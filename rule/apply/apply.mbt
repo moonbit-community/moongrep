@@ -792,6 +792,40 @@ fn visit_node_scoped_expr_children(
       }
       visit_node_named_expr(expr, "body", body_shadowed, visitor)
     }
+    Expr_Infix =>
+      if node_infix_op(expr, "&&") {
+        visit_node_named_expr(expr, "lhs", shadowed, visitor)
+        let rhs_shadowed = shadowed_with_node_condition_child(
+          shadowed, expr, "lhs",
+        )
+        visit_node_named_expr(expr, "rhs", rhs_shadowed, visitor)
+      } else {
+        visit_node_all_child_exprs(expr, shadowed, visitor)
+      }
+    Expr_If => {
+      visit_node_named_expr(expr, "cond", shadowed, visitor)
+      let true_shadowed = shadowed_with_node_condition_child(
+        shadowed, expr, "cond",
+      )
+      visit_node_named_expr(expr, "ifso", true_shadowed, visitor)
+      visit_node_named_expr(expr, "ifnot", shadowed, visitor)
+    }
+    Expr_Guard => {
+      visit_node_named_expr(expr, "cond", shadowed, visitor)
+      let true_shadowed = shadowed_with_node_condition_child(
+        shadowed, expr, "cond",
+      )
+      visit_node_named_expr(expr, "otherwise", shadowed, visitor)
+      visit_node_named_expr(expr, "body", true_shadowed, visitor)
+    }
+    Expr_While => {
+      visit_node_named_expr(expr, "loop_cond", shadowed, visitor)
+      let true_shadowed = shadowed_with_node_condition_child(
+        shadowed, expr, "loop_cond",
+      )
+      visit_node_named_expr(expr, "loop_body", true_shadowed, visitor)
+      visit_node_named_expr(expr, "while_else", shadowed, visitor)
+    }
     Expr_For => {
       visit_node_binding_list_exprs(expr, "binders", shadowed, visitor)
       let loop_shadowed = if node_child(expr, "binders") is Some(binders) {
@@ -800,10 +834,13 @@ fn visit_node_scoped_expr_children(
         copy_names(shadowed)
       }
       visit_node_named_expr(expr, "condition", loop_shadowed, visitor)
-      visit_node_binding_list_exprs(
-        expr, "continue_block", loop_shadowed, visitor,
+      let true_shadowed = shadowed_with_node_condition_child(
+        loop_shadowed, expr, "condition",
       )
-      visit_node_named_expr(expr, "body", loop_shadowed, visitor)
+      visit_node_binding_list_exprs(
+        expr, "continue_block", true_shadowed, visitor,
+      )
+      visit_node_named_expr(expr, "body", true_shadowed, visitor)
       visit_node_named_expr(expr, "for_else", loop_shadowed, visitor)
       visit_node_named_container_exprs(
         expr, "where_clause", loop_shadowed, visitor,
@@ -844,7 +881,10 @@ fn visit_node_scoped_expr_children(
         copy_names(shadowed)
       }
       visit_node_named_expr(expr, "guard", body_shadowed, visitor)
-      visit_node_named_expr(expr, "body", body_shadowed, visitor)
+      let guard_shadowed = shadowed_with_node_condition_child(
+        body_shadowed, expr, "guard",
+      )
+      visit_node_named_expr(expr, "body", guard_shadowed, visitor)
     }
     Expr_Function =>
       if node_child(expr, "func") is Some(func) {
@@ -992,7 +1032,10 @@ fn visit_node_case_container_exprs(
       copy_names(shadowed)
     }
     visit_node_named_expr(case, "guard", case_shadowed, visitor)
-    visit_node_named_expr(case, "body", case_shadowed, visitor)
+    let body_shadowed = shadowed_with_node_condition_child(
+      case_shadowed, case, "guard",
+    )
+    visit_node_named_expr(case, "body", body_shadowed, visitor)
   }
 }
 
@@ -1012,7 +1055,10 @@ fn visit_node_lex_case_list_exprs(
         copy_names(shadowed)
       }
       visit_node_named_expr(case, "guard", case_shadowed, visitor)
-      visit_node_named_expr(case, "body", case_shadowed, visitor)
+      let body_shadowed = shadowed_with_node_condition_child(
+        case_shadowed, case, "guard",
+      )
+      visit_node_named_expr(case, "body", body_shadowed, visitor)
     }
   }
 }
@@ -1032,10 +1078,13 @@ fn visit_node_list_comprehension_kind_exprs(
         copy_names(shadowed)
       }
       visit_node_named_expr(kind, "condition", loop_shadowed, visitor)
-      visit_node_binding_list_exprs(
-        kind, "continue_block", loop_shadowed, visitor,
+      let true_shadowed = shadowed_with_node_condition_child(
+        loop_shadowed, kind, "condition",
       )
-      loop_shadowed
+      visit_node_binding_list_exprs(
+        kind, "continue_block", true_shadowed, visitor,
+      )
+      true_shadowed
     }
     Expr_ListComprehension_Kind_Foreach => {
       visit_node_named_expr(kind, "expr", shadowed, visitor)
@@ -1247,6 +1296,58 @@ fn shadowed_with_node_let_and_binders(
 }
 
 ///|
+fn shadowed_with_node_condition_child(
+  shadowed : Array[String],
+  node : @untyped_ast.Node,
+  name : String,
+) -> Array[String] {
+  let next = copy_names(shadowed)
+  if node_child(node, name) is Some(condition) {
+    add_node_condition_binding_names(next, condition)
+  }
+  next
+}
+
+///|
+fn add_node_condition_binding_names(
+  names : Array[String],
+  condition : @untyped_ast.Node,
+) -> Unit {
+  match condition.kind {
+    Expr_Group =>
+      if node_child(condition, "expr") is Some(inner) {
+        add_node_condition_binding_names(names, inner)
+      }
+    Expr_Is =>
+      if node_child(condition, "pat") is Some(pattern) {
+        add_node_pattern_names(names, pattern)
+      }
+    Expr_IsLexmatch =>
+      if node_child(condition, "pat") is Some(patterns) {
+        add_node_pattern_names(names, patterns)
+      }
+    Expr_RegexMatch => {
+      if node_child(condition, "pat") is Some(pattern) {
+        add_node_pattern_names(names, pattern)
+      }
+      if node_child(condition, "bindings") is Some(bindings) {
+        add_node_pattern_names(names, bindings)
+      }
+    }
+    Expr_Infix =>
+      if node_infix_op(condition, "&&") {
+        if node_child(condition, "lhs") is Some(lhs) {
+          add_node_condition_binding_names(names, lhs)
+        }
+        if node_child(condition, "rhs") is Some(rhs) {
+          add_node_condition_binding_names(names, rhs)
+        }
+      }
+    _ => ()
+  }
+}
+
+///|
 fn add_node_binding_list_names(
   names : Array[String],
   bindings : @untyped_ast.Node,
@@ -1338,5 +1439,37 @@ fn node_binder_name(node : @untyped_ast.Node) -> String? {
     node_leaf_string_child(node, "name")
   } else {
     None
+  }
+}
+
+///|
+fn node_infix_op(node : @untyped_ast.Node, op : String) -> Bool {
+  match node_child(node, "op") {
+    Some(op_node) => node_var_name(op_node) == Some(op)
+    None => false
+  }
+}
+
+///|
+fn node_var_name(node : @untyped_ast.Node) -> String? {
+  guard node.kind == Var else { return None }
+  guard node_child(node, "name") is Some(long_ident) else { return None }
+  node_long_ident_name(long_ident)
+}
+
+///|
+fn node_long_ident_name(node : @untyped_ast.Node) -> String? {
+  match node.kind {
+    LongIdent_Ident => node_leaf_string_child(node, "value")
+    LongIdent_Dot =>
+      match
+        (
+          node_leaf_string_child(node, "pkg"),
+          node_leaf_string_child(node, "id"),
+        ) {
+        (Some(pkg), Some(id)) => Some("@\{pkg}.\{id}")
+        _ => None
+      }
+    _ => None
   }
 }
