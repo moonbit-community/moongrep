@@ -12,6 +12,11 @@ fn parse_impls(source : String) -> @list.List[@syntax.Impl] raise {
 }
 
 ///|
+fn parse_root_node(source : String) -> @untyped_ast.Node raise {
+  @untyped_ast.from_impls(parse_impls(source))
+}
+
+///|
 fn compile_rule_source(source : String) -> Array[CompiledRule] raise {
   compile_rules([
     @model.RawRuleSpec::from_str(
@@ -50,8 +55,31 @@ fn apply_structural_rule_findings(
   rule_source : String,
 ) -> Array[RuleFinding] raise {
   let rules = compile_rule_source(rule_source)
-  let impls = parse_impls(source)
-  apply_structural_rules("sample.mbt", impls, rules)
+  apply_structural_rules("sample.mbt", parse_root_node(source), rules)
+}
+
+///|
+test "apply structural rules accepts untyped ast roots" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Any expression.
+    #|patterns:
+    #|  - shape: $(value:exp)
+    #|
+  let source =
+    #|fn sample {
+    #|  target()
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
+  assert_true(hits[0].loc.start.lnum > 0)
 }
 
 ///|
@@ -71,7 +99,7 @@ test "apply structural rule matches repeated subtree once" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -96,7 +124,7 @@ test "apply structural rule supports inline expression metavars" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -123,7 +151,7 @@ test "apply structural rule supports inline identifier metavars" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -147,7 +175,7 @@ test "apply structural rule supports qualified inline identifier metavars" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -172,7 +200,7 @@ test "apply structural rule supports constructor identity metavars" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -197,7 +225,7 @@ test "apply structural rule supports inline constant metavars" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -223,7 +251,7 @@ test "apply structural id guard filters matches" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -252,7 +280,7 @@ test "apply structural const guard filters strings numbers and bools" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 3)
@@ -279,7 +307,7 @@ test "apply structural multiple guards use and semantics" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -306,7 +334,7 @@ test "apply inside expr and inner guards filter inherited bindings" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -335,7 +363,7 @@ test "apply structural rule matches guards inside expr" {
     #|}
     #|
   let rules = compile_rule_source(rule_source)
-  let impls = parse_impls(source)
+  let impls = parse_root_node(source)
   let hits = apply_structural_rules("sample.mbt", impls, rules)
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
@@ -357,7 +385,7 @@ test "inside expr reports nested target locations" {
     #|}
     #|
   let rules = compile_rule_source(rule_source)
-  let impls = parse_impls(source)
+  let impls = parse_root_node(source)
   let hits = apply_structural_rules("sample.mbt", impls, rules)
   assert_eq(hits.length(), 1)
   assert_true(hits[0].outer_loc is Some(_))
@@ -380,7 +408,7 @@ test "apply structural rule supports inline pattern metavars" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -405,7 +433,7 @@ test "apply structural rule treats patterns as ordered alternatives" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 2)
@@ -918,7 +946,7 @@ test "apply structural root patterns preserve pattern indexes" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   let pattern_indices : Array[Int] = []
@@ -947,7 +975,7 @@ test "inside expr preserves source order and outer locations" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 2)
@@ -981,7 +1009,7 @@ test "apply structural rule supports inside expr inherited bindings" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1005,7 +1033,7 @@ test "inside expr plain names do not reference inherited bindings" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 0)
@@ -1029,7 +1057,7 @@ test "apply structural rule inherits inside expr identifier bindings" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1148,7 +1176,7 @@ test "inside expr traverses guard target children" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1172,7 +1200,7 @@ test "inside expr traverses reverse pipe target children" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1196,7 +1224,7 @@ test "inside expr traverses list comprehension target children" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1217,7 +1245,7 @@ test "apply structural rule visits top let definitions" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1357,7 +1385,7 @@ test "apply taint rule supports inline constant metavars" {
     #|
   let hits = apply_taint_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1380,7 +1408,7 @@ test "apply structural rule matches let pattern header with omitted body" {
     #|
   let hits = apply_structural_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1406,7 +1434,7 @@ test "apply taint rule reports source reaching sink" {
     #|
   let hits = apply_taint_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1437,7 +1465,7 @@ test "default taint matcher applies source sink and sanitizer patterns" {
     #|
   let hits = apply_taint_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1466,7 +1494,7 @@ test "apply taint rule supports inline identifier metavars" {
     #|
   let hits = apply_taint_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
@@ -1495,7 +1523,7 @@ test "apply taint rule sanitizer suppresses nested source sink" {
     #|
   let hits = apply_taint_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 0)
@@ -1523,7 +1551,7 @@ test "apply taint rule matches source sink sanitizer" {
     #|}
     #|
   let rules = compile_rule_source(rule_source)
-  let impls = parse_impls(source)
+  let impls = parse_root_node(source)
   let hits = apply_taint_rules("sample.mbt", impls, rules)
   assert_eq(hits.length(), 1)
 }
@@ -1552,7 +1580,7 @@ test "apply taint rule reports receiver and root call targets with sink indexes"
     #|
   let hits = apply_taint_rules(
     "sample.mbt",
-    parse_impls(source),
+    parse_root_node(source),
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 3)

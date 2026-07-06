@@ -2,22 +2,22 @@ import {
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/rule/taint_lowering",
-  "moonbit-community/moongrep/rule/traverse",
   "moonbit-community/moongrep/taint",
   "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser/syntax",
   "moonbitlang/core/hashmap",
-  "moonbitlang/core/list",
 }
 
 import {
   "moonbit-community/moongrep/rule/compile",
+  "moonbitlang/core/list",
   "moonbitlang/parser",
+  "moonbitlang/parser/syntax",
 } for "test"
 
 import {
   "moonbit-community/moongrep/rule/compile",
   "moonbitlang/lexer",
   "moonbitlang/parser/handrolled_parser",
+  "moonbitlang/parser/syntax",
 } for "wbtest"

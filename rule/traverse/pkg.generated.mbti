@@ -2,36 +2,15 @@
 package "moonbit-community/moongrep/rule/traverse"
 
 import {
-  "moonbitlang/parser/syntax",
+  "moonbit-community/moongrep/untyped_ast",
 }
 
 // Values
-pub fn collect_exprs(@syntax.Expr, Array[@syntax.Expr]) -> Unit
-
-pub fn collect_impl_exprs(@syntax.Impl, Array[@syntax.Expr]) -> Unit
-
-pub fn collect_scoped_exprs(@syntax.Expr, Array[ScopedExpr]) -> Unit
-
-pub fn count_supported_name_in_expr(@syntax.Expr, String) -> Int
-
-pub fn visit_impl_scoped_expr_roots(@syntax.Impl, (ScopedExpr) -> Unit) -> Unit
-
-pub fn visit_scoped_expr_children(ScopedExpr, (ScopedExpr) -> Unit) -> Unit
-
-pub fn visit_scoped_exprs(@syntax.Expr, (ScopedExpr) -> ScopedExprVisitAction) -> Unit
+pub fn count_supported_name_in_node(@untyped_ast.Node, String) -> Int
 
 // Errors
 
 // Types and methods
-pub(all) struct ScopedExpr {
-  expr : @syntax.Expr
-  shadowed_names : Array[String]
-}
-
-pub(all) enum ScopedExprVisitAction {
-  VisitContinue
-  VisitPrune
-}
 
 // Type aliases
 

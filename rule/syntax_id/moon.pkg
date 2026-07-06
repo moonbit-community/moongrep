@@ -1,9 +1,0 @@
-import {
-  "moonbitlang/parser/syntax",
-}
-
-import {
-  "moonbitlang/lexer/basic",
-  "moonbitlang/lexer",
-  "moonbitlang/parser/handrolled_parser",
-} for "test"

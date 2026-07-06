@@ -19,6 +19,17 @@ pub fn collect_node_scoped_exprs(
 }
 
 ///|
+pub fn collect_node_scoped_expr_roots(
+  root : Node,
+  exprs : Array[ScopedNodeExpr],
+) -> Unit {
+  visit_node_scoped_expr_roots(root, fn(scoped_expr) {
+    exprs.push(scoped_expr)
+    NodeVisitContinue
+  })
+}
+
+///|
 fn collect_node_scoped_exprs_with_shadow(
   expr : Node,
   shadowed : Array[String],
@@ -43,6 +54,79 @@ pub fn visit_node_scoped_exprs(
 }
 
 ///|
+pub fn visit_node_scoped_expr_roots(
+  root : Node,
+  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+) -> Unit {
+  visit_node_scoped_expr_roots_with_shadow(root, [], visitor)
+}
+
+///|
+fn visit_node_scoped_expr_roots_with_shadow(
+  root : Node,
+  shadowed : Array[String],
+  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+) -> Unit {
+  match root.kind {
+    ImplList => visit_node_root_children(root, shadowed, visitor)
+    Impl_TopExpr | Impl_TopLetDef | Impl_TopTest =>
+      visit_node_root_named_expr(root, "expr", shadowed, visitor)
+    Impl_TopView => visit_node_root_named_expr(root, "body", shadowed, visitor)
+    Impl_TopFuncDef =>
+      visit_node_root_named_expr(root, "decl_body", shadowed, visitor)
+    Impl_TopImpl => visit_node_root_named_expr(root, "body", shadowed, visitor)
+    Impl_TopTypeDef | Impl_TopTrait | Impl_TopImplRelation | Impl_TopUsing => ()
+    DeclBody_DeclBody =>
+      visit_node_root_named_expr(root, "expr", shadowed, visitor)
+    Func_Lambda => visit_node_func_root_exprs(root, shadowed, visitor)
+    _ =>
+      if is_expr_node(root) {
+        visit_node_scoped_exprs_with_shadow(root, shadowed, visitor)
+      } else {
+        visit_node_root_children(root, shadowed, visitor)
+      }
+  }
+}
+
+///|
+fn visit_node_root_named_expr(
+  node : Node,
+  name : String,
+  shadowed : Array[String],
+  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+) -> Unit {
+  if node_child(node, name) is Some(child) {
+    visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_node_root_children(
+  node : Node,
+  shadowed : Array[String],
+  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+) -> Unit {
+  for entry in node.children {
+    let (_, child) = entry
+    visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_node_func_root_exprs(
+  func : Node,
+  shadowed : Array[String],
+  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+) -> Unit {
+  let body_shadowed = if node_child(func, "parameters") is Some(parameters) {
+    shadowed_with_node_parameters(shadowed, parameters)
+  } else {
+    copy_names(shadowed)
+  }
+  visit_node_root_named_expr(func, "body", body_shadowed, visitor)
+}
+
+///|
 fn visit_node_scoped_exprs_with_shadow(
   expr : Node,
   shadowed : Array[String],
@@ -63,7 +147,7 @@ fn visit_node_scoped_exprs_with_shadow(
 }
 
 ///|
-fn visit_node_scoped_expr_children(
+pub fn visit_node_scoped_expr_children(
   expr : Node,
   shadowed : Array[String],
   visitor : (ScopedNodeExpr) -> Unit,

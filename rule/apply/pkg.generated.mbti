@@ -3,18 +3,17 @@ package "moonbit-community/moongrep/rule/apply"
 
 import {
   "moonbit-community/moongrep/rule/model",
-  "moonbitlang/core/list",
-  "moonbitlang/parser/syntax",
+  "moonbit-community/moongrep/untyped_ast",
 }
 
 // Values
-pub fn apply_structural_rules(String, @list.List[@syntax.Impl], Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
+pub fn apply_structural_rules(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
 
-pub fn apply_structural_rules_to_impl(String, @syntax.Impl, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
+pub fn apply_structural_rules_to_node(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
 
-pub fn apply_taint_rules(String, @list.List[@syntax.Impl], Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
+pub fn apply_taint_rules(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
-pub fn apply_taint_rules_to_impl(String, @syntax.Impl, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
+pub fn apply_taint_rules_to_node(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
 // Errors
 
