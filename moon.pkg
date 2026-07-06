@@ -7,6 +7,7 @@ import {
   "moonbit-community/moongrep/rule/load" @rule_load,
   "moonbit-community/moongrep/rule/model" @rule_model,
   "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
+  "moonbit-community/moongrep/untyped_ast",
   "moonbit-community/miniio",
   "moonbitlang/core/argparse",
   "moonbitlang/core/json",

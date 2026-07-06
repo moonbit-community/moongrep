@@ -50,7 +50,7 @@ Expression metavars capture the candidate expression at that position.
 Repeated uses compare the parsed expression structure, ignoring locations.
 
 Identifier metavars store `Identifier(String)`. Expr, var, and pattern values
-go through `rule/syntax_id` normalization where possible. Binder and label
+go through `untyped_ast` normalization helpers where possible. Binder and label
 matching uses the candidate name directly because those nodes already carry the
 short name being compared.
 

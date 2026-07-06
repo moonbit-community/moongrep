@@ -6,9 +6,6 @@ using @rule_model {
 }
 
 ///|
-using @rule_traverse {type ScopedExpr}
-
-///|
 priv suberror QueryError {
   ParseError(source_name~ : String, info~ : String)
 } derive(Debug)
@@ -84,24 +81,29 @@ fn collect_impl_matches(
   node : @syntax.Impl,
   matches : Array[Map[String, @untyped_ast.Node]],
 ) -> Unit {
-  @rule_traverse.visit_impl_scoped_expr_roots(node, fn(scoped_expr) {
-    collect_scoped_expr_matches(pattern, scoped_expr, matches)
+  @untyped_ast.visit_node_scoped_expr_roots(@untyped_ast.from_impl(node), fn(
+    scoped_expr,
+  ) {
+    collect_scoped_node_matches(pattern, scoped_expr, matches)
+    @untyped_ast.NodeVisitAction::NodeVisitPrune
   })
 }
 
 ///|
-fn collect_scoped_expr_matches(
+fn collect_scoped_node_matches(
   pattern : CompiledRulePattern,
-  scoped_expr : ScopedExpr,
+  scoped_expr : @untyped_ast.ScopedNodeExpr,
   matches : Array[Map[String, @untyped_ast.Node]],
 ) -> Unit {
-  let candidate = @untyped_ast.from_expr(scoped_expr.expr)
-  if @matching.match_expr_pattern(pattern.compiled, candidate) is Some(result) {
+  if @matching.match_expr_pattern(pattern.compiled, scoped_expr.expr)
+    is Some(result) {
     matches.push(capture_map_from_bindings(result.bindings))
   } else {
-    @rule_traverse.visit_scoped_expr_children(scoped_expr, fn(child) {
-      collect_scoped_expr_matches(pattern, child, matches)
-    })
+    @untyped_ast.visit_node_scoped_expr_children(
+      scoped_expr.expr,
+      scoped_expr.shadowed_names,
+      fn(child) { collect_scoped_node_matches(pattern, child, matches) },
+    )
   }
 }
 

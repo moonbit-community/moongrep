@@ -135,6 +135,73 @@ fn scoped_expr_ident_shadow_sets(source : String) -> Array[String] raise {
 }
 
 ///|
+fn test_is_expr_kind(kind : NodeKind) -> Bool {
+  match kind {
+    Expr_Apply
+    | Expr_Array
+    | Expr_ArrayAugmentedSet
+    | Expr_ArrayGet
+    | Expr_ArrayGetSlice
+    | Expr_ArraySet
+    | Expr_ArraySpread
+    | Expr_As
+    | Expr_Assign
+    | Expr_Break
+    | Expr_Constant
+    | Expr_Constr
+    | Expr_Constraint
+    | Expr_Continue
+    | Expr_Defer
+    | Expr_DotApply
+    | Expr_Field
+    | Expr_For
+    | Expr_ForEach
+    | Expr_Function
+    | Expr_Group
+    | Expr_Guard
+    | Expr_Hole
+    | Expr_Ident
+    | Expr_If
+    | Expr_Implies
+    | Expr_Infix
+    | Expr_Interp
+    | Expr_Is
+    | Expr_IsLexmatch
+    | Expr_Let
+    | Expr_LetAnd
+    | Expr_LetFn
+    | Expr_LetMut
+    | Expr_Lexmatch
+    | Expr_ListComprehension
+    | Expr_Map
+    | Expr_Match
+    | Expr_Method
+    | Expr_MultilineString
+    | Expr_Mutate
+    | Expr_Pipe
+    | Expr_ProofAssert
+    | Expr_ProofLet
+    | Expr_Quantifier
+    | Expr_Raise
+    | Expr_Record
+    | Expr_RecordUpdate
+    | Expr_RegexMatch
+    | Expr_Return
+    | Expr_RevPipe
+    | Expr_Sequence
+    | Expr_StaticAssert
+    | Expr_TemplateWriting
+    | Expr_Try
+    | Expr_TryOperator
+    | Expr_Tuple
+    | Expr_Unary
+    | Expr_Unit
+    | Expr_While => true
+    _ => false
+  }
+}
+
+///|
 fn test_loc() -> @basic.Location {
   @syntax.no_location
 }
@@ -488,6 +555,23 @@ test "node scoped visitor prune skips children" {
     NodeVisitPrune
   })
   assert_eq(visited.join("|"), "")
+}
+
+///|
+test "node scoped root traversal skips non-expression roots" {
+  let first = parse_test_impl("fn sample { target() }")
+  let second = parse_test_impl("let answer = 42")
+  let root = from_impls(@list.from_array([first, second]))
+  let exprs : Array[ScopedNodeExpr] = []
+  collect_node_scoped_expr_roots(root, exprs)
+  assert_true(exprs.length() > 0)
+  for scoped in exprs {
+    if !test_is_expr_kind(scoped.expr.kind) {
+      fail(
+        "expected only expression nodes, got \{scoped.expr.kind.to_string()}",
+      )
+    }
+  }
 }
 
 ///|

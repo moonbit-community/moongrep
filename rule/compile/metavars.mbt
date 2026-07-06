@@ -1,6 +1,6 @@
 ///|
 priv struct InlineMetavarShape {
-  ast : @syntax.Expr
+  ast : @untyped_ast.Node
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
@@ -20,7 +20,9 @@ fn compile_inline_metavar_shape(
     identifier_metavars: [],
     constant_metavars: [],
   }
-  let ast = ctx.rewrite_expr(parse_shape(path, context, source))
+  let ast = @untyped_ast.from_expr(
+    ctx.rewrite_expr(parse_shape(path, context, source)),
+  )
   let (
     cleaned_expr_metavars,
     cleaned_identifier_metavars,

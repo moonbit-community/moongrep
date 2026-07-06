@@ -12,9 +12,6 @@ using @model {
 using @taint_lowering {lower_compiled_taint_rule}
 
 ///|
-using @traverse {type ScopedExpr}
-
-///|
 priv enum RuleTraversalAction {
   RuleContinue
   RulePrune
@@ -37,38 +34,32 @@ priv struct AstStructuralRuleEntry {
 }
 
 ///|
-/// Applies only structural rules to the supplied parser AST nodes.
+/// Applies only structural rules to the supplied untyped AST root.
 ///
-/// Supported expression subtrees collected by `collect_impl_exprs` and
-/// `collect_exprs` are visited in source-tree order. For a single expression
-/// and rule, the first matching pattern wins and determines `pattern_index`.
+/// Supported expression subtrees are visited in source-tree order. For a
+/// single expression and rule, the first matching pattern wins and determines
+/// `pattern_index`.
 pub fn apply_structural_rules(
   file : String,
-  impls : @list.List[@syntax.Impl],
+  root_node : @untyped_ast.Node,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
-  let hits : Array[RuleFinding] = []
-  for node in impls {
-    let node_hits = apply_structural_rules_to_impl(file, node, rules)
-    for hit in node_hits {
-      hits.push(hit)
-    }
-  }
-  hits
+  apply_structural_rules_to_node(file, root_node, rules)
 }
 
 ///|
-pub fn apply_structural_rules_to_impl(
+pub fn apply_structural_rules_to_node(
   file : String,
-  node : @syntax.Impl,
+  node : @untyped_ast.Node,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
   let entries = ast_structural_rule_entries(rules)
-  @traverse.visit_impl_scoped_expr_roots(node, fn(scoped_expr) {
+  @untyped_ast.visit_node_scoped_expr_roots(node, fn(scoped_expr) {
     apply_ast_structural_rule_entries_to_scoped_expr(
       file, entries, scoped_expr, hits,
     )
+    @untyped_ast.NodeVisitAction::NodeVisitPrune
   })
   hits
 }
@@ -108,7 +99,7 @@ fn ast_structural_rule_entries(
 fn apply_ast_structural_rule_entries_to_scoped_expr(
   file : String,
   entries : Array[AstStructuralRuleEntry],
-  scoped_expr : ScopedExpr,
+  scoped_expr : @untyped_ast.ScopedNodeExpr,
   hits : Array[RuleFinding],
 ) -> Unit {
   let child_entries : Array[AstStructuralRuleEntry] = []
@@ -124,18 +115,22 @@ fn apply_ast_structural_rule_entries_to_scoped_expr(
   if child_entries.length() == 0 {
     return
   }
-  @traverse.visit_scoped_expr_children(scoped_expr, fn(child) {
-    apply_ast_structural_rule_entries_to_scoped_expr(
-      file, child_entries, child, hits,
-    )
-  })
+  @untyped_ast.visit_node_scoped_expr_children(
+    scoped_expr.expr,
+    scoped_expr.shadowed_names,
+    fn(child) {
+      apply_ast_structural_rule_entries_to_scoped_expr(
+        file, child_entries, child, hits,
+      )
+    },
+  )
 }
 
 ///|
 fn apply_ast_structural_rule_entry_to_scoped_expr(
   file : String,
   entry : AstStructuralRuleEntry,
-  scoped_expr : ScopedExpr,
+  scoped_expr : @untyped_ast.ScopedNodeExpr,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
   if entry.structural.inside_expr is Some(inside) {
@@ -152,7 +147,7 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
     )
     RuleContinue
   } else {
-    apply_ast_patterns_at_expr(
+    apply_ast_patterns_at_node(
       file,
       entry.rule,
       entry.pattern_buckets,
@@ -166,18 +161,26 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
 }
 
 ///|
-/// Applies only taint rules to function-like parser AST nodes.
+/// Applies only taint rules to function-like untyped AST nodes.
 ///
 /// Unsupported top-level nodes are ignored. Other taint-analysis errors are
 /// propagated to the caller.
 pub fn apply_taint_rules(
   file : String,
-  impls : @list.List[@syntax.Impl],
+  root_node : @untyped_ast.Node,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
-  for node in impls {
-    let node_hits = apply_taint_rules_to_impl(file, node, rules)
+  if root_node.kind == @untyped_ast.NodeKind::ImplList {
+    for entry in root_node.children {
+      let (_, node) = entry
+      let node_hits = apply_taint_rules_to_node(file, node, rules)
+      for hit in node_hits {
+        hits.push(hit)
+      }
+    }
+  } else {
+    let node_hits = apply_taint_rules_to_node(file, root_node, rules)
     for hit in node_hits {
       hits.push(hit)
     }
@@ -186,17 +189,16 @@ pub fn apply_taint_rules(
 }
 
 ///|
-pub fn apply_taint_rules_to_impl(
+pub fn apply_taint_rules_to_node(
   file : String,
-  node : @syntax.Impl,
+  node : @untyped_ast.Node,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
-  let untyped_node = @untyped_ast.from_impl(node)
   for rule in rules {
     match rule.definition {
       Taint(taint_rule) =>
-        apply_taint_rule_to_impl(file, rule, taint_rule, untyped_node, hits)
+        apply_taint_rule_to_node(file, rule, taint_rule, node, hits)
       _ => ()
     }
   }
@@ -204,7 +206,7 @@ pub fn apply_taint_rules_to_impl(
 }
 
 ///|
-fn apply_taint_rule_to_impl(
+fn apply_taint_rule_to_node(
   file : String,
   rule : CompiledRule,
   taint_rule : CompiledTaintRule,
@@ -249,13 +251,13 @@ fn apply_inside_expr_ast_bucketed(
   inside_root_key : @untyped_ast.NodeKind?,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   hits : Array[RuleFinding],
 ) -> Unit {
-  if !ast_bucket_root_key_matches(inside_root_key, expr) {
+  if !node_root_key_matches(inside_root_key, expr) {
     return
   }
-  if match_ast_rule_pattern(inside, expr, None) is Some(result) {
+  if match_node_rule_pattern(inside, expr, None) is Some(result) {
     if result.bindings.get("__TARGET__") is Some(target) {
       if structural.patterns.is_empty() {
         let target_exprs : Array[@untyped_ast.ScopedNodeExpr] = []
@@ -265,7 +267,7 @@ fn apply_inside_expr_ast_bucketed(
           rule,
           negative_pattern_buckets,
           target_exprs,
-          expr.loc(),
+          expr.loc,
           result.bindings,
           inside.compiled.identifier_metavars,
           hits,
@@ -279,7 +281,7 @@ fn apply_inside_expr_ast_bucketed(
               pattern_buckets,
               negative_pattern_buckets,
               target,
-              Some(expr.loc()),
+              Some(expr.loc),
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
@@ -291,7 +293,7 @@ fn apply_inside_expr_ast_bucketed(
               pattern_buckets,
               negative_pattern_buckets,
               target,
-              Some(expr.loc()),
+              Some(expr.loc),
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
@@ -492,31 +494,31 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
 }
 
 ///|
-fn apply_ast_patterns_at_expr(
+fn apply_ast_patterns_at_node(
   file : String,
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   outer_loc : @basic.Location?,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
-  for indexed in pattern_buckets.patterns_for_expr(expr) {
-    if match_ast_rule_pattern(indexed.pattern, expr, initial_bindings)
+  for indexed in pattern_buckets.patterns_for_node(expr) {
+    if match_node_rule_pattern(indexed.pattern, expr, initial_bindings)
       is Some(_) {
       hits.push({
         file,
         rule_id: rule.rule_id,
         description: rule.description,
         pattern_index: indexed.pattern_index,
-        loc: expr.loc(),
+        loc: expr.loc,
         outer_loc,
       })
       return RulePrune
     }
   }
-  if ast_negative_patterns_match_expr(
+  if ast_negative_patterns_match_node(
       negative_pattern_buckets, expr, initial_bindings,
     ) {
     return RulePrune
@@ -525,13 +527,13 @@ fn apply_ast_patterns_at_expr(
 }
 
 ///|
-fn ast_negative_patterns_match_expr(
+fn ast_negative_patterns_match_node(
   negative_pattern_buckets : ExprPatternBuckets,
-  expr : @syntax.Expr,
+  expr : @untyped_ast.Node,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
 ) -> Bool {
-  for indexed in negative_pattern_buckets.patterns_for_expr(expr) {
-    if match_ast_rule_pattern(indexed.pattern, expr, initial_bindings)
+  for indexed in negative_pattern_buckets.patterns_for_node(expr) {
+    if match_node_rule_pattern(indexed.pattern, expr, initial_bindings)
       is Some(_) {
       return true
     }
@@ -612,19 +614,6 @@ fn names_contain(names : Array[String], needle : String) -> Bool {
     }
   }
   false
-}
-
-///|
-fn match_ast_rule_pattern(
-  pattern : CompiledRulePattern,
-  expr : @syntax.Expr,
-  initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
-) -> @matching.ExprMatch? {
-  match_node_rule_pattern(
-    pattern,
-    @untyped_ast.from_expr(expr),
-    initial_bindings,
-  )
 }
 
 ///|

@@ -69,11 +69,6 @@ fn ast_bucket_is_ignore_placeholder(name : String) -> Bool {
 }
 
 ///|
-fn expr_root_key(expr : @syntax.Expr) -> @untyped_ast.NodeKind {
-  @untyped_ast.from_expr(expr).kind
-}
-
-///|
 fn node_root_key(node : @untyped_ast.Node) -> @untyped_ast.NodeKind {
   node.kind
 }
@@ -125,13 +120,13 @@ fn compiled_pattern_root_key(
 
 ///|
 // Used by `inside-expr` before running the full outer pattern matcher.
-fn ast_bucket_root_key_matches(
+fn node_root_key_matches(
   pattern_key : @untyped_ast.NodeKind?,
-  expr : @syntax.Expr,
+  node : @untyped_ast.Node,
 ) -> Bool {
   match pattern_key {
     None => true
-    Some(key) => key == expr_root_key(expr)
+    Some(key) => key == node_root_key(node)
   }
 }
 
@@ -152,16 +147,6 @@ fn ExprPatternBuckets::from_patterns(
     }
   }
   { wildcard, keyed }
-}
-
-///|
-// Returns only the patterns that could match `expr`, merged in original rule
-// order so caller-visible matching priority does not change.
-fn ExprPatternBuckets::patterns_for_expr(
-  self : ExprPatternBuckets,
-  expr : @syntax.Expr,
-) -> Array[IndexedCompiledRulePattern] {
-  self.patterns_for_node(@untyped_ast.from_expr(expr))
 }
 
 ///|

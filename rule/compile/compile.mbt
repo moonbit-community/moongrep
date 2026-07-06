@@ -22,7 +22,7 @@ using @model {
 using @prefilter {compile_rule_prefilter}
 
 ///|
-using @traverse {count_supported_name_in_expr}
+using @traverse {count_supported_name_in_node}
 
 ///|
 /// Validates and compiles raw YAML rule specs into executable rules.
@@ -70,7 +70,7 @@ fn compile_structural_rule(
       path, "inside-expr", shape,
     )
     let ast = compiled_shape.ast
-    let target_count = count_supported_name_in_expr(ast, "__TARGET__")
+    let target_count = count_supported_name_in_node(ast, "__TARGET__")
     if target_count != 1 {
       raise RuleLoadError::InvalidRule(
         path~,
@@ -132,7 +132,7 @@ fn compile_structural_rule(
       outer_pattern_names,
     )
     let ast = compiled_shape.ast
-    if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
+    if count_supported_name_in_node(ast, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context}.shape must not contain __TARGET__",
@@ -175,7 +175,7 @@ fn compile_structural_rule(
       outer_pattern_names,
     )
     let ast = compiled_shape.ast
-    if count_supported_name_in_expr(ast, "__TARGET__") != 0 {
+    if count_supported_name_in_node(ast, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context}.shape must not contain __TARGET__",
@@ -220,7 +220,7 @@ fn compile_taint_rule(
     )
     let ast = compiled_shape.ast
     ensure_taint_call_shape(path, context, ast)
-    if count_supported_name_in_expr(ast, "__SOURCE__") != 0 {
+    if count_supported_name_in_node(ast, "__SOURCE__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context} must not contain __SOURCE__",
@@ -320,7 +320,7 @@ fn compile_pattern_with_effective_metavars(
   pattern : RulePatternSpec,
   path : String,
   context : String,
-  ast : @syntax.Expr,
+  ast : @untyped_ast.Node,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
@@ -338,7 +338,7 @@ fn compile_pattern_with_effective_metavars(
     pattern_metavars,
   )
   let compiled : @matching.CompiledExprPattern = {
-    ast: @untyped_ast.from_expr(ast),
+    ast,
     expr_metavars,
     identifier_metavars,
     constant_metavars,
@@ -522,10 +522,10 @@ fn ensure_not_inherited_as_other_kind(
 fn ensure_taint_call_shape(
   path : String,
   context : String,
-  ast : @syntax.Expr,
+  ast : @untyped_ast.Node,
 ) -> Unit raise {
-  match ast {
-    Apply(..) | DotApply(..) => ()
+  match ast.kind {
+    Expr_Apply | Expr_DotApply => ()
     _ =>
       raise RuleLoadError::InvalidRule(
         path~,
@@ -538,9 +538,9 @@ fn ensure_taint_call_shape(
 fn require_source_target(
   path : String,
   context : String,
-  ast : @syntax.Expr,
+  ast : @untyped_ast.Node,
 ) -> TaintTarget raise {
-  let count = count_supported_name_in_expr(ast, "__SOURCE__")
+  let count = count_supported_name_in_node(ast, "__SOURCE__")
   if count != 1 {
     raise RuleLoadError::InvalidRule(
       path~,
@@ -558,30 +558,46 @@ fn require_source_target(
 }
 
 ///|
-fn whole_source_target(ast : @syntax.Expr) -> TaintTarget? {
-  match ast {
-    DotApply(self~, args~, ..) =>
-      if is_source_placeholder_expr(self) {
+fn whole_source_target(ast : @untyped_ast.Node) -> TaintTarget? {
+  match ast.kind {
+    Expr_DotApply =>
+      if node_child(ast, "self") is Some(self) &&
+        is_source_placeholder_node(self) {
         Some(Receiver)
       } else {
-        source_target_from_args(args)
+        match node_child(ast, "args") {
+          Some(args) => source_target_from_args(args)
+          None => None
+        }
       }
-    Apply(args~, ..) => source_target_from_args(args)
+    Expr_Apply =>
+      match node_child(ast, "args") {
+        Some(args) => source_target_from_args(args)
+        None => None
+      }
     _ => None
   }
 }
 
 ///|
-fn source_target_from_args(args : @list.List[@syntax.Argument]) -> TaintTarget? {
-  let arr = args.to_array()
-  for index in 0..<arr.length() {
-    if is_source_placeholder_expr(arr[index].value) {
-      return match arr[index].kind {
-        Positional => Some(PositionalArg(index))
-        Labelled(label) | LabelledPun(label) =>
-          Some(LabelledArg(label=label.name, index~))
-        LabelledOption(label~, ..) | LabelledOptionPun(label~, ..) =>
-          Some(LabelledArg(label=label.name, index~))
+fn source_target_from_args(args : @untyped_ast.Node) -> TaintTarget? {
+  for index in 0..<args.children.length() {
+    let (_, argument) = args.children[index]
+    if node_child(argument, "value") is Some(value) &&
+      is_source_placeholder_node(value) {
+      guard node_child(argument, "kind") is Some(kind) else { return None }
+      return match kind.kind {
+        ArgumentKind_Positional => Some(PositionalArg(index))
+        ArgumentKind_Labelled
+        | ArgumentKind_LabelledPun
+        | ArgumentKind_LabelledOption
+        | ArgumentKind_LabelledOptionPun =>
+          if argument_kind_label_name(kind) is Some(label) {
+            Some(LabelledArg(label~, index~))
+          } else {
+            None
+          }
+        _ => None
       }
     }
   }
@@ -589,12 +605,42 @@ fn source_target_from_args(args : @list.List[@syntax.Argument]) -> TaintTarget? 
 }
 
 ///|
-fn is_source_placeholder_expr(expr : @syntax.Expr) -> Bool {
-  match expr {
-    Ident(id~, ..) =>
-      @id.normalize_identifier_name_from_var(id) == Some("__SOURCE__")
-    _ => false
+fn argument_kind_label_name(kind : @untyped_ast.Node) -> String? {
+  match kind.kind {
+    ArgumentKind_Labelled | ArgumentKind_LabelledPun =>
+      if node_child(kind, "value") is Some(label) {
+        label.normalized_label_name()
+      } else {
+        None
+      }
+    ArgumentKind_LabelledOption | ArgumentKind_LabelledOptionPun =>
+      if node_child(kind, "label") is Some(label) {
+        label.normalized_label_name()
+      } else {
+        None
+      }
+    _ => None
   }
+}
+
+///|
+fn is_source_placeholder_node(node : @untyped_ast.Node) -> Bool {
+  if node.kind == Expr_Ident {
+    node.normalized_expr_identifier_name() == Some("__SOURCE__")
+  } else {
+    false
+  }
+}
+
+///|
+fn node_child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
+  for entry in node.children {
+    let (child_name, value) = entry
+    if child_name == Some(name) {
+      return Some(value)
+    }
+  }
+  None
 }
 
 ///|

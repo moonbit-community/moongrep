@@ -41,7 +41,7 @@ expression metavar 会捕获该位置上的候选表达式。重复使用时比�
 并忽略源码位置。
 
 identifier metavar 会存储 `Identifier(String)`。Expr、var 和 pattern 值会在可能时经过
-`rule/syntax_id` 规范化。Binder 和 label 匹配直接使用候选名称，因为这些节点已经携带了用于比较的短名称。
+`untyped_ast` 规范化 helper。Binder 和 label 匹配直接使用候选名称，因为这些节点已经携带了用于比较的短名称。
 
 constant metavar 会存储 `Constant(@syntax.Constant)`。表达式占位符只接受
 `Expr::Constant`，pattern 占位符只接受 `Pattern::Constant`，重复使用时通过

@@ -14,6 +14,11 @@ fn parse_bucket_expr(source : String) -> @syntax.Expr raise {
 }
 
 ///|
+fn parse_bucket_node(source : String) -> @untyped_ast.Node raise {
+  @untyped_ast.from_expr(parse_bucket_expr(source))
+}
+
+///|
 fn compile_bucket_rule_source(source : String) -> CompiledRule raise {
   let rules = compile_rules([
     @model.RawRuleSpec::from_str(
@@ -174,7 +179,7 @@ test "ast bucket merges wildcard and keyed patterns in source order" {
   inspect(
     int_array_signature(
       bucket_pattern_indices(
-        buckets.patterns_for_expr(parse_bucket_expr("target()")),
+        buckets.patterns_for_node(parse_bucket_node("target()")),
       ),
     ),
     content="[0, 1, 4]",
@@ -182,14 +187,14 @@ test "ast bucket merges wildcard and keyed patterns in source order" {
   inspect(
     int_array_signature(
       bucket_pattern_indices(
-        buckets.patterns_for_expr(parse_bucket_expr("value")),
+        buckets.patterns_for_node(parse_bucket_node("value")),
       ),
     ),
     content="[0, 2]",
   )
   inspect(
     int_array_signature(
-      bucket_pattern_indices(buckets.patterns_for_expr(parse_bucket_expr("42"))),
+      bucket_pattern_indices(buckets.patterns_for_node(parse_bucket_node("42"))),
     ),
     content="[0, 3]",
   )

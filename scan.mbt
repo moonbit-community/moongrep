@@ -77,16 +77,17 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
             file_rules, impl_source,
           )
           if !impl_rules.is_empty() {
+            let untyped_node = @untyped_ast.from_impl(node)
             if !impl_has_moongrep_skip(node) {
-              let structural_hits = @rule_apply.apply_structural_rules_to_impl(
-                file, node, impl_rules,
+              let structural_hits = @rule_apply.apply_structural_rules_to_node(
+                file, untyped_node, impl_rules,
               )
               for hit in structural_hits {
                 hits.push(make_scan_hit(source, hit))
               }
             }
-            let taint_hits = @rule_apply.apply_taint_rules_to_impl(
-              file, node, impl_rules,
+            let taint_hits = @rule_apply.apply_taint_rules_to_node(
+              file, untyped_node, impl_rules,
             )
             for hit in taint_hits {
               hits.push(make_scan_hit(source, hit))
