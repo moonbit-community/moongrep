@@ -9,3 +9,9 @@ import {
   "moonbitlang/parser",
   "moonbitlang/parser/syntax",
 }
+
+import {
+  "moonbitlang/core/list",
+  "moonbitlang/lexer",
+  "moonbitlang/parser/handrolled_parser",
+} for "test"
