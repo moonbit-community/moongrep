@@ -87,7 +87,7 @@ let _embed_writingrules_md : String =
   #|  to an outer `id` capture and the path to a candidate expression crosses a
   #|  local binder with the same normalized identifier, that candidate is skipped.
   #|- Inner positive and negative patterns reuse names from `inside-expr` by
-  #|  repeating the same inline metavar form; the same name with a different kind
+  #|  repeating the same metavar form; the same name with a different kind
   #|  is rejected.
   #|- Hits from `inside-expr` rules record `outer_loc` for the context expression
   #|  in addition to `loc` for the inner match. For `inside-expr` rules that only
@@ -137,14 +137,14 @@ let _embed_writingrules_md : String =
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: $(conn:exp).read_request()
+  #|  - shape: $conn.read_request()
   #|```
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
-  #|        $(body:exp)
+  #|      for $counter = $start; $counter < $limit; $counter = $counter + 1 {
+  #|        $body
   #|      }
   #|```
   #|
@@ -166,36 +166,49 @@ let _embed_writingrules_md : String =
   #|does **not** create a metavariable. It matches the literal identifier name
   #|`_expr` on both sides.
   #|
-  #|To capture an expression, write `$(name:exp)` directly in the shape:
+  #|To capture an expression, write bare `$name` directly in the shape:
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: $(expr:exp) == $(expr:exp)
+  #|  - shape: $expr == $expr
   #|```
   #|
-  #|Use `$(name:id)` when the same source-level name must remain consistent between
-  #|its definition and use sites:
+  #|Bare names used only in expression positions infer `exp`. When the same bare
+  #|name appears in binder, label, constructor, type-name, or qualified-identifier
+  #|positions, it infers `id`, which keeps the source-level name consistent between
+  #|definition and use sites:
   #|
   #|```yaml
   #|patterns:
   #|  - shape: |
-  #|      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
-  #|        $(body:exp)
+  #|      for $counter = $start; $counter < $limit; $counter = $counter + 1 {
+  #|        $body
   #|      }
   #|```
   #|
-  #|Use `$(name:const)` when the same literal constant must be consistent and
-  #|variables should not match:
+  #|Use explicit `$(name:kind)` when inference would be ambiguous or when you need
+  #|`const` or `pat`. Use `$(name:const)` when the same literal constant must be
+  #|consistent and variables should not match:
   #|
   #|```yaml
   #|patterns:
   #|  - shape: $(value:const) + $(value:const)
   #|```
   #|
-  #|The `exp` kind is expression-only. The `const` kind is valid only in constant
-  #|expression or constant pattern positions. The `pat` kind is valid only in a
-  #|simple pattern variable position. If you need a non-expression source name, use
-  #|`id` or leave the name literal. Any other kind is a compile error.
+  #|Use `$(name:pat)` for a whole pattern AST capture:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: match input { $(item:pat) => body }
+  #|```
+  #|
+  #|A bare simple pattern variable such as `match input { $item => body }` is
+  #|ambiguous between `id`, `const`, and `pat`, so rule compilation asks you to
+  #|choose explicitly. The `exp` kind is expression-only. The `const` kind is valid
+  #|only in constant expression or constant pattern positions. The `pat` kind is
+  #|valid only in a simple pattern variable position. If you need a non-expression
+  #|source name, use `id` or leave the name literal. Any other kind is a compile
+  #|error.
   #|
   #|The old YAML `metavars` key is invalid.
   #|
@@ -283,17 +296,17 @@ let _embed_writingrules_md : String =
   #|
   #|Rules for `inside-expr`:
   #|
-  #|- it uses the same inline metavar syntax as one structural pattern
+  #|- it uses the same metavar syntax as one structural pattern
   #|- it must place exactly one supported `__TARGET__`; place it where a whole
   #|  expression is expected so runtime traversal can search that subtree
-  #|- `__TARGET__` is reserved and must not be used as an inline metavar name
+  #|- `__TARGET__` is reserved and must not be used as an metavar name
   #|- inner `patterns` and `patterns-not` must not contain `__TARGET__`; the target
   #|  placeholder selects the subtree to search, but it is not a binding available
   #|  to inner shapes
   #|- inherited `id` captures observe lexical shadowing inside the searched target
   #|  subtree
   #|- inner `patterns` and `patterns-not` reference outer captures by repeating the
-  #|  same inline metavar form, such as `$(prefix:exp)`; using the same name with a
+  #|  same metavar form, such as `$(prefix:exp)`; using the same name with a
   #|  different kind is rejected
   #|
   #|### 3.6 Use `patterns-not` to prune blocked branches
@@ -468,7 +481,7 @@ let _embed_writingrules_md : String =
   #|Your snippet is not accepted by the MoonBit expression parser. Reduce it to one
   #|valid expression-sized shape, then build back up carefully.
   #|
-  #|### Rule compilation rejects an inline metavar
+  #|### Rule compilation rejects an metavar
   #|
   #|Check, in order:
   #|

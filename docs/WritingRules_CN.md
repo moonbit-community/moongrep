@@ -74,14 +74,14 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 ```yaml
 patterns:
-  - shape: $(conn:exp).read_request()
+  - shape: $conn.read_request()
 ```
 
 ```yaml
 patterns:
   - shape: |
-      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
-        $(body:exp)
+      for $counter = $start; $counter < $limit; $counter = $counter + 1 {
+        $body
       }
 ```
 
@@ -100,31 +100,38 @@ patterns:
 
 **不会**创建元变量。它匹配两侧字面标识符名称 `_expr`。
 
-如果要捕获一个表达式，请直接在 shape 中写 `$(name:exp)`：
+如果要捕获一个表达式，请直接在 shape 中写裸 `$name`：
 
 ```yaml
 patterns:
-  - shape: $(expr:exp) == $(expr:exp)
+  - shape: $expr == $expr
 ```
 
-当同一个源码层面的名称必须在定义和使用的地方保持一致时, 请使用 `$(name:id)`
+只出现在表达式位置的裸名称会推导为 `exp`。当同一个裸名称出现在 binder、标签、构造器、类型名或限定标识符位置时，它会推导为 `id`，适合让同一个源码层面的名称在定义和使用位置保持一致：
 
 ```yaml
 patterns:
   - shape: |
-      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
-        $(body:exp)
+      for $counter = $start; $counter < $limit; $counter = $counter + 1 {
+        $body
       }
 ```
 
-当同一个字面常量必须保持一致，并且变量不应该匹配时，请使用 `$(name:const)`：
+当推导有歧义，或需要 `const` 或 `pat` 时，请使用显式 `$(name:kind)`。当同一个字面常量必须保持一致，并且变量不应该匹配时，请使用 `$(name:const)`：
 
 ```yaml
 patterns:
   - shape: $(value:const) + $(value:const)
 ```
 
-`exp` kind 只能出现在表达式位置。`const` kind 只在常量表达式或常量 pattern 位置有效。`pat` kind 只在简单 pattern variable 位置有效。如果需要非表达式源码名称，请使用 `id`，或者让该名称保持字面量。任何其他 kind 都是编译错误。
+使用 `$(name:pat)` 捕获完整 pattern AST：
+
+```yaml
+patterns:
+  - shape: match input { $(item:pat) => body }
+```
+
+像 `match input { $item => body }` 这样的裸简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义，因此规则编译会要求你显式选择。`exp` kind 只能出现在表达式位置。`const` kind 只在常量表达式或常量 pattern 位置有效。`pat` kind 只在简单 pattern variable 位置有效。如果需要非表达式源码名称，请使用 `id`，或者让该名称保持字面量。任何其他 kind 都是编译错误。
 
 旧的 YAML `metavars` 键无效。
 

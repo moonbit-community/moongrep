@@ -130,7 +130,7 @@ let _embed_rulespec_md : String =
   #|## Metavariables
   #|
   #|Identifiers and labels in a shape are literal by default. A name becomes a
-  #|metavariable only when it uses inline metavar syntax inside `shape`, except for
+  #|metavariable only when it uses metavar syntax inside `shape`, except for
   #|the built-in wildcard forms described below.
   #|
   #|### Syntax
@@ -152,17 +152,36 @@ let _embed_rulespec_md : String =
   #|      }
   #|```
   #|
+  #|For common cases, the kind may be omitted with bare `$name` syntax:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: $value + $value
+  #|```
+  #|
+  #|The moongrep infers a single kind for all occurrences of the same name. Bare
+  #|names used only as expression placeholders infer `exp`; bare names used in
+  #|binder, label, constructor, type-name, or qualified-identifier positions infer
+  #|`id`. For example, in `for $counter = 0; $counter < $limit; ...`, `$counter`
+  #|infers `id` from the binder position and `$limit` infers `exp`.
+  #|
   #|Only `exp`, `id`, `const`, and `pat` are supported. A name may be repeated
   #|within one kind, but using the same payload across multiple kinds such as
   #|`$(name:exp)`, `$(name:id)`, `$(name:const)`, and `$(name:pat)` in one shape is
   #|invalid.
+  #|
+  #|Bare `$name` inference is intentionally conservative. It does not default to
+  #|`const` or `pat`. A simple pattern variable such as `match input { $item => body
+  #|}` is ambiguous between `id`, `const`, and `pat`; write `$(item:id)`,
+  #|`$(item:const)`, or `$(item:pat)` to choose. An explicit same-name occurrence
+  #|also fixes later bare occurrences when the positions are compatible.
   #|
   #|The old YAML `metavars` key is not supported. Pattern objects that contain it
   #|are rejected as using an unsupported key.
   #|
   #|### Reserved Names
   #|
-  #|These names must not be used as inline metavar names:
+  #|These names must not be used as metavar names:
   #|
   #|- any name made only of two or more underscores, such as `__`, `___`, or
   #|  `____`
@@ -439,8 +458,8 @@ let _embed_rulespec_md : String =
   #|tries the ordered positive patterns first. If a positive pattern matches, the
   #|hit is reported and `patterns-not` is not checked for that candidate. Only when
   #|all positive patterns fail are `patterns-not` entries checked. Negative matching
-  #|starts with no bindings. Inline metavars declared only in `patterns-not` bind
-  #|independently from inline metavars declared in `patterns`.
+  #|starts with no bindings. Metavars declared only in `patterns-not` bind
+  #|independently from metavars declared in `patterns`.
   #|
   #|If a negative pattern matches after the positive patterns fail, that candidate
   #|produces no hit and its descendants are not searched for that rule. If neither a
@@ -487,12 +506,12 @@ let _embed_rulespec_md : String =
   #|- `__TARGET__` must occupy a whole expression position, such as a whole call
   #|  argument, receiver, or block expression. If it appears only as a label or
   #|  other non-expression value, no target subtree can be searched.
-  #|- `__TARGET__` is reserved and must not be used as an inline metavar name.
+  #|- `__TARGET__` is reserved and must not be used as an metavar name.
   #|- Entries in `patterns` and `patterns-not` must not contain `__TARGET__` in a
   #|  binding-capable position.
-  #|- Inline metavars declared by `inside-expr` remain visible when matching the
+  #|- Metavars declared by `inside-expr` remain visible when matching the
   #|  inner pattern entries; inner shapes reference them by repeating the same
-  #|  inline metavar form.
+  #|  metavar form.
   #|- Inner `patterns` and `patterns-not` must not use a visible `inside-expr`
   #|  metavar name with a different kind.
   #|
@@ -664,9 +683,11 @@ let _embed_rulespec_md : String =
   #|- `guard` appears in any taint clause
   #|- `metavars` appears in any pattern object
   #|- `shape` is not valid as one MoonBit expression
-  #|- a shape uses an unsupported inline metavar kind
-  #|- a shape uses the same inline metavar name across multiple metavar kinds
-  #|- an inline metavar uses a reserved name
+  #|- a shape uses an unsupported metavar kind
+  #|- a shape uses the same metavar name across multiple metavar kinds
+  #|- a bare `$name` cannot be inferred to one compatible kind
+  #|- a bare `$name` appears only as an ambiguous simple pattern variable
+  #|- an metavar uses a reserved name
   #|- `$(name:exp)` appears outside a bare expression position
   #|- `$(name:const)` appears outside a constant expression or constant pattern position
   #|- `$(name:pat)` appears outside a bare pattern position

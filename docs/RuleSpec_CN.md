@@ -122,7 +122,18 @@ patterns:
       }
 ```
 
+常见情况下可以省略 kind，使用裸 `$name` 语法：
+
+```yaml
+patterns:
+  - shape: $value + $value
+```
+
+moongrep会为同名的所有出现位置推导出单一 kind。只出现在表达式占位位置的裸名称会推导为 `exp`；出现在 binder、标签、构造器、类型名或限定标识符位置的裸名称会推导为 `id`。例如 `for $counter = 0; $counter < $limit; ...` 中，`$counter` 会从 binder 位置推导为 `id`，`$limit` 会推导为 `exp`。
+
 只支持 `exp`、`id`、`const` 和 `pat`。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$(name:exp)`、`$(name:id)`、`$(name:const)` 和 `$(name:pat)` 等多个 kind 使用同一个 payload。
+
+裸 `$name` 的推导是保守的。它不会默认推导为 `const` 或 `pat`。像 `match input { $item => body }` 这样的简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义；请写成 `$(item:id)`、`$(item:const)` 或 `$(item:pat)` 来明确选择。同名的显式出现也可以在位置兼容时为后续裸出现确定 kind。
 
 旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
 
@@ -536,6 +547,8 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `shape` 不是一个有效的 MoonBit 表达式
 - shape 使用不支持的内联元变量 kind
 - shape 跨多个元变量 kind 使用同一个内联元变量名
+- 裸 `$name` 无法推导为一个兼容的 kind
+- 裸 `$name` 只出现在有歧义的简单 pattern variable 位置
 - 内联元变量使用保留名称
 - `$(name:exp)` 出现在裸表达式位置之外
 - `$(name:const)` 出现在常量表达式或常量 pattern 位置之外

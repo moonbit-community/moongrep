@@ -71,11 +71,11 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
 }
 
 ///|
-test "model preserves inline metavar shape text" {
+test "model preserves metavar shape text" {
   let source =
     #|id: example
     #|description: |
-    #|  Inline metavars.
+    #|  Metavars.
     #|patterns:
     #|  - shape: $(counter:id) + $(body:exp)
     #|

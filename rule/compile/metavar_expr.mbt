@@ -1,6 +1,6 @@
 ///|
-fn InlineMetavarRewriteContext::rewrite_expr(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_expr(
+  ctx : MetavarRewriteContext,
   expr : @syntax.Expr,
 ) -> @syntax.Expr raise {
   match expr {
@@ -284,103 +284,127 @@ fn InlineMetavarRewriteContext::rewrite_expr(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_expr_var(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_expr_var(
+  ctx : MetavarRewriteContext,
   var_ : @syntax.Var,
 ) -> @syntax.Var raise {
   match var_.name {
     Ident(name~) =>
-      match parse_inline_metavar(name, ctx.path, ctx.context) {
+      match parse_metavar(name, ctx.path, ctx.context) {
         None => var_
-        Some((kind, meta_name)) => {
-          ctx.register_inline_metavar(kind, meta_name)
-          { name: Ident(name=meta_name), loc: var_.loc }
-        }
+        Some(syntax) =>
+          match ctx.collect_or_resolve_metavar(syntax, BareExpressionPosition) {
+            None => var_
+            Some((kind, meta_name)) => {
+              ctx.register_metavar(kind, meta_name)
+              { name: Ident(name=meta_name), loc: var_.loc }
+            }
+          }
       }
     Dot(pkg~, id~) =>
-      match parse_inline_metavar(id, ctx.path, ctx.context) {
+      match parse_metavar(id, ctx.path, ctx.context) {
         None => var_
-        Some((kind, meta_name)) => {
-          if kind == "exp" {
-            ctx.reject_inline_metavar_position(kind, meta_name)
-          } else if kind == "const" {
-            ctx.reject_qualified_inline_metavar(id)
+        Some(syntax) =>
+          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+            None => var_
+            Some((kind, meta_name)) => {
+              if kind == "exp" {
+                ctx.reject_metavar_position(kind, meta_name)
+              } else if kind == "const" {
+                ctx.reject_qualified_metavar(kind, meta_name)
+              }
+              ctx.register_metavar(kind, meta_name)
+              { name: Dot(pkg~, id=meta_name), loc: var_.loc }
+            }
           }
-          ctx.register_inline_metavar(kind, meta_name)
-          { name: Dot(pkg~, id=meta_name), loc: var_.loc }
-        }
       }
   }
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_var(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_var(
+  ctx : MetavarRewriteContext,
   var_ : @syntax.Var,
 ) -> @syntax.Var raise {
   match var_.name {
     Ident(name~) =>
-      match parse_inline_metavar(name, ctx.path, ctx.context) {
+      match parse_metavar(name, ctx.path, ctx.context) {
         None => var_
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
-            ctx.reject_inline_metavar_position(kind, meta_name)
+        Some(syntax) =>
+          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+            None => var_
+            Some((kind, meta_name)) => {
+              if kind == "exp" || kind == "const" {
+                ctx.reject_metavar_position(kind, meta_name)
+              }
+              ctx.register_metavar(kind, meta_name)
+              { name: Ident(name=meta_name), loc: var_.loc }
+            }
           }
-          ctx.register_inline_metavar(kind, meta_name)
-          { name: Ident(name=meta_name), loc: var_.loc }
-        }
       }
     Dot(pkg~, id~) =>
-      match parse_inline_metavar(id, ctx.path, ctx.context) {
+      match parse_metavar(id, ctx.path, ctx.context) {
         None => var_
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
-            ctx.reject_inline_metavar_position(kind, meta_name)
+        Some(syntax) =>
+          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+            None => var_
+            Some((kind, meta_name)) => {
+              if kind == "exp" || kind == "const" {
+                ctx.reject_metavar_position(kind, meta_name)
+              }
+              ctx.register_metavar(kind, meta_name)
+              { name: Dot(pkg~, id=meta_name), loc: var_.loc }
+            }
           }
-          ctx.register_inline_metavar(kind, meta_name)
-          { name: Dot(pkg~, id=meta_name), loc: var_.loc }
-        }
       }
   }
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_binder(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_binder(
+  ctx : MetavarRewriteContext,
   binder : @syntax.Binder,
 ) -> @syntax.Binder raise {
-  match parse_inline_metavar(binder.name, ctx.path, ctx.context) {
+  match parse_metavar(binder.name, ctx.path, ctx.context) {
     None => binder
-    Some((kind, meta_name)) => {
-      if kind == "exp" || kind == "const" {
-        ctx.reject_inline_metavar_position(kind, meta_name)
+    Some(syntax) =>
+      match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+        None => binder
+        Some((kind, meta_name)) => {
+          if kind == "exp" || kind == "const" {
+            ctx.reject_metavar_position(kind, meta_name)
+          }
+          ctx.register_metavar(kind, meta_name)
+          { name: meta_name, loc: binder.loc }
+        }
       }
-      ctx.register_inline_metavar(kind, meta_name)
-      { name: meta_name, loc: binder.loc }
-    }
   }
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_label(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_label(
+  ctx : MetavarRewriteContext,
   label : @syntax.Label,
 ) -> @syntax.Label raise {
-  match parse_inline_metavar(label.name, ctx.path, ctx.context) {
+  match parse_metavar(label.name, ctx.path, ctx.context) {
     None => label
-    Some((kind, meta_name)) => {
-      if kind == "exp" || kind == "const" {
-        ctx.reject_inline_metavar_position(kind, meta_name)
+    Some(syntax) =>
+      match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+        None => label
+        Some((kind, meta_name)) => {
+          if kind == "exp" || kind == "const" {
+            ctx.reject_metavar_position(kind, meta_name)
+          }
+          ctx.register_metavar(kind, meta_name)
+          { name: meta_name, loc: label.loc }
+        }
       }
-      ctx.register_inline_metavar(kind, meta_name)
-      { name: meta_name, loc: label.loc }
-    }
   }
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_constructor(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_constructor(
+  ctx : MetavarRewriteContext,
   constr : @syntax.Constructor,
 ) -> @syntax.Constructor raise {
   let extra_info = ctx.rewrite_constructor_extra_info(constr.extra_info)
@@ -389,25 +413,29 @@ fn InlineMetavarRewriteContext::rewrite_constructor(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_constr_name(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_constr_name(
+  ctx : MetavarRewriteContext,
   name : @syntax.ConstrName,
 ) -> @syntax.ConstrName raise {
-  match parse_inline_metavar(name.name, ctx.path, ctx.context) {
+  match parse_metavar(name.name, ctx.path, ctx.context) {
     None => name
-    Some((kind, meta_name)) => {
-      if kind == "exp" || kind == "const" {
-        ctx.reject_inline_metavar_position(kind, meta_name)
+    Some(syntax) =>
+      match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+        None => name
+        Some((kind, meta_name)) => {
+          if kind == "exp" || kind == "const" {
+            ctx.reject_metavar_position(kind, meta_name)
+          }
+          ctx.register_metavar(kind, meta_name)
+          { name: meta_name, loc: name.loc }
+        }
       }
-      ctx.register_inline_metavar(kind, meta_name)
-      { name: meta_name, loc: name.loc }
-    }
   }
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_constructor_extra_info(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_constructor_extra_info(
+  ctx : MetavarRewriteContext,
   extra_info : @syntax.ConstructorExtraInfo,
 ) -> @syntax.ConstructorExtraInfo raise {
   match extra_info {
@@ -422,8 +450,8 @@ fn InlineMetavarRewriteContext::rewrite_constructor_extra_info(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_type_name(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_type_name(
+  ctx : MetavarRewriteContext,
   type_name : @syntax.TypeName,
 ) -> @syntax.TypeName raise {
   {
@@ -434,39 +462,47 @@ fn InlineMetavarRewriteContext::rewrite_type_name(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_type_long_ident(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_type_long_ident(
+  ctx : MetavarRewriteContext,
   long_ident : @syntax.LongIdent,
 ) -> @syntax.LongIdent raise {
   match long_ident {
     Ident(name~) =>
-      match parse_inline_metavar(name, ctx.path, ctx.context) {
+      match parse_metavar(name, ctx.path, ctx.context) {
         None => long_ident
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
-            ctx.reject_inline_metavar_position(kind, meta_name)
+        Some(syntax) =>
+          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+            None => long_ident
+            Some((kind, meta_name)) => {
+              if kind == "exp" || kind == "const" {
+                ctx.reject_metavar_position(kind, meta_name)
+              }
+              ctx.register_metavar(kind, meta_name)
+              Ident(name=meta_name)
+            }
           }
-          ctx.register_inline_metavar(kind, meta_name)
-          Ident(name=meta_name)
-        }
       }
     Dot(pkg~, id~) =>
-      match parse_inline_metavar(id, ctx.path, ctx.context) {
+      match parse_metavar(id, ctx.path, ctx.context) {
         None => long_ident
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
-            ctx.reject_inline_metavar_position(kind, meta_name)
+        Some(syntax) =>
+          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
+            None => long_ident
+            Some((kind, meta_name)) => {
+              if kind == "exp" || kind == "const" {
+                ctx.reject_metavar_position(kind, meta_name)
+              }
+              ctx.register_metavar(kind, meta_name)
+              Dot(pkg~, id=meta_name)
+            }
           }
-          ctx.register_inline_metavar(kind, meta_name)
-          Dot(pkg~, id=meta_name)
-        }
       }
   }
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_optional_expr(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_optional_expr(
+  ctx : MetavarRewriteContext,
   expr : @syntax.Expr?,
 ) -> @syntax.Expr? raise {
   if expr is Some(expr) {
@@ -477,8 +513,8 @@ fn InlineMetavarRewriteContext::rewrite_optional_expr(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_expr_list(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_expr_list(
+  ctx : MetavarRewriteContext,
   exprs : @list.List[@syntax.Expr],
 ) -> @list.List[@syntax.Expr] raise {
   let result : Array[@syntax.Expr] = []
@@ -489,8 +525,8 @@ fn InlineMetavarRewriteContext::rewrite_expr_list(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_arguments(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_arguments(
+  ctx : MetavarRewriteContext,
   args : @list.List[@syntax.Argument],
 ) -> @list.List[@syntax.Argument] raise {
   let result : Array[@syntax.Argument] = []
@@ -504,8 +540,8 @@ fn InlineMetavarRewriteContext::rewrite_arguments(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_argument_kind(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_argument_kind(
+  ctx : MetavarRewriteContext,
   kind : @syntax.ArgumentKind,
 ) -> @syntax.ArgumentKind raise {
   match kind {
@@ -520,8 +556,8 @@ fn InlineMetavarRewriteContext::rewrite_argument_kind(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_optional_var(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_optional_var(
+  ctx : MetavarRewriteContext,
   var_ : @syntax.Var?,
 ) -> @syntax.Var? raise {
   if var_ is Some(var_) {
@@ -532,8 +568,8 @@ fn InlineMetavarRewriteContext::rewrite_optional_var(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_optional_label(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_optional_label(
+  ctx : MetavarRewriteContext,
   label : @syntax.Label?,
 ) -> @syntax.Label? raise {
   if label is Some(label) {
@@ -544,8 +580,8 @@ fn InlineMetavarRewriteContext::rewrite_optional_label(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_binder_expr_pairs(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_binder_expr_pairs(
+  ctx : MetavarRewriteContext,
   pairs : @list.List[(@syntax.Binder, @syntax.Expr)],
 ) -> @list.List[(@syntax.Binder, @syntax.Expr)] raise {
   let result : Array[(@syntax.Binder, @syntax.Expr)] = []
@@ -557,8 +593,8 @@ fn InlineMetavarRewriteContext::rewrite_binder_expr_pairs(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_optional_binders(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_optional_binders(
+  ctx : MetavarRewriteContext,
   binders : @list.List[@syntax.Binder?],
 ) -> @list.List[@syntax.Binder?] raise {
   let result : Array[@syntax.Binder?] = []
@@ -575,8 +611,8 @@ fn InlineMetavarRewriteContext::rewrite_optional_binders(
 ///|
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_accessor(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_accessor(
+  ctx : MetavarRewriteContext,
   accessor : @syntax.Accessor,
 ) -> @syntax.Accessor raise {
   match accessor {
@@ -586,8 +622,8 @@ fn InlineMetavarRewriteContext::rewrite_accessor(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_spreadable_elems(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_spreadable_elems(
+  ctx : MetavarRewriteContext,
   elems : @list.List[@syntax.SpreadableElem],
 ) -> @list.List[@syntax.SpreadableElem] raise {
   let result : Array[@syntax.SpreadableElem] = []
@@ -603,8 +639,8 @@ fn InlineMetavarRewriteContext::rewrite_spreadable_elems(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_func(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_func(
+  ctx : MetavarRewriteContext,
   func : @syntax.Func,
 ) -> @syntax.Func raise {
   {
@@ -620,8 +656,8 @@ fn InlineMetavarRewriteContext::rewrite_func(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_parameters(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_parameters(
+  ctx : MetavarRewriteContext,
   parameters : @list.List[@syntax.Parameter],
 ) -> @list.List[@syntax.Parameter] raise {
   let result : Array[@syntax.Parameter] = []
@@ -648,8 +684,8 @@ fn InlineMetavarRewriteContext::rewrite_parameters(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_let_and_bindings(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_let_and_bindings(
+  ctx : MetavarRewriteContext,
   bindings : @list.List[(@syntax.Binder, @syntax.Type?, @syntax.Func)],
 ) -> @list.List[(@syntax.Binder, @syntax.Type?, @syntax.Func)] raise {
   let result : Array[(@syntax.Binder, @syntax.Type?, @syntax.Func)] = []
@@ -661,8 +697,8 @@ fn InlineMetavarRewriteContext::rewrite_let_and_bindings(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_optional_where_clause(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_optional_where_clause(
+  ctx : MetavarRewriteContext,
   clause : @syntax.WhereClause?,
 ) -> @syntax.WhereClause? raise {
   if clause is Some(clause) {
@@ -673,8 +709,8 @@ fn InlineMetavarRewriteContext::rewrite_optional_where_clause(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_field_defs(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_field_defs(
+  ctx : MetavarRewriteContext,
   fields : @list.List[@syntax.FieldDef],
 ) -> @list.List[@syntax.FieldDef] raise {
   let result : Array[@syntax.FieldDef] = []
@@ -690,8 +726,8 @@ fn InlineMetavarRewriteContext::rewrite_field_defs(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_map_expr_elems(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_map_expr_elems(
+  ctx : MetavarRewriteContext,
   elems : @list.List[@syntax.MapExprElem],
 ) -> @list.List[@syntax.MapExprElem] raise {
   let result : Array[@syntax.MapExprElem] = []
@@ -707,8 +743,8 @@ fn InlineMetavarRewriteContext::rewrite_map_expr_elems(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_interp_elems(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_interp_elems(
+  ctx : MetavarRewriteContext,
   elems : @list.List[@syntax.InterpElem],
 ) -> @list.List[@syntax.InterpElem] raise {
   let result : Array[@syntax.InterpElem] = []
@@ -724,8 +760,8 @@ fn InlineMetavarRewriteContext::rewrite_interp_elems(
 }
 
 ///|
-fn InlineMetavarRewriteContext::rewrite_multiline_string_elems(
-  ctx : InlineMetavarRewriteContext,
+fn MetavarRewriteContext::rewrite_multiline_string_elems(
+  ctx : MetavarRewriteContext,
   elems : @list.List[@syntax.MultilineStringElem],
 ) -> @list.List[@syntax.MultilineStringElem] raise {
   let result : Array[@syntax.MultilineStringElem] = []

@@ -27,7 +27,7 @@ using @traverse {count_supported_name_in_node}
 ///|
 /// Validates and compiles raw YAML rule specs into executable rules.
 ///
-/// This step parses each `shape`, discovers inline metavars, rejects reserved
+/// This step parses each `shape`, discovers metavars, rejects reserved
 /// names, and records taint `__SOURCE__` targets. It raises `RuleLoadError`
 /// when a rule cannot be represented by the runtime AST matcher.
 pub fn compile_rules(
@@ -66,9 +66,7 @@ fn compile_structural_rule(
   let outer_pattern_names : Array[String] = []
   let inside_expr = if spec.inside_expr is Some(shape) {
     let pattern : RulePatternSpec = { shape, guards: {} }
-    let compiled_shape = compile_inline_metavar_shape(
-      path, "inside-expr", shape,
-    )
+    let compiled_shape = compile_metavar_shape(path, "inside-expr", shape)
     let ast = compiled_shape.ast
     let target_count = count_supported_name_in_node(ast, "__TARGET__")
     if target_count != 1 {
@@ -114,11 +112,7 @@ fn compile_structural_rule(
   for index in 0..<spec.patterns.length() {
     let context = "patterns[\{index}]"
     let pattern = spec.patterns[index]
-    let compiled_shape = compile_inline_metavar_shape(
-      path,
-      context,
-      pattern.shape,
-    )
+    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
     ensure_inherited_inside_expr_metavar_forms(
       path,
       context,
@@ -157,11 +151,7 @@ fn compile_structural_rule(
   for index in 0..<spec.patterns_not.length() {
     let context = "patterns-not[\{index}]"
     let pattern = spec.patterns_not[index]
-    let compiled_shape = compile_inline_metavar_shape(
-      path,
-      context,
-      pattern.shape,
-    )
+    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
     ensure_inherited_inside_expr_metavar_forms(
       path,
       context,
@@ -213,11 +203,7 @@ fn compile_taint_rule(
   for index in 0..<spec.sources.length() {
     let context = "taint.sources[\{index}]"
     let pattern = spec.sources[index]
-    let compiled_shape = compile_inline_metavar_shape(
-      path,
-      context,
-      pattern.shape,
-    )
+    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
     let ast = compiled_shape.ast
     ensure_taint_call_shape(path, context, ast)
     if count_supported_name_in_node(ast, "__SOURCE__") != 0 {
@@ -241,11 +227,7 @@ fn compile_taint_rule(
   for index in 0..<spec.sinks.length() {
     let context = "taint.sinks[\{index}]"
     let pattern = spec.sinks[index]
-    let compiled_shape = compile_inline_metavar_shape(
-      path,
-      context,
-      pattern.shape,
-    )
+    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
     let ast = compiled_shape.ast
     ensure_taint_call_shape(path, context, ast)
     // `__SOURCE__` must be captured as a whole argument or receiver so the
@@ -267,11 +249,7 @@ fn compile_taint_rule(
   for index in 0..<spec.sanitizers.length() {
     let context = "taint.sanitizers[\{index}]"
     let pattern = spec.sanitizers[index]
-    let compiled_shape = compile_inline_metavar_shape(
-      path,
-      context,
-      pattern.shape,
-    )
+    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
     let ast = compiled_shape.ast
     ensure_taint_call_shape(path, context, ast)
     // Sanitizers share the same target restrictions as sinks because both
@@ -295,7 +273,7 @@ fn compile_taint_rule(
 ///|
 fn compile_pattern(
   pattern : RulePatternSpec,
-  compiled_shape : InlineMetavarShape,
+  compiled_shape : MetavarShape,
   path : String,
   context : String,
   target_metavar~ : String?,

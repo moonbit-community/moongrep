@@ -71,7 +71,7 @@ test "prefilter treats inline expression metavars as placeholders" {
 }
 
 ///|
-test "prefilter treats inline metavars as placeholders" {
+test "prefilter treats metavars as placeholders" {
   let source =
     #|id: example
     #|description: Target call.

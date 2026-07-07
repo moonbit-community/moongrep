@@ -63,9 +63,22 @@ no match hits
 ## Anonymous patterns
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$(value:exp) + $(value:exp)' testdata/inline-metavar
-testdata/inline-metavar/sample.mbt:2:3-2:18
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$(value:exp) + $(value:exp)' testdata/metavar
+testdata/metavar/sample.mbt:2:3-2:18
 rule: $(value:exp) + $(value:exp)
+description:
+  Anonymous CLI pattern.
+source:
+1 | fn sample {
+2 >   make() + make()
+3 |   make() + other()
+4 | }
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$value + $value' testdata/metavar
+testdata/metavar/sample.mbt:2:3-2:18
+rule: $value + $value
 description:
   Anonymous CLI pattern.
 source:

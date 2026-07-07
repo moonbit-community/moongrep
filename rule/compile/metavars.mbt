@@ -1,5 +1,5 @@
 ///|
-priv struct InlineMetavarShape {
+priv struct MetavarShape {
   ast : @untyped_ast.Node
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
@@ -8,21 +8,54 @@ priv struct InlineMetavarShape {
 }
 
 ///|
-fn compile_inline_metavar_shape(
+priv enum MetavarSyntax {
+  Explicit(String, String)
+  Bare(String)
+}
+
+///|
+priv enum BareMetavarPosition {
+  BareExpressionPosition
+  BareIdentifierPosition
+  BarePatternVariablePosition
+}
+
+///|
+fn compile_metavar_shape(
   path : String,
   context : String,
   source : String,
-) -> InlineMetavarShape raise {
-  let ctx : InlineMetavarRewriteContext = {
+) -> MetavarShape raise {
+  let parsed = parse_shape(path, context, source)
+  let collect_ctx : MetavarRewriteContext = {
     path,
     context,
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
+    pattern_metavars: [],
+    collecting: true,
+    bare_expression_metavars: [],
+    bare_identifier_metavars: [],
+    bare_pattern_metavars: [],
+    resolved_metavars: {},
   }
-  let ast = @untyped_ast.from_expr(
-    ctx.rewrite_expr(parse_shape(path, context, source)),
-  )
+  ignore(collect_ctx.rewrite_expr(parsed))
+  let resolved_metavars = collect_ctx.resolve_metavar_kinds()
+  let ctx : MetavarRewriteContext = {
+    path,
+    context,
+    expr_metavars: [],
+    identifier_metavars: [],
+    constant_metavars: [],
+    pattern_metavars: [],
+    collecting: false,
+    bare_expression_metavars: [],
+    bare_identifier_metavars: [],
+    bare_pattern_metavars: [],
+    resolved_metavars,
+  }
+  let ast = @untyped_ast.from_expr(ctx.rewrite_expr(parsed))
   let (
     cleaned_expr_metavars,
     cleaned_identifier_metavars,
@@ -43,41 +76,45 @@ fn compile_inline_metavar_shape(
 }
 
 ///|
-fn parse_inline_metavar(
+fn parse_metavar(
   raw : String,
   path : String,
   context : String,
-) -> (String, String)? raise {
+) -> MetavarSyntax? raise {
   if !raw.has_prefix("$") {
     return None
   }
   if !raw.has_prefix("$(") || !raw.has_suffix(")") {
-    let name = if raw.length() > 1 { raw[1:].to_owned() } else { "value" }
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} uses untyped inline metavar \{raw}; use explicit typed syntax like $(\{name}:exp)",
-    )
+    if raw.length() <= 1 {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{shape_context_name(context)} has invalid metavar \{raw}; use explicit typed syntax like $(value:exp)",
+      )
+    }
+    return Some(Bare(raw[1:].to_owned()))
   }
   let end = raw.length() - 1
   for index in 2..<end {
     if raw[index] == ':' {
-      return Some((raw[index + 1:end].to_owned(), raw[2:index].to_owned()))
+      return Some(
+        Explicit(raw[index + 1:end].to_owned(), raw[2:index].to_owned()),
+      )
     }
   }
   raise RuleLoadError::InvalidRule(
     path~,
-    info="\{shape_context_name(context)} has invalid inline metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
+    info="\{shape_context_name(context)} has invalid metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
   )
 }
 
 ///|
-fn inline_metavar_text(kind : String, name : String) -> String {
+fn metavar_text(kind : String, name : String) -> String {
   "$(" + name + ":" + kind + ")"
 }
 
 ///|
 fn temporary_pattern_metavar_marker(name : String) -> String {
-  inline_metavar_text("pat", name)
+  metavar_text("pat", name)
 }
 
 ///|
