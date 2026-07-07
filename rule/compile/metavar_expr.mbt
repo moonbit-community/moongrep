@@ -485,7 +485,7 @@ fn InlineMetavarRewriteContext::rewrite_expr_list(
   for expr in exprs {
     result.push(ctx.rewrite_expr(expr))
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -500,7 +500,7 @@ fn InlineMetavarRewriteContext::rewrite_arguments(
       value: ctx.rewrite_expr(arg.value),
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -553,7 +553,7 @@ fn InlineMetavarRewriteContext::rewrite_binder_expr_pairs(
     let (binder, expr) = pair
     result.push((ctx.rewrite_binder(binder), ctx.rewrite_expr(expr)))
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -569,7 +569,7 @@ fn InlineMetavarRewriteContext::rewrite_optional_binders(
       result.push(None)
     }
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -599,7 +599,7 @@ fn InlineMetavarRewriteContext::rewrite_spreadable_elems(
       },
     )
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -644,7 +644,7 @@ fn InlineMetavarRewriteContext::rewrite_parameters(
       },
     )
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -657,7 +657,7 @@ fn InlineMetavarRewriteContext::rewrite_let_and_bindings(
     let (binder, ty, func) = binding
     result.push((ctx.rewrite_binder(binder), ty, ctx.rewrite_func(func)))
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -686,7 +686,7 @@ fn InlineMetavarRewriteContext::rewrite_field_defs(
       loc: field.loc,
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -703,7 +703,7 @@ fn InlineMetavarRewriteContext::rewrite_map_expr_elems(
       loc: elem.loc,
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -720,7 +720,7 @@ fn InlineMetavarRewriteContext::rewrite_interp_elems(
       },
     )
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -737,5 +737,5 @@ fn InlineMetavarRewriteContext::rewrite_multiline_string_elems(
       },
     )
   }
-  @list.from_array(result)
+  List(result)
 }

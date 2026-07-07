@@ -27,68 +27,60 @@ fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 }
 
 ///|
-let scan_command : @argparse.Command = @argparse.Command(
+let scan_command : @argparse.Command = Command(
   "scan",
   about="Scan MoonBit source files with structural and taint rules.",
   flags=[
-    @argparse.FlagArg(
+    FlagArg(
       "verbose",
       long="verbose",
       about="Print loaded rule ids and directory traversal progress.",
     ),
-    @argparse.FlagArg(
+    FlagArg(
       "enable-builtin-rules",
       long="enable-builtin-rules",
       about="Enable embedded builtin rules.",
     ),
   ],
   options=[
-    @argparse.OptionArg(
+    OptionArg(
       "rules",
       short='r',
-      action=@argparse.OptionAction::Append,
+      action=Append,
       about="Directory containing YAML rules.",
     ),
-    @argparse.OptionArg(
-      "rule",
-      action=@argparse.OptionAction::Append,
-      about="Single YAML rule file.",
-    ),
-    @argparse.OptionArg(
+    OptionArg("rule", action=Append, about="Single YAML rule file."),
+    OptionArg(
       "pattern",
-      action=@argparse.OptionAction::Append,
+      action=Append,
       about="Anonymous structural pattern to match.",
     ),
-    @argparse.OptionArg(
+    OptionArg(
       "guard",
-      action=@argparse.OptionAction::Append,
+      action=Append,
       about="YAML guard map for the preceding anonymous pattern.",
     ),
-    @argparse.OptionArg(
+    OptionArg(
       "exclude-dir",
-      action=@argparse.OptionAction::Append,
+      action=Append,
       about="Directory name or path to skip while recursively scanning.",
     ),
   ],
-  positionals=[@argparse.PositionArg("scan-root", about="Directory to scan.")],
+  positionals=[PositionArg("scan-root", about="Directory to scan.")],
 )
 
 ///|
-let docs_command : @argparse.Command = @argparse.Command(
+let docs_command : @argparse.Command = Command(
   "docs",
   about="Print embedded moongrep documentation.",
   flags=[
-    @argparse.FlagArg(
-      "list",
-      long="list",
-      about="List available embedded documents.",
-    ),
+    FlagArg("list", long="list", about="List available embedded documents."),
   ],
   positionals=[
-    @argparse.PositionArg(
+    PositionArg(
       "doc-name",
       about="Document name to print.",
-      num_args=@argparse.ValueRange(lower=0, upper=1),
+      num_args=ValueRange(lower=0, upper=1),
     ),
   ],
 )
@@ -108,7 +100,7 @@ let dump_command : @argparse.Command = Command(
 )
 
 ///|
-let moongrep_command : @argparse.Command = @argparse.Command(
+let moongrep_command : @argparse.Command = Command(
   "moongrep",
   about="Scan MoonBit source files with structural and taint rules.",
   subcommands=[scan_command, docs_command, dump_command],

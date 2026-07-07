@@ -90,8 +90,8 @@ fn empty_list_node(kind : NodeKind, loc : @basic.Location) -> Node {
 fn doc_string_value(doc : @syntax.DocString) -> Node {
   let mut docs = doc.content
   match docs {
-    @list.Empty => string_value("")
-    @list.More(head, tail~) => {
+    Empty => string_value("")
+    More(head, tail~) => {
       docs = tail
       let buf = StringBuilder::new()
       buf.write_string(head)
@@ -256,10 +256,9 @@ fn[T] list_loc_or(
   loc_of : (T) -> @basic.Location,
 ) -> @basic.Location {
   match list {
-    @list.Empty => default
-    @list.More(item, tail=@list.Empty) => loc_of(item)
-    @list.More(first, tail~) =>
-      loc_of(first).merge(loc_of(tail.last().unwrap()))
+    Empty => default
+    More(item, tail=Empty) => loc_of(item)
+    More(first, tail~) => loc_of(first).merge(loc_of(tail.last().unwrap()))
   }
 }
 

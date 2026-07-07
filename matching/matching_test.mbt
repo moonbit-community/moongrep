@@ -22,7 +22,7 @@ fn test_loc() -> @basic.Location {
 
 ///|
 fn test_var(name : String) -> @syntax.Var {
-  { name: @syntax.LongIdent::Ident(name~), loc: test_loc() }
+  { name: Ident(name~), loc: test_loc() }
 }
 
 ///|
@@ -37,7 +37,7 @@ fn test_pattern_var(name : String) -> @syntax.Pattern {
 
 ///|
 fn test_pattern_tuple(items : Array[@syntax.Pattern]) -> @syntax.Pattern {
-  Tuple(pats=@list.from_array(items), loc=test_loc())
+  Tuple(pats=List(items), loc=test_loc())
 }
 
 ///|
@@ -45,9 +45,7 @@ fn test_match_pattern(pattern : @syntax.Pattern) -> @untyped_ast.Node {
   @untyped_ast.from_expr(
     Match(
       expr=test_ident("input"),
-      cases=@list.from_array([
-        { pattern, guard_: None, body: test_ident("body") },
-      ]),
+      cases=List([{ pattern, guard_: None, body: test_ident("body") }]),
       match_loc=test_loc(),
       loc=test_loc(),
     ),
@@ -66,17 +64,13 @@ fn test_field_def(label : String, expr : @syntax.Expr) -> @syntax.FieldDef {
 
 ///|
 fn test_ident(name : String) -> @syntax.Expr {
-  @syntax.Expr::Ident(id=test_var(name), loc=test_loc())
+  Ident(id=test_var(name), loc=test_loc())
 }
 
 ///|
 fn test_implies(lhs : String, rhs : String) -> @untyped_ast.Node {
   @untyped_ast.from_expr(
-    @syntax.Expr::Implies(
-      lhs=test_ident(lhs),
-      rhs=test_ident(rhs),
-      loc=test_loc(),
-    ),
+    Implies(lhs=test_ident(lhs), rhs=test_ident(rhs), loc=test_loc()),
   )
 }
 
@@ -86,19 +80,15 @@ fn test_foreach_syntax(
   continue_value : String,
   where_value : String,
 ) -> @syntax.Expr {
-  @syntax.Expr::ForEach(
-    binders=@list.from_array([Some(test_binder("item"))]),
+  ForEach(
+    binders=List([Some(test_binder("item"))]),
     expr=test_ident("items"),
-    init=@list.from_array([(test_binder("start"), test_ident(init))]),
-    continue_block=@list.from_array([
-      (test_binder("next"), test_ident(continue_value)),
-    ]),
+    init=List([(test_binder("start"), test_ident(init))]),
+    continue_block=List([(test_binder("next"), test_ident(continue_value))]),
     body=test_ident("body"),
     else_block=None,
     where_clause=Some({
-      fields: @list.from_array([
-        test_field_def("field", test_ident(where_value)),
-      ]),
+      fields: List([test_field_def("field", test_ident(where_value))]),
       loc: test_loc(),
     }),
     label=None,

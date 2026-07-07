@@ -641,7 +641,7 @@ fn eval_apply_call(
     return flow_result(args_result.flow, args_result.state, args_result.value)
   }
   let info = {
-    kind: CallKind::Apply,
+    kind: Apply,
     ast,
     loc,
     callee_name: callee_name_from_expr(func),
@@ -675,7 +675,7 @@ fn eval_dot_apply_call(
     return flow_result(args_result.flow, args_result.state, args_result.value)
   }
   let info = {
-    kind: CallKind::DotApply,
+    kind: DotApply,
     ast,
     loc,
     callee_name: node_label_name(method_name),
@@ -726,7 +726,7 @@ fn eval_pipe_call(
           }
           let arguments = prepend_argument(lhs_arg, args_result.arguments)
           let info = call_info_without_receiver(
-            CallKind::Pipe,
+            Pipe,
             ast,
             loc,
             callee_name_from_expr(func),
@@ -766,7 +766,7 @@ fn eval_pipe_call(
           }
           let arguments = prepend_argument(lhs_arg, args_result.arguments)
           let info = {
-            kind: CallKind::Pipe,
+            kind: Pipe,
             ast,
             loc,
             callee_name: node_label_name(method_name),
@@ -785,7 +785,7 @@ fn eval_pipe_call(
         return rhs_result
       }
       let info = call_info_without_receiver(
-        CallKind::Pipe,
+        Pipe,
         ast,
         loc,
         callee_name_from_expr(rhs),
@@ -816,7 +816,7 @@ fn eval_rev_pipe_call(
   }
   let arg = evaled_argument_from_result(0, None, rhs, rhs_result)
   let info = call_info_without_receiver(
-    CallKind::RevPipe,
+    RevPipe,
     ast,
     loc,
     callee_name_from_expr(lhs),

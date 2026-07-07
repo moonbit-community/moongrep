@@ -13,7 +13,7 @@ fn parse_shape(
   if lex_result.errors.length() != 0 {
     for error_entry in lex_result.errors {
       match error_entry {
-        (_, _, @lexer.LexicalError::InvalidMetavarSyntax(raw)) =>
+        (_, _, InvalidMetavarSyntax(raw)) =>
           raise RuleLoadError::InvalidRule(
             path~,
             info=invalid_metavar_syntax_message(context, raw),

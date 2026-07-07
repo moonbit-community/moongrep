@@ -75,7 +75,7 @@ fn render_source_context_line(
 
 ///|
 fn render_gray(text : String) -> String {
-  @chalk.chalk().color(@chalk.Colors::BlackBright).render(text)
+  @chalk.chalk().color(BlackBright).render(text)
 }
 
 ///|

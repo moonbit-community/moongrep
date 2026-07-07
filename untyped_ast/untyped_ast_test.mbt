@@ -223,12 +223,12 @@ fn test_label(name : String) -> @syntax.Label {
 
 ///|
 fn test_expr_ident(name : @syntax.LongIdent) -> Node {
-  from_expr(@syntax.Expr::Ident(id=test_var(name), loc=test_loc()))
+  from_expr(Ident(id=test_var(name), loc=test_loc()))
 }
 
 ///|
 fn test_pattern_var(name : String) -> Node {
-  from_pattern(@syntax.Pattern::Var(test_binder(name)))
+  from_pattern(Var(test_binder(name)))
 }
 
 ///|
@@ -259,11 +259,7 @@ test "node normalized identifier methods return supported names" {
   let pattern = test_pattern_var("binding")
   let binder = require_test_first_child(pattern)
   let label = from_expr(
-      @syntax.Expr::Break(
-        arg=None,
-        label=Some(test_label("exit")),
-        loc=test_loc(),
-      ),
+      Break(arg=None, label=Some(test_label("exit")), loc=test_loc()),
     )
     |> fn(root) { require_test_child(root, "label") }
 
@@ -446,21 +442,15 @@ test "node kind string conversion preserves json kind names" {
 test "untyped ast covers compiler generated static assert expression" {
   let body = parse_test_expr("body")
   let loc = body.loc()
-  let constr_id : @syntax.ConstrId = {
-    id: @syntax.LongIdent::Ident(name="Int"),
-    loc,
-  }
+  let constr_id : @syntax.ConstrId = { id: Ident(name="Int"), loc }
   let ty = @syntax.Type::Name(constr_id~, tys=@list.new(), loc~)
   let assertion : @syntax.StaticAssertion = {
     loc,
     msg: "static assertion",
-    trait_: @syntax.LongIdent::Ident(name="Show"),
+    trait_: Ident(name="Show"),
     ty,
   }
-  let expr = @syntax.Expr::StaticAssert(
-    asserts=@list.from_array([assertion]),
-    body~,
-  )
+  let expr = @syntax.Expr::StaticAssert(asserts=List([assertion]), body~)
   let root = from_expr(expr)
   assert_true(root.kind == Expr_StaticAssert)
   assert_true(root.to_json() == expr.to_json())
@@ -561,7 +551,7 @@ test "node scoped visitor prune skips children" {
 test "node scoped root traversal skips non-expression roots" {
   let first = parse_test_impl("fn sample { target() }")
   let second = parse_test_impl("let answer = 42")
-  let root = from_impls(@list.from_array([first, second]))
+  let root = from_impls(List([first, second]))
   let exprs : Array[ScopedNodeExpr] = []
   collect_node_scoped_expr_roots(root, exprs)
   assert_true(exprs.length() > 0)
@@ -692,7 +682,7 @@ test "node contains_unshadowed tracks conditional pattern scopes" {
 test "untyped ast impl list uses direct item children" {
   let first = parse_test_impl("fn answer { 42 }")
   let second = parse_test_impl("let answer = 42")
-  let list = from_impls(@list.from_array([first, second]))
+  let list = from_impls(List([first, second]))
   assert_true(list.kind == ImplList)
   assert_eq(list.children.length(), 2)
   match list.children[0] {
