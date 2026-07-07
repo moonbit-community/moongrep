@@ -60,10 +60,11 @@ fn MetavarRewriteContext::rewrite_expr(
         index_loc~,
         loc~,
       )
-    Array(exprs~, loc~) => Array(exprs=ctx.rewrite_expr_list(exprs), loc~)
+    Array(exprs~, is_iter~, loc~) =>
+      Array(exprs=ctx.rewrite_expr_list(exprs), is_iter~, loc~)
     Tuple(exprs~, loc~) => Tuple(exprs=ctx.rewrite_expr_list(exprs), loc~)
-    ArraySpread(elems~, loc~) =>
-      ArraySpread(elems=ctx.rewrite_spreadable_elems(elems), loc~)
+    ArraySpread(elems~, is_iter~, loc~) =>
+      ArraySpread(elems=ctx.rewrite_spreadable_elems(elems), is_iter~, loc~)
     Group(expr=inner, group~, loc~) =>
       Group(expr=ctx.rewrite_expr(inner), group~, loc~)
     Constraint(expr=inner, ty~, loc~) =>
@@ -150,6 +151,8 @@ fn MetavarRewriteContext::rewrite_expr(
         loc~,
       )
     Interp(elems~, loc~) => Interp(elems=ctx.rewrite_interp_elems(elems), loc~)
+    BytesInterp(elems~, loc~) =>
+      BytesInterp(elems=ctx.rewrite_interp_elems(elems), loc~)
     Is(expr=inner, pat~, loc~) =>
       Is(expr=ctx.rewrite_expr(inner), pat=ctx.rewrite_pattern(pat), loc~)
     Let(pattern~, expr=bound_expr, body~, loc~) =>
@@ -254,11 +257,12 @@ fn MetavarRewriteContext::rewrite_expr(
         label=ctx.rewrite_optional_label(label),
         loc~,
       )
-    ListComprehension(kind~, guard_~, body~, loc~) =>
+    ListComprehension(kind~, guard_~, body~, is_iter~, loc~) =>
       ListComprehension(
         kind~,
         guard_=ctx.rewrite_optional_expr(guard_),
         body=ctx.rewrite_expr(body),
+        is_iter~,
         loc~,
       )
     ProofLet(binder~, expr=inner, loc~) =>
@@ -271,10 +275,11 @@ fn MetavarRewriteContext::rewrite_expr(
       ProofAssert(expr=ctx.rewrite_expr(inner), loc~)
     Raise(err_value~, loc~) =>
       Raise(err_value=ctx.rewrite_expr(err_value), loc~)
-    TemplateWriting(expr=inner, template~, loc~) =>
+    TemplateWriting(expr=inner, template~, is_conditional~, loc~) =>
       TemplateWriting(
         expr=ctx.rewrite_expr(inner),
         template=ctx.rewrite_expr(template),
+        is_conditional~,
         loc~,
       )
     StaticAssert(asserts~, body~) =>

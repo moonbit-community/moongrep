@@ -147,6 +147,7 @@ fn test_is_expr_kind(kind : NodeKind) -> Bool {
     | Expr_As
     | Expr_Assign
     | Expr_Break
+    | Expr_BytesInterp
     | Expr_Constant
     | Expr_Constr
     | Expr_Constraint
@@ -172,6 +173,7 @@ fn test_is_expr_kind(kind : NodeKind) -> Bool {
     | Expr_LetFn
     | Expr_LetMut
     | Expr_Lexmatch
+    | Expr_Lexscan
     | Expr_ListComprehension
     | Expr_Map
     | Expr_Match
@@ -339,9 +341,12 @@ test "node normalized identifier methods reject unexpected shapes" {
 test "untyped ast expression json matches parser json" {
   assert_expr_json_matches_parser("x + 1")
   assert_expr_json_matches_parser("try f() catch { _ => fallback }")
+  assert_expr_json_matches_parser("b\"hello \\{name}\"")
+  assert_expr_json_matches_parser("[|item, other|]")
   assert_expr_json_matches_parser(
     "[for item in items if allow(item) => target(item)]",
   )
+  assert_expr_json_matches_parser("[|for item in items => item|]")
 }
 
 ///|
@@ -357,6 +362,7 @@ test "untyped ast covers expression root variants" {
     ("value as Show", Expr_As),
     ("x = y", Expr_Assign),
     ("break value", Expr_Break),
+    ("b\"hello \\{name}\"", Expr_BytesInterp),
     ("42", Expr_Constant),
     ("Some", Expr_Constr),
     ("(value : Int)", Expr_Constraint),
@@ -382,6 +388,7 @@ test "untyped ast covers expression root variants" {
     ("fn helper(x) { x }; helper(1)", Expr_LetFn),
     ("let mut x = 1; x", Expr_LetMut),
     ("lexmatch input { _ => true }", Expr_Lexmatch),
+    ("lexscan input { _ => true }", Expr_Lexscan),
     (
       "[for item in items if allow(item) => target(item)]",
       Expr_ListComprehension,
@@ -404,8 +411,7 @@ test "untyped ast covers expression root variants" {
     ("return value", Expr_Return),
     ("f <| value", Expr_RevPipe),
     ("a; b", Expr_Sequence),
-    // TODO: fix upstream json structure
-    // ("writer <+ \"hello\"", Expr_TemplateWriting),
+    ("writer <+ \"hello\"", Expr_TemplateWriting),
     ("try f() catch { _ => fallback }", Expr_Try),
     ("try! f()", Expr_TryOperator),
     ("try? f()", Expr_TryOperator),
@@ -461,6 +467,9 @@ test "untyped ast impl json matches parser json" {
   assert_impl_json_matches_parser("fn answer { 42 }")
   assert_impl_json_matches_parser("let answer = 42")
   assert_impl_json_matches_parser("test { inspect(1) }")
+  assert_impl_json_matches_parser(
+    "impl Show for Sample with fn[T] output(self, logger) { () }",
+  )
 }
 
 ///|

@@ -452,6 +452,49 @@ test "taint engine match case binder shadows outer root in case body" {
 }
 
 ///|
+test "taint engine lexscan binder receives scrutinee taint" {
+  let source =
+    #|fn sample(input) {
+    #|  lexscan input {
+    #|    item => sink(item);
+    #|    _ => ()
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine lexscan regex alias feeds guard pattern binding" {
+  let source =
+    #|fn sample(input) {
+    #|  lexscan input {
+    #|    re"." as item if item is Some(part) => sink(part);
+    #|    _ => ()
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine restores lexscan binder before following expression" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  lexscan clean {
+    #|    input => sink(input);
+    #|    _ => ()
+    #|  };
+    #|  sink(input)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
 test "taint engine restores catch binder before following expression" {
   let source =
     #|fn sample(input, clean) {

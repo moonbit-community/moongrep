@@ -500,14 +500,15 @@ fn expr_node(item : @syntax.Expr) -> Node {
         ("op", node_value(var_node(op))),
         ("expr", expr_value(expr)),
       ])
-    Array(exprs~, loc~) =>
+    Array(exprs~, is_iter~, loc~) =>
       node(Expr_Array, loc, [
         (
           "exprs",
           node_value(list_node(Expr_Array_ExprList, loc, exprs, expr_value)),
         ),
+        ("is_iter", bool_value(is_iter)),
       ])
-    ArraySpread(elems~, loc~) =>
+    ArraySpread(elems~, is_iter~, loc~) =>
       node(Expr_ArraySpread, loc, [
         (
           "elems",
@@ -520,10 +521,11 @@ fn expr_node(item : @syntax.Expr) -> Node {
             ),
           ),
         ),
+        ("is_iter", bool_value(is_iter)),
       ])
-    ListComprehension(kind~, guard_~, body~, loc~) =>
+    ListComprehension(kind~, guard_~, body~, is_iter~, loc~) =>
       node(Expr_ListComprehension, loc, [
-        ("kind", node_value(list_comprehension_kind_node(kind, loc))),
+        ("kind", node_value(list_comprehension_kind_node(kind, loc, is_iter~))),
         ("guard", option_value(guard_, expr_value)),
         ("body", expr_value(body)),
       ])
@@ -572,6 +574,15 @@ fn expr_node(item : @syntax.Expr) -> Node {
           "elems",
           node_value(
             list_node(Expr_Interp_ElemList, loc, elems, interp_elem_value),
+          ),
+        ),
+      ])
+    BytesInterp(elems~, loc~) =>
+      node(Expr_BytesInterp, loc, [
+        (
+          "elems",
+          node_value(
+            list_node(Expr_BytesInterp_ElemList, loc, elems, interp_elem_value),
           ),
         ),
       ])
@@ -775,6 +786,20 @@ fn expr_node(item : @syntax.Expr) -> Node {
         ),
       ])
     }
+    LexScan(expr~, match_loc~, cases~, loc~) => {
+      ignore(match_loc)
+      node(Expr_Lexscan, loc, [
+        ("expr", expr_value(expr)),
+        (
+          "cases",
+          node_value(
+            list_node(Expr_Lexscan_CaseList, loc, cases, fn(case) {
+              node_value(lex_scan_case_node(case, loc))
+            }),
+          ),
+        ),
+      ])
+    }
     LetMut(binder~, ty~, expr~, body~, loc~) =>
       node(Expr_LetMut, loc, [
         ("binder", binder_value(binder)),
@@ -954,10 +979,11 @@ fn expr_node(item : @syntax.Expr) -> Node {
         ("expr", expr_value(expr)),
         ("group", node_value(group_node(group, loc))),
       ])
-    TemplateWriting(expr~, template~, loc~) =>
+    TemplateWriting(expr~, template~, is_conditional~, loc~) =>
       node(Expr_TemplateWriting, loc, [
         ("expr", expr_value(expr)),
         ("template", expr_value(template)),
+        ("is_conditional", bool_value(is_conditional)),
       ])
     StaticAssert(asserts~, body~) => {
       let loc = body.loc()
@@ -1884,6 +1910,31 @@ fn lex_case_node(item : @syntax.LexCase, loc : @basic.Location) -> Node {
 }
 
 ///|
+fn lex_scan_case_node(
+  item : @syntax.LexScanCase,
+  loc : @basic.Location,
+) -> Node {
+  node(LexScanCase, loc, [
+    ("pat", node_value(lex_scan_case_pattern_node(item.pat))),
+    ("guard", option_value(item.guard_, expr_value)),
+    ("body", expr_value(item.body)),
+  ])
+}
+
+///|
+fn lex_scan_case_pattern_node(item : @syntax.LexScanCasePattern) -> Node {
+  match item {
+    Pattern(pat) => {
+      let pat_node = regex_pattern_node(pat)
+      node1(LexScanCasePattern_Pattern, pat_node.loc, node_value(pat_node))
+    }
+    Binder(binder) =>
+      node1(LexScanCasePattern_Binder, binder.loc, binder_value(binder))
+    Wildcard(loc~) => node0(LexScanCasePattern_Wildcard, loc)
+  }
+}
+
+///|
 fn lex_top_pattern_node(
   item : @syntax.LexTopPattern,
   loc : @basic.Location,
@@ -1990,6 +2041,7 @@ fn predicate_quantifier_kind_value(
 fn list_comprehension_kind_node(
   item : @syntax.ListComprehensionKind,
   loc : @basic.Location,
+  is_iter~ : Bool,
 ) -> Node {
   match item {
     Foreach(binders~, expr~, init~, continue_block~) =>
@@ -2017,6 +2069,7 @@ fn list_comprehension_kind_node(
             ),
           ),
         ),
+        ("is_iter", bool_value(is_iter)),
       ])
     For(binders~, condition~, continue_block~, for_loc~) => {
       ignore(for_loc)
@@ -2032,6 +2085,7 @@ fn list_comprehension_kind_node(
             for_binding_list_node(Expr_For_ContBindingList, loc, continue_block),
           ),
         ),
+        ("is_iter", bool_value(is_iter)),
       ])
     }
   }
@@ -2211,6 +2265,7 @@ fn impl_node(item : @syntax.Impl) -> Node {
       trait_~,
       method_name~,
       quantifiers~,
+      method_quantifiers~,
       params~,
       ret_ty~,
       err_ty~,
@@ -2232,6 +2287,17 @@ fn impl_node(item : @syntax.Impl) -> Node {
               Impl_TopImpl_QuantifierList,
               loc,
               quantifiers,
+              type_var_binder_value,
+            ),
+          ),
+        ),
+        (
+          "method_quantifiers",
+          node_value(
+            list_node(
+              Impl_TopImpl_MethodQuantifierList,
+              loc,
+              method_quantifiers,
               type_var_binder_value,
             ),
           ),

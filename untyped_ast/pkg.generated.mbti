@@ -132,6 +132,8 @@ pub(all) enum NodeKind {
   Expr_As
   Expr_Assign
   Expr_Break
+  Expr_BytesInterp
+  Expr_BytesInterp_ElemList
   Expr_Constant
   Expr_Constr
   Expr_Constraint
@@ -168,6 +170,8 @@ pub(all) enum NodeKind {
   Expr_LetMut
   Expr_Lexmatch
   Expr_Lexmatch_CaseList
+  Expr_Lexscan
+  Expr_Lexscan_CaseList
   Expr_ListComprehension
   Expr_ListComprehension_Kind_For
   Expr_ListComprehension_Kind_Foreach
@@ -235,6 +239,7 @@ pub(all) enum NodeKind {
   Impl_TopFuncDef
   Impl_TopImpl
   Impl_TopImpl_AttrList
+  Impl_TopImpl_MethodQuantifierList
   Impl_TopImpl_ParamList
   Impl_TopImpl_QuantifierList
   Impl_TopImplRelation
@@ -264,6 +269,10 @@ pub(all) enum NodeKind {
   LetAnd_Binding
   LexCase
   LexCase_PatternList
+  LexScanCase
+  LexScanCasePattern_Binder
+  LexScanCasePattern_Pattern
+  LexScanCasePattern_Wildcard
   LexPattern_Alias
   LexPattern_ConstantRef
   LexPattern_Regex

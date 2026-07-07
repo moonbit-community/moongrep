@@ -84,6 +84,8 @@ pub(all) enum NodeKind {
   Expr_As
   Expr_Assign
   Expr_Break
+  Expr_BytesInterp
+  Expr_BytesInterp_ElemList
   Expr_Constant
   Expr_Constr
   Expr_Constraint
@@ -120,6 +122,8 @@ pub(all) enum NodeKind {
   Expr_LetMut
   Expr_Lexmatch
   Expr_Lexmatch_CaseList
+  Expr_Lexscan
+  Expr_Lexscan_CaseList
   Expr_ListComprehension
   Expr_ListComprehension_Kind_For
   Expr_ListComprehension_Kind_Foreach
@@ -187,6 +191,7 @@ pub(all) enum NodeKind {
   Impl_TopFuncDef
   Impl_TopImpl
   Impl_TopImpl_AttrList
+  Impl_TopImpl_MethodQuantifierList
   Impl_TopImpl_ParamList
   Impl_TopImpl_QuantifierList
   Impl_TopImplRelation
@@ -216,6 +221,10 @@ pub(all) enum NodeKind {
   LetAnd_Binding
   LexCase
   LexCase_PatternList
+  LexScanCase
+  LexScanCasePattern_Binder
+  LexScanCasePattern_Pattern
+  LexScanCasePattern_Wildcard
   LexPattern_Alias
   LexPattern_ConstantRef
   LexPattern_Regex
@@ -420,6 +429,8 @@ pub fn NodeKind::to_string(self : NodeKind) -> String {
     Expr_As => "Expr::As"
     Expr_Assign => "Expr::Assign"
     Expr_Break => "Expr::Break"
+    Expr_BytesInterp => "Expr::BytesInterp"
+    Expr_BytesInterp_ElemList => "Expr::BytesInterp::ElemList"
     Expr_Constant => "Expr::Constant"
     Expr_Constr => "Expr::Constr"
     Expr_Constraint => "Expr::Constraint"
@@ -456,6 +467,8 @@ pub fn NodeKind::to_string(self : NodeKind) -> String {
     Expr_LetMut => "Expr::LetMut"
     Expr_Lexmatch => "Expr::Lexmatch"
     Expr_Lexmatch_CaseList => "Expr::Lexmatch::CaseList"
+    Expr_Lexscan => "Expr::Lexscan"
+    Expr_Lexscan_CaseList => "Expr::Lexscan::CaseList"
     Expr_ListComprehension => "Expr::ListComprehension"
     Expr_ListComprehension_Kind_For => "Expr::ListComprehension::Kind::For"
     Expr_ListComprehension_Kind_Foreach =>
@@ -525,6 +538,7 @@ pub fn NodeKind::to_string(self : NodeKind) -> String {
     Impl_TopFuncDef => "Impl::TopFuncDef"
     Impl_TopImpl => "Impl::TopImpl"
     Impl_TopImpl_AttrList => "Impl::TopImpl::AttrList"
+    Impl_TopImpl_MethodQuantifierList => "Impl::TopImpl::MethodQuantifierList"
     Impl_TopImpl_ParamList => "Impl::TopImpl::ParamList"
     Impl_TopImpl_QuantifierList => "Impl::TopImpl::QuantifierList"
     Impl_TopImplRelation => "Impl::TopImplRelation"
@@ -555,6 +569,10 @@ pub fn NodeKind::to_string(self : NodeKind) -> String {
     LetAnd_Binding => "LetAnd::Binding"
     LexCase => "LexCase"
     LexCase_PatternList => "LexCase::PatternList"
+    LexScanCase => "LexscanCase"
+    LexScanCasePattern_Binder => "LexscanCasePattern::Binder"
+    LexScanCasePattern_Pattern => "LexscanCasePattern::Pattern"
+    LexScanCasePattern_Wildcard => "LexscanCasePattern::Wildcard"
     LexPattern_Alias => "LexPattern::Alias"
     LexPattern_ConstantRef => "LexPattern::ConstantRef"
     LexPattern_Regex => "LexPattern::Regex"
@@ -729,6 +747,7 @@ fn NodeKind::has_item_children(self : NodeKind) -> Bool {
     | Expr_Apply_ArgumentList
     | Expr_ArraySpread_ElemList
     | Expr_Array_ExprList
+    | Expr_BytesInterp_ElemList
     | Expr_Continue_ExprList
     | Expr_DotApply_ArgList
     | Expr_ForEach_BinderList
@@ -740,6 +759,7 @@ fn NodeKind::has_item_children(self : NodeKind) -> Bool {
     | Expr_IsLexmatch_PatternList
     | Expr_LetAnd_BindingList
     | Expr_Lexmatch_CaseList
+    | Expr_Lexscan_CaseList
     | Expr_Map_ElemList
     | Expr_Match_CaseList
     | Expr_MultilineString_ElemList
@@ -760,6 +780,7 @@ fn NodeKind::has_item_children(self : NodeKind) -> Bool {
     | Impl_TopImplRelation_AttrList
     | Impl_TopImplRelation_QuantifierList
     | Impl_TopImpl_AttrList
+    | Impl_TopImpl_MethodQuantifierList
     | Impl_TopImpl_ParamList
     | Impl_TopImpl_QuantifierList
     | Impl_TopLetDef_AttrList
