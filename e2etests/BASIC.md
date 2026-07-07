@@ -9,7 +9,7 @@ Scan MoonBit source files with structural and taint rules.
 Commands:
   scan  Scan MoonBit source files with structural and taint rules.
   docs  Print embedded moongrep documentation.
-  dump  Parse a MoonBit impl or expression and print AST JSON.
+  dump  Parse a MoonBit impl or expression and print untyped_ast debug output.
   help  Print help for the subcommand(s).
 
 Options:
@@ -76,7 +76,7 @@ source:
 $ moonrun "$TESTDIR"/moongrep.wasm -- dump --help
 Usage: moongrep dump [options]
 
-Parse a MoonBit impl or expression and print AST JSON.
+Parse a MoonBit impl or expression and print untyped_ast debug output.
 
 Options:
   -h, --help     Show help information.
@@ -87,6 +87,6 @@ Options:
 ## moongrep dump --expr
 
 ```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- dump --expr 'x + 1' | grep '"kind": "Expr::Infix"'
-  "kind": "Expr::Infix",
+$ moonrun "$TESTDIR"/moongrep.wasm -- dump --expr 'x + 1' | grep 'kind: Expr_Infix'
+  kind: Expr_Infix,
 ```

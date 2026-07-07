@@ -3,20 +3,20 @@ fn render_dump_command(
   command : (String, CliOptions?, String?),
 ) -> String raise {
   match command {
-    ("dump-impl", None, Some(source)) => render_dump_impl_json(source)
-    ("dump-expr", None, Some(source)) => render_dump_expr_json(source)
+    ("dump-impl", None, Some(source)) => render_dump_impl_debug(source)
+    ("dump-expr", None, Some(source)) => render_dump_expr_debug(source)
     _ => fail("invalid dump command")
   }
 }
 
 ///|
-fn render_dump_impl_json(source : String) -> String raise {
-  parse_dump_impl(source).to_json().stringify(indent=2)
+fn render_dump_impl_debug(source : String) -> String raise {
+  "\{to_repr(@untyped_ast.from_impl(parse_dump_impl(source)))}"
 }
 
 ///|
-fn render_dump_expr_json(source : String) -> String raise {
-  parse_dump_expr(source).to_json().stringify(indent=2)
+fn render_dump_expr_debug(source : String) -> String raise {
+  "\{to_repr(@untyped_ast.from_expr(parse_dump_expr(source)))}"
 }
 
 ///|

@@ -79,7 +79,7 @@ files continue to be scanned.
 
 ## Dump
 
-MoonBit AST JSON dumps are available through the `dump` subcommand:
+MoonBit `untyped_ast` debug dumps are available through the `dump` subcommand:
 
 ```bash
 moon runwasm moonbit-community/moongrep -- dump --impl 'fn answer { 42 }'
@@ -93,9 +93,9 @@ moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse exactly one MoonBit top-level implementation item
-and print its AST JSON. Use `--expr <expr>` to parse a MoonBit expression and
-print its AST JSON. The options are mutually exclusive, and one of them is
-required.
+and print its `untyped_ast` debug output. Use `--expr <expr>` to parse a
+MoonBit expression and print its `untyped_ast` debug output. The options are
+mutually exclusive, and one of them is required.
 
 Usage errors, including missing both dump modes or combining `--impl` with
 `--expr`, print a message and exit with code 2. Parse or lexical failures print
