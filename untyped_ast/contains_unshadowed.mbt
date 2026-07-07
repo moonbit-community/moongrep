@@ -21,6 +21,7 @@ fn contains_unshadowed_node(node : Node, id : String, shadowed~ : Bool) -> Bool 
     Expr_ForEach => contains_foreach_unshadowed(node, id, shadowed)
     Expr_Match => contains_match_unshadowed(node, id, shadowed)
     Expr_Lexmatch => contains_lexmatch_unshadowed(node, id, shadowed)
+    Expr_Lexscan => contains_lexscan_unshadowed(node, id, shadowed)
     Expr_ListComprehension =>
       contains_list_comprehension_unshadowed(node, id, shadowed)
     Expr_Function => contains_expr_function_unshadowed(node, id, shadowed)
@@ -156,6 +157,16 @@ fn contains_match_unshadowed(node : Node, id : String, shadowed : Bool) -> Bool 
 
 ///|
 fn contains_lexmatch_unshadowed(
+  node : Node,
+  id : String,
+  shadowed : Bool,
+) -> Bool {
+  contains_named_child_unshadowed(node, "expr", id, shadowed) ||
+  contains_case_list_unshadowed(node, "cases", "pat", id, shadowed)
+}
+
+///|
+fn contains_lexscan_unshadowed(
   node : Node,
   id : String,
   shadowed : Bool,

@@ -253,6 +253,10 @@ pub fn visit_node_scoped_expr_children(
       visit_node_named_expr(expr, "expr", shadowed, visitor)
       visit_node_lex_case_list_exprs(expr, "cases", shadowed, visitor)
     }
+    Expr_Lexscan => {
+      visit_node_named_expr(expr, "expr", shadowed, visitor)
+      visit_node_lex_scan_case_list_exprs(expr, "cases", shadowed, visitor)
+    }
     Expr_ListComprehension => {
       let body_shadowed = if node_child(expr, "kind") is Some(kind) {
         visit_node_list_comprehension_kind_exprs(kind, shadowed, visitor)
@@ -443,6 +447,30 @@ fn visit_node_lex_case_list_exprs(
 }
 
 ///|
+fn visit_node_lex_scan_case_list_exprs(
+  node : Node,
+  name : String,
+  shadowed : Array[String],
+  visitor : (ScopedNodeExpr) -> Unit,
+) -> Unit {
+  if node_child(node, name) is Some(list) {
+    for entry in list.children {
+      let (_, case) = entry
+      let case_shadowed = if node_child(case, "pat") is Some(pattern) {
+        shadowed_with_node_pattern(shadowed, pattern)
+      } else {
+        copy_names(shadowed)
+      }
+      visit_node_named_expr(case, "guard", case_shadowed, visitor)
+      let body_shadowed = shadowed_with_node_condition_child(
+        case_shadowed, case, "guard",
+      )
+      visit_node_named_expr(case, "body", body_shadowed, visitor)
+    }
+  }
+}
+
+///|
 fn visit_node_list_comprehension_kind_exprs(
   kind : Node,
   shadowed : Array[String],
@@ -515,6 +543,7 @@ fn is_expr_node(node : Node) -> Bool {
     | Expr_As
     | Expr_Assign
     | Expr_Break
+    | Expr_BytesInterp
     | Expr_Constant
     | Expr_Constr
     | Expr_Constraint
@@ -540,6 +569,7 @@ fn is_expr_node(node : Node) -> Bool {
     | Expr_LetFn
     | Expr_LetMut
     | Expr_Lexmatch
+    | Expr_Lexscan
     | Expr_ListComprehension
     | Expr_Map
     | Expr_Match

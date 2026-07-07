@@ -249,6 +249,18 @@ fn eval_expr(
           )
         None => normal_result(state, [])
       }
+    Expr_Lexscan =>
+      match node_child(expr, "expr") {
+        Some(scrutinee) =>
+          eval_lex_scan(
+            scrutinee,
+            node_child_items(expr, "cases"),
+            state,
+            spec,
+            findings,
+          )
+        None => normal_result(state, [])
+      }
     Expr_Try =>
       match node_child(expr, "body") {
         Some(body) =>
@@ -2050,6 +2062,56 @@ fn bind_lex_pattern(
 }
 
 ///|
+fn lex_scan_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
+  let roots : Array[String] = []
+  add_lex_scan_pattern_bound_roots(roots, pattern)
+  roots
+}
+
+///|
+fn add_lex_scan_pattern_bound_roots(
+  roots : Array[String],
+  pattern : @untyped_ast.Node,
+) -> Unit {
+  match pattern.kind {
+    LexScanCasePattern_Binder =>
+      if node_first_child(pattern) is Some(binder) {
+        add_binder_root_name(roots, binder)
+      }
+    LexScanCasePattern_Pattern =>
+      if node_first_child(pattern) is Some(pat) {
+        add_regex_pattern_bound_roots(roots, pat)
+      }
+    LexScanCasePattern_Wildcard => ()
+    _ => ()
+  }
+}
+
+///|
+fn bind_lex_scan_pattern(
+  pattern : @untyped_ast.Node,
+  value : TaintTree,
+  state : TaintState,
+) -> TaintState {
+  match pattern.kind {
+    LexScanCasePattern_Binder =>
+      if node_first_child(pattern) is Some(binder) {
+        bind_binder(binder, value, state)
+      } else {
+        state
+      }
+    LexScanCasePattern_Pattern =>
+      if node_first_child(pattern) is Some(pat) {
+        bind_regex_pattern(pat, value, state)
+      } else {
+        state
+      }
+    LexScanCasePattern_Wildcard => state
+    _ => state
+  }
+}
+
+///|
 fn regex_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
   let roots : Array[String] = []
   add_regex_pattern_bound_roots(roots, pattern)
@@ -2403,6 +2465,90 @@ fn eval_lex_case(
     eval_expr(body, bound, spec, findings)
   }
   restore_result_scoped_roots(result, pattern_result.state, roots)
+}
+
+///|
+fn eval_lex_scan(
+  scrutinee : @untyped_ast.Node,
+  cases : Array[@untyped_ast.Node],
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
+  if scrutinee_result.flow != FlowNormal {
+    return scrutinee_result
+  }
+  let normal_states : Array[TaintState] = []
+  let mut branch_value : TaintTree = []
+  let exit_states : Array[TaintState] = []
+  let mut exit_flow = FlowNormal
+  let mut exit_value : TaintTree = []
+  for case in cases {
+    let case_result = eval_lex_scan_case(
+      case,
+      scrutinee_result.value,
+      scrutinee_result.state,
+      spec,
+      findings,
+    )
+    if case_result.flow == FlowNormal {
+      normal_states.push(case_result.state)
+      branch_value = tree_merge(branch_value, case_result.value)
+    } else {
+      if exit_states.is_empty() {
+        exit_flow = case_result.flow
+        exit_value = case_result.value
+      }
+      exit_states.push(case_result.state)
+    }
+  }
+  if normal_states.length() > 0 {
+    normal_result(state_merge_all(normal_states), branch_value)
+  } else if exit_states.length() > 0 {
+    flow_result(exit_flow, state_merge_all(exit_states), exit_value)
+  } else {
+    normal_result(scrutinee_result.state, [])
+  }
+}
+
+///|
+fn eval_lex_scan_case(
+  case : @untyped_ast.Node,
+  value : TaintTree,
+  base_state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let pattern = match node_child(case, "pat") {
+    Some(pattern) => pattern
+    None => return normal_result(base_state, [])
+  }
+  let body = match node_child(case, "body") {
+    Some(body) => body
+    None => return normal_result(base_state, [])
+  }
+  let roots = lex_scan_pattern_bound_roots(pattern)
+  let bound = bind_lex_scan_pattern(pattern, value, base_state)
+  let result = if node_optional_child(case, "guard") is Some(guard_expr) {
+    let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
+    if guard_result.flow == FlowNormal {
+      restore_result_scoped_roots(
+        eval_expr(body, guard_result.true_state, spec, findings),
+        guard_result.base_state,
+        guard_result.bound_roots,
+      )
+    } else {
+      {
+        state: guard_result.base_state,
+        value: guard_result.value,
+        flow: guard_result.flow,
+      }
+    }
+  } else {
+    eval_expr(body, bound, spec, findings)
+  }
+  restore_result_scoped_roots(result, base_state, roots)
 }
 
 ///|
@@ -2856,7 +3002,7 @@ fn eval_unknown_expr(
         }
         None => normal_result(state, [])
       }
-    Expr_Interp =>
+    Expr_Interp | Expr_BytesInterp =>
       eval_interp_elems(node_child_items(expr, "elems"), state, spec, findings)
     Expr_Map => {
       let mut current = state
