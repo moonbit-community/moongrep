@@ -14,6 +14,7 @@ import {
 pub(all) suberror RuleLoadError {
   InvalidRule(path~ : String, info~ : String)
 } derive(@debug.Debug)
+pub impl Show for RuleLoadError
 
 // Types and methods
 pub(all) struct CompiledRule {

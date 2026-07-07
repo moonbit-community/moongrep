@@ -38,9 +38,6 @@ source:
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/recursive-rule-discovery-src
-InvalidRule(
-  path="testdata/empty-rule-root",
-  info="no YAML rule files found",
-)
+testdata/empty-rule-root: no YAML rule files found
 [1]
 ```

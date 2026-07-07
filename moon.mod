@@ -7,9 +7,9 @@ preferred_target = "wasm"
 import {
   "moonbitlang/parser@0.3.7",
   "moonbit-community/yaml@0.0.4",
-  "moonbit-community/miniio@0.2.1",
   "moonbit-community/chalk@0.0.1",
   "moonbitlang/lexer@0.3.7",
+  "moonbitlang/async@0.20.1",
 }
 
 readme = "README.md"

@@ -1,6 +1,11 @@
 import {
   "moonbit-community/moongrep/rule/model",
-  "moonbit-community/miniio",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/io",
 }
+
+import {
+  "moonbitlang/async",
+} for "test"
 
 supported_targets = "wasm"

@@ -127,7 +127,7 @@ fn string_array_contains(items : Array[String], expected : String) -> Bool {
 }
 
 ///|
-test "scan skips structural rules only for moongrep skip attribute" {
+async test "scan skips structural rules only for moongrep skip attribute" {
   let result = collect_directory_hits(skip_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
@@ -137,7 +137,7 @@ test "scan skips structural rules only for moongrep skip attribute" {
 }
 
 ///|
-test "scan excludes configured directory names" {
+async test "scan excludes configured directory names" {
   let result = collect_directory_hits(exclude_dir_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
@@ -159,7 +159,7 @@ test "scan excludes configured directory names" {
 }
 
 ///|
-test "scan loads only the configured single rule file" {
+async test "scan loads only the configured single rule file" {
   let result = collect_directory_hits(single_rule_file_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
@@ -169,7 +169,7 @@ test "scan loads only the configured single rule file" {
 }
 
 ///|
-test "scan anonymous guarded pattern filters matches" {
+async test "scan anonymous guarded pattern filters matches" {
   let result = collect_directory_hits(guarded_cli_pattern_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
@@ -179,7 +179,7 @@ test "scan anonymous guarded pattern filters matches" {
 }
 
 ///|
-test "scan verbose lists loaded rule ids before traversal" {
+async test "scan verbose lists loaded rule ids before traversal" {
   let result = collect_directory_hits(verbose_rules_scan_options())
   debug_inspect(
     result.scan_trace,

@@ -6,7 +6,7 @@ using @model {type RawRuleSpec, type RuleLoadError}
 ///
 /// Files are discovered recursively, sorted for deterministic output, and
 /// parsed as raw specs. An empty rule directory is treated as a rule-load error.
-pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
+pub async fn load_rules(rules_root : String) -> Array[RawRuleSpec] {
   let files = collect_rule_files(rules_root)
   if files.is_empty() {
     raise RuleLoadError::InvalidRule(
@@ -16,7 +16,7 @@ pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
   }
   let rules : Array[RawRuleSpec] = []
   for file in files {
-    let source = @miniio.read_text_file(file)
+    let source = read_text_file(file)
     rules.push(@model.RawRuleSpec::from_str(file, rules_root, source))
   }
   rules
@@ -24,8 +24,8 @@ pub fn load_rules(rules_root : String) -> Array[RawRuleSpec] raise {
 
 ///|
 /// Loads exactly one YAML rule file.
-pub fn load_rule(rule_file : String) -> RawRuleSpec raise {
-  let source = @miniio.read_text_file(rule_file)
+pub async fn load_rule(rule_file : String) -> RawRuleSpec {
+  let source = read_text_file(rule_file)
   @model.RawRuleSpec::from_str(
     rule_file,
     rule_file_rules_root(rule_file),
@@ -42,7 +42,7 @@ fn rule_file_rules_root(rule_file : String) -> String {
 }
 
 ///|
-fn collect_rule_files(rules_root : String) -> Array[String] raise {
+async fn collect_rule_files(rules_root : String) -> Array[String] {
   let files : Array[String] = []
   walk_rule_dir(rules_root, files)
   files.sort()
@@ -50,16 +50,21 @@ fn collect_rule_files(rules_root : String) -> Array[String] raise {
 }
 
 ///|
-fn walk_rule_dir(dir : String, files : Array[String]) -> Unit raise {
-  let entries = @miniio.readdir(dir, sort=true, follow_symlink=true)
+async fn walk_rule_dir(dir : String, files : Array[String]) -> Unit {
+  let entries = @fs.readdir(dir, sort=true)
   for entry in entries {
     let path = "\{dir}/\{entry}"
-    if @miniio.is_dir(path) {
-      walk_rule_dir(path, files)
-    } else if has_yaml_suffix(path) {
-      files.push(path)
+    match @fs.kind(path) {
+      Directory => walk_rule_dir(path, files)
+      Regular => if has_yaml_suffix(path) { files.push(path) }
+      _ => ()
     }
   }
+}
+
+///|
+async fn read_text_file(path : String) -> String {
+  @fs.read_file(path).text()
 }
 
 ///|

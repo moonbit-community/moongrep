@@ -32,7 +32,7 @@ priv struct SourceContextLine {
 }
 
 ///|
-fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
+async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
   let raw_rules = load_scan_rules(options)
   let compiled_rules = @rule_compile.compile_rules(raw_rules)
   let files : Array[String] = []
@@ -57,7 +57,7 @@ fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult raise {
   let hits : Array[ScanHit] = []
   let skipped_files : Array[SkippedFile] = []
   for file in files {
-    let source = @miniio.read_text_file(file)
+    let source = read_text_file(file)
     let file_rules = @rule_prefilter.prefilter_rules_for_source(
       compiled_rules, source,
     )
@@ -145,9 +145,9 @@ fn source_context_line_count(source : String, split_line_count : Int) -> Int {
 }
 
 ///|
-fn load_scan_rules(
+async fn load_scan_rules(
   options : CliOptions,
-) -> Array[@rule_model.RawRuleSpec] raise {
+) -> Array[@rule_model.RawRuleSpec] {
   let raw_rules : Array[@rule_model.RawRuleSpec] = []
   if options.enable_builtin_rules {
     raw_rules.append(@rule_builtin.load_rules())
@@ -246,27 +246,37 @@ fn source_text_for_location(source : String, loc : @basic.Location) -> String {
 }
 
 ///|
-fn collect_source_files(
+async fn collect_source_files(
   path : String,
   exclude_dirs : Array[String],
   files : Array[String],
   scan_trace : Array[String]?,
-) -> Unit raise {
-  if @miniio.is_dir(path) {
-    push_scan_trace(scan_trace, "moongrep scan: entering \{path}")
-    let entries = @miniio.readdir(path, sort=true, follow_symlink=true)
-    for entry in entries {
-      let child_path = "\{path}/\{entry}"
-      if !should_skip_entry(child_path, entry, exclude_dirs) {
-        collect_source_files(child_path, exclude_dirs, files, scan_trace)
-      } else {
-        push_scan_trace(scan_trace, "moongrep scan: skipping \{child_path}")
+) -> Unit {
+  match @fs.kind(path) {
+    Directory => {
+      push_scan_trace(scan_trace, "moongrep scan: entering \{path}")
+      let entries = @fs.readdir(path, sort=true)
+      for entry in entries {
+        let child_path = "\{path}/\{entry}"
+        if !should_skip_entry(child_path, entry, exclude_dirs) {
+          collect_source_files(child_path, exclude_dirs, files, scan_trace)
+        } else {
+          push_scan_trace(scan_trace, "moongrep scan: skipping \{child_path}")
+        }
       }
     }
-  } else if @miniio.is_file(path) && path.has_suffix(".mbt") {
-    files.push(path)
-    push_scan_trace(scan_trace, "moongrep scan: file \{path}")
+    Regular =>
+      if path.has_suffix(".mbt") {
+        files.push(path)
+        push_scan_trace(scan_trace, "moongrep scan: file \{path}")
+      }
+    _ => ()
   }
+}
+
+///|
+async fn read_text_file(path : String) -> String {
+  @fs.read_file(path).text()
 }
 
 ///|
