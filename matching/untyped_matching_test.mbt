@@ -53,13 +53,13 @@ fn untyped_test_pattern_var(name : String) -> @syntax.Pattern {
 fn untyped_test_pattern_tuple(
   items : Array[@syntax.Pattern],
 ) -> @syntax.Pattern {
-  Tuple(pats=@list.from_array(items), loc=untyped_test_loc())
+  Tuple(pats=List(items), loc=untyped_test_loc())
 }
 
 ///|
 fn untyped_test_ident(name : String) -> @syntax.Expr {
-  @syntax.Expr::Ident(
-    id={ name: @syntax.LongIdent::Ident(name~), loc: untyped_test_loc() },
+  Ident(
+    id={ name: Ident(name~), loc: untyped_test_loc() },
     loc=untyped_test_loc(),
   )
 }
@@ -68,9 +68,7 @@ fn untyped_test_ident(name : String) -> @syntax.Expr {
 fn untyped_test_match_pattern(pattern : @syntax.Pattern) -> @syntax.Expr {
   Match(
     expr=untyped_test_ident("input"),
-    cases=@list.from_array([
-      { pattern, guard_: None, body: untyped_test_ident("body") },
-    ]),
+    cases=List([{ pattern, guard_: None, body: untyped_test_ident("body") }]),
     match_loc=untyped_test_loc(),
     loc=untyped_test_loc(),
   )

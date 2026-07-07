@@ -177,7 +177,7 @@ fn anonymous_pattern_rule(
       inside_expr: None,
       patterns: [pattern],
       patterns_not: [],
-      patterns_not_mode: @rule_model.StructuralPatternsNotMode::PruneOnNegative,
+      patterns_not_mode: PruneOnNegative,
     }),
   }
 }
@@ -214,7 +214,7 @@ fn attributes_have_moongrep_skip(
 ///|
 fn attribute_is_moongrep_skip(attr : @attribute.Attribute) -> Bool {
   match attr.parsed {
-    Some(@attribute.Expr::Ident(id)) | Some(@attribute.Expr::Apply(id, _)) =>
+    Some(Ident(id)) | Some(Apply(id, _)) =>
       id.qual == Some("moongrep") && id.name == "skip"
     _ => false
   }

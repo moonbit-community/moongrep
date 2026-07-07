@@ -86,7 +86,7 @@ fn InlineMetavarRewriteContext::rewrite_patterns(
   for pattern in patterns {
     result.push(ctx.rewrite_pattern(pattern))
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -121,7 +121,7 @@ fn InlineMetavarRewriteContext::rewrite_array_pattern_items(
       },
     )
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -160,7 +160,7 @@ fn InlineMetavarRewriteContext::rewrite_constr_pat_args(
       pat: ctx.rewrite_pattern(arg.pat),
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -177,7 +177,7 @@ fn InlineMetavarRewriteContext::rewrite_field_pats(
       loc: field.loc,
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -195,7 +195,7 @@ fn InlineMetavarRewriteContext::rewrite_map_pat_elems(
       loc: elem.loc,
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -211,7 +211,7 @@ fn InlineMetavarRewriteContext::rewrite_cases(
       body: ctx.rewrite_expr(case.body),
     })
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|
@@ -266,7 +266,7 @@ fn InlineMetavarRewriteContext::rewrite_regex_bindings(
       (ctx.rewrite_label(label), ctx.rewrite_optional_binder_value(binder)),
     )
   }
-  @list.from_array(result)
+  List(result)
 }
 
 ///|

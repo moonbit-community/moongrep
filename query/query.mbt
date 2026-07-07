@@ -80,7 +80,7 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
       inside_expr: None,
       patterns: [{ shape: pattern, guards: {} }],
       patterns_not: [],
-      patterns_not_mode: @rule_model.StructuralPatternsNotMode::PruneOnNegative,
+      patterns_not_mode: PruneOnNegative,
     }),
   }
 }
@@ -93,7 +93,7 @@ fn collect_node_matches(
 ) -> Unit {
   @untyped_ast.visit_node_scoped_expr_roots(ast, fn(scoped_expr) {
     collect_scoped_node_matches(pattern, scoped_expr, matches)
-    @untyped_ast.NodeVisitAction::NodeVisitPrune
+    NodeVisitPrune
   })
 }
 

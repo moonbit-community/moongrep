@@ -32,14 +32,14 @@ fn test_field_def(label : String, expr : @syntax.Expr) -> @syntax.FieldDef {
 test "traverse counts supported names in node expressions" {
   let target = test_ident("__TARGET__")
   let expr = @syntax.Expr::ForEach(
-    binders=@list.from_array([Some(test_binder("item"))]),
+    binders=List([Some(test_binder("item"))]),
     expr=test_ident("items"),
-    init=@list.from_array([(test_binder("init"), target)]),
-    continue_block=@list.from_array([(test_binder("next"), target)]),
+    init=List([(test_binder("init"), target)]),
+    continue_block=List([(test_binder("next"), target)]),
     body=test_ident("body"),
     else_block=None,
     where_clause=Some({
-      fields: @list.from_array([test_field_def("field", target)]),
+      fields: List([test_field_def("field", target)]),
       loc: test_loc(),
     }),
     label=None,

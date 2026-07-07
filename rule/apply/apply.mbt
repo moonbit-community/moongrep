@@ -59,7 +59,7 @@ pub fn apply_structural_rules_to_node(
     apply_ast_structural_rule_entries_to_scoped_expr(
       file, entries, scoped_expr, hits,
     )
-    @untyped_ast.NodeVisitAction::NodeVisitPrune
+    NodeVisitPrune
   })
   hits
 }
@@ -171,7 +171,7 @@ pub fn apply_taint_rules(
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
-  if root_node.kind == @untyped_ast.NodeKind::ImplList {
+  if root_node.kind == ImplList {
     for entry in root_node.children {
       let (_, node) = entry
       let node_hits = apply_taint_rules_to_node(file, node, rules)
@@ -274,7 +274,7 @@ fn apply_inside_expr_ast_bucketed(
         )
       } else {
         match structural.patterns_not_mode {
-          @model.StructuralPatternsNotMode::RejectUncoveredNegative =>
+          RejectUncoveredNegative =>
             apply_ast_bucketed_covered_patterns_in_target_subtree(
               file,
               rule,
@@ -286,7 +286,7 @@ fn apply_inside_expr_ast_bucketed(
               inside.compiled.identifier_metavars,
               hits,
             )
-          @model.StructuralPatternsNotMode::PruneOnNegative =>
+          PruneOnNegative =>
             apply_ast_bucketed_patterns_in_target_subtree(
               file,
               rule,
@@ -322,8 +322,8 @@ fn apply_ast_bucketed_patterns_in_target_subtree(
         file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_loc,
         outer_bindings, inherited_identifier_metavars, hits,
       ) {
-      RulePrune => @untyped_ast.NodeVisitAction::NodeVisitPrune
-      RuleContinue => @untyped_ast.NodeVisitAction::NodeVisitContinue
+      RulePrune => NodeVisitPrune
+      RuleContinue => NodeVisitContinue
     }
   })
 }
@@ -344,19 +344,19 @@ fn apply_ast_bucketed_covered_patterns_in_target_subtree(
   let mut rejected = false
   @untyped_ast.visit_node_scoped_exprs(target, fn(scoped_expr) {
     if rejected {
-      @untyped_ast.NodeVisitAction::NodeVisitPrune
+      NodeVisitPrune
     } else {
       match
         apply_ast_bucketed_covered_patterns_at_scoped_expr(
           file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_loc,
           outer_bindings, inherited_identifier_metavars, pending_hits,
         ) {
-        InsideTargetPrune => @untyped_ast.NodeVisitAction::NodeVisitPrune
+        InsideTargetPrune => NodeVisitPrune
         InsideTargetReject => {
           rejected = true
-          @untyped_ast.NodeVisitAction::NodeVisitPrune
+          NodeVisitPrune
         }
-        InsideTargetContinue => @untyped_ast.NodeVisitAction::NodeVisitContinue
+        InsideTargetContinue => NodeVisitContinue
       }
     }
   })
@@ -641,7 +641,7 @@ fn ast_guards_match(
 ) -> Bool {
   for guard_entry in guards {
     match guard_entry.capture_kind {
-      @model.RuleGuardCaptureKind::IdentifierGuard =>
+      IdentifierGuard =>
         match bindings.get(guard_entry.name) {
           Some(value) => {
             guard node_leaf_string(value) is Some(text) else { return false }
@@ -651,7 +651,7 @@ fn ast_guards_match(
           }
           _ => return false
         }
-      @model.RuleGuardCaptureKind::ConstantGuard =>
+      ConstantGuard =>
         match bindings.get(guard_entry.name) {
           Some(value) => {
             guard constant_guard_value(value) is Some(text) else {

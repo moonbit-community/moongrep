@@ -32,7 +32,7 @@ pub fn match_expr_pattern(
   compiled : CompiledExprPattern,
   candidate : @untyped_ast.Node,
 ) -> ExprMatch? {
-  let bindings : @hashmap.HashMap[String, BoundValue] = @hashmap.HashMap([])
+  let bindings : @hashmap.HashMap[String, BoundValue] = HashMap([])
   match_expr_pattern_with_bindings(compiled, candidate, bindings)
 }
 
