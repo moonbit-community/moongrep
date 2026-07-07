@@ -103,6 +103,23 @@ test "prefilter treats inline constant metavars as placeholders" {
 }
 
 ///|
+test "prefilter treats inline argument metavars as placeholders" {
+  let source =
+    #|id: example
+    #|description: Target call.
+    #|patterns:
+    #|  - shape: sink($(arg:arg))
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { sink(label=actual) }\n"),
+  )
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { other(label=actual) }\n"),
+  )
+}
+
+///|
 test "prefilter ignores one digit int literals" {
   let one_digit_source =
     #|id: example

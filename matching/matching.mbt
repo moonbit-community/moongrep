@@ -13,6 +13,7 @@ pub fn expr_matches(
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -69,6 +70,9 @@ fn match_node(
   } else if match_pattern_placeholder(pattern, candidate, compiled, bindings)
     is Some(result) {
     result
+  } else if match_argument_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    result
   } else {
     match pattern.kind {
       Expr_Let => match_let_node(pattern, candidate, compiled, bindings)
@@ -81,6 +85,33 @@ fn match_node(
       _ => structural_match(pattern, candidate, compiled, bindings)
     }
   }
+}
+
+///|
+fn match_argument_placeholder(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool? {
+  if pattern.kind != Argument {
+    return None
+  }
+  guard argument_placeholder_name(pattern) is Some(name) else { return None }
+  if contains_name(compiled.arg_metavars, name) {
+    Some(candidate.kind == Argument && bind_value(bindings, name, candidate))
+  } else {
+    None
+  }
+}
+
+///|
+fn argument_placeholder_name(node : @untyped_ast.Node) -> String? {
+  guard child(node, "kind") is Some(kind) else { return None }
+  guard kind.kind == ArgumentKind_Positional else { return None }
+  guard child(node, "value") is Some(value) else { return None }
+  guard value.kind == Expr_Ident else { return None }
+  value.normalized_expr_identifier_name()
 }
 
 ///|

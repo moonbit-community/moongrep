@@ -132,6 +132,34 @@ test "apply structural rule supports inline expression metavars" {
 }
 
 ///|
+test "apply structural rule supports inline argument metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Single complete argument.
+    #|patterns:
+    #|  - shape: sink($(arg:arg))
+    #|
+  let source =
+    #|fn sample {
+    #|  sink(value);
+    #|  sink(label=value);
+    #|  sink(label~);
+    #|  sink(label?=value);
+    #|  sink(label?);
+    #|  sink(value, other)
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 5)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule supports bare expression metavars" {
   let rule_source =
     #|id: example

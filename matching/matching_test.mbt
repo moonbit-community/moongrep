@@ -160,6 +160,7 @@ test "declared expression metavar requires structural equality" {
     expr_metavars: ["__x"],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -177,6 +178,7 @@ test "identifier metavar compares binder and uses by normalized name" {
     expr_metavars: ["limit", "body"],
     identifier_metavars: ["counter"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -206,6 +208,7 @@ test "identifier metavar matches loop counter" {
     expr_metavars: ["limit", "body"],
     identifier_metavars: ["counter"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -233,6 +236,7 @@ test "expression metavar matches repeated call expression" {
     expr_metavars: ["value"],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -252,6 +256,7 @@ test "expression metavar keeps structural equality" {
     expr_metavars: ["value"],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -271,6 +276,7 @@ test "constant metavar requires repeated constant equality" {
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: ["value"],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -287,6 +293,7 @@ test "constant metavar matches only constant patterns" {
     expr_metavars: ["input"],
     identifier_metavars: [],
     constant_metavars: ["lit"],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -305,12 +312,70 @@ test "constant metavar matches only constant patterns" {
 }
 
 ///|
+test "argument metavar captures complete argument nodes" {
+  let compiled : CompiledExprPattern = {
+    ast: parse_expr("sink(arg)"),
+    expr_metavars: [],
+    identifier_metavars: [],
+    constant_metavars: [],
+    arg_metavars: ["arg"],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  for
+    source in [
+      "sink(value)", "sink(label=value)", "sink(label~)", "sink(label?=value)", "sink(label?)",
+    ] {
+    match match_expr_pattern(compiled, parse_expr(source)) {
+      Some(result) =>
+        match result.bindings.get("arg") {
+          Some(node) => assert_true(node.kind == Argument)
+          _ => fail("expected argument binding")
+        }
+      None => fail("expected argument metavar to match \{source}")
+    }
+  }
+  assert_false(match_expr_pattern(compiled, parse_expr("sink()")) is Some(_))
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("sink(value, other)")) is Some(_),
+  )
+}
+
+///|
+test "argument metavar requires repeated argument equality" {
+  let compiled : CompiledExprPattern = {
+    ast: parse_expr("sink(arg, arg)"),
+    expr_metavars: [],
+    identifier_metavars: [],
+    constant_metavars: [],
+    arg_metavars: ["arg"],
+    target_metavar: None,
+    source_metavar: None,
+  }
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("sink(value, value)")) is Some(_),
+  )
+  assert_true(
+    match_expr_pattern(compiled, parse_expr("sink(label=value, label=value)"))
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("sink(value, other)")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, parse_expr("sink(label=value, other=value)"))
+    is Some(_),
+  )
+}
+
+///|
 test "pattern metavar captures whole pattern AST" {
   let compiled : CompiledExprPattern = {
     ast: test_match_pattern(test_pattern_var("$(item:pat)")),
     expr_metavars: ["input", "body"],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -345,6 +410,7 @@ test "pattern metavar requires repeated pattern equality" {
     expr_metavars: ["input", "body"],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -372,6 +438,7 @@ test "identifier metavar matches pattern vars" {
     expr_metavars: ["input"],
     identifier_metavars: ["item"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -393,6 +460,7 @@ test "identifier metavar matches labels" {
     expr_metavars: ["record"],
     identifier_metavars: ["field"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -413,6 +481,7 @@ test "identifier metavar matches qualified function names" {
     expr_metavars: [],
     identifier_metavars: ["callee"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -432,6 +501,7 @@ test "qualified identifier metavar keeps literal package" {
     expr_metavars: [],
     identifier_metavars: ["callee"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -452,6 +522,7 @@ test "identifier metavar matches constructor identity with extra info" {
     expr_metavars: [],
     identifier_metavars: ["Ctor"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -476,6 +547,7 @@ test "identifier metavar matches constructor type extra info" {
     expr_metavars: [],
     identifier_metavars: ["TypeName", "Ctor"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -500,6 +572,7 @@ test "identifier metavar matches constructor patterns" {
     expr_metavars: ["input"],
     identifier_metavars: ["Ctor"],
     constant_metavars: [],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }

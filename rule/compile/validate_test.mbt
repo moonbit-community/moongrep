@@ -290,6 +290,26 @@ test "validate records inline constant metavars" {
 }
 
 ///|
+test "validate records inline argument metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(arg:arg), $(arg:arg))
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      debug_inspect(rule.patterns[0].compiled.arg_metavars, content="[\"arg\"]")
+      debug_inspect(rule.patterns[0].compiled.expr_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.identifier_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.constant_metavars, content="[]")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate records constructor identifier metavars" {
   let source =
     #|id: example
@@ -360,6 +380,86 @@ test "validate rejects constant metavar kind conflicts" {
 }
 
 ///|
+test "validate rejects argument metavar kind conflicts" {
+  let exp_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:arg), $(value:exp))
+    #|
+  expect_compile_invalid(
+    exp_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+  )
+  let id_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:arg), $(value:id))
+    #|
+  expect_compile_invalid(
+    id_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+  )
+  let const_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:arg), $(value:const))
+    #|
+  expect_compile_invalid(
+    const_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+  )
+  let pat_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:arg), match input { $(value:pat) => ok })
+    #|
+  expect_compile_invalid(
+    pat_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+  )
+}
+
+///|
+test "validate rejects argument metavars outside bare argument position" {
+  let root_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(value:arg)
+    #|
+  expect_compile_invalid(
+    root_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+  )
+  let labelled_value_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink(label=$(value:arg))
+    #|
+  expect_compile_invalid(
+    labelled_value_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+  )
+  let nested_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:arg) + 1)
+    #|
+  expect_compile_invalid(
+    nested_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+  )
+  let pattern_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $(value:arg) => body }
+    #|
+  expect_compile_invalid(
+    pattern_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+  )
+}
+
+///|
 test "validate rejects const metavar in labels" {
   let source =
     #|id: example
@@ -403,9 +503,9 @@ test "validate allows inherited inside expr metavars with matching inline forms"
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(value:exp), $(name:id), $(lit:const), __TARGET__)
+    #|inside-expr: wrapper($(value:exp), $(name:id), $(lit:const), $(arg:arg), __TARGET__)
     #|patterns:
-    #|  - shape: target($(value:exp), $(name:id), $(lit:const))
+    #|  - shape: target($(value:exp), $(name:id), $(lit:const), $(arg:arg))
     #|
   let rules = compile_one(source)
   match rules[0].definition {
@@ -422,6 +522,7 @@ test "validate allows inherited inside expr metavars with matching inline forms"
         rule.patterns[0].compiled.constant_metavars,
         content="[\"lit\"]",
       )
+      debug_inspect(rule.patterns[0].compiled.arg_metavars, content="[\"arg\"]")
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -522,6 +623,20 @@ test "validate rejects inherited inside expr metavars with different inline form
     #|
   expect_compile_invalid(
     source, "patterns[0] cannot use inherited inside-expr metavar prefix as id because it was declared as exp",
+  )
+}
+
+///|
+test "validate rejects inherited inside expr argument kind mismatch" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(arg:arg), __TARGET__)
+    #|patterns:
+    #|  - shape: target($(arg:exp))
+    #|
+  expect_compile_invalid(
+    source, "patterns[0] cannot use inherited inside-expr metavar arg as exp because it was declared as arg",
   )
 }
 
@@ -650,6 +765,21 @@ test "validate rejects guard on exp and pat metavars" {
     #|
   expect_compile_invalid(
     pat_source, "patterns[0].guard.$item cannot reference pat metavar item",
+  )
+}
+
+///|
+test "validate rejects guard on arg metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(value:arg))
+    #|    guard:
+    #|      $value: "^safe_"
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].guard.$value cannot reference arg metavar value",
   )
 }
 

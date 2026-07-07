@@ -296,6 +296,9 @@ fn MetavarRewriteContext::rewrite_expr_var(
           match ctx.collect_or_resolve_metavar(syntax, BareExpressionPosition) {
             None => var_
             Some((kind, meta_name)) => {
+              if kind == "arg" {
+                ctx.reject_metavar_position(kind, meta_name)
+              }
               ctx.register_metavar(kind, meta_name)
               { name: Ident(name=meta_name), loc: var_.loc }
             }
@@ -308,7 +311,9 @@ fn MetavarRewriteContext::rewrite_expr_var(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "exp" {
+              if kind == "arg" {
+                ctx.reject_metavar_position(kind, meta_name)
+              } else if kind == "exp" {
                 ctx.reject_metavar_position(kind, meta_name)
               } else if kind == "const" {
                 ctx.reject_qualified_metavar(kind, meta_name)
@@ -334,7 +339,7 @@ fn MetavarRewriteContext::rewrite_var(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" {
+              if kind == "exp" || kind == "const" || kind == "arg" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -349,7 +354,7 @@ fn MetavarRewriteContext::rewrite_var(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" {
+              if kind == "exp" || kind == "const" || kind == "arg" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -371,7 +376,7 @@ fn MetavarRewriteContext::rewrite_binder(
       match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
         None => binder
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
+          if kind == "exp" || kind == "const" || kind == "arg" {
             ctx.reject_metavar_position(kind, meta_name)
           }
           ctx.register_metavar(kind, meta_name)
@@ -392,7 +397,7 @@ fn MetavarRewriteContext::rewrite_label(
       match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
         None => label
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
+          if kind == "exp" || kind == "const" || kind == "arg" {
             ctx.reject_metavar_position(kind, meta_name)
           }
           ctx.register_metavar(kind, meta_name)
@@ -423,7 +428,7 @@ fn MetavarRewriteContext::rewrite_constr_name(
       match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
         None => name
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" {
+          if kind == "exp" || kind == "const" || kind == "arg" {
             ctx.reject_metavar_position(kind, meta_name)
           }
           ctx.register_metavar(kind, meta_name)
@@ -474,7 +479,7 @@ fn MetavarRewriteContext::rewrite_type_long_ident(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => long_ident
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" {
+              if kind == "exp" || kind == "const" || kind == "arg" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -489,7 +494,7 @@ fn MetavarRewriteContext::rewrite_type_long_ident(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => long_ident
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" {
+              if kind == "exp" || kind == "const" || kind == "arg" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -531,12 +536,47 @@ fn MetavarRewriteContext::rewrite_arguments(
 ) -> @list.List[@syntax.Argument] raise {
   let result : Array[@syntax.Argument] = []
   for arg in args {
-    result.push({
-      kind: ctx.rewrite_argument_kind(arg.kind),
-      value: ctx.rewrite_expr(arg.value),
-    })
+    result.push(ctx.rewrite_argument(arg))
   }
   List(result)
+}
+
+///|
+fn MetavarRewriteContext::rewrite_argument(
+  ctx : MetavarRewriteContext,
+  arg : @syntax.Argument,
+) -> @syntax.Argument raise {
+  if ctx.rewrite_argument_metavar(arg) is Some(rewritten) {
+    rewritten
+  } else {
+    {
+      kind: ctx.rewrite_argument_kind(arg.kind),
+      value: ctx.rewrite_expr(arg.value),
+    }
+  }
+}
+
+///|
+fn MetavarRewriteContext::rewrite_argument_metavar(
+  ctx : MetavarRewriteContext,
+  arg : @syntax.Argument,
+) -> @syntax.Argument? raise {
+  guard arg.kind is Positional else { return None }
+  guard arg.value is Ident(id~, loc~) else { return None }
+  guard id.name is Ident(name~) else { return None }
+  match parse_metavar(name, ctx.path, ctx.context) {
+    Some(Explicit(kind, meta_name)) =>
+      if kind == "arg" {
+        ctx.register_metavar(kind, meta_name)
+        Some({
+          kind: Positional,
+          value: Ident(id={ name: Ident(name=meta_name), loc: id.loc }, loc~),
+        })
+      } else {
+        None
+      }
+    _ => None
+  }
 }
 
 ///|

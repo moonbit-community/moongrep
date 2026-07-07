@@ -117,7 +117,7 @@ patterns:
       }
 ```
 
-当推导有歧义，或需要 `const` 或 `pat` 时，请使用显式 `$(name:kind)`。当同一个字面常量必须保持一致，并且变量不应该匹配时，请使用 `$(name:const)`：
+当推导有歧义，或需要 `const`、`arg` 或 `pat` 时，请使用显式 `$(name:kind)`。当同一个字面常量必须保持一致，并且变量不应该匹配时，请使用 `$(name:const)`：
 
 ```yaml
 patterns:
@@ -131,7 +131,16 @@ patterns:
   - shape: match input { $(item:pat) => body }
 ```
 
-像 `match input { $item => body }` 这样的裸简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义，因此规则编译会要求你显式选择。`exp` kind 只能出现在表达式位置。`const` kind 只在常量表达式或常量 pattern 位置有效。`pat` kind 只在简单 pattern variable 位置有效。如果需要非表达式源码名称，请使用 `id`，或者让该名称保持字面量。任何其他 kind 都是编译错误。
+使用 `$(name:arg)` 捕获完整调用参数槽：
+
+```yaml
+patterns:
+  - shape: sink($(arg:arg))
+```
+
+这个 pattern 可以在单个参数槽中匹配 positional、labelled、labelled pun、optional labelled 和 optional pun 参数。裸 `$arg` 不会推导为 `arg`；请在每个参数槽显式写出 kind。
+
+像 `match input { $item => body }` 这样的裸简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义，因此规则编译会要求你显式选择。`exp` kind 只能出现在表达式位置。`const` kind 只在常量表达式或常量 pattern 位置有效。`arg` kind 只在调用 pattern 的整个裸参数位置有效。`pat` kind 只在简单 pattern variable 位置有效。如果需要非表达式源码名称，请使用 `id`，或者让该名称保持字面量。任何其他 kind 都是编译错误。
 
 旧的 YAML `metavars` 键无效。
 
@@ -144,7 +153,7 @@ patterns:
 
 当这些名称之一出现在支持的元变量位置时，它会匹配该位置上的任何内容，不绑定值，也不参与重复名称相等性检查。重复的忽略占位符是彼此独立的通配符。
 
-### 3. 选择 `exp`、`id`、`const` 或 `pat`
+### 3. 选择 `exp`、`id`、`const`、`arg` 或 `pat`
 
 当你想匹配并比较完整表达式时，使用 `exp`。重复使用同一个 `exp` 元变量意味着这些捕获必须根据运行时 matcher 的结构相等规则相等；源码位置会被忽略。
 
@@ -183,6 +192,15 @@ patterns:
 patterns:
   - shape: match input { $(item:pat) => body }
 ```
+
+当候选必须是完整调用参数槽时，使用 `arg`；它会包含参数 kind、标签和值。重复的 `arg` 捕获会比较完整参数节点，并忽略源码位置。
+
+```yaml
+patterns:
+  - shape: sink($(arg:arg), $(arg:arg))
+```
+
+这可以匹配 `sink(value, value)` 和 `sink(label=value, label=value)`，但不会匹配 `sink(value, other)` 或 `sink(label=value, other=value)`。
 
 ### 3.5 当关注节点必须出现在更大上下文内时，使用 `inside-expr`
 
@@ -268,7 +286,7 @@ Guard 键是带 `$` 前缀的捕获名。值是正则字符串，使用包含匹
 `@pkg.name`。`const` guard 看到的是 parser 常量值，例如 `"raw"` 对应 `raw`，
 `42` 对应 `42`，`true` 对应 `true`。
 
-Guard 不能过滤 `exp` 或 `pat` 捕获，taint 子句也不支持 `guard`。
+Guard 不能过滤 `exp`、`arg` 或 `pat` 捕获，taint 子句也不支持 `guard`。
 
 ### 5. 当消息共享时添加更多 `patterns`
 
@@ -365,6 +383,7 @@ patterns:
 
 - `$(name:exp)` 只出现在完整的裸表达式位置
 - `$(name:const)` 只出现在可匹配常量表达式或常量 pattern 的位置
+- `$(name:arg)` 只出现在完整的裸调用参数位置
 - `$(name:pat)` 只出现在完整的裸 pattern 位置
 - 非表达式源码名称使用 `$(name:id)`，或者保持字面量
 - 没有使用不支持的 kind

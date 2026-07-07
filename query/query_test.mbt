@@ -35,6 +35,18 @@ fn query_constant_value(node : @untyped_ast.Node) -> String? {
 }
 
 ///|
+fn query_argument_kind_signature(node : @untyped_ast.Node) -> String? {
+  guard node.kind == Argument else { return None }
+  guard query_child(node, "kind") is Some(kind) else { return None }
+  Some(kind.kind.to_string())
+}
+
+///|
+fn string_array_signature(values : Array[String]) -> String {
+  "[\{values.join(", ")}]"
+}
+
+///|
 fn parse_query_expr(source : String) -> @syntax.Expr raise {
   let lex_result = @lexer.tokens_from_string(
     source,
@@ -137,6 +149,59 @@ test "query captures identifiers and constants by metavar name" {
   }
   inspect(first_value, content="danger")
   inspect(second_value, content="42")
+}
+
+///|
+test "query captures argument metavars as full argument nodes" {
+  let query = ExprQuery::ExprQuery("sink($(arg:arg))")
+  let source =
+    #|fn sample {
+    #|  sink(value);
+    #|  sink(label=value);
+    #|  sink(label~);
+    #|  sink(label?=value);
+    #|  sink(label?)
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 5)
+  let kinds : Array[String] = []
+  for capture in matches {
+    guard capture.get("arg") is Some(arg) else {
+      fail("expected argument capture")
+    }
+    guard query_argument_kind_signature(arg) is Some(kind) else {
+      fail("expected argument node capture")
+    }
+    kinds.push(kind)
+  }
+  inspect(
+    string_array_signature(kinds),
+    content="[ArgumentKind::Positional, ArgumentKind::Labelled, ArgumentKind::LabelledPun, ArgumentKind::LabelledOption, ArgumentKind::LabelledOptionPun]",
+  )
+}
+
+///|
+test "query repeated argument metavars require full argument equality" {
+  let query = ExprQuery::ExprQuery("sink($(arg:arg), $(arg:arg))")
+  let source =
+    #|fn sample {
+    #|  sink(value, value);
+    #|  sink(value, other);
+    #|  sink(label=value, label=value);
+    #|  sink(label=value, other=value);
+    #|  sink();
+    #|  sink(value, value, value)
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 2)
+  for capture in matches {
+    guard capture.get("arg") is Some(arg) else {
+      fail("expected argument capture")
+    }
+    assert_true(arg.kind == Argument)
+  }
 }
 
 ///|
