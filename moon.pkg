@@ -11,7 +11,6 @@ import {
   "moonbit-community/miniio",
   "moonbit-community/yaml",
   "moonbitlang/core/argparse",
-  "moonbitlang/core/json",
   "moonbitlang/core/list",
   "moonbitlang/parser",
   "moonbitlang/parser/attribute",
