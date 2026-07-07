@@ -8,6 +8,17 @@ pub(all) suberror RuleLoadError {
 } derive(Debug)
 
 ///|
+pub impl Show for RuleLoadError with fn output(self, logger) {
+  match self {
+    InvalidRule(path~, info~) => {
+      logger.write_string(path)
+      logger.write_string(": ")
+      logger.write_string(info)
+    }
+  }
+}
+
+///|
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
 /// `shape` must be a valid MoonBit expression. Inline `$(name:exp)`,

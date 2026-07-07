@@ -6,9 +6,9 @@ import {
 }
 
 // Values
-pub fn load_rule(String) -> @model.RawRuleSpec raise
+pub async fn load_rule(String) -> @model.RawRuleSpec
 
-pub fn load_rules(String) -> Array[@model.RawRuleSpec] raise
+pub async fn load_rules(String) -> Array[@model.RawRuleSpec]
 
 // Errors
 

@@ -1,17 +1,17 @@
 ///|
-fn write_cli_output(output : String) -> Unit raise {
-  @miniio.stdout.write_text(output)
-  if !output.has_suffix("\n") {
-    @miniio.stdout.write_text("\n")
+fn write_cli_output(output : String) -> Unit {
+  match output.strip_suffix("\n") {
+    Some(trimmed) => println(trimmed.to_owned())
+    None => println(output)
   }
 }
 
 ///|
-fn main {
+async fn main {
   try {
     let command = parse_cli_command(
-      runtime_cli_args(@miniio.args_get()),
-      env=@miniio.get_env_vars(),
+      runtime_cli_args(@env.args()),
+      env=@env.get_env_vars(),
     )
     match command {
       ("scan", Some(options), None) => {
@@ -27,13 +27,10 @@ fn main {
       _ => fail("invalid CLI command")
     }
   } catch {
-    CliError::Usage(message~, exit_code~) => {
-      println(message)
-      @miniio.exit(exit_code)
+    CliError::Usage(message~, ..) as err => {
+      write_cli_output(message)
+      raise err
     }
-    err => {
-      println("\{to_repr(err)}")
-      @miniio.exit(1)
-    }
+    err => raise err
   }
 }

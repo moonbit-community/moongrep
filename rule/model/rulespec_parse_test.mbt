@@ -38,6 +38,18 @@ fn expect_invalid_rule_info(source : String, expected : String) -> Unit raise {
 }
 
 ///|
+test "model shows rule load error path and info" {
+  let error = RuleLoadError::InvalidRule(
+    path="/tmp/rules/example.yaml",
+    info="missing required key id",
+  )
+  inspect(
+    error.to_string(),
+    content="/tmp/rules/example.yaml: missing required key id",
+  )
+}
+
+///|
 test "model parses structural rule and prefixes yaml id with rule directory" {
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/language/example.yaml",
