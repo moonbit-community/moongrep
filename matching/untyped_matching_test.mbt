@@ -21,6 +21,7 @@ fn untyped_compiled(
   expr_metavars? : Array[String] = [],
   identifier_metavars? : Array[String] = [],
   constant_metavars? : Array[String] = [],
+  arg_metavars? : Array[String] = [],
   target_metavar? : String? = None,
   source_metavar? : String? = None,
 ) -> CompiledExprPattern {
@@ -29,6 +30,7 @@ fn untyped_compiled(
     expr_metavars,
     identifier_metavars,
     constant_metavars,
+    arg_metavars,
     target_metavar,
     source_metavar,
   }
@@ -209,6 +211,7 @@ test "node matcher accepts nodes and captures constant nodes" {
     expr_metavars: ["input"],
     identifier_metavars: [],
     constant_metavars: ["lit"],
+    arg_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }

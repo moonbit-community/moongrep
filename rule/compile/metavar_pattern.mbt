@@ -57,7 +57,7 @@ fn MetavarRewriteContext::rewrite_pattern_var_binder(
         ctx.collect_or_resolve_metavar(syntax, BarePatternVariablePosition) {
         None => binder
         Some((kind, meta_name)) => {
-          if kind == "exp" {
+          if kind == "exp" || kind == "arg" {
             ctx.reject_metavar_position(kind, meta_name)
           } else if kind == "pat" {
             validate_declared_metavar(ctx.path, ctx.context, meta_name, true)
@@ -73,6 +73,7 @@ fn MetavarRewriteContext::rewrite_pattern_var_binder(
                 ctx.constant_metavars,
                 [],
               )
+              ctx.ensure_no_other_metavar_kind(meta_name, ctx.arg_metavars, [])
               ctx.expr_metavars.push(meta_name)
               ctx.identifier_metavars.push(marker)
               ctx.constant_metavars.push(meta_name)

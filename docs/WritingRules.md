@@ -183,8 +183,8 @@ patterns:
 ```
 
 Use explicit `$(name:kind)` when inference would be ambiguous or when you need
-`const` or `pat`. Use `$(name:const)` when the same literal constant must be
-consistent and variables should not match:
+`const`, `arg`, or `pat`. Use `$(name:const)` when the same literal constant
+must be consistent and variables should not match:
 
 ```yaml
 patterns:
@@ -198,13 +198,24 @@ patterns:
   - shape: match input { $(item:pat) => body }
 ```
 
+Use `$(name:arg)` for a whole call argument slot:
+
+```yaml
+patterns:
+  - shape: sink($(arg:arg))
+```
+
+That pattern can match positional, labelled, labelled pun, optional labelled,
+and optional pun arguments in the single slot. Bare `$arg` does not infer
+`arg`; write the explicit kind at each argument slot.
+
 A bare simple pattern variable such as `match input { $item => body }` is
 ambiguous between `id`, `const`, and `pat`, so rule compilation asks you to
 choose explicitly. The `exp` kind is expression-only. The `const` kind is valid
-only in constant expression or constant pattern positions. The `pat` kind is
-valid only in a simple pattern variable position. If you need a non-expression
-source name, use `id` or leave the name literal. Any other kind is a compile
-error.
+only in constant expression or constant pattern positions. The `arg` kind is
+valid only as a whole bare argument in a call pattern. The `pat` kind is valid
+only in a simple pattern variable position. If you need a non-expression source
+name, use `id` or leave the name literal. Any other kind is a compile error.
 
 The old YAML `metavars` key is invalid.
 
@@ -220,7 +231,7 @@ When one of these names appears in a supported metavar position, it matches
 anything there without binding a value or participating in repeated-name
 equality. Repeated ignore placeholders are independent wildcards.
 
-### 3. Choose `exp`, `id`, `const`, or `pat`
+### 3. Choose `exp`, `id`, `const`, `arg`, or `pat`
 
 Use `exp` when you want to match and compare a whole expression. Repeating an
 `exp` metavar means the repeated captures must be structurally equal according
@@ -272,6 +283,18 @@ Use `pat` when the candidate must be a whole pattern AST:
 patterns:
   - shape: match input { $(item:pat) => body }
 ```
+
+Use `arg` when the candidate must be a complete call argument slot, including
+its kind, label, and value. Repeated `arg` captures compare the whole argument
+node while ignoring source locations.
+
+```yaml
+patterns:
+  - shape: sink($(arg:arg), $(arg:arg))
+```
+
+This can match `sink(value, value)` and `sink(label=value, label=value)`, but
+not `sink(value, other)` or `sink(label=value, other=value)`.
 
 ### 3.5 Use `inside-expr` when the interesting node must appear inside a larger context
 
@@ -377,8 +400,8 @@ normalized names such as `name` or `@pkg.name`. `const` guards see parser
 constant values, such as `raw` for `"raw"`, `42` for `42`, and `true` for
 `true`.
 
-Guards cannot filter `exp` or `pat` captures, and taint clauses do not support
-`guard`.
+Guards cannot filter `exp`, `arg`, or `pat` captures, and taint clauses do not
+support `guard`.
 
 ### 5. Add more `patterns` when the message is shared
 
@@ -481,9 +504,10 @@ valid expression-sized shape, then build back up carefully.
 
 Check, in order:
 
-- the kind annotation is exactly `exp`, `id`, `const`, or `pat`
+- the kind annotation is exactly `exp`, `id`, `const`, `arg`, or `pat`
 - `$(name:exp)` appears as a whole bare expression placeholder
 - `$(name:const)` appears only where a constant expression or constant pattern can match
+- `$(name:arg)` appears only as a whole bare call argument
 - `$(name:pat)` appears only as a whole bare pattern placeholder
 - the same payload name is not used across multiple metavar kinds
 - the payload is not a reserved name such as `__`, `__TARGET__`, or `__SOURCE__`

@@ -5,6 +5,7 @@ priv struct MetavarRewriteContext {
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
+  arg_metavars : Array[String]
   pattern_metavars : Array[String]
   collecting : Bool
   bare_expression_metavars : Array[String]
@@ -22,7 +23,7 @@ fn MetavarRewriteContext::register_metavar(
   if kind == "pat" {
     ctx.reject_metavar_position(kind, name)
   }
-  if kind != "exp" && kind != "id" && kind != "const" {
+  if kind != "exp" && kind != "id" && kind != "const" && kind != "arg" {
     raise RuleLoadError::InvalidRule(
       path=ctx.path,
       info="\{shape_context_name(ctx.context)} contains unsupported metavar kind \{kind}",
@@ -35,6 +36,7 @@ fn MetavarRewriteContext::register_metavar(
       ctx.identifier_metavars,
       ctx.constant_metavars,
     )
+    ctx.ensure_no_other_metavar_kind(name, ctx.arg_metavars, [])
     if !array_contains(ctx.expr_metavars, name) {
       ctx.expr_metavars.push(name)
     }
@@ -44,8 +46,19 @@ fn MetavarRewriteContext::register_metavar(
       ctx.expr_metavars,
       ctx.constant_metavars,
     )
+    ctx.ensure_no_other_metavar_kind(name, ctx.arg_metavars, [])
     if !array_contains(ctx.identifier_metavars, name) {
       ctx.identifier_metavars.push(name)
+    }
+  } else if kind == "const" {
+    ctx.ensure_no_other_metavar_kind(
+      name,
+      ctx.expr_metavars,
+      ctx.identifier_metavars,
+    )
+    ctx.ensure_no_other_metavar_kind(name, ctx.arg_metavars, [])
+    if !array_contains(ctx.constant_metavars, name) {
+      ctx.constant_metavars.push(name)
     }
   } else {
     ctx.ensure_no_other_metavar_kind(
@@ -53,8 +66,13 @@ fn MetavarRewriteContext::register_metavar(
       ctx.expr_metavars,
       ctx.identifier_metavars,
     )
-    if !array_contains(ctx.constant_metavars, name) {
-      ctx.constant_metavars.push(name)
+    ctx.ensure_no_other_metavar_kind(
+      name,
+      ctx.constant_metavars,
+      ctx.pattern_metavars,
+    )
+    if !array_contains(ctx.arg_metavars, name) {
+      ctx.arg_metavars.push(name)
     }
   }
 }
@@ -115,6 +133,11 @@ fn MetavarRewriteContext::resolve_metavar_kinds(
   for name in ctx.constant_metavars {
     if !array_contains(ctx.pattern_metavars, name) {
       resolved[name] = "const"
+    }
+  }
+  for name in ctx.arg_metavars {
+    if !array_contains(ctx.pattern_metavars, name) {
+      resolved[name] = "arg"
     }
   }
   for name in ctx.bare_identifier_metavars {
@@ -191,6 +214,11 @@ fn MetavarRewriteContext::reject_metavar_position(
       path=ctx.path,
       info="\{shape_context_name(ctx.context)} uses \{metavar_text(kind, name)} outside a bare pattern position",
     )
+  } else if kind == "arg" {
+    raise RuleLoadError::InvalidRule(
+      path=ctx.path,
+      info="\{shape_context_name(ctx.context)} uses \{metavar_text(kind, name)} outside a bare argument position",
+    )
   } else {
     raise RuleLoadError::InvalidRule(
       path=ctx.path,
@@ -209,6 +237,11 @@ fn MetavarRewriteContext::reject_qualified_metavar(
     raise RuleLoadError::InvalidRule(
       path=ctx.path,
       info="\{shape_context_name(ctx.context)} uses \{metavar_text(kind, name)} outside a bare expression position",
+    )
+  } else if kind == "arg" {
+    raise RuleLoadError::InvalidRule(
+      path=ctx.path,
+      info="\{shape_context_name(ctx.context)} uses \{metavar_text(kind, name)} outside a bare argument position",
     )
   } else {
     raise RuleLoadError::InvalidRule(

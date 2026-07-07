@@ -165,16 +165,18 @@ let _embed_rulespec_md : String =
   #|`id`. For example, in `for $counter = 0; $counter < $limit; ...`, `$counter`
   #|infers `id` from the binder position and `$limit` infers `exp`.
   #|
-  #|Only `exp`, `id`, `const`, and `pat` are supported. A name may be repeated
+  #|Only `exp`, `id`, `const`, `arg`, and `pat` are supported. A name may be repeated
   #|within one kind, but using the same payload across multiple kinds such as
-  #|`$(name:exp)`, `$(name:id)`, `$(name:const)`, and `$(name:pat)` in one shape is
-  #|invalid.
+  #|`$(name:exp)`, `$(name:id)`, `$(name:const)`, `$(name:arg)`, and
+  #|`$(name:pat)` in one shape is invalid.
   #|
   #|Bare `$name` inference is intentionally conservative. It does not default to
-  #|`const` or `pat`. A simple pattern variable such as `match input { $item => body
-  #|}` is ambiguous between `id`, `const`, and `pat`; write `$(item:id)`,
-  #|`$(item:const)`, or `$(item:pat)` to choose. An explicit same-name occurrence
-  #|also fixes later bare occurrences when the positions are compatible.
+  #|`const`, `arg`, or `pat`. A simple pattern variable such as
+  #|`match input { $item => body }` is ambiguous between `id`, `const`, and `pat`;
+  #|write `$(item:id)`, `$(item:const)`, or `$(item:pat)` to choose. Bare `$name`
+  #|does not infer `arg`; use explicit `$(name:arg)` for whole call arguments. An
+  #|explicit same-name occurrence also fixes later bare occurrences when the
+  #|positions are compatible.
   #|
   #|The old YAML `metavars` key is not supported. Pattern objects that contain it
   #|are rejected as using an unsupported key.
@@ -217,6 +219,19 @@ let _embed_rulespec_md : String =
   #|Use `$(name:const)` for literal constants. It is valid only as a whole bare
   #|identifier expression or as a simple pattern variable position, and it matches
   #|only parsed MoonBit constants. 
+  #|
+  #|Use `$(name:arg)` for a whole function-call argument slot. It is valid only as
+  #|an entire bare positional argument in a call pattern:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: sink($(arg:arg))
+  #|```
+  #|
+  #|The placeholder can match a candidate positional argument, labelled argument,
+  #|labelled pun, optional labelled argument, or optional labelled pun. The captured
+  #|value is the whole `Argument` AST node, including argument kind, label, and
+  #|value.
   #|
   #|Use `$(name:pat)` for a whole pattern AST capture. It is valid only as a simple
   #|pattern variable position:
@@ -359,6 +374,41 @@ let _embed_rulespec_md : String =
   #|  - shape: match input { $(lit:const) => lit }
   #|```
   #|
+  #|### `arg`
+  #|
+  #|An `arg` metavar captures a complete call argument node. It is useful when a
+  #|rule should accept any argument spelling in one slot while still comparing the
+  #|entire slot on repeated occurrences.
+  #|
+  #|Example:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: sink($(arg:arg))
+  #|```
+  #|
+  #|This can match all of these one-argument calls:
+  #|
+  #|```moonbit
+  #|sink(value)
+  #|sink(label=value)
+  #|sink(label~)
+  #|sink(label?=value)
+  #|sink(label?)
+  #|```
+  #|
+  #|Repeating the same `arg` name requires the full argument nodes to be
+  #|structurally equal, ignoring source locations. Argument kind, label, and value
+  #|must all match. The pattern `sink($(arg:arg), $(arg:arg))` can match
+  #|`sink(value, value)` and `sink(label=value, label=value)`, but not
+  #|`sink(value, other)` or `sink(label=value, other=value)`.
+  #|
+  #|`arg` is explicit-only. Bare `$arg` in `sink($arg)` still follows normal bare
+  #|metavar inference and is an `exp` capture unless the name was explicitly
+  #|declared as another kind elsewhere. `$(arg:arg)` must occupy the whole
+  #|argument slot; `sink(label=$(arg:arg))`, `sink($(arg:arg) + 1)`, and a root
+  #|shape `$(arg:arg)` are invalid.
+  #|
   #|### `pat`
   #|
   #|A `pat` metavar captures the whole candidate `Pattern` AST. It is valid only in
@@ -391,9 +441,9 @@ let _embed_rulespec_md : String =
   #|```
   #|
   #|Only `id` and `const` captures can be guarded. A guard key that refers to an
-  #|`exp` capture, a `pat` capture, or an unknown name is rejected during rule
-  #|compilation. Inner `patterns` may guard `id` and `const` captures established by
-  #|`inside-expr`.
+  #|`exp` capture, an `arg` capture, a `pat` capture, or an unknown name is
+  #|rejected during rule compilation. Inner `patterns` may guard `id` and `const`
+  #|captures established by `inside-expr`.
   #|
   #|Guards are checked after the structural AST match succeeds. All guards in a
   #|single pattern object must match; this is AND semantics. Regex matching uses
@@ -690,8 +740,9 @@ let _embed_rulespec_md : String =
   #|- an metavar uses a reserved name
   #|- `$(name:exp)` appears outside a bare expression position
   #|- `$(name:const)` appears outside a constant expression or constant pattern position
+  #|- `$(name:arg)` appears outside a bare argument position
   #|- `$(name:pat)` appears outside a bare pattern position
-  #|- a guard key is not `$`-prefixed, or references an unknown, `exp`, or `pat` capture
+  #|- a guard key is not `$`-prefixed, or references an unknown, `exp`, `arg`, or `pat` capture
   #|- a guard regex is invalid
   #|- `inside-expr` does not contain exactly one binding-capable `__TARGET__`
   #|- a structural `patterns` or `patterns-not` entry contains binding-capable

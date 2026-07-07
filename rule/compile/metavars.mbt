@@ -4,6 +4,7 @@ priv struct MetavarShape {
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
+  arg_metavars : Array[String]
   pattern_metavars : Array[String]
 }
 
@@ -33,6 +34,7 @@ fn compile_metavar_shape(
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     pattern_metavars: [],
     collecting: true,
     bare_expression_metavars: [],
@@ -48,6 +50,7 @@ fn compile_metavar_shape(
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
+    arg_metavars: [],
     pattern_metavars: [],
     collecting: false,
     bare_expression_metavars: [],
@@ -60,17 +63,20 @@ fn compile_metavar_shape(
     cleaned_expr_metavars,
     cleaned_identifier_metavars,
     cleaned_constant_metavars,
+    cleaned_arg_metavars,
     pattern_metavars,
   ) = cleanup_temporary_pattern_metavars(
     ctx.expr_metavars,
     ctx.identifier_metavars,
     ctx.constant_metavars,
+    ctx.arg_metavars,
   )
   {
     ast,
     expr_metavars: cleaned_expr_metavars,
     identifier_metavars: cleaned_identifier_metavars,
     constant_metavars: cleaned_constant_metavars,
+    arg_metavars: cleaned_arg_metavars,
     pattern_metavars,
   }
 }
@@ -131,7 +137,8 @@ fn cleanup_temporary_pattern_metavars(
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
-) -> (Array[String], Array[String], Array[String], Array[String]) {
+  arg_metavars : Array[String],
+) -> (Array[String], Array[String], Array[String], Array[String], Array[String]) {
   let pattern_metavars : Array[String] = []
   let cleaned_identifier_metavars : Array[String] = []
   for name in identifier_metavars {
@@ -147,6 +154,7 @@ fn cleanup_temporary_pattern_metavars(
     filter_out_temporary_pattern_metavars(expr_metavars, pattern_metavars),
     cleaned_identifier_metavars,
     filter_out_temporary_pattern_metavars(constant_metavars, pattern_metavars),
+    filter_out_temporary_pattern_metavars(arg_metavars, pattern_metavars),
     pattern_metavars,
   )
 }

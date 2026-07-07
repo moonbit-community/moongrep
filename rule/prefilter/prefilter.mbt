@@ -297,7 +297,8 @@ fn is_filter_placeholder(
   compiled.source_metavar == Some(name) ||
   contains_string(compiled.expr_metavars, name) ||
   contains_string(compiled.identifier_metavars, name) ||
-  contains_string(compiled.constant_metavars, name)
+  contains_string(compiled.constant_metavars, name) ||
+  contains_string(compiled.arg_metavars, name)
 }
 
 ///|
