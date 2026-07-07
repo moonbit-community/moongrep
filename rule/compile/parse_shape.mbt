@@ -49,7 +49,7 @@ fn shape_context_name(context : String) -> String {
 fn invalid_metavar_syntax_message(context : String, raw : String) -> String {
   match legacy_metavar_replacement(raw) {
     Some((old, replacement)) =>
-      "\{shape_context_name(context)} uses legacy inline metavar syntax \{old}; use \{replacement}"
+      "\{shape_context_name(context)} uses legacy metavar syntax \{old}; use \{replacement}"
     None =>
       "\{shape_context_name(context)} has invalid metavar syntax \{raw}; use explicit typed syntax like $(value:exp)"
   }

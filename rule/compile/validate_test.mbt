@@ -21,7 +21,7 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 }
 
 ///|
-test "validate rejects reserved inline metavar names" {
+test "validate rejects reserved metavar names" {
   let source =
     #|id: example
     #|description: Example.
@@ -34,7 +34,7 @@ test "validate rejects reserved inline metavar names" {
 }
 
 ///|
-test "validate rejects legacy inline metavar syntax" {
+test "validate rejects legacy metavar syntax" {
   let source =
     #|id: example
     #|description: Example.
@@ -42,21 +42,41 @@ test "validate rejects legacy inline metavar syntax" {
     #|  - shape: $exp:value
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses legacy inline metavar syntax $exp:value; use $(value:exp)",
+    source, "patterns[0].shape uses legacy metavar syntax $exp:value; use $(value:exp)",
   )
 }
 
 ///|
-test "validate rejects untyped inline metavar syntax" {
+test "validate accepts bare inline expression metavars" {
   let source =
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $value
+    #|  - shape: $value + $value
     #|
-  expect_compile_invalid(
-    source, "patterns[0].shape uses untyped inline metavar $value; use explicit typed syntax like $(value:exp)",
-  )
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      debug_inspect(
+        rule.patterns[0].compiled.expr_metavars,
+        content="[\"value\"]",
+      )
+      debug_inspect(rule.patterns[0].compiled.identifier_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.constant_metavars, content="[]")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects bare dollar metavar syntax" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $
+    #|
+  expect_compile_invalid(source, "patterns[0].shape has lexical errors")
 }
 
 ///|
@@ -83,6 +103,103 @@ test "validate accepts inline pattern metavars" {
 }
 
 ///|
+test "validate infers bare binder and expression metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      for $counter = 0; $counter < $limit; $counter = $counter + 1 {
+    #|        println($counter)
+    #|      }
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      debug_inspect(
+        rule.patterns[0].compiled.expr_metavars,
+        content="[\"limit\"]",
+      )
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"counter\"]",
+      )
+      debug_inspect(rule.patterns[0].compiled.constant_metavars, content="[]")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects ambiguous bare pattern metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $item => body }
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
+  )
+}
+
+///|
+test "validate rejects ambiguous bare pattern metavars with expression reuse" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $item => $item }
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
+  )
+}
+
+///|
+test "validate allows explicit pattern kind to disambiguate bare pattern metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $(item:pat) => ok; $item => ok }
+    #|
+  ignore(compile_one(source))
+}
+
+///|
+test "validate allows explicit identifier kind to disambiguate bare pattern metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $(item:id) => ok; $item => ok }
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"item\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects explicit kind incompatible with bare occurrences" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $item => $(item:exp) }
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses $(item:exp) outside a bare expression position",
+  )
+}
+
+///|
 test "validate rejects pattern metavar kind conflicts" {
   let source =
     #|id: example
@@ -91,7 +208,7 @@ test "validate rejects pattern metavar kind conflicts" {
     #|  - shape: match input { $(item:pat) => $(item:id) }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar item as multiple inline metavar kinds",
+    source, "patterns[0].shape declares metavar item as multiple metavar kinds",
   )
 }
 
@@ -122,7 +239,7 @@ test "validate rejects expr metavar outside bare expression position" {
 }
 
 ///|
-test "validate rejects inline metavar kind conflicts" {
+test "validate rejects metavar kind conflicts" {
   let source =
     #|id: example
     #|description: Example.
@@ -130,7 +247,7 @@ test "validate rejects inline metavar kind conflicts" {
     #|  - shape: $(value:exp) + $(value:id)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar value as multiple inline metavar kinds",
+    source, "patterns[0].shape declares metavar value as multiple metavar kinds",
   )
 }
 
@@ -238,7 +355,7 @@ test "validate rejects constant metavar kind conflicts" {
     #|  - shape: $(value:const) + $(value:exp)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar value as multiple inline metavar kinds",
+    source, "patterns[0].shape declares metavar value as multiple metavar kinds",
   )
 }
 
@@ -311,7 +428,7 @@ test "validate allows inherited inside expr metavars with matching inline forms"
 }
 
 ///|
-test "validate compiles patterns-not inline metavars and guards" {
+test "validate compiles patterns-not metavars and guards" {
   let source =
     #|id: example
     #|description: Example.

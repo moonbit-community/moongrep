@@ -132,6 +132,30 @@ test "apply structural rule supports inline expression metavars" {
 }
 
 ///|
+test "apply structural rule supports bare expression metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Repeated call value.
+    #|patterns:
+    #|  - shape: $value + $value
+    #|
+  let source =
+    #|fn sample {
+    #|  make() + make();
+    #|  make() + other()
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule supports inline identifier metavars" {
   let rule_source =
     #|id: example
@@ -141,6 +165,33 @@ test "apply structural rule supports inline identifier metavars" {
     #|  - shape: |
     #|      for $(counter:id) = 0; $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
     #|        $(body:exp)
+    #|      }
+    #|
+  let source =
+    #|fn sample {
+    #|  for i = 0; i < n; i = i + 1 { println(i) }
+    #|  for i = 0; j < n; i = i + 1 { println(i) }
+    #|}
+    #|
+  let hits = apply_structural_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural rule infers bare loop counter as identifier" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Consistent loop counter.
+    #|patterns:
+    #|  - shape: |
+    #|      for $counter = 0; $counter < $limit; $counter = $counter + 1 {
+    #|        $body
     #|      }
     #|
   let source =
