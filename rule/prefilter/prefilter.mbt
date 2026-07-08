@@ -181,6 +181,14 @@ fn collect_node_literals(
           push_literal(literals, name)
         }
       }
+    Type_Name =>
+      if prefilter_type_placeholder_name(node) is Some(name) {
+        if !is_filter_placeholder(name, compiled) {
+          collect_node_children_literals(node, compiled, literals)
+        }
+      } else {
+        collect_node_children_literals(node, compiled, literals)
+      }
     Constant_BigInt
     | Constant_Byte
     | Constant_Bytes
@@ -214,12 +222,39 @@ fn collect_node_literals(
         push_literal(literals, value)
       }
     Leaf(_) => ()
-    _ =>
-      for entry in node.children {
-        let (_, child) = entry
-        collect_node_literals(child, compiled, literals)
-      }
+    _ => collect_node_children_literals(node, compiled, literals)
   }
+}
+
+///|
+fn collect_node_children_literals(
+  node : @untyped_ast.Node,
+  compiled : @matching.CompiledExprPattern,
+  literals : Array[String],
+) -> Unit {
+  for entry in node.children {
+    let (_, child) = entry
+    collect_node_literals(child, compiled, literals)
+  }
+}
+
+///|
+fn prefilter_type_placeholder_name(node : @untyped_ast.Node) -> String? {
+  if node.kind != Type_Name {
+    return None
+  }
+  guard prefilter_child(node, "tys") is Some(tys) else { return None }
+  if !tys.children.is_empty() {
+    return None
+  }
+  guard prefilter_child(node, "constr_id") is Some(constr_id) else {
+    return None
+  }
+  guard prefilter_child(constr_id, "id") is Some(long_ident) else {
+    return None
+  }
+  guard long_ident.kind == LongIdent_Ident else { return None }
+  prefilter_leaf_string_child(long_ident, "value")
 }
 
 ///|
@@ -296,7 +331,8 @@ fn is_filter_placeholder(
   contains_string(compiled.expr_metavars, name) ||
   contains_string(compiled.identifier_metavars, name) ||
   contains_string(compiled.constant_metavars, name) ||
-  contains_string(compiled.arg_metavars, name)
+  contains_string(compiled.arg_metavars, name) ||
+  contains_string(compiled.type_metavars, name)
 }
 
 ///|

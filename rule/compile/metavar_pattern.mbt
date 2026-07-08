@@ -22,7 +22,7 @@ fn MetavarRewriteContext::rewrite_pattern(
         loc~,
       )
     Constraint(pat~, ty~, loc~) =>
-      Constraint(pat=ctx.rewrite_pattern(pat), ty~, loc~)
+      Constraint(pat=ctx.rewrite_pattern(pat), ty=ctx.rewrite_type(ty), loc~)
     Array(pats~, loc~) => Array(pats=ctx.rewrite_array_patterns(pats), loc~)
     Constr(constr~, args~, is_open~, loc~) =>
       Constr(
@@ -57,7 +57,7 @@ fn MetavarRewriteContext::rewrite_pattern_var_binder(
         ctx.collect_or_resolve_metavar(syntax, BarePatternVariablePosition) {
         None => binder
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "arg" {
+          if kind == "exp" || kind == "arg" || kind == "type" {
             ctx.reject_metavar_position(kind, meta_name)
           } else if kind == "pat" {
             validate_declared_metavar(ctx.path, ctx.context, meta_name, true)
@@ -74,6 +74,7 @@ fn MetavarRewriteContext::rewrite_pattern_var_binder(
                 [],
               )
               ctx.ensure_no_other_metavar_kind(meta_name, ctx.arg_metavars, [])
+              ctx.ensure_no_other_metavar_kind(meta_name, ctx.type_metavars, [])
               ctx.expr_metavars.push(meta_name)
               ctx.identifier_metavars.push(marker)
               ctx.constant_metavars.push(meta_name)

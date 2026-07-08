@@ -198,6 +198,36 @@ test "apply structural rule supports inline argument metavars" {
 }
 
 ///|
+test "apply structural rule supports inline type metavars" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Typed let annotations.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = input
+    #|
+  let source =
+    #|fn sample_int {
+    #|  let value : Int = input;
+    #|}
+    #|fn sample_user {
+    #|  let value : User = input;
+    #|}
+    #|fn sample_array {
+    #|  let value : Array[String] = input
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 3)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule supports bare expression metavars" {
   let rule_source =
     #|id: example

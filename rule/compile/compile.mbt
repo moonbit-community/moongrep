@@ -120,6 +120,11 @@ fn compile_structural_rule(
   } else {
     []
   }
+  let outer_type = if outer_pattern is Some(pattern) {
+    pattern.compiled.type_metavars
+  } else {
+    []
+  }
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
     let context = "patterns[\{index}]"
@@ -133,11 +138,13 @@ fn compile_structural_rule(
       compiled_shape.identifier_metavars,
       compiled_shape.constant_metavars,
       compiled_shape.arg_metavars,
+      compiled_shape.type_metavars,
       compiled_shape.pattern_metavars,
       outer_expr,
       outer_identifier,
       outer_constant,
       outer_arg,
+      outer_type,
       outer_pattern_names,
     )
     let ast = compiled_shape.ast
@@ -157,6 +164,7 @@ fn compile_structural_rule(
         compiled_shape.identifier_metavars,
         compiled_shape.constant_metavars,
         compiled_shape.arg_metavars,
+        compiled_shape.type_metavars,
         compiled_shape.pattern_metavars,
         target_metavar=None,
         source_metavar=None,
@@ -176,11 +184,13 @@ fn compile_structural_rule(
       compiled_shape.identifier_metavars,
       compiled_shape.constant_metavars,
       compiled_shape.arg_metavars,
+      compiled_shape.type_metavars,
       compiled_shape.pattern_metavars,
       outer_expr,
       outer_identifier,
       outer_constant,
       outer_arg,
+      outer_type,
       outer_pattern_names,
     )
     let ast = compiled_shape.ast
@@ -200,6 +210,7 @@ fn compile_structural_rule(
         compiled_shape.identifier_metavars,
         compiled_shape.constant_metavars,
         compiled_shape.arg_metavars,
+        compiled_shape.type_metavars,
         compiled_shape.pattern_metavars,
         target_metavar=None,
         source_metavar=None,
@@ -343,6 +354,7 @@ fn compile_pattern(
     compiled_shape.identifier_metavars,
     compiled_shape.constant_metavars,
     compiled_shape.arg_metavars,
+    compiled_shape.type_metavars,
     compiled_shape.pattern_metavars,
     target_metavar~,
     source_metavar~,
@@ -359,6 +371,7 @@ fn compile_pattern_with_effective_metavars(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
   arg_metavars : Array[String],
+  type_metavars : Array[String],
   pattern_metavars : Array[String],
   target_metavar~ : String?,
   source_metavar~ : String?,
@@ -371,6 +384,7 @@ fn compile_pattern_with_effective_metavars(
     identifier_metavars,
     constant_metavars,
     arg_metavars,
+    type_metavars,
     pattern_metavars,
   )
   let compiled : @matching.CompiledExprPattern = {
@@ -379,6 +393,7 @@ fn compile_pattern_with_effective_metavars(
     identifier_metavars,
     constant_metavars,
     arg_metavars,
+    type_metavars,
     target_metavar,
     source_metavar,
   }
@@ -395,6 +410,7 @@ fn compile_guards(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
   arg_metavars : Array[String],
+  type_metavars : Array[String],
   pattern_metavars : Array[String],
 ) -> Array[CompiledRuleGuard] raise {
   let guards : Array[CompiledRuleGuard] = []
@@ -402,7 +418,7 @@ fn compile_guards(
     let name = guard_metavar_name(path, raw_name)
     let capture_kind = guard_capture_kind(
       path, context, raw_name, name, expr_metavars, identifier_metavars, constant_metavars,
-      arg_metavars, pattern_metavars,
+      arg_metavars, type_metavars, pattern_metavars,
     )
     let regex = Regex::Regex(regex_source) catch {
       _ =>
@@ -437,6 +453,7 @@ fn guard_capture_kind(
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
   arg_metavars : Array[String],
+  type_metavars : Array[String],
   pattern_metavars : Array[String],
 ) -> RuleGuardCaptureKind raise {
   if array_contains(identifier_metavars, name) {
@@ -452,6 +469,11 @@ fn guard_capture_kind(
     raise RuleLoadError::InvalidRule(
       path~,
       info="\{context}.guard.\{raw_name} cannot reference arg metavar \{name}",
+    )
+  } else if array_contains(type_metavars, name) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.guard.\{raw_name} cannot reference type metavar \{name}",
     )
   } else if array_contains(pattern_metavars, name) {
     raise RuleLoadError::InvalidRule(
@@ -514,11 +536,13 @@ fn ensure_inherited_inside_context_metavar_forms(
   inner_identifier : Array[String],
   inner_constant : Array[String],
   inner_arg : Array[String],
+  inner_type : Array[String],
   inner_pattern : Array[String],
   outer_expr : Array[String],
   outer_identifier : Array[String],
   outer_constant : Array[String],
   outer_arg : Array[String],
+  outer_type : Array[String],
   outer_pattern : Array[String],
 ) -> Unit raise {
   ensure_not_inherited_as_other_kind(
@@ -534,6 +558,9 @@ fn ensure_inherited_inside_context_metavar_forms(
     path, context, outer_context, inner_expr, "exp", outer_arg, "arg",
   )
   ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_expr, "exp", outer_type, "type",
+  )
+  ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_identifier, "id", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
@@ -544,6 +571,9 @@ fn ensure_inherited_inside_context_metavar_forms(
   )
   ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_identifier, "id", outer_arg, "arg",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_identifier, "id", outer_type, "type",
   )
   ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_constant, "const", outer_expr, "exp",
@@ -558,6 +588,9 @@ fn ensure_inherited_inside_context_metavar_forms(
     path, context, outer_context, inner_constant, "const", outer_arg, "arg",
   )
   ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_constant, "const", outer_type, "type",
+  )
+  ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_arg, "arg", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
@@ -570,6 +603,24 @@ fn ensure_inherited_inside_context_metavar_forms(
     path, context, outer_context, inner_arg, "arg", outer_pattern, "pat",
   )
   ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_arg, "arg", outer_type, "type",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_type, "type", outer_expr, "exp",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_type, "type", outer_identifier, "id",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_type, "type", outer_constant, "const",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_type, "type", outer_arg, "arg",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_type, "type", outer_pattern, "pat",
+  )
+  ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_pattern, "pat", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
@@ -580,6 +631,9 @@ fn ensure_inherited_inside_context_metavar_forms(
   )
   ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_pattern, "pat", outer_arg, "arg",
+  )
+  ensure_not_inherited_as_other_kind(
+    path, context, outer_context, inner_pattern, "pat", outer_type, "type",
   )
 }
 

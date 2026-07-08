@@ -22,6 +22,7 @@ pub(all) struct CompiledExprPattern {
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
   arg_metavars : Array[String]
+  type_metavars : Array[String]
   target_metavar : String?
   source_metavar : String?
 }

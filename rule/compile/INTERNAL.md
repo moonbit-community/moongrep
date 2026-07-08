@@ -77,12 +77,14 @@ leave the AST unchanged.
 
 Bare kind inference is intentionally conservative:
 
-- a name explicitly declared as `pat`, `exp`, `id`, or `const` keeps that kind
+- a name explicitly declared as `pat`, `exp`, `id`, `const`, `arg`, or `type`
+  keeps that kind
 - bare identifier positions infer `id`
+- bare type positions infer `type`
 - bare pattern-variable positions cannot infer by themselves
 - bare expression positions infer `exp` only if no earlier rule resolved the
   name
-- `const` is never inferred from a bare `$name`
+- `const`, `arg`, and `pat` are never inferred from a bare `$name`
 
 This ordering lets a repeated bare name such as `$counter` infer `id` from a
 binder and reuse that kind in later expression occurrences. It also rejects a
@@ -98,12 +100,17 @@ Only these inline kinds are supported:
   type names, and qualified-name suffixes
 - `const`: a whole bare identifier expression or simple pattern-variable
   position that must match a parsed constant
+- `arg`: a whole bare call argument slot
 - `pat`: a simple pattern-variable position that captures the whole candidate
   pattern AST
+- `type`: a whole `@syntax.Type` node, represented as a simple `Type::Name`
+  marker in the compiled untyped AST
 
 The rewrite code enforces positions by dispatching through `rewrite_expr_var`,
 `rewrite_var`, `rewrite_binder`, `rewrite_label`, `rewrite_constructor`, and
-`rewrite_pattern_var_binder`.
+`rewrite_pattern_var_binder`, plus the type-specific walker in
+`metavar_type.mbt`. Top-level shapes route function, impl, let, view, trait,
+and type-declaration `Type` / `ErrorType` fields through the same type walker.
 
 Pattern metavars are represented specially. A `$(name:pat)` pattern variable is
 rewritten into the literal binder text `$(name:pat)` so `matching` can identify
@@ -163,11 +170,13 @@ Guards can reference only `id` and `const` captures. They cannot reference:
 
 - unknown names
 - `exp` captures
+- `arg` captures
 - `pat` captures
+- `type` captures
 
 This is a rule-compiler restriction. Guard evaluation in `rule/apply` expects a
 string-like value from normalized identifiers or constants, not arbitrary
-expression or pattern ASTs.
+expression, pattern, argument, or type ASTs.
 
 ## Taint Rules
 

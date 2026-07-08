@@ -5,6 +5,7 @@ priv struct MetavarShape {
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
   arg_metavars : Array[String]
+  type_metavars : Array[String]
   pattern_metavars : Array[String]
 }
 
@@ -19,6 +20,7 @@ priv enum BareMetavarPosition {
   BareExpressionPosition
   BareIdentifierPosition
   BarePatternVariablePosition
+  BareTypePosition
 }
 
 ///|
@@ -35,11 +37,13 @@ fn compile_metavar_shape(
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     pattern_metavars: [],
     collecting: true,
     bare_expression_metavars: [],
     bare_identifier_metavars: [],
     bare_pattern_metavars: [],
+    bare_type_metavars: [],
     resolved_metavars: {},
   }
   ignore(collect_ctx.rewrite_expr(parsed))
@@ -51,11 +55,13 @@ fn compile_metavar_shape(
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     pattern_metavars: [],
     collecting: false,
     bare_expression_metavars: [],
     bare_identifier_metavars: [],
     bare_pattern_metavars: [],
+    bare_type_metavars: [],
     resolved_metavars,
   }
   let ast = @untyped_ast.from_expr(ctx.rewrite_expr(parsed))
@@ -77,6 +83,7 @@ fn compile_metavar_shape(
     identifier_metavars: cleaned_identifier_metavars,
     constant_metavars: cleaned_constant_metavars,
     arg_metavars: cleaned_arg_metavars,
+    type_metavars: ctx.type_metavars,
     pattern_metavars,
   }
 }
@@ -95,11 +102,13 @@ fn compile_toplevel_metavar_shape(
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     pattern_metavars: [],
     collecting: true,
     bare_expression_metavars: [],
     bare_identifier_metavars: [],
     bare_pattern_metavars: [],
+    bare_type_metavars: [],
     resolved_metavars: {},
   }
   ignore(collect_ctx.rewrite_impl(parsed))
@@ -111,11 +120,13 @@ fn compile_toplevel_metavar_shape(
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     pattern_metavars: [],
     collecting: false,
     bare_expression_metavars: [],
     bare_identifier_metavars: [],
     bare_pattern_metavars: [],
+    bare_type_metavars: [],
     resolved_metavars,
   }
   let ast = @untyped_ast.from_impl(ctx.rewrite_impl(parsed))
@@ -137,6 +148,7 @@ fn compile_toplevel_metavar_shape(
     identifier_metavars: cleaned_identifier_metavars,
     constant_metavars: cleaned_constant_metavars,
     arg_metavars: cleaned_arg_metavars,
+    type_metavars: ctx.type_metavars,
     pattern_metavars,
   }
 }
@@ -163,7 +175,10 @@ fn parse_metavar(
   for index in 2..<end {
     if raw[index] == ':' {
       return Some(
-        Explicit(raw[index + 1:end].to_owned(), raw[2:index].to_owned()),
+        Explicit(
+          raw[index + 1:end].trim().to_owned(),
+          raw[2:index].trim().to_owned(),
+        ),
       )
     }
   }

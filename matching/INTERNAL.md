@@ -17,7 +17,8 @@ the current matcher has no alternatives that need rollback.
 
 ## Placeholder Dispatch
 
-Expression matching first calls `match_expr_placeholder`. If it returns
+Expression matching first calls placeholder matchers such as
+`match_expr_placeholder` and `match_type_placeholder`. If one returns
 `Some(true)` or `Some(false)`, structural AST comparison is skipped. Only
 `None` falls through to normal node-kind matching.
 
@@ -32,6 +33,11 @@ Placeholder priority in expression positions is:
 5. declared constant metavars bind only `Expr::Constant`
 6. undeclared names are literal AST names
 
+For type nodes, a simple `Type::Name` marker whose name is in
+`CompiledExprPattern.type_metavars` binds the whole candidate `Type_*` node.
+Repeated type captures use the same location-insensitive structural equality as
+other AST-node captures.
+
 For vars, binders, and labels, only ignore placeholders and declared identifier
 metavars are special; everything else is literal. For pattern variables,
 `$(name:pat)` binds the whole candidate `Pattern` AST, declared constant
@@ -45,8 +51,8 @@ in whole expression positions. For example, undeclared `__x` is literal: only
 `BoundValue` is `@untyped_ast.Node`.
 
 Every binding is stored directly as an untyped AST node. Expression, constant,
-and pattern metavars bind their matched nodes. Identifier metavars bind the
-normalized name encoded as a `Leaf(PString(_))` node.
+argument, pattern, and type metavars bind their matched nodes. Identifier
+metavars bind the normalized name encoded as a `Leaf(PString(_))` node.
 
 Expression metavars capture the candidate expression node at that position.
 Repeated uses compare node structure and leaf values while ignoring source
@@ -58,13 +64,14 @@ Binder and label matching uses the candidate name directly because those nodes
 already carry the short name being compared.
 
 Constant placeholders accept only constant expression or pattern nodes. Pattern
-metavars bind whole pattern nodes. Repeated constant and pattern captures use
-the same untyped-node equality as all other bindings.
+metavars bind whole pattern nodes. Type metavars bind whole type nodes.
+Repeated constant, pattern, and type captures use the same untyped-node equality
+as all other bindings.
 
 ## Equality Is Location-Insensitive
 
-The matcher ignores source locations when comparing repeated expression and
-pattern captures. Repeated binding comparison is handled by
+The matcher ignores source locations when comparing repeated expression,
+argument, pattern, and type captures. Repeated binding comparison is handled by
 `bound_value_equal`, which delegates to `node_equal_ignoring_loc`.
 
 `node_equal_ignoring_loc` requires the same node kind and recursively compares

@@ -68,7 +68,7 @@ fn MetavarRewriteContext::rewrite_expr(
     Group(expr=inner, group~, loc~) =>
       Group(expr=ctx.rewrite_expr(inner), group~, loc~)
     Constraint(expr=inner, ty~, loc~) =>
-      Constraint(expr=ctx.rewrite_expr(inner), ty~, loc~)
+      Constraint(expr=ctx.rewrite_expr(inner), ty=ctx.rewrite_type(ty), loc~)
     As(expr=inner, trait_~, loc~) =>
       As(expr=ctx.rewrite_expr(inner), trait_~, loc~)
     Sequence(exprs~, last_expr~, loc~) =>
@@ -165,7 +165,7 @@ fn MetavarRewriteContext::rewrite_expr(
     LetMut(binder~, ty~, expr=bound_expr, body~, loc~) =>
       LetMut(
         binder=ctx.rewrite_binder(binder),
-        ty~,
+        ty=ctx.rewrite_optional_type(ty),
         expr=ctx.rewrite_expr(bound_expr),
         body=ctx.rewrite_expr(body),
         loc~,
@@ -275,6 +275,14 @@ fn MetavarRewriteContext::rewrite_expr(
       ProofAssert(expr=ctx.rewrite_expr(inner), loc~)
     Raise(err_value~, loc~) =>
       Raise(err_value=ctx.rewrite_expr(err_value), loc~)
+    Quantifier(kind~, binder~, binder_ty~, body~, loc~) =>
+      Quantifier(
+        kind~,
+        binder=ctx.rewrite_binder(binder),
+        binder_ty=ctx.rewrite_type(binder_ty),
+        body=ctx.rewrite_expr(body),
+        loc~,
+      )
     TemplateWriting(expr=inner, template~, is_conditional~, loc~) =>
       TemplateWriting(
         expr=ctx.rewrite_expr(inner),
@@ -301,7 +309,7 @@ fn MetavarRewriteContext::rewrite_expr_var(
           match ctx.collect_or_resolve_metavar(syntax, BareExpressionPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "arg" {
+              if kind == "arg" || kind == "type" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -316,7 +324,7 @@ fn MetavarRewriteContext::rewrite_expr_var(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "arg" {
+              if kind == "arg" || kind == "type" {
                 ctx.reject_metavar_position(kind, meta_name)
               } else if kind == "exp" {
                 ctx.reject_metavar_position(kind, meta_name)
@@ -344,7 +352,10 @@ fn MetavarRewriteContext::rewrite_var(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" || kind == "arg" {
+              if kind == "exp" ||
+                kind == "const" ||
+                kind == "arg" ||
+                kind == "type" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -359,7 +370,10 @@ fn MetavarRewriteContext::rewrite_var(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => var_
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" || kind == "arg" {
+              if kind == "exp" ||
+                kind == "const" ||
+                kind == "arg" ||
+                kind == "type" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -381,7 +395,7 @@ fn MetavarRewriteContext::rewrite_binder(
       match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
         None => binder
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" || kind == "arg" {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
             ctx.reject_metavar_position(kind, meta_name)
           }
           ctx.register_metavar(kind, meta_name)
@@ -402,7 +416,7 @@ fn MetavarRewriteContext::rewrite_label(
       match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
         None => label
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" || kind == "arg" {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
             ctx.reject_metavar_position(kind, meta_name)
           }
           ctx.register_metavar(kind, meta_name)
@@ -433,7 +447,7 @@ fn MetavarRewriteContext::rewrite_constr_name(
       match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
         None => name
         Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" || kind == "arg" {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
             ctx.reject_metavar_position(kind, meta_name)
           }
           ctx.register_metavar(kind, meta_name)
@@ -484,7 +498,10 @@ fn MetavarRewriteContext::rewrite_type_long_ident(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => long_ident
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" || kind == "arg" {
+              if kind == "exp" ||
+                kind == "const" ||
+                kind == "arg" ||
+                kind == "type" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -499,7 +516,10 @@ fn MetavarRewriteContext::rewrite_type_long_ident(
           match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
             None => long_ident
             Some((kind, meta_name)) => {
-              if kind == "exp" || kind == "const" || kind == "arg" {
+              if kind == "exp" ||
+                kind == "const" ||
+                kind == "arg" ||
+                kind == "type" {
                 ctx.reject_metavar_position(kind, meta_name)
               }
               ctx.register_metavar(kind, meta_name)
@@ -692,8 +712,8 @@ fn MetavarRewriteContext::rewrite_func(
     parameters: ctx.rewrite_parameters(func.parameters),
     params_loc: func.params_loc,
     body: ctx.rewrite_expr(func.body),
-    return_type: func.return_type,
-    error_type: func.error_type,
+    return_type: ctx.rewrite_optional_type(func.return_type),
+    error_type: ctx.rewrite_error_type(func.error_type),
     kind: func.kind,
     is_async: func.is_async,
     loc: func.loc,
@@ -710,18 +730,28 @@ fn MetavarRewriteContext::rewrite_parameters(
     result.push(
       match parameter {
         Positional(binder~, ty~) =>
-          Positional(binder=ctx.rewrite_binder(binder), ty~)
+          Positional(
+            binder=ctx.rewrite_binder(binder),
+            ty=ctx.rewrite_optional_type(ty),
+          )
         Labelled(binder~, ty~) =>
-          Labelled(binder=ctx.rewrite_binder(binder), ty~)
+          Labelled(
+            binder=ctx.rewrite_binder(binder),
+            ty=ctx.rewrite_optional_type(ty),
+          )
         QuestionOptional(binder~, ty~) =>
-          QuestionOptional(binder=ctx.rewrite_binder(binder), ty~)
+          QuestionOptional(
+            binder=ctx.rewrite_binder(binder),
+            ty=ctx.rewrite_optional_type(ty),
+          )
         Optional(binder~, default~, ty~) =>
           Optional(
             binder=ctx.rewrite_binder(binder),
             default=ctx.rewrite_expr(default),
-            ty~,
+            ty=ctx.rewrite_optional_type(ty),
           )
-        DiscardPositional(..) => parameter
+        DiscardPositional(ty~, loc~) =>
+          DiscardPositional(ty=ctx.rewrite_optional_type(ty), loc~)
       },
     )
   }
@@ -736,7 +766,13 @@ fn MetavarRewriteContext::rewrite_let_and_bindings(
   let result : Array[(@syntax.Binder, @syntax.Type?, @syntax.Func)] = []
   for binding in bindings {
     let (binder, ty, func) = binding
-    result.push((ctx.rewrite_binder(binder), ty, ctx.rewrite_func(func)))
+    result.push(
+      (
+        ctx.rewrite_binder(binder),
+        ctx.rewrite_optional_type(ty),
+        ctx.rewrite_func(func),
+      ),
+    )
   }
   List(result)
 }

@@ -229,21 +229,24 @@ patterns:
 The moongrep infers a single kind for all occurrences of the same name. Bare
 names used only as expression placeholders infer `exp`; bare names used in
 binder, label, constructor, type-name, or qualified-identifier positions infer
-`id`. For example, in `for $counter = 0; $counter < $limit; ...`, `$counter`
-infers `id` from the binder position and `$limit` infers `exp`.
+`id`; bare names used as whole type nodes infer `type`. For example, in
+`for $counter = 0; $counter < $limit; ...`, `$counter` infers `id` from the
+binder position and `$limit` infers `exp`; in `let values : Array[$T] = input`,
+`$T` infers `type`.
 
-Only `exp`, `id`, `const`, `arg`, and `pat` are supported. A name may be repeated
-within one kind, but using the same payload across multiple kinds such as
-`$(name:exp)`, `$(name:id)`, `$(name:const)`, `$(name:arg)`, and
-`$(name:pat)` in one shape is invalid.
+Only `exp`, `id`, `const`, `arg`, `pat`, and `type` are supported. A name may be
+repeated within one kind, but using the same payload across multiple kinds such
+as `$(name:exp)`, `$(name:id)`, `$(name:const)`, `$(name:arg)`,
+`$(name:pat)`, and `$(name:type)` in one shape is invalid.
 
 Bare `$name` inference is intentionally conservative. It does not default to
 `const`, `arg`, or `pat`. A simple pattern variable such as
 `match input { $item => body }` is ambiguous between `id`, `const`, and `pat`;
 write `$(item:id)`, `$(item:const)`, or `$(item:pat)` to choose. Bare `$name`
-does not infer `arg`; use explicit `$(name:arg)` for whole call arguments. An
-explicit same-name occurrence also fixes later bare occurrences when the
-positions are compatible.
+does not infer `arg`; use explicit `$(name:arg)` for whole call arguments.
+Bare `$name` in a type annotation can infer `type`; use explicit
+`$(name:type)` when the type position is not obvious. An explicit same-name
+occurrence also fixes later bare occurrences when the positions are compatible.
 
 The old YAML `metavars` key is not supported. Pattern objects that contain it
 are rejected as using an unsupported key.
@@ -299,6 +302,23 @@ The placeholder can match a candidate positional argument, labelled argument,
 labelled pun, optional labelled argument, or optional labelled pun. The captured
 value is the whole `Argument` AST node, including argument kind, label, and
 value.
+
+Use `$(name:type)` for a whole MoonBit type AST node. It is valid only when it
+occupies a complete type node, such as an annotation, a type argument, an option
+type, a tuple member, or a function type component:
+
+```yaml
+patterns:
+  - shape: |
+      let value : $(T:type) = input
+  - shape: |
+      let values : Array[$T] = input
+```
+
+The captured value is the whole `Type` AST node. Repeating the same `type` name
+requires the captured type nodes to be structurally equal, ignoring source
+locations. `type` does not capture type-name identity positions such as method
+type qualifiers or constructor extra-info; use `id` for those names.
 
 Use `$(name:pat)` for a whole pattern AST capture. It is valid only as a simple
 pattern variable position:
@@ -476,6 +496,41 @@ declared as another kind elsewhere. `$(arg:arg)` must occupy the whole
 argument slot; `sink(label=$(arg:arg))`, `sink($(arg:arg) + 1)`, and a root
 shape `$(arg:arg)` are invalid.
 
+### `type`
+
+A `type` metavar captures a whole MoonBit `Type` AST node. It can match simple
+type names and type variables such as `Int` or `T`, and composite types such as
+`Array[Int]`, `T?`, tuples, and function types.
+
+Example:
+
+```yaml
+patterns:
+  - shape: |
+      let left : $(T:type) = input; let right : $(T:type) = input
+```
+
+This can match:
+
+```moonbit
+let left : Int = input; let right : Int = input
+let left : Array[String] = input; let right : Array[String] = input
+```
+
+It does not match:
+
+```moonbit
+let left : Int = input; let right : String = input
+```
+
+`type` captures must occupy a whole type node. These are invalid:
+
+```yaml
+patterns:
+  - shape: sink($(T:type))
+  - shape: $(T:type)(value)
+```
+
 ### `pat`
 
 A `pat` metavar captures the whole candidate `Pattern` AST. It is valid only in
@@ -508,7 +563,7 @@ patterns:
 ```
 
 Only `id` and `const` captures can be guarded. A guard key that refers to an
-`exp` capture, an `arg` capture, a `pat` capture, or an unknown name is
+`exp` capture, an `arg` capture, a `pat` capture, a `type` capture, or an unknown name is
 rejected during rule compilation. Inner `patterns` may guard `id` and `const`
 captures established by `inside-expr` or `inside-toplevel`.
 
@@ -858,7 +913,9 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - `$(name:const)` appears outside a constant expression or constant pattern position
 - `$(name:arg)` appears outside a bare argument position
 - `$(name:pat)` appears outside a bare pattern position
-- a guard key is not `$`-prefixed, or references an unknown, `exp`, `arg`, or `pat` capture
+- `$(name:type)` appears outside a whole type position
+- a guard key is not `$`-prefixed, or references an unknown, `exp`, `arg`,
+  `pat`, or `type` capture
 - a guard regex is invalid
 - `inside-expr` does not contain exactly one binding-capable `__TARGET__`
 - `inside-toplevel` does not contain exactly one binding-capable `__TARGET__`

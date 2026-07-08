@@ -195,11 +195,11 @@ patterns:
   - shape: $value + $value
 ```
 
-moongrep会为同名的所有出现位置推导出单一 kind。只出现在表达式占位位置的裸名称会推导为 `exp`；出现在 binder、标签、构造器、类型名或限定标识符位置的裸名称会推导为 `id`。例如 `for $counter = 0; $counter < $limit; ...` 中，`$counter` 会从 binder 位置推导为 `id`，`$limit` 会推导为 `exp`。
+moongrep会为同名的所有出现位置推导出单一 kind。只出现在表达式占位位置的裸名称会推导为 `exp`；出现在 binder、标签、构造器、类型名或限定标识符位置的裸名称会推导为 `id`；出现在完整类型节点位置的裸名称会推导为 `type`。例如 `for $counter = 0; $counter < $limit; ...` 中，`$counter` 会从 binder 位置推导为 `id`，`$limit` 会推导为 `exp`；在 `let values : Array[$T] = input` 中，`$T` 会推导为 `type`。
 
-只支持 `exp`、`id`、`const`、`arg` 和 `pat`。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$(name:exp)`、`$(name:id)`、`$(name:const)`、`$(name:arg)` 和 `$(name:pat)` 等多个 kind 使用同一个 payload。
+只支持 `exp`、`id`、`const`、`arg`、`pat` 和 `type`。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$(name:exp)`、`$(name:id)`、`$(name:const)`、`$(name:arg)`、`$(name:pat)` 和 `$(name:type)` 等多个 kind 使用同一个 payload。
 
-裸 `$name` 的推导是保守的。它不会默认推导为 `const`、`arg` 或 `pat`。像 `match input { $item => body }` 这样的简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义；请写成 `$(item:id)`、`$(item:const)` 或 `$(item:pat)` 来明确选择。裸 `$name` 不会推导为 `arg`；完整调用参数请显式写 `$(name:arg)`。同名的显式出现也可以在位置兼容时为后续裸出现确定 kind。
+裸 `$name` 的推导是保守的。它不会默认推导为 `const`、`arg` 或 `pat`。像 `match input { $item => body }` 这样的简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义；请写成 `$(item:id)`、`$(item:const)` 或 `$(item:pat)` 来明确选择。裸 `$name` 不会推导为 `arg`；完整调用参数请显式写 `$(name:arg)`。类型标注中的裸 `$name` 可以推导为 `type`；当类型位置不明显时可显式写 `$(name:type)`。同名的显式出现也可以在位置兼容时为后续裸出现确定 kind。
 
 旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
 
@@ -243,6 +243,18 @@ patterns:
 ```
 
 该占位符可以匹配候选中的 positional、labelled、labelled pun、optional labelled 和 optional pun 参数。捕获值是完整 `Argument` AST 节点，包括参数 kind、标签和值。
+
+如果需要捕获完整 MoonBit 类型 AST 节点，请使用 `$(name:type)`。它必须占据一个完整类型节点，例如标注、类型参数、option 类型、tuple 成员或函数类型组成部分：
+
+```yaml
+patterns:
+  - shape: |
+      let value : $(T:type) = input
+  - shape: |
+      let values : Array[$T] = input
+```
+
+捕获值是完整 `Type` AST 节点。重复使用同一个 `type` 名称时，捕获到的类型节点必须结构相等；源码位置会被忽略。`type` 不捕获方法类型限定符或构造器 extra-info 等类型名 identity 位置；这些名称请使用 `id`。
 
 如果需要捕获整个 pattern AST，请使用 `$(name:pat)`。它只在简单 pattern variable 位置有效：
 
@@ -392,6 +404,39 @@ sink(label?)
 
 `arg` 只能显式使用。`sink($arg)` 中的裸 `$arg` 仍按普通裸元变量推导处理，除非该名称在别处已经被显式声明为其他 kind，否则它是 `exp` 捕获。`$(arg:arg)` 必须占据整个参数槽；`sink(label=$(arg:arg))`、`sink($(arg:arg) + 1)` 和根 shape `$(arg:arg)` 都无效。
 
+### `type`
+
+`type` 元变量捕获完整 MoonBit `Type` AST 节点。它可以匹配 `Int` 或 `T` 这样的简单类型名和类型变量，也可以匹配 `Array[Int]`、`T?`、tuple 和函数类型等复合类型。
+
+示例：
+
+```yaml
+patterns:
+  - shape: |
+      let left : $(T:type) = input; let right : $(T:type) = input
+```
+
+它可以匹配：
+
+```moonbit
+let left : Int = input; let right : Int = input
+let left : Array[String] = input; let right : Array[String] = input
+```
+
+它不会匹配：
+
+```moonbit
+let left : Int = input; let right : String = input
+```
+
+`type` 捕获必须占据完整类型节点。下面写法无效：
+
+```yaml
+patterns:
+  - shape: sink($(T:type))
+  - shape: $(T:type)(value)
+```
+
 ### `pat`
 
 `pat` 元变量捕获整个候选 `Pattern` AST。它只在简单 pattern variable 位置有效。
@@ -420,7 +465,7 @@ patterns:
 ```
 
 只有 `id` 和 `const` 捕获可以被 guard 过滤。guard 键如果引用 `exp` 捕获、
-`arg` 捕获、`pat` 捕获或未知名称，会在规则编译时报错。内部 `patterns` 可以
+`arg` 捕获、`pat` 捕获、`type` 捕获或未知名称，会在规则编译时报错。内部 `patterns` 可以
 guard 由 `inside-expr` 或 `inside-toplevel` 建立的 `id` 和 `const` 捕获。
 
 Guard 会在结构 AST 匹配成功后检查。单个 pattern object 中的所有 guard 都必须
@@ -699,7 +744,8 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `$(name:const)` 出现在常量表达式或常量 pattern 位置之外
 - `$(name:arg)` 出现在裸参数位置之外
 - `$(name:pat)` 出现在裸 pattern 位置之外
-- guard 键没有 `$` 前缀，或引用未知捕获、`exp` 捕获、`arg` 捕获或 `pat` 捕获
+- `$(name:type)` 出现在完整类型位置之外
+- guard 键没有 `$` 前缀，或引用未知捕获、`exp` 捕获、`arg` 捕获、`pat` 捕获或 `type` 捕获
 - guard 正则无效
 - `inside-expr` 没有且只有一个可绑定的 `__TARGET__`
 - `inside-toplevel` 没有且只有一个可绑定的 `__TARGET__`
