@@ -69,8 +69,8 @@ let _embed_rulespec_md : String =
   #|- `patterns` (optional for structural rules): non-empty YAML array
   #|- `patterns-not` (optional for structural rules): non-empty YAML array using
   #|  the same object schema as `patterns`
-  #|- `inside-expr` (optional for structural rules): YAML string containing one
-  #|  MoonBit expression snippet used as an outer context
+  #|- `inside-expr` (optional for structural rules): YAML mapping using the same
+  #|  `shape` and optional `guard` schema as `patterns`, used as an outer context
   #|- `taint` (required for taint rules): YAML mapping
   #|
   #|Unknown top-level keys are rejected.
@@ -92,7 +92,8 @@ let _embed_rulespec_md : String =
   #|
   #|### Pattern Objects
   #|
-  #|Structural entries in `patterns` and `patterns-not` use this object schema.
+  #|Structural entries in `patterns`, `patterns-not`, and `inside-expr` use this
+  #|object schema.
   #|
   #|Only these keys are accepted:
   #|
@@ -542,12 +543,15 @@ let _embed_rulespec_md : String =
   #|id: wrapped-target
   #|description: |
   #|  Match a target call only inside wrapper(...).
-  #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+  #|inside-expr:
+  #|  shape: wrapper($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: target.call($(prefix:exp))
   #|```
   #|
-  #|`inside-expr` is a YAML string parsed as one MoonBit expression snippet.
+  #|`inside-expr` is a YAML mapping. Its `shape` is parsed as one MoonBit
+  #|expression snippet, and its optional `guard` filters `id` and `const` captures
+  #|declared by that outer shape.
   #|
   #|Additional rules:
   #|
@@ -711,11 +715,11 @@ let _embed_rulespec_md : String =
   #|- an unsupported key appears at the top level, inside `taint`, or inside a
   #|  pattern object
   #|- a required key is missing
-  #|- `id`, `description`, `inside-expr`, or `shape` is not a YAML string
+  #|- `id`, `description`, or `shape` is not a YAML string
   #|- `id` is empty or contains `/`
   #|- the rule does not choose structural or taint mode
   #|- `inside-expr` appears on a taint rule
-  #|- `inside-expr` is present but is not a string
+  #|- `inside-expr` is present but is not a mapping
   #|- `inside-expr` is present without `patterns` or `patterns-not`
   #|- `patterns` is not an array or is empty
   #|- a `patterns` entry is not a mapping
@@ -794,7 +798,8 @@ let _embed_rulespec_md : String =
   #|id: unsafe-wrapper
   #|description: |
   #|  Match a sink only under an unsafe wrapper.
-  #|inside-expr: unsafe(__TARGET__)
+  #|inside-expr:
+  #|  shape: unsafe(__TARGET__)
   #|patterns:
   #|  - shape: sink(__)
   #|```
@@ -827,7 +832,8 @@ let _embed_rulespec_md : String =
   #|id: wrapper-without-danger
   #|description: |
   #|  Match wrappers whose payload contains no danger call.
-  #|inside-expr: wrapper(__TARGET__)
+  #|inside-expr:
+  #|  shape: wrapper(__TARGET__)
   #|patterns-not:
   #|  - shape: danger()
   #|```

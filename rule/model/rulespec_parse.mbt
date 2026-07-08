@@ -131,7 +131,7 @@ fn expect_structural_rule(
 
 ///|
 fn expect_patterns_not_mode(
-  inside_expr : String?,
+  inside_expr : RulePatternSpec?,
   patterns : Array[RulePatternSpec],
   patterns_not : Array[RulePatternSpec],
 ) -> StructuralPatternsNotMode {
@@ -146,11 +146,14 @@ fn expect_patterns_not_mode(
 fn expect_inside_expr(
   doc : Map[String, @yaml.Yaml],
   path : String,
-) -> String? raise {
+) -> RulePatternSpec? raise {
   match doc.get("inside-expr") {
     None => None
-    Some(String(shape)) => Some(shape)
-    Some(_) => raise invalid_rule(path~, info="inside-expr must be a string")
+    Some(Map(clause_map)) =>
+      Some(
+        parse_rule_clause_map(clause_map, path, "inside-expr", allow_guard=true),
+      )
+    Some(_) => raise invalid_rule(path~, info="inside-expr must be a mapping")
   }
 }
 

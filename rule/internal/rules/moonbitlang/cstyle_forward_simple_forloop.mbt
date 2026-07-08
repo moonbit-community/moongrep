@@ -6,10 +6,11 @@ let _embed_cstyle_forward_simple_forloop_yaml : String =
   #|description: |
   #|  C-style forward for loops that can be rewritten as simple for-in loops.
   #|
-  #|inside-expr: |
-  #|  for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
-  #|    __TARGET__
-  #|  }
+  #|inside-expr:
+  #|  shape: |
+  #|    for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
+  #|      __TARGET__
+  #|    }
   #|patterns-not:
   #|  - shape: $(counter:id)
   #|

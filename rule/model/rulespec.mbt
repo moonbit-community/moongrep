@@ -46,12 +46,12 @@ pub(all) enum StructuralPatternsNotMode {
 ///|
 /// Raw structural-rule definition loaded from YAML.
 ///
-/// `inside_expr`, when present, is a MoonBit expression string that must
-/// contain a single `__TARGET__` placeholder. The normal `patterns` are then
-/// matched inside that target. `patterns_not` holds negative structural
-/// patterns that suppress otherwise successful structural matches.
+/// `inside_expr`, when present, is a pattern object whose shape must contain a
+/// single `__TARGET__` placeholder. The normal `patterns` are then matched
+/// inside that target. `patterns_not` holds negative structural patterns that
+/// suppress otherwise successful structural matches.
 pub(all) struct StructuralRuleSpec {
-  inside_expr : String?
+  inside_expr : RulePatternSpec?
   patterns : Array[RulePatternSpec]
   patterns_not : Array[RulePatternSpec]
   patterns_not_mode : StructuralPatternsNotMode

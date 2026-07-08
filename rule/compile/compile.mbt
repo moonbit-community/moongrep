@@ -64,9 +64,12 @@ fn compile_structural_rule(
   spec : StructuralRuleSpec,
 ) -> CompiledStructuralRule raise {
   let outer_pattern_names : Array[String] = []
-  let inside_expr = if spec.inside_expr is Some(shape) {
-    let pattern : RulePatternSpec = { shape, guards: {} }
-    let compiled_shape = compile_metavar_shape(path, "inside-expr", shape)
+  let inside_expr = if spec.inside_expr is Some(pattern) {
+    let compiled_shape = compile_metavar_shape(
+      path,
+      "inside-expr",
+      pattern.shape,
+    )
     let ast = compiled_shape.ast
     let target_count = count_supported_name_in_node(ast, "__TARGET__")
     if target_count != 1 {

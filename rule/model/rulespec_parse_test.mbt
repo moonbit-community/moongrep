@@ -278,7 +278,8 @@ test "model derives reject-uncovered-negative for inside expr positives and nega
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: arr[$(name:id)]
     #|patterns-not:
@@ -313,7 +314,8 @@ test "model allows inside expr with only patterns-not" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns-not:
     #|  - shape: block($(name:id))
     #|
@@ -325,7 +327,8 @@ test "model allows inside expr with only patterns-not" {
       guard spec.inside_expr is Some(inside_expr) else {
         fail("expected inside-expr")
       }
-      inspect(inside_expr, content="wrapper($(name:id), __TARGET__)")
+      inspect(inside_expr.shape, content="wrapper($(name:id), __TARGET__)")
+      assert_eq(inside_expr.guards.length(), 0)
       assert_eq(spec.patterns.length(), 0)
       assert_eq(spec.patterns_not.length(), 1)
       inspect(spec.patterns_not[0].shape, content="block($(name:id))")
@@ -335,11 +338,15 @@ test "model allows inside expr with only patterns-not" {
 }
 
 ///|
-test "model parses scalar inside expr" {
+test "model parses inside expr shape and guard map" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|  guard:
+    #|    $name: "^safe_"
+    #|    $lit: "^ok$"
     #|patterns:
     #|  - shape: call($(name:id))
     #|
@@ -351,23 +358,100 @@ test "model parses scalar inside expr" {
       guard spec.inside_expr is Some(inside_expr) else {
         fail("expected inside-expr")
       }
-      inspect(inside_expr, content="wrapper($(name:id), __TARGET__)")
+      inspect(
+        inside_expr.shape,
+        content="wrapper($(name:id), $(lit:const), __TARGET__)",
+      )
+      inspect(inside_expr.guards["$name"], content="^safe_")
+      inspect(inside_expr.guards["$lit"], content="^ok$")
     }
     Taint(_) => fail("expected structural rule")
   }
 }
 
 ///|
-test "model rejects mapping inside expr" {
+test "model rejects scalar inside expr" {
   let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(source, "inside-expr must be a mapping")
+}
+
+///|
+test "model rejects malformed inside expr object schema" {
+  let missing_shape =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  guard:
+    #|    $name: "^safe_"
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(missing_shape, "missing required key shape")
+  let non_string_shape =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: 1
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(non_string_shape, "shape must be a string")
+  let unsupported_key =
     #|id: example
     #|description: Example.
     #|inside-expr:
     #|  shape: wrapper($(name:id), __TARGET__)
+    #|  extra: nope
     #|patterns:
     #|  - shape: call($(name:id))
     #|
-  expect_invalid_rule_info(source, "inside-expr must be a string")
+  expect_invalid_rule_info(
+    unsupported_key, "inside-expr contains unsupported key extra",
+  )
+  let non_mapping_guard =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard: nope
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(
+    non_mapping_guard, "inside-expr.guard must be a mapping",
+  )
+  let non_string_guard_value =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    $name: 1
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(
+    non_string_guard_value, "inside-expr.guard.$name must be a string",
+  )
+  let bare_guard_key =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    name: "^safe_"
+    #|patterns:
+    #|  - shape: call($(name:id))
+    #|
+  expect_invalid_rule_info(
+    bare_guard_key, "guard key name must be a $-prefixed metavar name",
+  )
 }
 
 ///|
@@ -429,7 +513,8 @@ test "model rejects invalid patterns-not combinations" {
   let inside_only =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|
   expect_invalid_rule_info(
     inside_only, "inside-expr requires patterns or patterns-not",

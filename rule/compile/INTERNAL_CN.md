@@ -123,7 +123,7 @@ Inline 声明不能使用：
 
 `inside-expr` shape 会被编译成普通 pattern，并使用：
 
-- 无 guard
+- 它的 pattern object 上声明的 guard
 - `target_metavar = Some("__TARGET__")`
 - `source_metavar = None`
 

@@ -310,8 +310,9 @@ let _embed_writingrules_md : String =
   #|id: wrapped-target
   #|description: |
   #|  Match a call only when it appears inside a specific wrapper.
-  #|inside-expr: |
-  #|  wrapper($(prefix:exp), __TARGET__)
+  #|inside-expr:
+  #|  shape: |
+  #|    wrapper($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: |
   #|      target.call($(prefix:exp))
@@ -319,7 +320,8 @@ let _embed_writingrules_md : String =
   #|
   #|Rules for `inside-expr`:
   #|
-  #|- it uses the same metavar syntax as one structural pattern
+  #|- it uses the same `shape` and optional `guard` schema as one structural
+  #|  pattern
   #|- it must place exactly one supported `__TARGET__`; place it where a whole
   #|  expression is expected so runtime traversal can search that subtree
   #|- `__TARGET__` is reserved and must not be used as an metavar name
@@ -361,7 +363,8 @@ let _embed_writingrules_md : String =
   #|id: wrapper-without-danger
   #|description: |
   #|  Wrapper payload contains no danger call.
-  #|inside-expr: wrapper(__TARGET__)
+  #|inside-expr:
+  #|  shape: wrapper(__TARGET__)
   #|patterns-not:
   #|  - shape: danger()
   #|```
@@ -374,7 +377,8 @@ let _embed_writingrules_md : String =
   #|covered positive subtrees rejects the outer context.
   #|
   #|```yaml
-  #|inside-expr: wrapper($(counter:id), __TARGET__)
+  #|inside-expr:
+  #|  shape: wrapper($(counter:id), __TARGET__)
   #|patterns:
   #|  - shape: arr[$(counter:id)]
   #|patterns-not:
@@ -524,9 +528,10 @@ let _embed_writingrules_md : String =
   #|
   #|### A rule with `guard` fails to load
   #|
-  #|Check that `guard` is under a structural `patterns` or `patterns-not` entry,
-  #|that it is a mapping, and that every key names an `id` or `const` capture
-  #|visible to that pattern. `guard` is still rejected in taint clauses.
+  #|Check that `guard` is under a structural `patterns`, `patterns-not`, or
+  #|`inside-expr` pattern object, that it is a mapping, and that every key names an
+  #|`id` or `const` capture visible to that pattern. `guard` is still rejected in
+  #|taint clauses.
   #|
   #|## Testing Workflow
   #|

@@ -112,7 +112,8 @@ test "ast bucket treats broad root placeholders as wildcard" {
   let target_rule_source =
     #|id: example
     #|description: Target root.
-    #|inside-expr: __TARGET__
+    #|inside-expr:
+    #|  shape: __TARGET__
     #|patterns:
     #|  - shape: target()
     #|

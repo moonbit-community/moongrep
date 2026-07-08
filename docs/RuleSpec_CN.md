@@ -53,7 +53,8 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 - `description`（必需）：YAML 字符串
 - `patterns`（结构规则可选）：非空 YAML 数组
 - `patterns-not`（结构规则可选）：与 `patterns` 使用相同条目 schema 的非空 YAML 数组
-- `inside-expr`（结构规则可选）：包含一个 MoonBit 表达式片段的 YAML 字符串，作为外层上下文
+- `inside-expr`（结构规则可选）：YAML 映射，使用与 `patterns` 相同的
+  `shape` 和可选 `guard` schema，作为外层上下文
 - `taint`（污点规则必需）：YAML 映射
 
 未知顶层键会被拒绝。
@@ -70,7 +71,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ### Pattern Objects
 
-结构规则中的 `patterns` 和 `patterns-not` 条目使用以下对象 schema。
+结构规则中的 `patterns`、`patterns-not` 条目以及 `inside-expr` 使用以下对象 schema。
 
 只接受这些键：
 
@@ -339,7 +340,8 @@ patterns:
 
 ## Guard
 
-结构规则的 pattern object 可以包含可选的 `guard` 映射。guard 的键是带
+结构规则的 pattern object（包括 `patterns`、`patterns-not` 和
+`inside-expr`）可以包含可选的 `guard` 映射。guard 的键是带
 `$` 前缀的捕获名，值是正则字符串：
 
 ```yaml
@@ -422,12 +424,14 @@ patterns-not:
 id: wrapped-target
 description: |
   Match a target call only inside wrapper(...).
-inside-expr: wrapper($(prefix:exp), __TARGET__)
+inside-expr:
+  shape: wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: target.call($(prefix:exp))
 ```
 
-`inside-expr` 是 YAML 字符串，会作为一个 MoonBit 表达式片段解析。
+`inside-expr` 是 YAML 映射。它的 `shape` 会作为一个 MoonBit 表达式片段解析；
+可选 `guard` 会过滤这个外层 shape 声明的 `id` 和 `const` 捕获。
 
 额外规则：
 
@@ -558,11 +562,11 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 顶层 YAML 文档不是映射
 - 顶层、`taint` 内或 pattern object 内出现不支持的键
 - 缺少必需键
-- `id`、`description`、`inside-expr` 或 `shape` 不是 YAML 字符串
+- `id`、`description` 或 `shape` 不是 YAML 字符串
 - `id` 为空或包含 `/`
 - 规则没有选择结构模式或污点模式
 - taint 规则中出现 `inside-expr`
-- `inside-expr` 存在但不是字符串
+- `inside-expr` 存在但不是映射
 - `inside-expr` 存在但没有 `patterns` 或 `patterns-not`
 - `patterns` 不是数组或为空
 - `patterns` 条目不是映射
@@ -635,7 +639,8 @@ patterns:
 id: unsafe-wrapper
 description: |
   Match a sink only under an unsafe wrapper.
-inside-expr: unsafe(__TARGET__)
+inside-expr:
+  shape: unsafe(__TARGET__)
 patterns:
   - shape: sink(__)
 ```

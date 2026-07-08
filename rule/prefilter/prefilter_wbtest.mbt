@@ -151,7 +151,8 @@ test "prefilter requires inside expr and inner pattern literals together" {
   let source =
     #|id: example
     #|description: Wrapped target call.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|
@@ -185,7 +186,8 @@ test "prefilter uses inside expr literals for patterns-not only rules" {
   let source =
     #|id: example
     #|description: Wrapped target unless ignored.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns-not:
     #|  - shape: impossible_negative_literal()
     #|
