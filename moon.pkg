@@ -6,7 +6,6 @@ import {
   "moonbit-community/moongrep/rule/compile" @rule_compile,
   "moonbit-community/moongrep/rule/load" @rule_load,
   "moonbit-community/moongrep/rule/model" @rule_model,
-  "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
   "moonbit-community/moongrep/untyped_ast",
   "moonbit-community/yaml",
   "moonbitlang/async",
