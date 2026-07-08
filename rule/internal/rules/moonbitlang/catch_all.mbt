@@ -8,20 +8,20 @@ let _embed_catch_all_yaml : String =
   #|  Prefer matching only the specific error cases that can be recovered from.
   #|patterns:
   #|  - shape: |
-  #|      try __ catch {
-  #|        _ => __
+  #|      try $_ catch {
+  #|        _ => $_
   #|      }
   #|  - shape: |
-  #|      __ catch {
-  #|        _ => __
+  #|      $_ catch {
+  #|        _ => $_
   #|      }
   #|  - shape: |
-  #|      try __ catch {
-  #|        $(allerror:id) => __
+  #|      try $_ catch {
+  #|        $(allerror:id) => $_
   #|      }
   #|  - shape: |
-  #|      __ catch {
-  #|        $(allerror:id) => __
+  #|      $_ catch {
+  #|        $(allerror:id) => $_
   #|      }
   #|
 

@@ -4,9 +4,9 @@ description: |
 taint:
   sources:
     - shape: |
-        @html.Attrs::build().inner_html(__)
+        @html.Attrs::build().inner_html($_)
   sinks:
     - shape: |
-        @html.div(class=__, attrs=__SOURCE__, __)
+        @html.div(class=$_, attrs=__SOURCE__, $_)
   sanitizers:
     - shape: sanitize(__SOURCE__)

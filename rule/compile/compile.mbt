@@ -784,15 +784,7 @@ fn node_child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
 
 ///|
 fn is_builtin_ignore_metavar_name(name : String) -> Bool {
-  if name.length() < 2 {
-    return false
-  }
-  for char in name {
-    if char != '_' {
-      return false
-    }
-  }
-  true
+  name == "$_"
 }
 
 ///|

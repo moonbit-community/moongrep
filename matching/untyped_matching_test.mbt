@@ -11,8 +11,29 @@ fn parse_untyped_test_expr(source : String) -> @syntax.Expr raise {
 }
 
 ///|
+fn parse_untyped_test_metavar_expr(source : String) -> @syntax.Expr raise {
+  let lex_result = @lexer.tokens_from_string(
+    source,
+    comment=true,
+    name="untyped matching test",
+    enable_metavar=true,
+  )
+  guard lex_result.errors is [] else {
+    fail("expected expression to lex with metavars: \{source}")
+  }
+  let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
+  guard reports is [] else { fail("expected expression to parse: \{source}") }
+  expr
+}
+
+///|
 fn parse_untyped_test_node(source : String) -> @untyped_ast.Node raise {
   @untyped_ast.from_expr(parse_untyped_test_expr(source))
+}
+
+///|
+fn parse_untyped_test_metavar_node(source : String) -> @untyped_ast.Node raise {
+  @untyped_ast.from_expr(parse_untyped_test_metavar_expr(source))
 }
 
 ///|
@@ -116,6 +137,50 @@ test "default matcher binds repeated expression metavars" {
   ])
   assert_true(untyped_match(compiled, "make() + make()") is Some(_))
   assert_false(untyped_match(compiled, "make() + other()") is Some(_))
+}
+
+///|
+test "default matcher treats only $_ as ignore placeholder" {
+  let compiled = untyped_compiled(parse_untyped_test_metavar_node("foo($_)"))
+  match untyped_match(compiled, "foo(make())") {
+    Some(result) => inspect(result.bindings.length(), content="0")
+    None => fail("expected $_ ignore placeholder to match")
+  }
+  assert_true(untyped_match(compiled, "foo(other())") is Some(_))
+  assert_true(
+    untyped_match(
+      untyped_compiled(parse_untyped_test_metavar_node("pair($_, $_)")),
+      "pair(left, right)",
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "default matcher keeps underscore identifiers literal unless declared" {
+  assert_false(
+    expr_matches(
+      parse_untyped_test_node("foo(__)"),
+      parse_untyped_test_node("foo(value)"),
+    ),
+  )
+  assert_false(
+    expr_matches(
+      parse_untyped_test_node("foo(___)"),
+      parse_untyped_test_node("foo(value)"),
+    ),
+  )
+  let double_underscore = untyped_compiled(parse_untyped_test_node("__ + __"), expr_metavars=[
+    "__",
+  ])
+  assert_true(untyped_match(double_underscore, "same + same") is Some(_))
+  assert_false(untyped_match(double_underscore, "left + right") is Some(_))
+  let triple_underscore = untyped_compiled(
+    parse_untyped_test_node("___ + ___"),
+    expr_metavars=["___"],
+  )
+  assert_true(untyped_match(triple_underscore, "same + same") is Some(_))
+  assert_false(untyped_match(triple_underscore, "left + right") is Some(_))
 }
 
 ///|

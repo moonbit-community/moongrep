@@ -24,8 +24,7 @@ Expression matching first calls placeholder matchers such as
 
 Placeholder priority in expression positions is:
 
-1. names made only of underscores, with length at least two, are ignore
-   placeholders
+1. exact `$_` is an ignore placeholder
 2. `target_metavar` and `source_metavar` bind a whole expression when present
    in `CompiledExprPattern`
 3. declared expression metavars bind a whole expression value
@@ -44,7 +43,7 @@ metavars are special; everything else is literal. For pattern variables,
 metavars match only `Pattern::Constant`, and declared identifier metavars
 capture normalized pattern names. `__TARGET__` and `__SOURCE__` are special only
 in whole expression positions. For example, undeclared `__x` is literal: only
-`__` or `___` are ignore placeholders by spelling alone.
+exact `$_` is an ignore placeholder by spelling alone.
 
 ## Binding Kinds
 
@@ -80,7 +79,7 @@ kind. The `loc` field is ignored throughout the walk.
 
 ## Let Head Matching
 
-MoonBit parses an expression such as `let (__, __) = __` as an `Expr::Let`
+MoonBit parses an expression such as `let ($_, $_) = $_` as an `Expr::Let`
 whose body is a parser-synthesized `Unit(faked=true)`.
 
 The matcher treats that faked unit as "body omitted in the pattern". For
@@ -90,14 +89,14 @@ does not require the candidate body to match.
 Explicit let bodies still use normal structural matching. These forms keep
 their old meaning:
 
-- `let (__, __) = __; finish(__)`
-- `let x = __; __`
-- `let x = __; ()`
+- `let ($_, $_) = $_; finish($_)`
+- `let x = $_; $_`
+- `let x = $_; ()`
 
 `LetMut`, `LetFn`, and `LetAnd` do not use the faked-unit shortcut.
 
 This behavior belongs in the matcher, not the parser, so `inside-expr` can
-still use nested let expressions such as `let println = ___; __TARGET__` and
+still use nested let expressions such as `let println = $_; __TARGET__` and
 traverse the target body normally.
 
 ## Exactness and Small Exceptions

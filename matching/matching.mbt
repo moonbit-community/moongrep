@@ -2,8 +2,7 @@
 /// Returns whether `candidate` has the same AST shape as `pattern`.
 ///
 /// This convenience entry point does not enable declared metavars. It still
-/// treats identifiers made entirely of two or more underscores as ignore
-/// placeholders.
+/// treats the exact identifier `$_` as an ignore placeholder.
 pub fn expr_matches(
   pattern : @untyped_ast.Node,
   candidate : @untyped_ast.Node,
@@ -721,13 +720,5 @@ fn parse_pattern_metavar_name(raw : String) -> String? {
 
 ///|
 fn is_ignore_placeholder(name : String) -> Bool {
-  if name.length() < 2 {
-    return false
-  }
-  for char in name {
-    if char != '_' {
-      return false
-    }
-  }
-  true
+  name == "$_"
 }

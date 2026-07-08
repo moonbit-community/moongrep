@@ -113,15 +113,14 @@ Metavar 数组保持首次出现顺序。若干测试会断言这个顺序，不
 
 Inline 声明不能使用：
 
-- 只由两个或更多下划线组成的名称，例如 `__` 或 `___`
+- `$_`
 - `__TARGET__`
 - `__SOURCE__`
 
-全下划线名称是 matcher 的忽略占位符。`__TARGET__` 保留给 structural
+`$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural
 `inside-expr` 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
 
-仅仅以下划线开头的名称，例如 `__moongrep_value`，并不是保留名称，除非它正好是上面的内置名，
-或完全由下划线组成。
+仅仅以下划线开头的名称，例如 `__moongrep_value`，并不是保留名称，除非它正好是上面的内置名。
 
 ## Structural Rule
 

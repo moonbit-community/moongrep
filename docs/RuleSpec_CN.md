@@ -207,13 +207,13 @@ moongrep会为同名的所有出现位置推导出单一 kind。只出现在表�
 
 这些名称不能用作内联元变量名：
 
-- 只由两个或更多下划线组成的名称，例如 `__`、`___` 或 `____`
+- `$_`
 - `__TARGET__`
 - `__SOURCE__`
 
-`__TARGET__` 和 `__SOURCE__` 保留已有内置含义。`__TARGET__` 只在
-`inside-expr` 和 `inside-toplevel` 中有效；`__SOURCE__` 只在 taint sink
-和 sanitizer shape 中有效。
+`$_` 是下文描述的忽略占位符。`__TARGET__` 和 `__SOURCE__` 保留已有内置含义。
+`__TARGET__` 只在 `inside-expr` 和 `inside-toplevel` 中有效；`__SOURCE__`
+只在 taint sink 和 sanitizer shape 中有效。
 
 ### 元变量可以绑定的位置
 
@@ -265,23 +265,23 @@ patterns:
 
 ### 内置通配符
 
-只由两个或更多下划线组成的名称在出现在可绑定位置时是忽略占位符：
+精确拼写 `$_` 在出现在可绑定位置时是忽略占位符：
 
 ```yaml
 patterns:
-  - shape: foo(__)
+  - shape: foo($_)
 ```
 
 忽略占位符会匹配该位置上的任何内容。它不绑定值，重复出现的忽略占位符彼此独立：
 
 ```yaml
 patterns:
-  - shape: pair(__, __)
+  - shape: pair($_, $_)
 ```
 
 上面的例子可以匹配 `pair(left, right)`。
 
-只有全下划线名称具有这种内置行为。像 `__x` 这样的名称是字面量，除非它使用 `$(__x:exp)` 这样的内联语法。
+只有精确的 `$_` 具有这种内置行为。像 `__`、`___` 和 `__x` 这样的名称是字面量，除非它们使用 `$__` 或 `$(__x:exp)` 这样的内联语法。
 
 ### `exp`
 
@@ -796,7 +796,7 @@ description: |
 inside-expr:
   shape: unsafe(__TARGET__)
 patterns:
-  - shape: sink(__)
+  - shape: sink($_)
 ```
 
 该规则首先寻找 `unsafe(...)`，然后只在 `__TARGET__` 捕获的表达式内搜索 `sink(...)`。

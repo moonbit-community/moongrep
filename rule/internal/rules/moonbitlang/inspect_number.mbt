@@ -9,7 +9,7 @@ let _embed_inspect_number_yaml : String =
   #|
   #|patterns:
   #|  - shape: |
-  #|      inspect(__, content=$(str:const))
+  #|      inspect($_, content=$(str:const))
   #|    guard:
   #|      $str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
   #|

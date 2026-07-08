@@ -126,17 +126,16 @@ not sort these arrays as a cleanup.
 
 Inline declarations may not use:
 
-- names made only of two or more underscores, such as `__` or `___`
+- `$_`
 - `__TARGET__`
 - `__SOURCE__`
 
-All-underscore names are matcher ignore placeholders. `__TARGET__` is reserved
-for structural `inside-expr` traversal, and `__SOURCE__` is reserved for taint
-sink and sanitizer target selection.
+`$_` is the matcher ignore placeholder. `__TARGET__` is reserved for structural
+`inside-expr` traversal, and `__SOURCE__` is reserved for taint sink and
+sanitizer target selection.
 
 Names that merely start with underscores, such as `__moongrep_value`, are not
-reserved unless they are exactly one of the built-ins above or consist only of
-underscores.
+reserved unless they are exactly one of the built-ins above.
 
 ## Structural Rules
 

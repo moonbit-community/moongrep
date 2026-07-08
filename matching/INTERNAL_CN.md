@@ -35,7 +35,7 @@
 对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$(name:pat)` 会绑定整个候选 `Pattern` AST，声明过的 constant metavar 只匹配
 `Pattern::Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
 `__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
-`__x` 是字面量：只有 `__` 或 `___` 这种拼写本身才是忽略占位符。
+`__x` 是字面量：只有精确拼写 `$_` 本身才是忽略占位符。
 
 ## 绑定种类
 
@@ -65,7 +65,7 @@ Leaf 值通过节点 kind 比较；整个遍历都会忽略 `loc` 字段。
 
 ## Let 头部匹配
 
-MoonBit 会把 `let (__, __) = __` 这样的表达式解析为 `Expr::Let`，
+MoonBit 会把 `let ($_, $_) = $_` 这样的表达式解析为 `Expr::Let`，
 其 body 是 parser 合成的 `Unit(faked=true)`。
 
 matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `Expr::Let` 而言，
@@ -73,14 +73,14 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `
 
 显式的 let body 仍使用普通结构匹配。以下形式保持原有含义：
 
-- `let (__, __) = __; finish(__)`
-- `let x = __; __`
-- `let x = __; ()`
+- `let ($_, $_) = $_; finish($_)`
+- `let x = $_; $_`
+- `let x = $_; ()`
 
 `LetMut`、`LetFn` 和 `LetAnd` 不使用 faked-unit 快捷路径。
 
 这个行为属于 matcher，而不是 parser，因此 `inside-expr` 仍可以使用嵌套 let 表达式，
-例如 `let println = ___; __TARGET__`，并正常遍历目标 body。
+例如 `let println = $_; __TARGET__`，并正常遍历目标 body。
 
 ## 精确性和小例外
 

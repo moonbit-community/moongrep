@@ -108,7 +108,7 @@ test "ast bucket treats broad root placeholders as wildcard" {
     #|id: example
     #|description: Ignore root.
     #|patterns:
-    #|  - shape: __
+    #|  - shape: $_
     #|
   let target_rule_source =
     #|id: example

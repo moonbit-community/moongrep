@@ -252,6 +252,76 @@ test "apply structural rule supports bare expression metavars" {
 }
 
 ///|
+test "apply structural rule treats $_ as independent ignore placeholder" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Ignore call arguments.
+    #|patterns:
+    #|  - shape: pair($_, $_)
+    #|
+  let source =
+    #|fn sample {
+    #|  pair(left, right);
+    #|  pair(left, left);
+    #|  pair()
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 2)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural rule keeps underscore identifiers literal unless declared" {
+  let literal_rule_source =
+    #|id: literal
+    #|description: |
+    #|  Literal all-underscore identifier.
+    #|patterns:
+    #|  - shape: foo(__)
+    #|
+  let literal_source =
+    #|fn sample {
+    #|  foo(value);
+    #|  foo(__)
+    #|}
+    #|
+  let literal_hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(literal_source),
+    compile_rule_source(literal_rule_source),
+  )
+  assert_eq(literal_hits.length(), 1)
+  inspect(literal_hits[0].rule_id, content="literal")
+
+  let metavar_rule_source =
+    #|id: metavar
+    #|description: |
+    #|  Repeated all-underscore metavar.
+    #|patterns:
+    #|  - shape: $__ + $__
+    #|
+  let metavar_source =
+    #|fn sample {
+    #|  same + same;
+    #|  left + right
+    #|}
+    #|
+  let metavar_hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(metavar_source),
+    compile_rule_source(metavar_rule_source),
+  )
+  assert_eq(metavar_hits.length(), 1)
+  inspect(metavar_hits[0].rule_id, content="metavar")
+}
+
+///|
 test "apply structural rule supports inline identifier metavars" {
   let rule_source =
     #|id: example
@@ -629,7 +699,7 @@ test "apply structural patterns-not is ignored after positive root match" {
     #|patterns:
     #|  - shape: sink($(value:exp))
     #|patterns-not:
-    #|  - shape: sink(safe(__))
+    #|  - shape: sink(safe($_))
     #|
   let source =
     #|fn sample {
@@ -1689,7 +1759,7 @@ test "apply structural rule matches let pattern header with omitted body" {
     #|description: |
     #|  Tuple let header.
     #|patterns:
-    #|  - shape: let (__, __) = __
+    #|  - shape: let ($_, $_) = $_
     #|
   let source =
     #|fn sample {

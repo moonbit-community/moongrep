@@ -21,15 +21,64 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 }
 
 ///|
-test "validate rejects reserved metavar names" {
+test "validate accepts all-underscore metavar names" {
   let source =
     #|id: example
     #|description: Example.
     #|patterns:
-    #|  - shape: $(__:exp)
+    #|  - shape: $(__:exp) + $(__:exp) + $(___:exp)
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(
+        rule.patterns[0].compiled.expr_metavars,
+        content="[\"__\", \"___\"]",
+      )
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate does not collect $_ ignore placeholders" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: pair($_, $_)
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      debug_inspect(rule.patterns[0].compiled.expr_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.identifier_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.constant_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.arg_metavars, content="[]")
+      debug_inspect(rule.patterns[0].compiled.type_metavars, content="[]")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects reserved target and source metavar names" {
+  let target_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(__TARGET__:exp)
     #|
   expect_compile_invalid(
-    source, "patterns[0] cannot declare metavar __ because it is a built-in ignore placeholder",
+    target_source, "patterns[0] cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
+  )
+  let source_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(__SOURCE__:exp)
+    #|
+  expect_compile_invalid(
+    source_source, "patterns[0] cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
   )
 }
 

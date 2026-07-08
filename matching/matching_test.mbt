@@ -11,8 +11,29 @@ fn parse_syntax_expr(source : String) -> @syntax.Expr raise {
 }
 
 ///|
+fn parse_syntax_metavar_expr(source : String) -> @syntax.Expr raise {
+  let lex_result = @lexer.tokens_from_string(
+    source,
+    comment=true,
+    name="matching test",
+    enable_metavar=true,
+  )
+  guard lex_result.errors is [] else {
+    fail("expected expression to lex with metavars: \{source}")
+  }
+  let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
+  guard reports is [] else { fail("expected expression to parse: \{source}") }
+  expr
+}
+
+///|
 fn parse_expr(source : String) -> @untyped_ast.Node raise {
   @untyped_ast.from_expr(parse_syntax_expr(source))
+}
+
+///|
+fn parse_metavar_expr(source : String) -> @untyped_ast.Node raise {
+  @untyped_ast.from_expr(parse_syntax_metavar_expr(source))
 }
 
 ///|
@@ -671,7 +692,7 @@ test "structural matcher compares foreach init continue and where clause" {
 
 ///|
 test "let pattern with omitted body matches let header only" {
-  let pattern = parse_expr("let (__, __) = __")
+  let pattern = parse_metavar_expr("let ($_, $_) = $_")
   assert_true(
     expr_matches(pattern, parse_expr("let (fst, snd) = tuple; use(fst, snd)")),
   )
@@ -683,7 +704,7 @@ test "let pattern with omitted body matches let header only" {
   )
   assert_false(
     expr_matches(
-      parse_expr("let (__, __) = __; finish(__)"),
+      parse_metavar_expr("let ($_, $_) = $_; finish($_)"),
       parse_expr("let (fst, snd) = tuple; other(fst)"),
     ),
   )
