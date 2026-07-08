@@ -6,10 +6,11 @@ let _embed_cstyle_backward_array_iteration_yaml : String =
   #|description: |
   #|  C-style backward array iteration that can be rewritten as simple for-in loops.
   #|
-  #|inside-expr: |
-  #|  for $(counter:id) = $(arr:id).length() - 1; $(counter:id) >= 0; $(counter:id) = $(counter:id) - 1 {
-  #|    __TARGET__
-  #|  }
+  #|inside-expr:
+  #|  shape: |
+  #|    for $(counter:id) = $(arr:id).length() - 1; $(counter:id) >= 0; $(counter:id) = $(counter:id) - 1 {
+  #|      __TARGET__
+  #|    }
   #|
   #|patterns:
   #|  - shape: |

@@ -436,7 +436,8 @@ test "apply inside expr and inner guards filter inherited bindings" {
     #|id: example
     #|description: |
     #|  Guarded wrapper.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: call($(name:id))
     #|    guard:
@@ -459,12 +460,42 @@ test "apply inside expr and inner guards filter inherited bindings" {
 }
 
 ///|
+test "apply inside expr guard filters outer context matches" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Guarded outer wrapper.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    $name: "^safe_"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(safe_ok, call());
+    #|  wrapper(unsafe_ok, call());
+    #|  wrapper(safe_bad, other())
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
 test "apply structural rule matches guards inside expr" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Guarded wrapper.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: call($(name:id), $(value:const))
     #|    guard:
@@ -492,7 +523,8 @@ test "inside expr reports nested target locations" {
     #|id: example
     #|description: |
     #|  Nested target call.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target(secret)
     #|
@@ -667,7 +699,8 @@ test "inside expr positive root ignores descendant patterns-not" {
     #|id: example
     #|description: |
     #|  Wrapped holder positive wins before descendant negative.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: holder($(value:exp))
     #|patterns-not:
@@ -692,7 +725,8 @@ test "inside expr positive root wins over same-root patterns-not" {
     #|id: example
     #|description: |
     #|  Wrapped target roots match before negative patterns run.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target($(value:exp))
     #|patterns-not:
@@ -722,7 +756,8 @@ test "inside expr patterns-not rejects outer on uncovered negative" {
     #|id: example
     #|description: |
     #|  Wrapped targets outside blocked branches.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|patterns-not:
@@ -756,7 +791,8 @@ test "inside expr positive array access wins over patterns-not identifier" {
     #|id: example
     #|description: |
     #|  Wrapped array access.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: $(array:exp)[$(index:exp)]
     #|patterns-not:
@@ -782,7 +818,8 @@ test "inside expr rejects only uncovered negative and accepts covered array acce
     #|id: example
     #|description: |
     #|  Covered array index use.
-    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
     #|  - shape: arr[$(counter:id)]
     #|patterns-not:
@@ -807,7 +844,8 @@ test "inside expr rejects uncovered inherited id outside positive coverage" {
     #|id: example
     #|description: |
     #|  Uncovered index use rejects the wrapper.
-    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
     #|  - shape: arr[$(counter:id)]
     #|patterns-not:
@@ -831,7 +869,8 @@ test "inside expr reports multiple covered positive hits" {
     #|id: example
     #|description: |
     #|  Multiple covered index uses.
-    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
     #|  - shape: arr[$(counter:id)]
     #|patterns-not:
@@ -863,7 +902,8 @@ test "inside expr reject-uncovered-negative respects shadowed inherited identifi
     #|id: example
     #|description: |
     #|  Shadowed index use belongs to inner binding.
-    #|inside-expr: wrapper($(counter:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
     #|  - shape: arr[$(counter:id)]
     #|patterns-not:
@@ -892,10 +932,11 @@ test "inside expr accepts only loop counter uses covered by array access" {
     #|id: example
     #|description: |
     #|  C-style forward array iteration.
-    #|inside-expr: |
-    #|  for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
-    #|    __TARGET__
-    #|  }
+    #|inside-expr:
+    #|  shape: |
+    #|    for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
+    #|      __TARGET__
+    #|    }
     #|patterns:
     #|  - shape: |
     #|      $(arr:id)[$(counter:id)]
@@ -928,7 +969,8 @@ test "inside expr with only patterns-not reports outer when target subtree is cl
     #|id: example
     #|description: |
     #|  Wrapped target without danger.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns-not:
     #|  - shape: danger()
     #|
@@ -960,7 +1002,8 @@ test "inside expr only patterns-not respects shadowed inherited identifiers" {
     #|id: example
     #|description: |
     #|  Wrapped target without same-name target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns-not:
     #|  - shape: target($(name:id))
     #|
@@ -984,7 +1027,8 @@ test "inside expr condition binders shadow inherited identifiers" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: target($(name:id))
     #|
@@ -1018,7 +1062,8 @@ test "inside expr patterns-not ignores condition-shadowed inherited identifiers"
     #|id: example
     #|description: |
     #|  Wrapped target without same-name target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns-not:
     #|  - shape: target($(name:id))
     #|
@@ -1079,7 +1124,8 @@ test "inside expr preserves source order and outer locations" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|
@@ -1114,7 +1160,8 @@ test "apply structural rule supports inside expr inherited bindings" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
     #|  - shape: target.call($(prefix:exp))
     #|
@@ -1139,7 +1186,8 @@ test "inside expr plain names do not reference inherited bindings" {
     #|id: example
     #|description: |
     #|  Plain names remain literal.
-    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
     #|  - shape: target.call(prefix)
     #|
@@ -1162,7 +1210,8 @@ test "apply structural rule inherits inside expr identifier bindings" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(prefix:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:id), __TARGET__)
     #|patterns:
     #|  - shape: target.call($(prefix:id))
     #|
@@ -1187,7 +1236,8 @@ test "inside expr inherited id is blocked after lexical let shadow" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: target($(name:id))
     #|
@@ -1209,7 +1259,8 @@ test "inside expr inherited id still matches without shadow" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: target($(name:id))
     #|
@@ -1229,7 +1280,8 @@ test "inside expr later shadow does not block earlier candidate" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: target($(name:id))
     #|
@@ -1253,7 +1305,8 @@ test "inside expr only blocks patterns referencing shadowed outer id" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(left:id), $(right:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(left:id), $(right:id), __TARGET__)
     #|patterns:
     #|  - shape: target($(right:id))
     #|  - shape: target($(left:id))
@@ -1279,7 +1332,8 @@ test "inside expr traverses guard target children" {
     #|id: example
     #|description: |
     #|  Guard target call.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|
@@ -1306,7 +1360,8 @@ test "inside expr traverses reverse pipe target children" {
     #|id: example
     #|description: |
     #|  Reverse pipe target call.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|
@@ -1330,7 +1385,8 @@ test "inside expr traverses list comprehension target children" {
     #|id: example
     #|description: |
     #|  List comprehension target call.
-    #|inside-expr: wrapper(__TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target(item)
     #|
@@ -1419,7 +1475,8 @@ test "default structural matcher carries inside target bindings" {
     #|id: example
     #|description: |
     #|  Wrapped target using same expression.
-    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
     #|  - shape: target($(prefix:exp))
     #|
@@ -1440,7 +1497,8 @@ test "default structural matcher respects shadowed inherited identifiers" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns:
     #|  - shape: target($(name:id))
     #|

@@ -210,8 +210,9 @@ patterns:
 id: wrapped-target
 description: |
   Match a call only when it appears inside a specific wrapper.
-inside-expr: |
-  wrapper($(prefix:exp), __TARGET__)
+inside-expr:
+  shape: |
+    wrapper($(prefix:exp), __TARGET__)
 patterns:
   - shape: |
       target.call($(prefix:exp))
@@ -219,7 +220,7 @@ patterns:
 
 `inside-expr` 的规则：
 
-- 它使用与一个结构 pattern 相同的内联元变量语法
+- 它使用与一个结构 pattern 相同的 `shape` 和可选 `guard` schema
 - 它必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
 - `__TARGET__` 是保留名称，不能用作内联元变量名
 - 内部 `patterns` 和 `patterns-not` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
@@ -249,7 +250,8 @@ patterns-not:
 id: wrapper-without-danger
 description: |
   Wrapper payload contains no danger call.
-inside-expr: wrapper(__TARGET__)
+inside-expr:
+  shape: wrapper(__TARGET__)
 patterns-not:
   - shape: danger()
 ```
@@ -260,7 +262,8 @@ patterns-not:
 当 `inside-expr` 同时使用 `patterns` 和 `patterns-not` 时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝外层上下文。
 
 ```yaml
-inside-expr: wrapper($(counter:id), __TARGET__)
+inside-expr:
+  shape: wrapper($(counter:id), __TARGET__)
 patterns:
   - shape: arr[$(counter:id)]
 patterns-not:
@@ -395,9 +398,9 @@ patterns:
 
 ### 带 `guard` 的规则加载失败
 
-请检查 `guard` 是否位于结构规则的 `patterns` 或 `patterns-not` 条目下，是否是映射，并且每个键
-都引用了该 pattern 可见的 `id` 或 `const` 捕获。taint 子句中仍然会拒绝
-`guard`。
+请检查 `guard` 是否位于结构规则的 `patterns`、`patterns-not` 或 `inside-expr`
+pattern object 下，是否是映射，并且每个键都引用了该 pattern 可见的 `id` 或
+`const` 捕获。taint 子句中仍然会拒绝 `guard`。
 
 ## 测试工作流
 

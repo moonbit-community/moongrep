@@ -503,7 +503,8 @@ test "validate allows inherited inside expr metavars with matching inline forms"
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(value:exp), $(name:id), $(lit:const), $(arg:arg), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(value:exp), $(name:id), $(lit:const), $(arg:arg), __TARGET__)
     #|patterns:
     #|  - shape: target($(value:exp), $(name:id), $(lit:const), $(arg:arg))
     #|
@@ -523,6 +524,36 @@ test "validate allows inherited inside expr metavars with matching inline forms"
         content="[\"lit\"]",
       )
       debug_inspect(rule.patterns[0].compiled.arg_metavars, content="[\"arg\"]")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate compiles inside expr id and const guards" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|  guard:
+    #|    $name: "^safe_"
+    #|    $lit: "^ok$"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      guard rule.inside_expr is Some(inside_expr) else {
+        fail("expected inside-expr")
+      }
+      assert_eq(inside_expr.guards.length(), 2)
+      debug_inspect(
+        inside_expr.compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+      debug_inspect(inside_expr.compiled.constant_metavars, content="[\"lit\"]")
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -565,7 +596,8 @@ test "validate patterns-not inherits inside expr metavars without positive patte
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(name:id), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
     #|patterns-not:
     #|  - shape: blocked($(name:id))
     #|
@@ -603,7 +635,8 @@ test "validate rejects inherited inside expr kind mismatch in patterns-not" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns-not:
     #|  - shape: target($(prefix:id))
     #|
@@ -617,7 +650,8 @@ test "validate rejects inherited inside expr metavars with different inline form
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(prefix:exp), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
     #|  - shape: target($(prefix:id))
     #|
@@ -631,7 +665,8 @@ test "validate rejects inherited inside expr argument kind mismatch" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(arg:arg), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(arg:arg), __TARGET__)
     #|patterns:
     #|  - shape: target($(arg:exp))
     #|
@@ -645,7 +680,8 @@ test "validate inside expr constant metavars use matching inline forms" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(lit:const), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: target($(lit:const))
     #|
@@ -665,7 +701,8 @@ test "validate inside expr requires exactly one target" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper(x)
+    #|inside-expr:
+    #|  shape: wrapper(x)
     #|patterns:
     #|  - shape: x
     #|
@@ -801,7 +838,8 @@ test "validate allows inner guard to reference inside expr id and const captures
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: call($(name:id), $(lit:const))
     #|    guard:
@@ -823,4 +861,73 @@ test "validate allows inner guard to reference inside expr id and const captures
     }
     Taint(_) => fail("expected structural rule")
   }
+}
+
+///|
+test "validate rejects unsupported inside expr guard captures" {
+  let unknown_source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    $other: "^safe_"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_compile_invalid(
+    unknown_source, "inside-expr.guard.$other references unknown metavar",
+  )
+  let exp_source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(value:exp), __TARGET__)
+    #|  guard:
+    #|    $value: "^safe_"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_compile_invalid(
+    exp_source, "inside-expr.guard.$value cannot reference exp metavar value",
+  )
+  let arg_source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(value:arg), __TARGET__)
+    #|  guard:
+    #|    $value: "^safe_"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_compile_invalid(
+    arg_source, "inside-expr.guard.$value cannot reference arg metavar value",
+  )
+  let pat_source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: match input { $(item:pat) => __TARGET__ }
+    #|  guard:
+    #|    $item: "^Some"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_compile_invalid(
+    pat_source, "inside-expr.guard.$item cannot reference pat metavar item",
+  )
+  let invalid_regex_source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: wrapper($(name:id), __TARGET__)
+    #|  guard:
+    #|    $name: "("
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_compile_invalid(
+    invalid_regex_source, "inside-expr.guard.$name has invalid regex",
+  )
 }

@@ -137,7 +137,7 @@ underscores.
 
 An `inside-expr` shape is compiled as a normal pattern with:
 
-- no guards
+- the guards declared on its pattern object
 - `target_metavar = Some("__TARGET__")`
 - `source_metavar = None`
 

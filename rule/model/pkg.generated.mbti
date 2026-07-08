@@ -111,7 +111,7 @@ pub(all) enum StructuralPatternsNotMode {
 }
 
 pub(all) struct StructuralRuleSpec {
-  inside_expr : String?
+  inside_expr : RulePatternSpec?
   patterns : Array[RulePatternSpec]
   patterns_not : Array[RulePatternSpec]
   patterns_not_mode : StructuralPatternsNotMode
