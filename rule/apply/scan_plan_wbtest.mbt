@@ -73,10 +73,12 @@ fn prefilter_rule_ids(
   source : String,
 ) -> Array[String] {
   let ids : Array[String] = []
-  for rule in @rule_prefilter.prefilter_rules_for_source(rules, source) {
-    match rule.definition {
-      Structural(_) => ids.push("S:\{rule.rule_id}")
-      Taint(_) => ids.push("T:\{rule.rule_id}")
+  for rule in rules {
+    if @rule_prefilter.rule_is_relevant_to_source(rule, source) {
+      match rule.definition {
+        Structural(_) => ids.push("S:\{rule.rule_id}")
+        Taint(_) => ids.push("T:\{rule.rule_id}")
+      }
     }
   }
   ids
@@ -153,7 +155,7 @@ test "scan plan filter source matches compiled rule prefilter" {
 }
 
 ///|
-test "scan plan structural apply matches old structural apply" {
+test "scan plan structural apply returns expected findings" {
   let target_rule =
     #|id: structural-target
     #|description: Target call.
@@ -183,20 +185,22 @@ test "scan plan structural apply matches old structural apply" {
     #|
   let rules = compile_scan_plan_rules([target_rule, taint_rule, other_rule])
   let node = parse_scan_plan_root(source)
-  let old_hits = apply_structural_rules_to_node("sample.mbt", node, rules)
   let plan_hits = apply_structural_scan_plan_to_node(
     "sample.mbt",
     node,
     ScanPlan::from_rules(rules),
   )
-  assert_eq(
-    scan_plan_finding_signatures(plan_hits).join("\n"),
-    scan_plan_finding_signatures(old_hits).join("\n"),
+  debug_inspect(
+    [
+      for hit in plan_hits => hit.rule_id
+    ],
+    content="[\"structural-target\", \"structural-other\"]",
   )
+  assert_true(scan_plan_finding_signatures(plan_hits)[0].contains("sample.mbt"))
 }
 
 ///|
-test "scan plan taint apply matches old taint apply" {
+test "scan plan taint apply returns expected findings" {
   let structural_rule =
     #|id: structural-target
     #|description: Target call.
@@ -220,14 +224,16 @@ test "scan plan taint apply matches old taint apply" {
     #|
   let rules = compile_scan_plan_rules([structural_rule, taint_rule])
   let node = parse_scan_plan_single_node(source)
-  let old_hits = apply_taint_rules_to_node("sample.mbt", node, rules)
   let plan_hits = apply_taint_scan_plan_to_node(
     "sample.mbt",
     node,
     ScanPlan::from_rules(rules),
   )
-  assert_eq(
-    scan_plan_finding_signatures(plan_hits).join("\n"),
-    scan_plan_finding_signatures(old_hits).join("\n"),
+  debug_inspect(
+    [
+      for hit in plan_hits => hit.rule_id
+    ],
+    content="[\"taint-flow\"]",
   )
+  assert_eq(plan_hits[0].pattern_index, 0)
 }

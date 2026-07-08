@@ -10,8 +10,6 @@ pub fn compile_rule_prefilter(@model.CompiledRuleDefinition) -> @model.RulePrefi
 
 pub fn prefilter_matches_with_literal_matcher(@model.RulePrefilter, (String) -> Bool) -> Bool
 
-pub fn prefilter_rules_for_source(Array[@model.CompiledRule], String) -> Array[@model.CompiledRule]
-
 pub fn rule_is_relevant_to_source(@model.CompiledRule, String) -> Bool
 
 // Errors
