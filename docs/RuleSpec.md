@@ -124,6 +124,65 @@ For example, two different imported names that refer to the same definition are
 still different unless their parsed source spelling matches or a metavariable
 captures them.
 
+### Let Shapes With Omitted Bodies
+
+An ordinary `let` shape without an explicit body is a let-header pattern. For
+example, this shape matches the binding pattern and right-hand side, but does
+not constrain the candidate body:
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp)
+```
+
+It can match candidates such as:
+
+```moonbit
+let item = load()
+```
+
+```moonbit
+let item = load(); use(item)
+```
+
+```moonbit
+let item = load(); { trace(item); item }
+```
+
+This exception exists because the MoonBit parser represents `let item = load()`
+as an `Expr::Let` whose body is a synthesized unit expression. When that
+synthesized unit appears in the pattern shape, the matcher treats it as "body
+omitted in the pattern" instead of requiring the candidate body to be the same
+unit node.
+
+Write an explicit body when the body matters:
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); use($(name:id))
+```
+
+To capture whichever body the candidate has, write a body metavar explicitly:
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); $(body:exp)
+```
+
+To require a unit body, write an explicit `()` body:
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); ()
+```
+
+This matches an explicit unit body. It is not the same as the omitted-body
+shape above, which intentionally ignores the candidate body. Omitted-body-only
+matching is not currently expressible as a structural shape.
+
+This shortcut applies only to ordinary `let` expressions. `let mut`, local
+function definitions, and `letrec` shapes use normal structural matching.
+
 ## Metavariables
 
 Identifiers and labels in a shape are literal by default. A name becomes a

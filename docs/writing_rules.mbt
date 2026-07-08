@@ -152,6 +152,57 @@ let _embed_writingrules_md : String =
   #|file or a fragment that only makes sense at module scope, rule compilation will
   #|fail.
   #|
+  #|### 1.1. Decide whether a `let` body matters
+  #|
+  #|An ordinary `let` shape with no explicit body matches only the let header. This
+  #|is useful when the binding itself is the interesting part:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: let $(name:id) = $(value:exp)
+  #|```
+  #|
+  #|That shape can match all of these candidate forms because the body is ignored:
+  #|
+  #|```moonbit
+  #|let item = load()
+  #|```
+  #|
+  #|```moonbit
+  #|let item = load(); use(item)
+  #|```
+  #|
+  #|```moonbit
+  #|let item = load(); { trace(item); item }
+  #|```
+  #|
+  #|If the body matters, write it in the shape:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: let $(name:id) = $(value:exp); use($(name:id))
+  #|```
+  #|
+  #|If the body can be anything but you want to capture it, add an explicit body
+  #|metavar:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: let $(name:id) = $(value:exp); $(body:exp)
+  #|```
+  #|
+  #|If you expect the body to be unit, write the unit body explicitly:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: let $(name:id) = $(value:exp); ()
+  #|```
+  #|
+  #|Do not use `let $(name:id) = $(value:exp)` when you mean "the body is empty" or
+  #|"the body is `()`"; the omitted-body form intentionally ignores whatever body
+  #|the candidate has. Matching only syntactically omitted let bodies is not
+  #|currently expressible as a structural shape.
+  #|
   #|### 2. Mark metavars inline in `shape`
   #|
   #|Names in `shape` are literal by default, even if they look like placeholders.
