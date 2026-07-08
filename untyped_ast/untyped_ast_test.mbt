@@ -301,22 +301,22 @@ test "node normalized identifier methods reject unexpected shapes" {
   let malformed_long_ident : Node = {
     kind: LongIdent_Ident,
     loc: test_loc(),
-    children: FixedArray::from_array([(Some("value"), wrong)]),
+    children: [(Some("value"), wrong)],
   }
   let malformed_var : Node = {
     kind: Var,
     loc: test_loc(),
-    children: FixedArray::from_array([(Some("name"), malformed_long_ident)]),
+    children: [(Some("name"), malformed_long_ident)],
   }
   let malformed_binder : Node = {
     kind: Binder,
     loc: test_loc(),
-    children: FixedArray::from_array([(Some("name"), wrong)]),
+    children: [(Some("name"), wrong)],
   }
   let malformed_label : Node = {
     kind: Label,
     loc: test_loc(),
-    children: FixedArray::from_array([(Some("name"), wrong)]),
+    children: [(Some("name"), wrong)],
   }
 
   debug_inspect(wrong.normalized_long_ident(), content="None")

@@ -686,7 +686,7 @@ pub fn NodeKind::to_string(self : NodeKind) -> String {
 pub(all) struct Node {
   kind : NodeKind
   loc : @basic.Location
-  children : FixedArray[(String?, Node)]
+  children : Array[(String?, Node)]
 } derive(Debug)
 
 ///|
@@ -706,7 +706,7 @@ pub fn Node::to_json(self : Node) -> Json {
 fn fields_node_to_json(
   kind : NodeKind,
   loc : @basic.Location,
-  fields : FixedArray[(String?, Node)],
+  fields : Array[(String?, Node)],
 ) -> Json {
   let children : Map[String, Json] = {}
   fields.each(fn(field) {
@@ -722,7 +722,7 @@ fn fields_node_to_json(
 fn items_node_to_json(
   kind : NodeKind,
   loc : @basic.Location,
-  items : FixedArray[(String?, Node)],
+  items : Array[(String?, Node)],
 ) -> Json {
   let children : Array[Json] = []
   items.each(fn(item) {
