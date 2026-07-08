@@ -159,6 +159,9 @@ fn parse_metavar(
   path : String,
   context : String,
 ) -> MetavarSyntax? raise {
+  if raw == "$_" {
+    return None
+  }
   if !raw.has_prefix("$") {
     return None
   }

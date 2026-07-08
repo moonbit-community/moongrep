@@ -350,13 +350,5 @@ fn is_pattern_placeholder(name : String) -> Bool {
 
 ///|
 fn is_underscore_placeholder(name : String) -> Bool {
-  if name.length() < 2 {
-    return false
-  }
-  for char in name {
-    if char != '_' {
-      return false
-    }
-  }
-  true
+  name == "$_"
 }

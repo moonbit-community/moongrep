@@ -9,17 +9,17 @@ let _embed_inspect_boolean_yaml : String =
   #|
   #|patterns:
   #|  - shape: |
-  #|      inspect(__, content="true")
+  #|      inspect($_, content="true")
   #|  - shape: |
-  #|      debug_inspect(__, content="true")
+  #|      debug_inspect($_, content="true")
   #|  - shape: |
-  #|      json_inspect(__, content=true)
+  #|      json_inspect($_, content=true)
   #|  - shape: |
-  #|      inspect(__, content="false")
+  #|      inspect($_, content="false")
   #|  - shape: |
-  #|      debug_inspect(__, content="false")
+  #|      debug_inspect($_, content="false")
   #|  - shape: |
-  #|      json_inspect(__, content=false)
+  #|      json_inspect($_, content=false)
   #|
 
 ///|

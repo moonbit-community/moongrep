@@ -290,17 +290,18 @@ let _embed_writingrules_md : String =
   #|
   #|The old YAML `metavars` key is invalid.
   #|
-  #|The built-in exceptions are names made only of two or more underscores, such as
-  #|`__`, `___`, and `____`. They are special ignore placeholders inside `shape`.
+  #|The built-in exception is exact `$_`. It is a special ignore placeholder inside
+  #|`shape`.
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: foo(__)
+  #|  - shape: foo($_)
   #|```
   #|
-  #|When one of these names appears in a supported metavar position, it matches
-  #|anything there without binding a value or participating in repeated-name
-  #|equality. Repeated ignore placeholders are independent wildcards.
+  #|When `$_` appears in a supported metavar position, it matches anything there
+  #|without binding a value or participating in repeated-name equality. Repeated
+  #|ignore placeholders are independent wildcards. Names such as `__`, `___`, and
+  #|`$__` are not ignore placeholders.
   #|
   #|### 3. Choose `exp`, `id`, `const`, `arg`, `pat`, or `type`
   #|
@@ -619,7 +620,7 @@ let _embed_writingrules_md : String =
   #|- `$(name:pat)` appears only as a whole bare pattern placeholder
   #|- `$(name:type)` appears only as a whole type node
   #|- the same payload name is not used across multiple metavar kinds
-  #|- the payload is not a reserved name such as `__`, `__TARGET__`, or `__SOURCE__`
+  #|- the payload is not a reserved name such as `$_`, `__TARGET__`, or `__SOURCE__`
   #|
   #|### An `id` rule looks right but never hits
   #|

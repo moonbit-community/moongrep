@@ -6,9 +6,9 @@
 // The optimization is deliberately conservative:
 //
 // * Plain expression captures such as `$(x:exp)`, special whole-expression
-//   placeholders such as `__TARGET__` and `__SOURCE__`, and double-underscore
-//   ignore placeholders can match many root constructors, so they go into the
-//   wildcard bucket.
+//   placeholders such as `__TARGET__` and `__SOURCE__`, and `$_` ignore
+//   placeholders can match many root constructors, so they go into the wildcard
+//   bucket.
 // * Identifier and constant root captures are precise enough to bucket as
 //   `Expr_Ident` and `Expr_Constant`.
 // * Literal structural patterns are bucketed by their untyped root node kind,
@@ -57,15 +57,7 @@ fn ast_bucket_contains_name(values : Array[String], value : String) -> Bool {
 
 ///|
 fn ast_bucket_is_ignore_placeholder(name : String) -> Bool {
-  if name.length() < 2 {
-    return false
-  }
-  for char in name {
-    if char != '_' {
-      return false
-    }
-  }
-  true
+  name == "$_"
 }
 
 ///|

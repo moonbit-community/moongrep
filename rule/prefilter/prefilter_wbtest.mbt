@@ -56,6 +56,38 @@ test "prefilter keeps unfilterable structural rule relevant" {
 }
 
 ///|
+test "prefilter treats $_ ignore placeholders as placeholders" {
+  let source =
+    #|id: example
+    #|description: Ignore first argument.
+    #|patterns:
+    #|  - shape: inspect($_, content=$(str:const))
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { inspect(1, content=\"1\") }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { other(1, content=\"1\") }\n"),
+  )
+}
+
+///|
+test "prefilter keeps all-underscore identifiers literal" {
+  let source =
+    #|id: example
+    #|description: Literal all-underscore identifier.
+    #|patterns:
+    #|  - shape: foo(__)
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { foo(__) }\n"))
+  assert_false(rule_is_relevant_to_source(rule, "fn sample { foo(value) }\n"))
+}
+
+///|
 test "prefilter treats inline expression metavars as placeholders" {
   let source =
     #|id: example

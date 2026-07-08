@@ -4,4 +4,4 @@ description: |
 patterns:
   - shape: sink($(value:exp))
 patterns-not:
-  - shape: sink(safe(__))
+  - shape: sink(safe($_))

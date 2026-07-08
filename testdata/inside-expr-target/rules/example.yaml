@@ -3,8 +3,8 @@ description: |
   Local println shadows the builtin.
 inside-expr:
   shape: |
-    let println = ___
+    let println = $_
     __TARGET__
 patterns:
   - shape: |
-      println(___)
+      println($_)

@@ -255,14 +255,14 @@ are rejected as using an unsupported key.
 
 These names must not be used as metavar names:
 
-- any name made only of two or more underscores, such as `__`, `___`, or
-  `____`
+- `$_`
 - `__TARGET__`
 - `__SOURCE__`
 
-`__TARGET__` and `__SOURCE__` keep their existing built-in meanings. `__TARGET__`
-is only valid in `inside-expr` and `inside-toplevel`; `__SOURCE__` is only
-valid in taint sink and sanitizer shapes.
+`$_` is the ignore placeholder described below. `__TARGET__` and `__SOURCE__`
+keep their existing built-in meanings. `__TARGET__` is only valid in
+`inside-expr` and `inside-toplevel`; `__SOURCE__` is only valid in taint sink
+and sanitizer shapes.
 
 ### Where Metavars Can Bind
 
@@ -330,12 +330,12 @@ patterns:
 
 ### Built-In Wildcards
 
-Names made only of two or more underscores are ignore placeholders when they
-appear in binding-capable positions:
+The exact spelling `$_` is an ignore placeholder when it appears in a
+binding-capable position:
 
 ```yaml
 patterns:
-  - shape: foo(__)
+  - shape: foo($_)
 ```
 
 An ignore placeholder matches anything at that one position. It does not bind a
@@ -343,13 +343,13 @@ value, and repeated ignore placeholders are independent:
 
 ```yaml
 patterns:
-  - shape: pair(__, __)
+  - shape: pair($_, $_)
 ```
 
 The example above can match `pair(left, right)`.
 
-Only all-underscore names have this built-in behavior. A name such as `__x` is
-literal unless it uses inline syntax such as `$(__x:exp)`.
+Only exact `$_` has this built-in behavior. Names such as `__`, `___`, and
+`__x` are literal unless they use inline syntax such as `$__` or `$(__x:exp)`.
 
 ### `exp`
 
@@ -971,7 +971,7 @@ description: |
 inside-expr:
   shape: unsafe(__TARGET__)
 patterns:
-  - shape: sink(__)
+  - shape: sink($_)
 ```
 
 The rule first finds `unsafe(...)`, then searches only the expression captured
