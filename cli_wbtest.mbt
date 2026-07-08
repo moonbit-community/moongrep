@@ -211,6 +211,27 @@ test "cli args parse scan exclude dirs" {
 }
 
 ///|
+test "cli args parse scan exclude rules" {
+  match
+    parse_cli_command([
+      "scan", "--rules", "custom-rules", "src", "--exclude-rules", "target", "other",
+      "--exclude-rules=third", "--exclude-rules", "last",
+    ]) {
+    ("scan", Some(options), None) => {
+      expect_rules_root(options, "custom-rules")
+      inspect(options.scan_root, content="src")
+      debug_inspect(
+        options.exclude_rules,
+        content="[\"target\", \"other\", \"third\", \"last\"]",
+      )
+      assert_false(options.verbose)
+      assert_false(options.enable_builtin_rules)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
 test "cli args reject json matcher flag" {
   expect_cli_usage(
     ["scan", "--rules", "custom-rules", "--json-matcher", "src"],
@@ -351,6 +372,11 @@ test "cli args reject malformed guard yaml" {
 ///|
 test "cli args reject missing rules value" {
   expect_cli_usage(["scan", "--rules"], 2)
+}
+
+///|
+test "cli args reject missing exclude rules value" {
+  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude-rules"], 2)
 }
 
 ///|

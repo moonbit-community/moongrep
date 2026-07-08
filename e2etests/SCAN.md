@@ -139,6 +139,25 @@ source:
 ```
 
 ```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter testdata/prefilter-impl --exclude-rules target
+testdata/prefilter-impl/hits.mbt:6:3-6:10
+rule: other
+description:
+  Other call.
+source:
+4 | 
+5 | fn second {
+6 >   other()
+7 | }
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter testdata/prefilter-impl --exclude-rules missing
+unknown rule id in --exclude-rules: missing
+[2]
+```
+
+```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/custom-rules
 testdata/custom-rules/hit.mbt:1:13-1:21
 rule: example
