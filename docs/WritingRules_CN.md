@@ -87,6 +87,54 @@ patterns:
 
 `shape` 会作为单个 MoonBit 表达式片段解析。如果你粘贴整个文件，或只在模块作用域才有意义的片段，规则编译会失败。
 
+### 1.1. 判断 `let` body 是否重要
+
+没有显式 body 的普通 `let` shape 只匹配 let header。当你只关心绑定本身时，这很有用：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp)
+```
+
+因为 body 会被忽略，这个 shape 可以匹配下面所有候选形式：
+
+```moonbit
+let item = load()
+```
+
+```moonbit
+let item = load(); use(item)
+```
+
+```moonbit
+let item = load(); { trace(item); item }
+```
+
+如果 body 重要，请把它写进 shape：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); use($(name:id))
+```
+
+如果 body 可以是任意表达式，但你想捕获它，请显式添加 body 元变量：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); $(body:exp)
+```
+
+如果你期望 body 是 unit，请显式写 unit body：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); ()
+```
+
+当你的意思是“body 为空”或“body 是 `()`”时，不要写
+`let $(name:id) = $(value:exp)`；省略 body 的形式会有意忽略候选表达式的任意 body。当前结构 shape
+无法表达“只匹配语法上省略 body 的 let”。
+
 ### 2. 在 `shape` 中内联标记元变量
 
 `shape` 中的名称默认都是字面量，即使它们看起来像占位符。

@@ -100,6 +100,62 @@ shape 是结构性的：
 
 扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个不同的导入名称即使指向同一定义，仍然是不同的；除非它们解析后的源码拼写一致，或被元变量捕获。
 
+### 省略 body 的 let shape
+
+没有显式 body 的普通 `let` shape 是 let-header pattern。例如，下面的 shape
+会匹配绑定 pattern 和右侧表达式，但不会约束候选表达式的 body：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp)
+```
+
+它可以匹配下面这些候选形式：
+
+```moonbit
+let item = load()
+```
+
+```moonbit
+let item = load(); use(item)
+```
+
+```moonbit
+let item = load(); { trace(item); item }
+```
+
+这个例外来自 MoonBit parser 的表示方式：`let item = load()` 会被表示为
+`Expr::Let`，其 body 是一个合成的 unit 表达式。当 pattern shape 中出现这个合成
+unit 时，matcher 会把它视为“pattern 省略了 body”，而不是要求候选 body
+也必须是同一个 unit node。
+
+如果 body 重要，请显式写出 body：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); use($(name:id))
+```
+
+如果候选 body 可以是任意表达式，但你想捕获它，请显式写 body 元变量：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); $(body:exp)
+```
+
+如果期望 body 是 unit，请显式写 `()` body：
+
+```yaml
+patterns:
+  - shape: let $(name:id) = $(value:exp); ()
+```
+
+这会匹配显式 unit body。它不同于上面的省略 body shape；省略 body 的形式会有意忽略候选 body。当前结构 shape
+无法表达“只匹配语法上省略 body 的 let”。
+
+这个快捷匹配只适用于普通 `let` 表达式。`let mut`、局部函数定义和
+`letrec` shape 使用普通结构匹配。
+
 ## 元变量
 
 shape 中的标识符和标签默认都是字面量。只有在 `shape` 内使用内联元变量语法时，一个名称才会成为元变量；下面描述的内置通配符除外。
