@@ -32,22 +32,23 @@ let _embed_writingrules_md : String =
   #|mapping. A complete rule file requires string `id` and `description` fields,
   #|rejects unknown top-level keys, and chooses one of these rule modes:
   #|
-  #|- structural: non-empty `patterns`, or `inside-expr` with `patterns`,
-  #|  `patterns-not`, or both
+  #|- structural: non-empty `patterns`, or `inside-expr` / `inside-toplevel` with
+  #|  `patterns`, `patterns-not`, or both
   #|- `taint`: intraprocedural taint modeling compiled to the `taint` package
   #|
   #|`patterns` must be a non-empty array when present. Structural rules may also
   #|use `patterns-not`, a non-empty array with the same `shape` and optional
   #|`guard` schema. `patterns-not` prunes candidate subtrees only after they miss
-  #|all positive structural patterns; with `inside-expr`, it can also define a
-  #|wrapper match that succeeds only when the target subtree contains no negative
-  #|match.
+  #|all positive structural patterns; with `inside-expr` or `inside-toplevel`, it
+  #|can also define a wrapper match that succeeds only when the target subtree
+  #|contains no negative match.
   #|Unknown keys are rejected at every schema level: top-level rule keys, `taint`
   #|keys, and rule clause keys.
   #|
-  #|Structural rules may also add an optional top-level `inside-expr` that filters
-  #|an outer expression, binds outer inline captures, and then searches the captured
-  #|`__TARGET__` expression subtree with the inner `patterns` or `patterns-not`.
+  #|Structural rules may also add one optional outer context: `inside-expr` filters
+  #|an outer expression, while `inside-toplevel` filters one MoonBit top-level item.
+  #|Both bind outer inline captures and then search the captured `__TARGET__`
+  #|expression subtree with the inner `patterns` or `patterns-not`.
   #|
   #|## Mental Model
   #|
@@ -70,28 +71,28 @@ let _embed_writingrules_md : String =
   #|- All patterns in one rule share the same rule id and `description`.
   #|- Structural pattern objects may use `guard` to regex-filter `id` and `const`
   #|  captures after shape matching.
-  #|- If `inside-expr` is present, it runs first on the current expression. If it
-  #|  captures `__TARGET__` as an expression and `patterns` are present, each
-  #|  candidate in that target subtree tries positives first, then `patterns-not`
-  #|  only after a positive miss. If there are no `patterns`, the outer expression
-  #|  is reported only when no negative pattern matches anywhere in the target
-  #|  subtree.
-  #|- When an `inside-expr` rule has both positive and negative patterns, positive
+  #|- If `inside-expr` or `inside-toplevel` is present, it runs first on the
+  #|  current outer candidate. If it captures `__TARGET__` as an expression and
+  #|  `patterns` are present, each candidate in that target subtree tries positives
+  #|  first, then `patterns-not` only after a positive miss. If there are no
+  #|  `patterns`, the outer context is reported only when no negative pattern
+  #|  matches anywhere in the target subtree.
+  #|- When an outer-context rule has both positive and negative patterns, positive
   #|  hits cover all nested negative-shaped uses by default. Any uncovered negative
   #|  match rejects the outer context.
-  #|- Inline captures declared by `inside-expr` stay visible to inner `patterns`
-  #|  and `patterns-not`; `__TARGET__` only
+  #|- Inline captures declared by `inside-expr` or `inside-toplevel` stay visible
+  #|  to inner `patterns` and `patterns-not`; `__TARGET__` only
   #|  selects the expression subtree to traverse and must not be used by inner
   #|  pattern entries.
   #|- Inherited `id` captures follow lexical shadowing. If an inner pattern refers
   #|  to an outer `id` capture and the path to a candidate expression crosses a
   #|  local binder with the same normalized identifier, that candidate is skipped.
-  #|- Inner positive and negative patterns reuse names from `inside-expr` by
-  #|  repeating the same metavar form; the same name with a different kind
-  #|  is rejected.
-  #|- Hits from `inside-expr` rules record `outer_loc` for the context expression
-  #|  in addition to `loc` for the inner match. For `inside-expr` rules that only
-  #|  use `patterns-not`, `loc` is the outer expression location.
+  #|- Inner positive and negative patterns reuse names from the outer context by
+  #|  repeating the same metavar form; the same name with a different kind is
+  #|  rejected.
+  #|- Hits from outer-context rules record `outer_loc` for the context expression or
+  #|  top-level item in addition to `loc` for the inner match. For rules that only
+  #|  use `patterns-not`, `loc` is the outer context location.
   #|
   #|For taint rules:
   #|
@@ -385,6 +386,28 @@ let _embed_writingrules_md : String =
   #|  same metavar form, such as `$(prefix:exp)`; using the same name with a
   #|  different kind is rejected
   #|
+  #|Use `inside-toplevel` for the same target-subtree workflow when the context is
+  #|a top-level item rather than an expression:
+  #|
+  #|```yaml
+  #|id: safe-function-target
+  #|description: |
+  #|  Match a call only in selected top-level functions.
+  #|inside-toplevel:
+  #|  shape: |
+  #|    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+  #|  guard:
+  #|    $name: "^safe_"
+  #|patterns:
+  #|  - shape: call($(param:id))
+  #|```
+  #|
+  #|`inside-toplevel` and `inside-expr` are mutually exclusive. Its `shape` must be
+  #|exactly one MoonBit top-level item and must place exactly one supported
+  #|`__TARGET__` in an expression position within that item. Hits report inner
+  #|positive match locations, and `outer_loc` points at the matched top-level item.
+  #|With only `patterns-not`, `loc` is also the top-level item location.
+  #|
   #|### 3.6 Use `patterns-not` to prune blocked branches
   #|
   #|Use `patterns-not` when a structural shape marks a branch that should be
@@ -407,8 +430,9 @@ let _embed_writingrules_md : String =
   #|is not reported. The `value` inside `patterns-not` is captured by the negative
   #|pattern itself; it does not reuse any positive pattern capture.
   #|
-  #|With `inside-expr`, `patterns-not` can also describe a context that should be
-  #|reported only when the captured target subtree contains no forbidden shape:
+  #|With `inside-expr` or `inside-toplevel`, `patterns-not` can also describe a
+  #|context that should be reported only when the captured target subtree contains
+  #|no forbidden shape:
   #|
   #|```yaml
   #|id: wrapper-without-danger
@@ -423,7 +447,7 @@ let _embed_writingrules_md : String =
   #|This reports `wrapper(...)` when `danger()` does not appear anywhere in the
   #|captured `__TARGET__` subtree.
   #|
-  #|When `inside-expr` is used with both `patterns` and `patterns-not`, positive
+  #|When an outer context is used with both `patterns` and `patterns-not`, positive
   #|matches cover their whole matched subtrees. Any negative match outside those
   #|covered positive subtrees rejects the outer context.
   #|

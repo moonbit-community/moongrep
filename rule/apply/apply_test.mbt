@@ -1155,6 +1155,91 @@ test "inside expr preserves source order and outer locations" {
 }
 
 ///|
+test "inside toplevel matches functions and inherits bindings" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Guarded top-level function.
+    #|inside-toplevel:
+    #|  shape: |
+    #|    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+    #|  guard:
+    #|    $name: "^safe_"
+    #|patterns:
+    #|  - shape: call($(param:id))
+    #|
+  let source =
+    #|fn safe_run(value : Int) -> Int { call(value) }
+    #|fn unsafe_run(value : Int) -> Int { call(value) }
+    #|fn safe_other(value : Int) -> Int { call(other) }
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
+  assert_true(hits[0].outer_loc is Some(_))
+  guard hits[0].outer_loc is Some(outer) else {
+    fail("expected outer location")
+  }
+  inspect(location_signature(hits[0].loc), content="1:35-1:46")
+  inspect(location_signature(outer), content="1:1-1:48")
+}
+
+///|
+test "inside toplevel with only patterns-not reports clean top-level let" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Clean top-level binding.
+    #|inside-toplevel:
+    #|  shape: let $(name:id) = wrapper(__TARGET__)
+    #|patterns-not:
+    #|  - shape: forbidden($(name:id))
+    #|
+  let source =
+    #|let clean = wrapper(ok(clean))
+    #|let dirty = wrapper(forbidden(dirty))
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  guard hits[0].outer_loc is Some(outer) else {
+    fail("expected outer location")
+  }
+  inspect(location_signature(hits[0].loc), content="1:1-1:31")
+  inspect(location_signature(outer), content="1:1-1:31")
+}
+
+///|
+test "inside toplevel patterns-not rejects uncovered negative" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Only covered names are allowed.
+    #|inside-toplevel:
+    #|  shape: fn $(name:id) { __TARGET__ }
+    #|patterns:
+    #|  - shape: arr[$(name:id)]
+    #|patterns-not:
+    #|  - shape: $(name:id)
+    #|
+  let source =
+    #|fn x { arr[x] }
+    #|fn y { y; arr[y] }
+    #|fn z { arr[z]; z }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  guard hits[0].outer_loc is Some(outer) else {
+    fail("expected outer location")
+  }
+  inspect(location_signature(hits[0].loc), content="1:11-1:14")
+  inspect(location_signature(outer), content="1:1-1:16")
+}
+
+///|
 test "apply structural rule supports inside expr inherited bindings" {
   let rule_source =
     #|id: example

@@ -560,6 +560,86 @@ test "validate compiles inside expr id and const guards" {
 }
 
 ///|
+test "validate compiles inside toplevel function shape" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: |
+    #|    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+    #|  guard:
+    #|    $name: "^safe_"
+    #|patterns:
+    #|  - shape: call($(param:id))
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      guard rule.inside_toplevel is Some(inside_toplevel) else {
+        fail("expected inside-toplevel")
+      }
+      assert_eq(inside_toplevel.guards.length(), 1)
+      debug_inspect(
+        inside_toplevel.compiled.identifier_metavars,
+        content="[\"param\", \"name\"]",
+      )
+      assert_true(rule.inside_expr is None)
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate compiles inside toplevel let guards" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: let $(name:id) = wrapper($(lit:const), __TARGET__)
+    #|  guard:
+    #|    $name: "^safe_"
+    #|    $lit: "^ok$"
+    #|patterns:
+    #|  - shape: call()
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      guard rule.inside_toplevel is Some(inside_toplevel) else {
+        fail("expected inside-toplevel")
+      }
+      assert_eq(inside_toplevel.guards.length(), 2)
+      debug_inspect(
+        inside_toplevel.compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+      debug_inspect(
+        inside_toplevel.compiled.constant_metavars,
+        content="[\"lit\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate compiles inside toplevel test shape" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: test "outer" { __TARGET__ }
+    #|patterns:
+    #|  - shape: call()
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => assert_true(rule.inside_toplevel is Some(_))
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate compiles patterns-not metavars and guards" {
   let source =
     #|id: example
@@ -616,6 +696,31 @@ test "validate patterns-not inherits inside expr metavars without positive patte
 }
 
 ///|
+test "validate patterns-not inherits inside toplevel metavars without positive patterns" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: |
+    #|    fn $(name:id) { __TARGET__ }
+    #|patterns-not:
+    #|  - shape: blocked($(name:id))
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.patterns.length(), 0)
+      assert_eq(rule.patterns_not.length(), 1)
+      debug_inspect(
+        rule.patterns_not[0].compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate rejects target placeholder in patterns-not" {
   let source =
     #|id: example
@@ -627,6 +732,22 @@ test "validate rejects target placeholder in patterns-not" {
     #|
   expect_compile_invalid(
     source, "patterns-not[0].shape must not contain __TARGET__",
+  )
+}
+
+///|
+test "validate rejects inherited inside toplevel kind mismatch" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: |
+    #|    fn $(name:id) { __TARGET__ }
+    #|patterns:
+    #|  - shape: target($(name:exp))
+    #|
+  expect_compile_invalid(
+    source, "patterns[0] cannot use inherited inside-toplevel metavar name as exp because it was declared as id",
   )
 }
 
@@ -708,6 +829,32 @@ test "validate inside expr requires exactly one target" {
     #|
   expect_compile_invalid(
     source, "inside-expr must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+}
+
+///|
+test "validate inside toplevel requires exactly one target" {
+  let missing_target =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: fn sample { wrapper(x) }
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_compile_invalid(
+    missing_target, "inside-toplevel must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+  let duplicate_target =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: fn sample { __TARGET__; __TARGET__ }
+    #|patterns:
+    #|  - shape: x
+    #|
+  expect_compile_invalid(
+    duplicate_target, "inside-toplevel must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }
 
@@ -840,6 +987,36 @@ test "validate allows inner guard to reference inside expr id and const captures
     #|description: Example.
     #|inside-expr:
     #|  shape: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|patterns:
+    #|  - shape: call($(name:id), $(lit:const))
+    #|    guard:
+    #|      $name: "^safe_"
+    #|      $lit: "^ok$"
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.patterns[0].guards.length(), 2)
+      debug_inspect(
+        rule.patterns[0].compiled.identifier_metavars,
+        content="[\"name\"]",
+      )
+      debug_inspect(
+        rule.patterns[0].compiled.constant_metavars,
+        content="[\"lit\"]",
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate allows inner guard to reference inside toplevel id and const captures" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-toplevel:
+    #|  shape: let $(name:id) = wrapper($(lit:const), __TARGET__)
     #|patterns:
     #|  - shape: call($(name:id), $(lit:const))
     #|    guard:

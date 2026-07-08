@@ -78,6 +78,7 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
     description: "Anonymous query pattern.",
     definition: Structural({
       inside_expr: None,
+      inside_toplevel: None,
       patterns: [{ shape: pattern, guards: {} }],
       patterns_not: [],
       patterns_not_mode: PruneOnNegative,

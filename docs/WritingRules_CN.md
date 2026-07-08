@@ -16,12 +16,14 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 每个 YAML 文件必须只包含一个文档，且该文档必须是映射。完整规则文件需要字符串字段 `id` 和 `description`，会拒绝未知顶层键，并且选择以下规则模式之一：
 
-- 结构模式：非空 `patterns`，或 `inside-expr` 搭配 `patterns`、`patterns-not`，或两者同时存在
+- 结构模式：非空 `patterns`，或 `inside-expr` / `inside-toplevel`
+  搭配 `patterns`、`patterns-not`，或两者同时存在
 - `taint`：过程内污点建模，编译到 `taint` package
 
 `patterns` 必须是非空数组。未知键会在每个 schema 层级被拒绝：顶层规则键、`taint` 键和规则子句键。
 
-结构规则还可以添加可选顶层 `inside-expr`。它会过滤外层表达式、绑定外层内联捕获，然后使用内部 `patterns` 或 `patterns-not` 搜索捕获到的 `__TARGET__` 表达式子树。
+结构规则还可以添加一个可选外层上下文：`inside-expr` 过滤外层表达式，
+`inside-toplevel` 过滤一个 MoonBit 顶层项。两者都会绑定外层内联捕获，然后使用内部 `patterns` 或 `patterns-not` 搜索捕获到的 `__TARGET__` 表达式子树。
 
 ## 心智模型
 
@@ -37,15 +39,13 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - 同一规则中的所有 pattern 共享相同的规则 id 和 `description`。
 - 结构规则的 pattern object 可以使用 `guard`，在 shape 匹配后用正则过滤
   `id` 和 `const` 捕获。
-- 如果存在 `inside-expr`，它会先在当前表达式上运行。如果它将
-  `__TARGET__` 捕获为表达式且存在 `patterns`，目标子树中的每个候选都会先运行正向 pattern，只有正向失败后才检查 `patterns-not`。如果没有 `patterns`，只有整个目标子树没有负向匹配时才报告外层表达式。
-- 当 `inside-expr` 规则同时有正向和负向 pattern 时，正向命中会默认覆盖其中嵌套的负向形状用法；任何未被覆盖的负向命中都会拒绝外层上下文。
-- `inside-expr` 声明的内联捕获对内部 `patterns` 和 `patterns-not`
-  保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 pattern 使用。
+- 如果存在 `inside-expr` 或 `inside-toplevel`，它会先在当前外层候选上运行。如果它将 `__TARGET__` 捕获为表达式且存在 `patterns`，目标子树中的每个候选都会先运行正向 pattern，只有正向失败后才检查 `patterns-not`。如果没有 `patterns`，只有整个目标子树没有负向匹配时才报告外层上下文。
+- 当外层上下文规则同时有正向和负向 pattern 时，正向命中会默认覆盖其中嵌套的负向形状用法；任何未被覆盖的负向命中都会拒绝外层上下文。
+- `inside-expr` 或 `inside-toplevel` 声明的内联捕获对内部
+  `patterns` 和 `patterns-not` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 pattern 使用。
 - 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，而通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
-- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自
-  `inside-expr` 的名称；同名但 kind 不同会被拒绝。
-- `inside-expr` 规则的命中会记录上下文表达式的 `outer_loc`，以及内部匹配的 `loc`；只有 `patterns-not` 的 `inside-expr` 规则中，`loc` 是外层表达式位置。
+- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自外层上下文的名称；同名但 kind 不同会被拒绝。
+- 外层上下文规则的命中会记录上下文表达式或顶层项的 `outer_loc`，以及内部匹配的 `loc`；只有 `patterns-not` 的规则中，`loc` 是外层上下文位置。
 
 对于污点规则：
 
@@ -275,6 +275,26 @@ patterns:
 - 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
 - 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名但 kind 不同会被拒绝
 
+当上下文是顶层项而不是表达式时，使用 `inside-toplevel`：
+
+```yaml
+id: safe-function-target
+description: |
+  Match a call only in selected top-level functions.
+inside-toplevel:
+  shape: |
+    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+  guard:
+    $name: "^safe_"
+patterns:
+  - shape: call($(param:id))
+```
+
+`inside-toplevel` 和 `inside-expr` 互斥。它的 `shape` 必须且只能是一个
+MoonBit 顶层项，并且必须在该顶层项内部的表达式位置放置且只放置一个支持的
+`__TARGET__`。带正向 `patterns` 的命中报告内部匹配位置，`outer_loc`
+指向匹配到的顶层项；只有 `patterns-not` 时，`loc` 也是顶层项位置。
+
 ### 3.6 使用 `patterns-not` 剪枝禁止的子树
 
 当某个结构形状应当在当前候选未命中任何正向 pattern 后剪枝时，使用
@@ -292,7 +312,7 @@ patterns-not:
 
 正向 pattern 会先于负向 pattern 在每个候选根上运行。只有所有正向备选都失败后，才会检查负向 pattern。负向 pattern 检查的是当前根，而不是根下面的每个子表达式。在示例中，`blocked(target())` 会剪枝 `blocked(...)` 分支，因此内部的 `target()` 不会被报告。`patterns-not` 内的 `value` 由负向 pattern 自己捕获，不复用任何正向 pattern 捕获。
 
-如果只有 `inside-expr` 和 `patterns-not`，可以描述“某个上下文内不包含禁止形状”：
+如果只有 `inside-expr` 或 `inside-toplevel` 和 `patterns-not`，可以描述“某个上下文内不包含禁止形状”：
 
 ```yaml
 id: wrapper-without-danger
@@ -307,7 +327,7 @@ patterns-not:
 当捕获到的 `__TARGET__` 子树中没有 `danger()` 时，这会报告
 `wrapper(...)`。
 
-当 `inside-expr` 同时使用 `patterns` 和 `patterns-not` 时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝外层上下文。
+当外层上下文同时使用 `patterns` 和 `patterns-not` 时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝外层上下文。
 
 ```yaml
 inside-expr:

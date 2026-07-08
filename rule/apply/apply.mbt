@@ -124,6 +124,12 @@ pub fn apply_structural_scan_plan_to_node(
   plan : ScanPlan,
 ) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
+  apply_toplevel_structural_rule_entries_to_node(
+    file,
+    plan.structural_entries,
+    node,
+    hits,
+  )
   @untyped_ast.visit_node_scoped_expr_roots(node, fn(scoped_expr) {
     apply_ast_structural_rule_entries_to_scoped_expr(
       file,
@@ -143,6 +149,8 @@ fn ast_structural_rule_entry(
 ) -> AstStructuralRuleEntry {
   let inside_root_key = if structural.inside_expr is Some(inside) {
     compiled_pattern_root_key(inside)
+  } else if structural.inside_toplevel is Some(inside) {
+    compiled_pattern_root_key(inside)
   } else {
     None
   }
@@ -154,6 +162,50 @@ fn ast_structural_rule_entry(
       structural.patterns_not,
     ),
     inside_root_key,
+  }
+}
+
+///|
+fn apply_toplevel_structural_rule_entries_to_node(
+  file : String,
+  entries : Array[AstStructuralRuleEntry],
+  node : @untyped_ast.Node,
+  hits : Array[RuleFinding],
+) -> Unit {
+  match node.kind {
+    ImplList =>
+      for entry in node.children {
+        let (_, child) = entry
+        apply_toplevel_structural_rule_entries_to_node(
+          file, entries, child, hits,
+        )
+      }
+    Impl_TopExpr
+    | Impl_TopFuncDef
+    | Impl_TopImpl
+    | Impl_TopImplRelation
+    | Impl_TopLetDef
+    | Impl_TopTest
+    | Impl_TopTrait
+    | Impl_TopTypeDef
+    | Impl_TopUsing
+    | Impl_TopView =>
+      for entry in entries {
+        if entry.structural.inside_toplevel is Some(inside) {
+          apply_inside_toplevel_ast_bucketed(
+            file,
+            entry.rule,
+            entry.structural,
+            inside,
+            entry.inside_root_key,
+            entry.pattern_buckets,
+            entry.negative_pattern_buckets,
+            node,
+            hits,
+          )
+        }
+      }
+    _ => ()
   }
 }
 
@@ -208,6 +260,8 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
       hits,
     )
     RuleContinue
+  } else if entry.structural.inside_toplevel is Some(_) {
+    RulePrune
   } else {
     apply_ast_patterns_at_node(
       file,
@@ -271,6 +325,24 @@ fn sink_pattern_index(taint_rule : CompiledTaintRule, sink_id : String) -> Int {
 }
 
 ///|
+fn apply_inside_toplevel_ast_bucketed(
+  file : String,
+  rule : CompiledRule,
+  structural : CompiledStructuralRule,
+  inside : CompiledRulePattern,
+  inside_root_key : @untyped_ast.NodeKind?,
+  pattern_buckets : ExprPatternBuckets,
+  negative_pattern_buckets : ExprPatternBuckets,
+  toplevel : @untyped_ast.Node,
+  hits : Array[RuleFinding],
+) -> Unit {
+  apply_inside_context_ast_bucketed(
+    file, rule, structural, inside, inside_root_key, pattern_buckets, negative_pattern_buckets,
+    toplevel, hits,
+  )
+}
+
+///|
 fn apply_inside_expr_ast_bucketed(
   file : String,
   rule : CompiledRule,
@@ -282,10 +354,28 @@ fn apply_inside_expr_ast_bucketed(
   expr : @untyped_ast.Node,
   hits : Array[RuleFinding],
 ) -> Unit {
-  if !node_root_key_matches(inside_root_key, expr) {
+  apply_inside_context_ast_bucketed(
+    file, rule, structural, inside, inside_root_key, pattern_buckets, negative_pattern_buckets,
+    expr, hits,
+  )
+}
+
+///|
+fn apply_inside_context_ast_bucketed(
+  file : String,
+  rule : CompiledRule,
+  structural : CompiledStructuralRule,
+  inside : CompiledRulePattern,
+  inside_root_key : @untyped_ast.NodeKind?,
+  pattern_buckets : ExprPatternBuckets,
+  negative_pattern_buckets : ExprPatternBuckets,
+  context_node : @untyped_ast.Node,
+  hits : Array[RuleFinding],
+) -> Unit {
+  if !node_root_key_matches(inside_root_key, context_node) {
     return
   }
-  if match_node_rule_pattern(inside, expr, None) is Some(result) {
+  if match_node_rule_pattern(inside, context_node, None) is Some(result) {
     if result.bindings.get("__TARGET__") is Some(target) {
       if structural.patterns.is_empty() {
         let target_exprs : Array[@untyped_ast.ScopedNodeExpr] = []
@@ -295,7 +385,7 @@ fn apply_inside_expr_ast_bucketed(
           rule,
           negative_pattern_buckets,
           target_exprs,
-          expr.loc,
+          context_node.loc,
           result.bindings,
           inside.compiled.identifier_metavars,
           hits,
@@ -309,7 +399,7 @@ fn apply_inside_expr_ast_bucketed(
               pattern_buckets,
               negative_pattern_buckets,
               target,
-              Some(expr.loc),
+              Some(context_node.loc),
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
@@ -321,7 +411,7 @@ fn apply_inside_expr_ast_bucketed(
               pattern_buckets,
               negative_pattern_buckets,
               target,
-              Some(expr.loc),
+              Some(context_node.loc),
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,

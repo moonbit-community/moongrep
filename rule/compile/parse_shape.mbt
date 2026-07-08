@@ -37,8 +37,53 @@ fn parse_shape(
 }
 
 ///|
+fn parse_toplevel_shape(
+  path : String,
+  context : String,
+  source : String,
+) -> @syntax.Impl raise {
+  let lex_result = @lexer.tokens_from_string(
+    source,
+    comment=true,
+    name="rule shape",
+    enable_metavar=true,
+  )
+  if lex_result.errors.length() != 0 {
+    for error_entry in lex_result.errors {
+      match error_entry {
+        (_, _, InvalidMetavarSyntax(raw)) =>
+          raise RuleLoadError::InvalidRule(
+            path~,
+            info=invalid_metavar_syntax_message(context, raw),
+          )
+        _ => ()
+      }
+    }
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} has lexical errors",
+    )
+  }
+  let (impls, reports) = @handrolled_parser.parse(lex_result.tokens)
+  if reports.length() != 0 {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} is not a valid MoonBit top-level item",
+    )
+  }
+  if impls.length() != 1 {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} must contain exactly one MoonBit top-level item",
+    )
+  }
+  let items = impls.to_array()
+  items[0]
+}
+
+///|
 fn shape_context_name(context : String) -> String {
-  if context == "inside-expr" {
+  if context == "inside-expr" || context == "inside-toplevel" {
     context
   } else {
     "\{context}.shape"
