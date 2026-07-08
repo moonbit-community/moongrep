@@ -35,6 +35,7 @@ priv struct SourceContextLine {
 async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
   let raw_rules = load_scan_rules(options)
   let compiled_rules = @rule_compile.compile_rules(raw_rules)
+  let scan_plan = @rule_apply.ScanPlan::from_rules(compiled_rules)
   let files : Array[String] = []
   let scan_trace : Array[String] = []
   if options.verbose {
@@ -58,10 +59,8 @@ async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
   let skipped_files : Array[SkippedFile] = []
   for file in files {
     let source = read_text_file(file)
-    let file_rules = @rule_prefilter.prefilter_rules_for_source(
-      compiled_rules, source,
-    )
-    if !file_rules.is_empty() {
+    let file_plan = scan_plan.filter_source(source)
+    if !file_plan.is_empty() {
       let (impls, reports) = @parser.parse_string(source, name=file)
       if reports.length() > 0 {
         // Keep scanning other files even when one file fails to parse. This makes
@@ -73,21 +72,19 @@ async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
       } else {
         for node in impls {
           let impl_source = source_text_for_impl(source, node)
-          let impl_rules = @rule_prefilter.prefilter_rules_for_source(
-            file_rules, impl_source,
-          )
-          if !impl_rules.is_empty() {
+          let impl_plan = file_plan.filter_source(impl_source)
+          if !impl_plan.is_empty() {
             let untyped_node = @untyped_ast.from_impl(node)
             if !impl_has_moongrep_skip(node) {
-              let structural_hits = @rule_apply.apply_structural_rules_to_node(
-                file, untyped_node, impl_rules,
+              let structural_hits = @rule_apply.apply_structural_scan_plan_to_node(
+                file, untyped_node, impl_plan,
               )
               for hit in structural_hits {
                 hits.push(make_scan_hit(source, hit))
               }
             }
-            let taint_hits = @rule_apply.apply_taint_rules_to_node(
-              file, untyped_node, impl_rules,
+            let taint_hits = @rule_apply.apply_taint_scan_plan_to_node(
+              file, untyped_node, impl_plan,
             )
             for hit in taint_hits {
               hits.push(make_scan_hit(source, hit))

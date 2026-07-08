@@ -11,13 +11,23 @@ pub fn apply_structural_rules(String, @untyped_ast.Node, Array[@model.CompiledRu
 
 pub fn apply_structural_rules_to_node(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
 
+pub fn apply_structural_scan_plan_to_node(String, @untyped_ast.Node, ScanPlan) -> Array[@model.RuleFinding]
+
 pub fn apply_taint_rules(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
 pub fn apply_taint_rules_to_node(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
+pub fn apply_taint_scan_plan_to_node(String, @untyped_ast.Node, ScanPlan) -> Array[@model.RuleFinding] raise
+
 // Errors
 
 // Types and methods
+pub struct ScanPlan {
+  // private fields
+}
+pub fn ScanPlan::filter_source(Self, String) -> Self
+pub fn ScanPlan::from_rules(Array[@model.CompiledRule]) -> Self
+pub fn ScanPlan::is_empty(Self) -> Bool
 
 // Type aliases
 

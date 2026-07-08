@@ -29,6 +29,16 @@ pub fn prefilter_rules_for_source(
 
 ///|
 fn prefilter_matches_source(prefilter : RulePrefilter, source : String) -> Bool {
+  prefilter_matches_with_literal_matcher(prefilter, fn(literal) {
+    literal_matches_source(literal, source)
+  })
+}
+
+///|
+pub fn prefilter_matches_with_literal_matcher(
+  prefilter : RulePrefilter,
+  literal_matches : (String) -> Bool,
+) -> Bool {
   if prefilter.alternatives.is_empty() {
     return true
   }
@@ -38,7 +48,7 @@ fn prefilter_matches_source(prefilter : RulePrefilter, source : String) -> Bool 
     }
     let mut matched = true
     for literal in alternative {
-      if !literal_matches_source(literal, source) {
+      if !literal_matches(literal) {
         matched = false
         break
       }

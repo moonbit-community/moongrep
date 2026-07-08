@@ -112,6 +112,20 @@ fn verbose_rules_scan_options() -> CliOptions {
 }
 
 ///|
+fn impl_prefilter_scan_options() -> CliOptions {
+  {
+    rules_root: Some("e2etests/rules/prefilter"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/prefilter-impl",
+    exclude_dirs: [],
+    verbose: false,
+    enable_builtin_rules: false,
+    no_color: false,
+  }
+}
+
+///|
 fn scan_hit_line_summary(hit : ScanHit) -> String {
   "\{hit.finding.rule_id}:\{hit.finding.loc.start.lnum}"
 }
@@ -176,6 +190,16 @@ async test "scan anonymous guarded pattern filters matches" {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"$(callee:id)($(value:const)):2\"]")
+}
+
+///|
+async test "scan plan keeps impl level prefilter distribution" {
+  let result = collect_directory_hits(impl_prefilter_scan_options())
+  let summaries : Array[String] = []
+  for hit in result.hits {
+    summaries.push(scan_hit_line_summary(hit))
+  }
+  debug_inspect(summaries, content="[\"target:2\", \"other:6\"]")
 }
 
 ///|

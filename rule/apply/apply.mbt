@@ -34,6 +34,90 @@ priv struct AstStructuralRuleEntry {
 }
 
 ///|
+priv struct PlannedTaintRule {
+  rule : CompiledRule
+  taint_rule : CompiledTaintRule
+  spec : @taint.TaintSpec
+}
+
+///|
+pub struct ScanPlan {
+  priv structural_entries : Array[AstStructuralRuleEntry]
+  priv taint_entries : Array[PlannedTaintRule]
+}
+
+///|
+pub fn ScanPlan::from_rules(rules : Array[CompiledRule]) -> ScanPlan {
+  let structural_entries : Array[AstStructuralRuleEntry] = []
+  let taint_entries : Array[PlannedTaintRule] = []
+  for rule in rules {
+    match rule.definition {
+      Structural(structural) =>
+        structural_entries.push(ast_structural_rule_entry(rule, structural))
+      Taint(taint_rule) =>
+        taint_entries.push({
+          rule,
+          taint_rule,
+          spec: lower_compiled_taint_rule(rule, taint_rule),
+        })
+    }
+  }
+  { structural_entries, taint_entries }
+}
+
+///|
+pub fn ScanPlan::filter_source(self : ScanPlan, source : String) -> ScanPlan {
+  let literal_cache : Map[String, Bool] = {}
+  let structural_entries : Array[AstStructuralRuleEntry] = []
+  let taint_entries : Array[PlannedTaintRule] = []
+  for entry in self.structural_entries {
+    if scan_plan_rule_matches_source(entry.rule, source, literal_cache) {
+      structural_entries.push(entry)
+    }
+  }
+  for entry in self.taint_entries {
+    if scan_plan_rule_matches_source(entry.rule, source, literal_cache) {
+      taint_entries.push(entry)
+    }
+  }
+  { structural_entries, taint_entries }
+}
+
+///|
+pub fn ScanPlan::is_empty(self : ScanPlan) -> Bool {
+  self.structural_entries.is_empty() && self.taint_entries.is_empty()
+}
+
+///|
+fn scan_plan_rule_matches_source(
+  rule : CompiledRule,
+  source : String,
+  literal_cache : Map[String, Bool],
+) -> Bool {
+  @rule_prefilter.prefilter_matches_with_literal_matcher(rule.prefilter, fn(
+    literal,
+  ) {
+    scan_plan_literal_matches(source, literal_cache, literal)
+  })
+}
+
+///|
+fn scan_plan_literal_matches(
+  source : String,
+  literal_cache : Map[String, Bool],
+  literal : String,
+) -> Bool {
+  match literal_cache.get(literal) {
+    Some(matched) => matched
+    None => {
+      let matched = source.contains(literal)
+      literal_cache[literal] = matched
+      matched
+    }
+  }
+}
+
+///|
 /// Applies only structural rules to the supplied untyped AST root.
 ///
 /// Supported expression subtrees are visited in source-tree order. For a
@@ -53,11 +137,22 @@ pub fn apply_structural_rules_to_node(
   node : @untyped_ast.Node,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
+  apply_structural_scan_plan_to_node(file, node, ScanPlan::from_rules(rules))
+}
+
+///|
+pub fn apply_structural_scan_plan_to_node(
+  file : String,
+  node : @untyped_ast.Node,
+  plan : ScanPlan,
+) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
-  let entries = ast_structural_rule_entries(rules)
   @untyped_ast.visit_node_scoped_expr_roots(node, fn(scoped_expr) {
     apply_ast_structural_rule_entries_to_scoped_expr(
-      file, entries, scoped_expr, hits,
+      file,
+      plan.structural_entries,
+      scoped_expr,
+      hits,
     )
     NodeVisitPrune
   })
@@ -65,34 +160,24 @@ pub fn apply_structural_rules_to_node(
 }
 
 ///|
-fn ast_structural_rule_entries(
-  rules : Array[CompiledRule],
-) -> Array[AstStructuralRuleEntry] {
-  let entries : Array[AstStructuralRuleEntry] = []
-  for rule in rules {
-    match rule.definition {
-      Structural(structural) => {
-        let inside_root_key = if structural.inside_expr is Some(inside) {
-          compiled_pattern_root_key(inside)
-        } else {
-          None
-        }
-        entries.push({
-          rule,
-          structural,
-          pattern_buckets: ExprPatternBuckets::from_patterns(
-            structural.patterns,
-          ),
-          negative_pattern_buckets: ExprPatternBuckets::from_patterns(
-            structural.patterns_not,
-          ),
-          inside_root_key,
-        })
-      }
-      _ => ()
-    }
+fn ast_structural_rule_entry(
+  rule : CompiledRule,
+  structural : CompiledStructuralRule,
+) -> AstStructuralRuleEntry {
+  let inside_root_key = if structural.inside_expr is Some(inside) {
+    compiled_pattern_root_key(inside)
+  } else {
+    None
   }
-  entries
+  {
+    rule,
+    structural,
+    pattern_buckets: ExprPatternBuckets::from_patterns(structural.patterns),
+    negative_pattern_buckets: ExprPatternBuckets::from_patterns(
+      structural.patterns_not,
+    ),
+    inside_root_key,
+  }
 }
 
 ///|
@@ -171,16 +256,17 @@ pub fn apply_taint_rules(
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
+  let plan = ScanPlan::from_rules(rules)
   if root_node.kind == ImplList {
     for entry in root_node.children {
       let (_, node) = entry
-      let node_hits = apply_taint_rules_to_node(file, node, rules)
+      let node_hits = apply_taint_scan_plan_to_node(file, node, plan)
       for hit in node_hits {
         hits.push(hit)
       }
     }
   } else {
-    let node_hits = apply_taint_rules_to_node(file, root_node, rules)
+    let node_hits = apply_taint_scan_plan_to_node(file, root_node, plan)
     for hit in node_hits {
       hits.push(hit)
     }
@@ -194,27 +280,30 @@ pub fn apply_taint_rules_to_node(
   node : @untyped_ast.Node,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
+  apply_taint_scan_plan_to_node(file, node, ScanPlan::from_rules(rules))
+}
+
+///|
+pub fn apply_taint_scan_plan_to_node(
+  file : String,
+  node : @untyped_ast.Node,
+  plan : ScanPlan,
+) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
-  for rule in rules {
-    match rule.definition {
-      Taint(taint_rule) =>
-        apply_taint_rule_to_node(file, rule, taint_rule, node, hits)
-      _ => ()
-    }
+  for entry in plan.taint_entries {
+    apply_planned_taint_rule_to_node(file, entry, node, hits)
   }
   hits
 }
 
 ///|
-fn apply_taint_rule_to_node(
+fn apply_planned_taint_rule_to_node(
   file : String,
-  rule : CompiledRule,
-  taint_rule : CompiledTaintRule,
+  entry : PlannedTaintRule,
   node : @untyped_ast.Node,
   hits : Array[RuleFinding],
 ) -> Unit raise {
-  let spec = lower_compiled_taint_rule(rule, taint_rule)
-  try @taint.analyze_function_like(node, spec) catch {
+  try @taint.analyze_function_like(node, entry.spec) catch {
     @taint.TaintAnalysisError::UnsupportedFunctionLike(..) => ()
     err => raise err
   } noraise {
@@ -222,9 +311,9 @@ fn apply_taint_rule_to_node(
       for finding in result.findings {
         hits.push({
           file,
-          rule_id: rule.rule_id,
-          description: rule.description,
-          pattern_index: sink_pattern_index(taint_rule, finding.sink_id),
+          rule_id: entry.rule.rule_id,
+          description: entry.rule.description,
+          pattern_index: sink_pattern_index(entry.taint_rule, finding.sink_id),
           loc: finding.sink_loc,
           outer_loc: None,
         })
