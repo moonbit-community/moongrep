@@ -34,7 +34,8 @@ priv struct SourceContextLine {
 ///|
 async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
   let raw_rules = load_scan_rules(options)
-  let compiled_rules = @rule_compile.compile_rules(raw_rules)
+  let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
+  let compiled_rules = @rule_compile.compile_rules(enabled_rules)
   let scan_plan = @rule_apply.ScanPlan::from_rules(compiled_rules)
   let files : Array[String] = []
   let scan_trace : Array[String] = []
@@ -159,6 +160,47 @@ async fn load_scan_rules(
     raw_rules.push(anonymous_pattern_rule(options.patterns[index], index))
   }
   raw_rules
+}
+
+///|
+fn exclude_scan_rules(
+  raw_rules : Array[@rule_model.RawRuleSpec],
+  exclude_rules : Array[String],
+) -> Array[@rule_model.RawRuleSpec] raise {
+  if exclude_rules.is_empty() {
+    return raw_rules
+  }
+  ensure_exclude_rule_ids_exist(raw_rules, exclude_rules)
+  let excluded : Map[String, Bool] = {}
+  for rule_id in exclude_rules {
+    excluded[rule_id] = true
+  }
+  let enabled : Array[@rule_model.RawRuleSpec] = []
+  for raw in raw_rules {
+    if !excluded.contains(raw.rule_id) {
+      enabled.push(raw)
+    }
+  }
+  enabled
+}
+
+///|
+fn ensure_exclude_rule_ids_exist(
+  raw_rules : Array[@rule_model.RawRuleSpec],
+  exclude_rules : Array[String],
+) -> Unit raise {
+  let loaded : Map[String, Bool] = {}
+  for raw in raw_rules {
+    loaded[raw.rule_id] = true
+  }
+  for rule_id in exclude_rules {
+    if !loaded.contains(rule_id) {
+      raise CliError::Usage(
+        message="unknown rule id in --exclude-rules: \{rule_id}",
+        exit_code=2,
+      )
+    }
+  }
 }
 
 ///|

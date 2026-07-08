@@ -1,4 +1,12 @@
 ///|
+#cfg(target="wasm")
+fn runtime_exit(code : Int) -> Unit = "wasi_snapshot_preview1" "proc_exit"
+
+///|
+#cfg(target="wasm-gc")
+fn runtime_exit(code : Int) -> Unit = "__moonbit_sys_unstable" "exit"
+
+///|
 fn write_cli_output(output : String) -> Unit {
   match output.strip_suffix("\n") {
     Some(trimmed) => println(trimmed.to_owned())
@@ -27,9 +35,9 @@ async fn main {
       _ => fail("invalid CLI command")
     }
   } catch {
-    CliError::Usage(message~, ..) as err => {
+    CliError::Usage(message~, exit_code~) => {
       write_cli_output(message)
-      raise err
+      runtime_exit(exit_code)
     }
     err => raise err
   }

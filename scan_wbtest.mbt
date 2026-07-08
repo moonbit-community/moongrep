@@ -44,6 +44,7 @@ fn skip_scan_options() -> CliOptions {
     patterns: [],
     scan_root: "testdata/skip-structural/src",
     exclude_dirs: [],
+    exclude_rules: [],
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
@@ -58,6 +59,7 @@ fn exclude_dir_scan_options() -> CliOptions {
     patterns: [],
     scan_root: "testdata/exclude-dirs",
     exclude_dirs: ["ignored/", "./testdata/exclude-dirs/generated/"],
+    exclude_rules: [],
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
@@ -72,6 +74,7 @@ fn single_rule_file_scan_options() -> CliOptions {
     patterns: [],
     scan_root: "testdata/recursive-rule-discovery-src",
     exclude_dirs: [],
+    exclude_rules: [],
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
@@ -91,6 +94,7 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
     ],
     scan_root: "testdata/guard",
     exclude_dirs: [],
+    exclude_rules: [],
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
@@ -105,6 +109,7 @@ fn verbose_rules_scan_options() -> CliOptions {
     patterns: [],
     scan_root: "testdata/recursive-rule-discovery-src",
     exclude_dirs: [],
+    exclude_rules: [],
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
@@ -119,6 +124,37 @@ fn impl_prefilter_scan_options() -> CliOptions {
     patterns: [],
     scan_root: "testdata/prefilter-impl",
     exclude_dirs: [],
+    exclude_rules: [],
+    verbose: false,
+    enable_builtin_rules: false,
+    no_color: false,
+  }
+}
+
+///|
+fn exclude_rule_scan_options() -> CliOptions {
+  {
+    rules_root: Some("e2etests/rules/prefilter"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/prefilter-impl",
+    exclude_dirs: [],
+    exclude_rules: ["target"],
+    verbose: true,
+    enable_builtin_rules: false,
+    no_color: false,
+  }
+}
+
+///|
+fn unknown_exclude_rule_scan_options() -> CliOptions {
+  {
+    rules_root: Some("e2etests/rules/prefilter"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/prefilter-impl",
+    exclude_dirs: [],
+    exclude_rules: ["missing"],
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
@@ -200,6 +236,39 @@ async test "scan plan keeps impl level prefilter distribution" {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"target:2\", \"other:6\"]")
+}
+
+///|
+async test "scan excludes configured rule ids before planning" {
+  let result = collect_directory_hits(exclude_rule_scan_options())
+  let summaries : Array[String] = []
+  for hit in result.hits {
+    summaries.push(scan_hit_line_summary(hit))
+  }
+  debug_inspect(summaries, content="[\"other:6\"]")
+  debug_inspect(
+    result.scan_trace,
+    content=(
+      #|[
+      #|  "moongrep scan: loaded rule other",
+      #|  "moongrep scan: entering testdata/prefilter-impl",
+      #|  "moongrep scan: file testdata/prefilter-impl/hits.mbt",
+      #|]
+    ),
+  )
+}
+
+///|
+async test "scan rejects unknown exclude rule ids" {
+  try collect_directory_hits(unknown_exclude_rule_scan_options()) catch {
+    CliError::Usage(message~, exit_code=found) => {
+      inspect(found, content="2")
+      inspect(message, content="unknown rule id in --exclude-rules: missing")
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected CLI usage error")
+  }
 }
 
 ///|

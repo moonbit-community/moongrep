@@ -28,14 +28,15 @@ Arguments:
   scan-root  Directory to scan.
 
 Options:
-  -h, --help                   Show help information.
-  --verbose                    Print loaded rule ids and directory traversal progress.
-  --enable-builtin-rules       Enable embedded builtin rules.
-  -r, --rules <rules>          Directory containing YAML rules.
-  --rule <rule>                Single YAML rule file.
-  --pattern <pattern>          Anonymous structural pattern to match.
-  --guard <guard>              YAML guard map for the preceding anonymous pattern.
-  --exclude-dir <exclude-dir>  Directory name or path to skip while recursively scanning.
+  -h, --help                       Show help information.
+  --verbose                        Print loaded rule ids and directory traversal progress.
+  --enable-builtin-rules           Enable embedded builtin rules.
+  -r, --rules <rules>              Directory containing YAML rules.
+  --rule <rule>                    Single YAML rule file.
+  --pattern <pattern>              Anonymous structural pattern to match.
+  --guard <guard>                  YAML guard map for the preceding anonymous pattern.
+  --exclude-dir <exclude-dir>      Directory name or path to skip while recursively scanning.
+  --exclude-rules <exclude-rules>  Rule id to disable after loading rules.
 ```
 
 ## moongrep scan --enable-builtin-rules

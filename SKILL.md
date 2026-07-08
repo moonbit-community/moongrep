@@ -17,7 +17,7 @@ moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --gua
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
@@ -39,11 +39,18 @@ scanning the source tree. When passing multiple excluded directories after one
 flag, put `scan-root` before `--exclude-dir`; repeated `--exclude-dir <dir>` and
 `--exclude-dir=<dir>` forms are also accepted.
 
+Use `--exclude-rules <rule-id>...` to disable loaded rules by exact rule id.
+This applies to builtin, file, directory, and anonymous pattern rules. When
+passing multiple excluded rule ids after one flag, put `scan-root` before
+`--exclude-rules`; repeated `--exclude-rules <rule-id>` and
+`--exclude-rules=<rule-id>` forms are also accepted. Unknown excluded rule ids
+are usage errors.
+
 Usage errors print a message and exit with code 2: missing `scan` command,
 missing all rule sources (`--rules`, `--rule`, `--pattern`, and
 `--enable-builtin-rules`), missing option value, misplaced or malformed
-`--guard`, unknown options, or more than one scan root. Non-usage errors,
-including unreadable paths, an empty rules
+`--guard`, unknown options, unknown excluded rule ids, or more than one scan
+root. Non-usage errors, including unreadable paths, an empty rules
 directory, invalid YAML/schema/shape, or source read failures, abort the run;
 the CLI prints the error and exits with code 1.
 
