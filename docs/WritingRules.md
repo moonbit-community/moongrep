@@ -224,7 +224,7 @@ patterns:
 Bare names used only in expression positions infer `exp`. When the same bare
 name appears in binder, label, constructor, type-name, or qualified-identifier
 positions, it infers `id`, which keeps the source-level name consistent between
-definition and use sites:
+definition and use sites. Bare names in whole type positions infer `type`:
 
 ```yaml
 patterns:
@@ -235,8 +235,8 @@ patterns:
 ```
 
 Use explicit `$(name:kind)` when inference would be ambiguous or when you need
-`const`, `arg`, or `pat`. Use `$(name:const)` when the same literal constant
-must be consistent and variables should not match:
+`const`, `arg`, `pat`, or `type`. Use `$(name:const)` when the same literal
+constant must be consistent and variables should not match:
 
 ```yaml
 patterns:
@@ -261,13 +261,28 @@ That pattern can match positional, labelled, labelled pun, optional labelled,
 and optional pun arguments in the single slot. Bare `$arg` does not infer
 `arg`; write the explicit kind at each argument slot.
 
+Use `$(name:type)` for a whole type AST node:
+
+```yaml
+patterns:
+  - shape: |
+      let value : $(T:type) = input
+  - shape: |
+      let values : Array[$T] = input
+```
+
+Repeated `type` captures compare the complete parsed type node while ignoring
+source locations. A `type` capture must occupy a whole type node; it does not
+capture expression arguments, constructors, labels, or method type qualifiers.
+
 A bare simple pattern variable such as `match input { $item => body }` is
 ambiguous between `id`, `const`, and `pat`, so rule compilation asks you to
 choose explicitly. The `exp` kind is expression-only. The `const` kind is valid
 only in constant expression or constant pattern positions. The `arg` kind is
 valid only as a whole bare argument in a call pattern. The `pat` kind is valid
-only in a simple pattern variable position. If you need a non-expression source
-name, use `id` or leave the name literal. Any other kind is a compile error.
+only in a simple pattern variable position. The `type` kind is valid only as a
+whole type node. If you need a non-expression source name, use `id` or leave
+the name literal. Any other kind is a compile error.
 
 The old YAML `metavars` key is invalid.
 
@@ -283,7 +298,7 @@ When one of these names appears in a supported metavar position, it matches
 anything there without binding a value or participating in repeated-name
 equality. Repeated ignore placeholders are independent wildcards.
 
-### 3. Choose `exp`, `id`, `const`, `arg`, or `pat`
+### 3. Choose `exp`, `id`, `const`, `arg`, `pat`, or `type`
 
 Use `exp` when you want to match and compare a whole expression. Repeating an
 `exp` metavar means the repeated captures must be structurally equal according
@@ -347,6 +362,16 @@ patterns:
 
 This can match `sink(value, value)` and `sink(label=value, label=value)`, but
 not `sink(value, other)` or `sink(label=value, other=value)`.
+
+Use `type` when the candidate must be a complete type annotation or type
+component. Repeated `type` captures compare the whole type AST node, so a rule
+can require two annotations to use the same type:
+
+```yaml
+patterns:
+  - shape: |
+      let left : $(T:type) = input; let right : $(T:type) = input
+```
 
 ### 3.5 Use `inside-expr` when the interesting node must appear inside a larger context
 
@@ -479,8 +504,8 @@ normalized names such as `name` or `@pkg.name`. `const` guards see parser
 constant values, such as `raw` for `"raw"`, `42` for `42`, and `true` for
 `true`.
 
-Guards cannot filter `exp`, `arg`, or `pat` captures, and taint clauses do not
-support `guard`.
+Guards cannot filter `exp`, `arg`, `pat`, or `type` captures, and taint clauses
+do not support `guard`.
 
 ### 5. Add more `patterns` when the message is shared
 
@@ -514,9 +539,9 @@ moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints loaded rule
 ids and directory traversal progress before warnings and match results.
 
-The scanner uses the untyped AST matcher by default. Repeated `exp` and `pat`
-captures are compared by structural untyped AST equality while ignoring source
-locations.
+The scanner uses the untyped AST matcher by default. Repeated `exp`, `arg`,
+`pat`, and `type` captures are compared by structural untyped AST equality
+while ignoring source locations.
 
 ## Worked Examples
 
@@ -583,11 +608,12 @@ valid expression-sized shape, then build back up carefully.
 
 Check, in order:
 
-- the kind annotation is exactly `exp`, `id`, `const`, `arg`, or `pat`
+- the kind annotation is exactly `exp`, `id`, `const`, `arg`, `pat`, or `type`
 - `$(name:exp)` appears as a whole bare expression placeholder
 - `$(name:const)` appears only where a constant expression or constant pattern can match
 - `$(name:arg)` appears only as a whole bare call argument
 - `$(name:pat)` appears only as a whole bare pattern placeholder
+- `$(name:type)` appears only as a whole type node
 - the same payload name is not used across multiple metavar kinds
 - the payload is not a reserved name such as `__`, `__TARGET__`, or `__SOURCE__`
 
@@ -601,8 +627,8 @@ exact supported normalization cases in [RuleSpec.md](RuleSpec.md).
 
 Check that `guard` is under a structural `patterns`, `patterns-not`, or
 `inside-expr` pattern object, that it is a mapping, and that every key names an
-`id` or `const` capture visible to that pattern. `guard` is still rejected in
-taint clauses.
+`id` or `const` capture visible to that pattern. `exp`, `arg`, `pat`, and
+`type` captures cannot be guarded. `guard` is still rejected in taint clauses.
 
 ## Testing Workflow
 

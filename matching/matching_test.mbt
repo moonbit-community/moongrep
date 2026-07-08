@@ -161,6 +161,7 @@ test "declared expression metavar requires structural equality" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -179,6 +180,7 @@ test "identifier metavar compares binder and uses by normalized name" {
     identifier_metavars: ["counter"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -209,6 +211,7 @@ test "identifier metavar matches loop counter" {
     identifier_metavars: ["counter"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -237,6 +240,7 @@ test "expression metavar matches repeated call expression" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -257,6 +261,7 @@ test "expression metavar keeps structural equality" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -277,6 +282,7 @@ test "constant metavar requires repeated constant equality" {
     identifier_metavars: [],
     constant_metavars: ["value"],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -294,6 +300,7 @@ test "constant metavar matches only constant patterns" {
     identifier_metavars: [],
     constant_metavars: ["lit"],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -319,6 +326,7 @@ test "argument metavar captures complete argument nodes" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: ["arg"],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -349,6 +357,7 @@ test "argument metavar requires repeated argument equality" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: ["arg"],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -376,6 +385,7 @@ test "pattern metavar captures whole pattern AST" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -411,6 +421,7 @@ test "pattern metavar requires repeated pattern equality" {
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -439,6 +450,7 @@ test "identifier metavar matches pattern vars" {
     identifier_metavars: ["item"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -461,6 +473,7 @@ test "identifier metavar matches labels" {
     identifier_metavars: ["field"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -482,6 +495,7 @@ test "identifier metavar matches qualified function names" {
     identifier_metavars: ["callee"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -502,6 +516,7 @@ test "qualified identifier metavar keeps literal package" {
     identifier_metavars: ["callee"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -523,6 +538,7 @@ test "identifier metavar matches constructor identity with extra info" {
     identifier_metavars: ["Ctor"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -548,6 +564,7 @@ test "identifier metavar matches constructor type extra info" {
     identifier_metavars: ["TypeName", "Ctor"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -573,6 +590,7 @@ test "identifier metavar matches constructor patterns" {
     identifier_metavars: ["Ctor"],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }

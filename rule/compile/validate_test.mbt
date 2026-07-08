@@ -310,6 +310,188 @@ test "validate records inline argument metavars" {
 }
 
 ///|
+test "validate accepts explicit type metavars in annotations" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = input
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(rule.patterns[0].compiled.type_metavars, content="[\"T\"]")
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate accepts spaced and bare type metavars in annotations" {
+  let spaced_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $( T : type ) = input
+    #|
+  let spaced_rules = compile_one(spaced_source)
+  match spaced_rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(rule.patterns[0].compiled.type_metavars, content="[\"T\"]")
+    Taint(_) => fail("expected structural rule")
+  }
+  let bare_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let values : Array[$T] = input
+    #|
+  let bare_rules = compile_one(bare_source)
+  match bare_rules[0].definition {
+    Structural(rule) =>
+      debug_inspect(rule.patterns[0].compiled.type_metavars, content="[\"T\"]")
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects type metavar outside whole type positions" {
+  let expr_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(T:type) + 1
+    #|
+  expect_compile_invalid(
+    expr_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+  )
+  let arg_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(T:type))
+    #|
+  expect_compile_invalid(
+    arg_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+  )
+  let pattern_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: match input { $(T:type) => body }
+    #|
+  expect_compile_invalid(
+    pattern_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+  )
+  let label_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($(T:type)=value)
+    #|
+  expect_compile_invalid(
+    label_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+  )
+  let constructor_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $(T:type)(value)
+    #|
+  expect_compile_invalid(
+    constructor_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+  )
+}
+
+///|
+test "validate rejects guard on type metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = input
+    #|    guard:
+    #|      $T: "^Int$"
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].guard.$T cannot reference type metavar T",
+  )
+}
+
+///|
+test "validate rejects type metavar kind conflicts" {
+  let exp_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = $(T:exp)
+    #|
+  expect_compile_invalid(
+    exp_source, "patterns[0].shape uses $(T:exp) outside a bare expression position",
+  )
+  let id_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let $(T:id) : $(T:type) = input
+    #|
+  expect_compile_invalid(
+    id_source, "patterns[0].shape declares metavar T as multiple metavar kinds",
+  )
+  let const_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = $(T:const)
+    #|
+  expect_compile_invalid(
+    const_source, "patterns[0].shape uses $(T:const) outside a constant expression or pattern position",
+  )
+  let arg_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = sink($(T:arg))
+    #|
+  expect_compile_invalid(
+    arg_source, "patterns[0].shape uses $(T:arg) outside a bare argument position",
+  )
+  let pat_source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(T:type) = match input { $(T:pat) => body }
+    #|
+  expect_compile_invalid(
+    pat_source, "patterns[0].shape uses $(T:pat) outside a bare pattern position",
+  )
+}
+
+///|
+test "validate rejects inherited type metavar kind mismatch" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|inside-expr:
+    #|  shape: |
+    #|    let value : $(T:type) = __TARGET__
+    #|patterns:
+    #|  - shape: target($T)
+    #|
+  expect_compile_invalid(
+    source, "patterns[0] cannot use inherited inside-expr metavar T as id because it was declared as type",
+  )
+}
+
+///|
 test "validate records constructor identifier metavars" {
   let source =
     #|id: example

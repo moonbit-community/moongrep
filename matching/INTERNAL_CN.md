@@ -15,7 +15,8 @@
 ## 占位符分派
 
 表达式匹配会先调用 `match_expr_placeholder`。如果它返回 `Some(true)` 或
-`Some(false)`，就会跳过结构化 AST 比较。只有 `None` 会继续落到普通的节点类型匹配。
+`Some(false)`，就会跳过结构化 AST 比较。类型节点还会先经过
+`match_type_placeholder`。只有 `None` 会继续落到普通的节点类型匹配。
 
 表达式位置里的占位符优先级如下：
 
@@ -27,6 +28,10 @@
 5. 声明过的 constant metavar 只绑定 `Expr::Constant`
 6. 未声明的名字是字面 AST 名称
 
+对于类型节点，一个简单 `Type::Name` 标记如果名称出现在
+`CompiledExprPattern.type_metavars` 中，就会绑定整个候选 `Type_*` 节点。
+重复的 type 捕获使用与其他 AST 节点捕获相同的忽略位置结构相等性。
+
 对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$(name:pat)` 会绑定整个候选 `Pattern` AST，声明过的 constant metavar 只匹配
 `Pattern::Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
 `__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
@@ -36,8 +41,8 @@
 
 `BoundValue` 是 `@untyped_ast.Node`。
 
-每个绑定都会直接存为 untyped AST 节点。expression、constant 和 pattern
-metavar 绑定它们匹配到的节点。identifier metavar 会把归一化名称编码成
+每个绑定都会直接存为 untyped AST 节点。expression、constant、argument、pattern
+和 type metavar 绑定它们匹配到的节点。identifier metavar 会把归一化名称编码成
 `Leaf(PString(_))` 节点。
 
 expression metavar 会捕获该位置上的候选表达式节点。重复使用时比较节点结构和 leaf
@@ -47,12 +52,12 @@ identifier metavar 会在绑定前归一化源码层面的名称。Expr、var �
 `untyped_ast` 规范化 helper。Binder 和 label 匹配直接使用候选名称，因为这些节点已经携带了用于比较的短名称。
 
 constant 占位符只接受常量表达式或常量 pattern 节点。pattern metavar 绑定完整
-pattern 节点。重复的 constant 和 pattern 捕获使用与所有其他绑定相同的 untyped
-节点相等性。
+pattern 节点。type metavar 绑定完整类型节点。重复的 constant、pattern 和 type
+捕获使用与所有其他绑定相同的 untyped 节点相等性。
 
 ## 相等性忽略位置
 
-matcher 在比较重复的 expression 和 pattern 捕获时会忽略源码位置。重复绑定比较由
+matcher 在比较重复的 expression、argument、pattern 和 type 捕获时会忽略源码位置。重复绑定比较由
 `bound_value_equal` 处理，并委托给 `node_equal_ignoring_loc`。
 
 `node_equal_ignoring_loc` 要求节点 kind 相同，并按顺序递归比较子节点标签和子值。

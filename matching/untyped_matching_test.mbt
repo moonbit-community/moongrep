@@ -22,6 +22,7 @@ fn untyped_compiled(
   identifier_metavars? : Array[String] = [],
   constant_metavars? : Array[String] = [],
   arg_metavars? : Array[String] = [],
+  type_metavars? : Array[String] = [],
   target_metavar? : String? = None,
   source_metavar? : String? = None,
 ) -> CompiledExprPattern {
@@ -31,6 +32,7 @@ fn untyped_compiled(
     identifier_metavars,
     constant_metavars,
     arg_metavars,
+    type_metavars,
     target_metavar,
     source_metavar,
   }
@@ -160,6 +162,46 @@ test "default matcher binds constants and preserves guard values" {
 }
 
 ///|
+test "default matcher captures repeated type metavars" {
+  let compiled = untyped_compiled(
+    parse_untyped_test_node("let left : T = input; let right : T = input"),
+    type_metavars=["T"],
+  )
+  assert_true(
+    untyped_match(compiled, "let left : Int = input; let right : Int = input")
+    is Some(_),
+  )
+  assert_false(
+    untyped_match(
+      compiled, "let left : Int = input; let right : String = input",
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "default matcher captures complex type nodes" {
+  let compiled = untyped_compiled(
+    parse_untyped_test_node("let value : T = input"),
+    type_metavars=["T"],
+  )
+  for
+    source in [
+      "let value : Array[Int] = input", "let value : Int? = input", "let value : (Int, String) = input",
+      "let value : (Int) -> String = input",
+    ] {
+    match untyped_match(compiled, source) {
+      Some(result) =>
+        match result.bindings.get("T") {
+          Some(node) => assert_true(node.kind.to_string().has_prefix("Type::"))
+          _ => fail("expected type binding for \{source}")
+        }
+      None => fail("expected type metavar to match \{source}")
+    }
+  }
+}
+
+///|
 test "default matcher captures repeated pattern metavars" {
   let compiled = untyped_compiled(
     untyped_test_match_pattern_node(
@@ -212,6 +254,7 @@ test "node matcher accepts nodes and captures constant nodes" {
     identifier_metavars: [],
     constant_metavars: ["lit"],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }

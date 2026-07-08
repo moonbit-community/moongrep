@@ -14,6 +14,7 @@ pub fn expr_matches(
     identifier_metavars: [],
     constant_metavars: [],
     arg_metavars: [],
+    type_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -67,6 +68,9 @@ fn match_node(
   if match_expr_placeholder(pattern, candidate, compiled, bindings)
     is Some(result) {
     result
+  } else if match_type_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    result
   } else if match_pattern_placeholder(pattern, candidate, compiled, bindings)
     is Some(result) {
     result
@@ -84,6 +88,49 @@ fn match_node(
       TypeName => match_type_name(pattern, candidate, compiled, bindings)
       _ => structural_match(pattern, candidate, compiled, bindings)
     }
+  }
+}
+
+///|
+fn match_type_placeholder(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool? {
+  guard type_placeholder_name(pattern) is Some(name) else { return None }
+  if contains_name(compiled.type_metavars, name) {
+    Some(is_type_node(candidate) && bind_value(bindings, name, candidate))
+  } else {
+    None
+  }
+}
+
+///|
+fn type_placeholder_name(node : @untyped_ast.Node) -> String? {
+  if node.kind != Type_Name {
+    return None
+  }
+  guard child(node, "tys") is Some(tys) else { return None }
+  if !tys.children.is_empty() {
+    return None
+  }
+  guard child(node, "constr_id") is Some(constr_id) else { return None }
+  guard child(constr_id, "id") is Some(long_ident) else { return None }
+  guard long_ident.kind == LongIdent_Ident else { return None }
+  leaf_string_child(long_ident, "value")
+}
+
+///|
+fn is_type_node(node : @untyped_ast.Node) -> Bool {
+  match node.kind {
+    Type_Any
+    | Type_Arrow
+    | Type_Name
+    | Type_Object
+    | Type_Option
+    | Type_Tuple => true
+    _ => false
   }
 }
 

@@ -70,11 +70,12 @@ Metavar 编译会对 parser AST 进行两遍遍历：
 
 Bare kind 推断有意保守：
 
-- 显式声明为 `pat`、`exp`、`id` 或 `const` 的名称保持该 kind
+- 显式声明为 `pat`、`exp`、`id`、`const`、`arg` 或 `type` 的名称保持该 kind
 - bare identifier 位置推断为 `id`
+- bare type 位置推断为 `type`
 - bare pattern-variable 位置不能单独完成推断
 - bare expression 位置仅在没有更早规则解析该名称时推断为 `exp`
-- `const` 永远不会从 bare `$name` 推断出来
+- `const`、`arg` 和 `pat` 永远不会从 bare `$name` 推断出来
 
 这个顺序让 `$counter` 这类重复 bare 名称可以从 binder 位置推断为 `id`，
 并在后续表达式位置复用该 kind。它也会拒绝 `$item => body` 这种普通 match
@@ -89,11 +90,16 @@ pattern，因为该位置在 `id`、`const` 和 `pat` 之间有歧义。
   type name，以及 qualified name 的后缀
 - `const`：完整的 bare identifier 表达式或简单 pattern-variable 位置，
   并且必须匹配解析后的常量
+- `arg`：完整的裸调用参数槽
 - `pat`：简单 pattern-variable 位置，捕获完整候选 pattern AST
+- `type`：完整的 `@syntax.Type` 节点，在编译后的 untyped AST 中表示为简单
+  `Type::Name` 标记
 
 重写代码通过 `rewrite_expr_var`、`rewrite_var`、`rewrite_binder`、
 `rewrite_label`、`rewrite_constructor` 和 `rewrite_pattern_var_binder`
-分派并校验位置。
+分派并校验位置，类型位置由 `metavar_type.mbt` 中的 walker 处理。Top-level
+shape 会把 function、impl、let、view、trait 和 type declaration 中的
+`Type` / `ErrorType` 字段也交给同一个类型 walker。
 
 Pattern metavar 有特殊表示。`$(name:pat)` pattern variable 会被重写成字面
 binder 文本 `$(name:pat)`，这样 `matching` 可以从 AST 里识别 whole-pattern
@@ -147,10 +153,12 @@ Guard 只能引用 `id` 和 `const` 捕获。它不能引用：
 
 - 未知名称
 - `exp` 捕获
+- `arg` 捕获
 - `pat` 捕获
+- `type` 捕获
 
 这是规则编译器层面的限制。`rule/apply` 中的 guard 求值期望从规范化 identifier
-或 constant 中得到类似字符串的值，而不是任意 expression 或 pattern AST。
+或 constant 中得到类似字符串的值，而不是任意 expression、pattern、argument 或 type AST。
 
 ## Taint Rule
 
