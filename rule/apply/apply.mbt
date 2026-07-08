@@ -118,29 +118,6 @@ fn scan_plan_literal_matches(
 }
 
 ///|
-/// Applies only structural rules to the supplied untyped AST root.
-///
-/// Supported expression subtrees are visited in source-tree order. For a
-/// single expression and rule, the first matching pattern wins and determines
-/// `pattern_index`.
-pub fn apply_structural_rules(
-  file : String,
-  root_node : @untyped_ast.Node,
-  rules : Array[CompiledRule],
-) -> Array[RuleFinding] {
-  apply_structural_rules_to_node(file, root_node, rules)
-}
-
-///|
-pub fn apply_structural_rules_to_node(
-  file : String,
-  node : @untyped_ast.Node,
-  rules : Array[CompiledRule],
-) -> Array[RuleFinding] {
-  apply_structural_scan_plan_to_node(file, node, ScanPlan::from_rules(rules))
-}
-
-///|
 pub fn apply_structural_scan_plan_to_node(
   file : String,
   node : @untyped_ast.Node,
@@ -243,44 +220,6 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
       hits,
     )
   }
-}
-
-///|
-/// Applies only taint rules to function-like untyped AST nodes.
-///
-/// Unsupported top-level nodes are ignored. Other taint-analysis errors are
-/// propagated to the caller.
-pub fn apply_taint_rules(
-  file : String,
-  root_node : @untyped_ast.Node,
-  rules : Array[CompiledRule],
-) -> Array[RuleFinding] raise {
-  let hits : Array[RuleFinding] = []
-  let plan = ScanPlan::from_rules(rules)
-  if root_node.kind == ImplList {
-    for entry in root_node.children {
-      let (_, node) = entry
-      let node_hits = apply_taint_scan_plan_to_node(file, node, plan)
-      for hit in node_hits {
-        hits.push(hit)
-      }
-    }
-  } else {
-    let node_hits = apply_taint_scan_plan_to_node(file, root_node, plan)
-    for hit in node_hits {
-      hits.push(hit)
-    }
-  }
-  hits
-}
-
-///|
-pub fn apply_taint_rules_to_node(
-  file : String,
-  node : @untyped_ast.Node,
-  rules : Array[CompiledRule],
-) -> Array[RuleFinding] raise {
-  apply_taint_scan_plan_to_node(file, node, ScanPlan::from_rules(rules))
 }
 
 ///|

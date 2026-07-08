@@ -14,20 +14,6 @@ pub fn rule_is_relevant_to_source(rule : CompiledRule, source : String) -> Bool 
 }
 
 ///|
-pub fn prefilter_rules_for_source(
-  rules : Array[CompiledRule],
-  source : String,
-) -> Array[CompiledRule] {
-  let relevant : Array[CompiledRule] = []
-  for rule in rules {
-    if rule_is_relevant_to_source(rule, source) {
-      relevant.push(rule)
-    }
-  }
-  relevant
-}
-
-///|
 fn prefilter_matches_source(prefilter : RulePrefilter, source : String) -> Bool {
   prefilter_matches_with_literal_matcher(prefilter, fn(literal) {
     literal_matches_source(literal, source)

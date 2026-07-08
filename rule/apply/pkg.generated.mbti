@@ -7,15 +7,7 @@ import {
 }
 
 // Values
-pub fn apply_structural_rules(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
-
-pub fn apply_structural_rules_to_node(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding]
-
 pub fn apply_structural_scan_plan_to_node(String, @untyped_ast.Node, ScanPlan) -> Array[@model.RuleFinding]
-
-pub fn apply_taint_rules(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
-
-pub fn apply_taint_rules_to_node(String, @untyped_ast.Node, Array[@model.CompiledRule]) -> Array[@model.RuleFinding] raise
 
 pub fn apply_taint_scan_plan_to_node(String, @untyped_ast.Node, ScanPlan) -> Array[@model.RuleFinding] raise
 
