@@ -9,7 +9,7 @@ fn node(
     let (name, value) = child
     converted.push((Some(name), value))
   })
-  { kind, loc, children: FixedArray::from_array(converted) }
+  { kind, loc, children: converted }
 }
 
 ///|
@@ -65,10 +65,10 @@ fn[T] option_value(opt : T?, f : (T) -> Node) -> Node {
 fn[T] list_children(
   list : @list.List[T],
   f : (T) -> Node,
-) -> FixedArray[(String?, Node)] {
+) -> Array[(String?, Node)] {
   let values : Array[(String?, Node)] = []
   list.each(fn(item) { values.push((None, f(item))) })
-  FixedArray::from_array(values)
+  values
 }
 
 ///|

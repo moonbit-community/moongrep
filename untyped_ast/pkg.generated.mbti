@@ -35,7 +35,7 @@ pub fn visit_node_scoped_exprs(Node, (ScopedNodeExpr) -> NodeVisitAction) -> Uni
 pub(all) struct Node {
   kind : NodeKind
   loc : @basic.Location
-  children : FixedArray[(String?, Node)]
+  children : Array[(String?, Node)]
 } derive(@debug.Debug)
 pub fn Node::contains_unshadowed(Self, id~ : String) -> Bool
 pub fn Node::normalized_binder_name(Self) -> String?

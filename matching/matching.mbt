@@ -226,8 +226,8 @@ fn structural_match(
 
 ///|
 fn match_children(
-  pattern : FixedArray[(String?, @untyped_ast.Node)],
-  candidate : FixedArray[(String?, @untyped_ast.Node)],
+  pattern : Array[(String?, @untyped_ast.Node)],
+  candidate : Array[(String?, @untyped_ast.Node)],
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
@@ -498,8 +498,8 @@ fn node_equal_ignoring_loc(
 
 ///|
 fn children_equal_ignoring_loc(
-  left : FixedArray[(String?, @untyped_ast.Node)],
-  right : FixedArray[(String?, @untyped_ast.Node)],
+  left : Array[(String?, @untyped_ast.Node)],
+  right : Array[(String?, @untyped_ast.Node)],
 ) -> Bool {
   left.length() == right.length() &&
   ({

@@ -44,7 +44,7 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
       #|    start: { fname: "sample.mbt", lnum: 2, bol: 12, cnum: 18 },
       #|    end: { fname: "sample.mbt", lnum: 2, bol: 12, cnum: 19 },
       #|  },
-      #|  children: <FixedArray: []>,
+      #|  children: [],
       #|}
     ),
   )
@@ -57,7 +57,7 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
       #|    start: { fname: "sample.mbt", lnum: 8, bol: 121, cnum: 127 },
       #|    end: { fname: "sample.mbt", lnum: 8, bol: 121, cnum: 128 },
       #|  },
-      #|  children: <FixedArray: []>,
+      #|  children: [],
       #|}
     ),
   )
