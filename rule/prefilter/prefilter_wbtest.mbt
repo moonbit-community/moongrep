@@ -167,6 +167,22 @@ test "prefilter requires inside expr and inner pattern literals together" {
 }
 
 ///|
+test "prefilter requires inside toplevel and inner pattern literals together" {
+  let source =
+    #|id: example
+    #|description: Top-level target call.
+    #|inside-toplevel:
+    #|  shape: fn safe_entry { __TARGET__ }
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(rule_is_relevant_to_source(rule, "fn safe_entry { target() }\n"))
+  assert_false(rule_is_relevant_to_source(rule, "fn safe_entry { noop() }\n"))
+  assert_false(rule_is_relevant_to_source(rule, "fn other { target() }\n"))
+}
+
+///|
 test "prefilter ignores patterns-not literals for structural rules" {
   let source =
     #|id: example

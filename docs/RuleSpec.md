@@ -67,6 +67,9 @@ Only these top-level keys are accepted:
   the same object schema as `patterns`
 - `inside-expr` (optional for structural rules): YAML mapping using the same
   `shape` and optional `guard` schema as `patterns`, used as an outer context
+- `inside-toplevel` (optional for structural rules): YAML mapping using the
+  same `shape` and optional `guard` schema as `inside-expr`, but parsed as one
+  MoonBit top-level item
 - `taint` (required for taint rules): YAML mapping
 
 Unknown top-level keys are rejected.
@@ -74,13 +77,15 @@ Unknown top-level keys are rejected.
 Each rule must choose exactly one rule mode:
 
 - structural mode: `patterns`, optionally with `patterns-not`; or
-  `inside-expr` with `patterns`, `patterns-not`, or both
+  `inside-expr` or `inside-toplevel` with `patterns`, `patterns-not`, or both
 - taint mode: `taint`
 
-`patterns` and `taint` are mutually exclusive. `inside-expr` and `patterns-not`
-are valid only on structural rules; they are rejected on taint rules.
-`patterns-not` must appear with `patterns` or `inside-expr`. An `inside-expr`
-rule without `patterns` must include `patterns-not`.
+`patterns` and `taint` are mutually exclusive. `inside-expr`,
+`inside-toplevel`, and `patterns-not` are valid only on structural rules; they
+are rejected on taint rules. `inside-expr` and `inside-toplevel` are mutually
+exclusive. `patterns-not` must appear with `patterns`, `inside-expr`, or
+`inside-toplevel`. An `inside-expr` or `inside-toplevel` rule without
+`patterns` must include `patterns-not`.
 
 `id` is the local rule name within its file directory. `description` is also
 required and must be a string. Its content is preserved as supplied by YAML,
@@ -88,8 +93,8 @@ including trailing newlines produced by block scalars.
 
 ### Pattern Objects
 
-Structural entries in `patterns`, `patterns-not`, and `inside-expr` use this
-object schema.
+Structural entries in `patterns`, `patterns-not`, `inside-expr`, and
+`inside-toplevel` use this object schema.
 
 Only these keys are accepted:
 
@@ -103,12 +108,18 @@ For taint `sources`, `sinks`, and `sanitizers`, the same `shape` key is used but
 
 ## Shapes
 
-`shape` must be a single MoonBit expression snippet.
+`shape` must be a single MoonBit expression snippet except for
+`inside-toplevel.shape`, which must be exactly one MoonBit top-level item.
 
-Valid shapes include expressions such as calls, method calls, field accesses,
+Valid expression shapes include calls, method calls, field accesses,
 operators, blocks, conditionals, loops, matches, lambdas, collection literals,
-record expressions, and other expression-sized MoonBit syntax. A shape is not a
-whole file, top-level declaration, package fragment, or import list.
+record expressions, and other expression-sized MoonBit syntax. Ordinary
+`patterns`, `patterns-not`, and `inside-expr` shapes are not a whole file,
+top-level declaration, package fragment, or import list.
+
+`inside-toplevel.shape` is parsed as one top-level item, such as a function,
+top-level `let`, `test`, method `impl`, view, or top-level expression. It is
+still one item, not a whole file or import list.
 
 Shapes are structural:
 
@@ -247,8 +258,8 @@ These names must not be used as metavar names:
 - `__SOURCE__`
 
 `__TARGET__` and `__SOURCE__` keep their existing built-in meanings. `__TARGET__`
-is only valid in `inside-expr`; `__SOURCE__` is only valid in taint sink and
-sanitizer shapes.
+is only valid in `inside-expr` and `inside-toplevel`; `__SOURCE__` is only
+valid in taint sink and sanitizer shapes.
 
 ### Where Metavars Can Bind
 
@@ -499,7 +510,7 @@ patterns:
 Only `id` and `const` captures can be guarded. A guard key that refers to an
 `exp` capture, an `arg` capture, a `pat` capture, or an unknown name is
 rejected during rule compilation. Inner `patterns` may guard `id` and `const`
-captures established by `inside-expr`.
+captures established by `inside-expr` or `inside-toplevel`.
 
 Guards are checked after the structural AST match succeeds. All guards in a
 single pattern object must match; this is AND semantics. Regex matching uses
@@ -513,8 +524,8 @@ and booleans as `true` or `false`.
 
 ## Structural Rules
 
-A structural rule has a non-empty `patterns` array, or has `inside-expr` with
-non-empty `patterns`, non-empty `patterns-not`, or both.
+A structural rule has a non-empty `patterns` array, or has `inside-expr` or
+`inside-toplevel` with non-empty `patterns`, non-empty `patterns-not`, or both.
 
 ```yaml
 id: repeated-equality
@@ -579,15 +590,16 @@ branch. A `blocked(...)` node that also matched a positive pattern would be
 reported and would not be checked against `patterns-not`; use a narrower
 positive pattern when same-root shapes must be excluded.
 
-With `inside-expr`, negative matching starts with the bindings established by
-the outer match. If the rule also has `patterns`, each expression in the
-captured `__TARGET__` subtree uses the same positive-first ordering: positive
-patterns run first, and `patterns-not` is checked only when all positive
-patterns fail for that expression. When `inside-expr`, `patterns`, and
-`patterns-not` are all present, positive matches cover their whole matched
-subtrees, and any negative match found outside those covered positive subtrees
-rejects the whole outer `inside-expr` match. `patterns-not` is also valid with
-`inside-expr` and no `patterns`; that form is described below.
+With `inside-expr` or `inside-toplevel`, negative matching starts with the
+bindings established by the outer match. If the rule also has `patterns`, each
+expression in the captured `__TARGET__` subtree uses the same positive-first
+ordering: positive patterns run first, and `patterns-not` is checked only when
+all positive patterns fail for that expression. When an outer context,
+`patterns`, and `patterns-not` are all present, positive matches cover their
+whole matched subtrees, and any negative match found outside those covered
+positive subtrees rejects the whole outer match. `patterns-not` is also valid
+with `inside-expr` or `inside-toplevel` and no `patterns`; that form is
+described below.
 
 ### `inside-expr`
 
@@ -648,6 +660,45 @@ With `patterns`, the reported location is the inner positive match location.
 With `inside-expr` and only `patterns-not`, the reported location is the outer
 expression location. Consumers that expose context locations may also expose
 the outer expression location through `outer_loc`.
+
+### `inside-toplevel`
+
+`inside-toplevel` restricts a structural rule to matches inside one MoonBit
+top-level item. It uses the same object schema and target-subtree semantics as
+`inside-expr`, but its `shape` is parsed as exactly one top-level item instead
+of an expression.
+
+```yaml
+id: safe-function-target
+description: |
+  Match calls only in selected top-level functions.
+inside-toplevel:
+  shape: |
+    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+  guard:
+    $name: "^safe_"
+patterns:
+  - shape: call($(param:id))
+```
+
+Additional rules:
+
+- `inside-toplevel` and `inside-expr` are mutually exclusive.
+- `inside-toplevel` must contain exactly one `__TARGET__` occurrence in a
+  binding-capable expression position within the top-level item.
+- The top-level item itself may declare `id` and `const` captures, and its
+  optional `guard` may filter those captures.
+- Metavars declared by `inside-toplevel` remain visible to inner `patterns` and
+  `patterns-not`, using the same inherited binding and kind-consistency rules as
+  `inside-expr`.
+- `inside-toplevel` is not supported on taint rules.
+
+Runtime behavior mirrors `inside-expr`: the candidate top-level item is first
+matched against `inside-toplevel`; if it matches, the expression subtree
+captured by `__TARGET__` is searched with inherited bindings. With `patterns`,
+the reported `loc` is the inner positive match location. With only
+`patterns-not`, the reported `loc` is the matched top-level item location.
+`outer_loc` is the matched top-level item location for both forms.
 
 ## Taint Rules
 
@@ -774,12 +825,17 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - `id` is empty or contains `/`
 - the rule does not choose structural or taint mode
 - `inside-expr` appears on a taint rule
+- `inside-toplevel` appears on a taint rule
+- both `inside-expr` and `inside-toplevel` appear
 - `inside-expr` is present but is not a mapping
+- `inside-toplevel` is present but is not a mapping
 - `inside-expr` is present without `patterns` or `patterns-not`
+- `inside-toplevel` is present without `patterns` or `patterns-not`
 - `patterns` is not an array or is empty
 - a `patterns` entry is not a mapping
 - `patterns-not` is not an array or is empty
-- `patterns-not` appears without `patterns` or `inside-expr`
+- `patterns-not` appears without `patterns`, `inside-expr`, or
+  `inside-toplevel`
 - `patterns-not` appears on a taint rule
 - an unsupported top-level key appears
 - a `patterns-not` entry is not a mapping
@@ -792,6 +848,7 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - `guard` appears in any taint clause
 - `metavars` appears in any pattern object
 - `shape` is not valid as one MoonBit expression
+- `inside-toplevel.shape` is not exactly one valid MoonBit top-level item
 - a shape uses an unsupported metavar kind
 - a shape uses the same metavar name across multiple metavar kinds
 - a bare `$name` cannot be inferred to one compatible kind
@@ -804,10 +861,11 @@ A rule set or rule file is rejected when any of these conditions occurs:
 - a guard key is not `$`-prefixed, or references an unknown, `exp`, `arg`, or `pat` capture
 - a guard regex is invalid
 - `inside-expr` does not contain exactly one binding-capable `__TARGET__`
+- `inside-toplevel` does not contain exactly one binding-capable `__TARGET__`
 - a structural `patterns` or `patterns-not` entry contains binding-capable
   `__TARGET__`
 - a structural `patterns` or `patterns-not` entry uses an inherited
-  `inside-expr` metavar name with a different kind
+  `inside-expr` or `inside-toplevel` metavar name with a different kind
 - a taint source contains binding-capable `__SOURCE__`
 - a taint sink or sanitizer does not contain exactly one binding-capable
   `__SOURCE__`

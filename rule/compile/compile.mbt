@@ -63,55 +63,59 @@ fn compile_structural_rule(
   path : String,
   spec : StructuralRuleSpec,
 ) -> CompiledStructuralRule raise {
+  if spec.inside_expr is Some(_) && spec.inside_toplevel is Some(_) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="inside-expr and inside-toplevel are mutually exclusive",
+    )
+  }
   let outer_pattern_names : Array[String] = []
   let inside_expr = if spec.inside_expr is Some(pattern) {
-    let compiled_shape = compile_metavar_shape(
-      path,
-      "inside-expr",
-      pattern.shape,
-    )
-    let ast = compiled_shape.ast
-    let target_count = count_supported_name_in_node(ast, "__TARGET__")
-    if target_count != 1 {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="inside-expr must contain exactly one __TARGET__ placeholder in a supported expression position",
-      )
-    }
-    for name in compiled_shape.pattern_metavars {
-      outer_pattern_names.push(name)
-    }
     Some(
-      compile_pattern(
-        pattern,
-        compiled_shape,
-        path,
-        "inside-expr",
-        target_metavar=Some("__TARGET__"),
-        source_metavar=None,
+      compile_inside_context_pattern(
+        path, pattern, "inside-expr", false, outer_pattern_names,
       ),
     )
   } else {
     None
   }
-  // Metavars from `inside-expr` remain visible while matching each target
+  let inside_toplevel = if spec.inside_toplevel is Some(pattern) {
+    Some(
+      compile_inside_context_pattern(
+        path, pattern, "inside-toplevel", true, outer_pattern_names,
+      ),
+    )
+  } else {
+    None
+  }
+  // Metavars from the outer context remain visible while matching each target
   // expression. Inner patterns reuse them by repeating the same inline kind.
-  let outer_expr = if inside_expr is Some(pattern) {
+  let outer_context = if inside_toplevel is Some(_) {
+    "inside-toplevel"
+  } else {
+    "inside-expr"
+  }
+  let outer_pattern = if inside_toplevel is Some(pattern) {
+    Some(pattern)
+  } else {
+    inside_expr
+  }
+  let outer_expr = if outer_pattern is Some(pattern) {
     pattern.compiled.expr_metavars
   } else {
     []
   }
-  let outer_identifier = if inside_expr is Some(pattern) {
+  let outer_identifier = if outer_pattern is Some(pattern) {
     pattern.compiled.identifier_metavars
   } else {
     []
   }
-  let outer_constant = if inside_expr is Some(pattern) {
+  let outer_constant = if outer_pattern is Some(pattern) {
     pattern.compiled.constant_metavars
   } else {
     []
   }
-  let outer_arg = if inside_expr is Some(pattern) {
+  let outer_arg = if outer_pattern is Some(pattern) {
     pattern.compiled.arg_metavars
   } else {
     []
@@ -121,9 +125,10 @@ fn compile_structural_rule(
     let context = "patterns[\{index}]"
     let pattern = spec.patterns[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    ensure_inherited_inside_expr_metavar_forms(
+    ensure_inherited_inside_context_metavar_forms(
       path,
       context,
+      outer_context,
       compiled_shape.expr_metavars,
       compiled_shape.identifier_metavars,
       compiled_shape.constant_metavars,
@@ -163,9 +168,10 @@ fn compile_structural_rule(
     let context = "patterns-not[\{index}]"
     let pattern = spec.patterns_not[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    ensure_inherited_inside_expr_metavar_forms(
+    ensure_inherited_inside_context_metavar_forms(
       path,
       context,
+      outer_context,
       compiled_shape.expr_metavars,
       compiled_shape.identifier_metavars,
       compiled_shape.constant_metavars,
@@ -202,10 +208,45 @@ fn compile_structural_rule(
   }
   {
     inside_expr,
+    inside_toplevel,
     patterns,
     patterns_not,
     patterns_not_mode: spec.patterns_not_mode,
   }
+}
+
+///|
+fn compile_inside_context_pattern(
+  path : String,
+  pattern : RulePatternSpec,
+  context : String,
+  is_toplevel : Bool,
+  outer_pattern_names : Array[String],
+) -> CompiledRulePattern raise {
+  let compiled_shape = if is_toplevel {
+    compile_toplevel_metavar_shape(path, context, pattern.shape)
+  } else {
+    compile_metavar_shape(path, context, pattern.shape)
+  }
+  let ast = compiled_shape.ast
+  let target_count = count_supported_name_in_node(ast, "__TARGET__")
+  if target_count != 1 {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context} must contain exactly one __TARGET__ placeholder in a supported expression position",
+    )
+  }
+  for name in compiled_shape.pattern_metavars {
+    outer_pattern_names.push(name)
+  }
+  compile_pattern(
+    pattern,
+    compiled_shape,
+    path,
+    context,
+    target_metavar=Some("__TARGET__"),
+    source_metavar=None,
+  )
 }
 
 ///|
@@ -465,9 +506,10 @@ fn validate_declared_metavar(
 }
 
 ///|
-fn ensure_inherited_inside_expr_metavar_forms(
+fn ensure_inherited_inside_context_metavar_forms(
   path : String,
   context : String,
+  outer_context : String,
   inner_expr : Array[String],
   inner_identifier : Array[String],
   inner_constant : Array[String],
@@ -480,64 +522,64 @@ fn ensure_inherited_inside_expr_metavar_forms(
   outer_pattern : Array[String],
 ) -> Unit raise {
   ensure_not_inherited_as_other_kind(
-    path, context, inner_expr, "exp", outer_identifier, "id",
+    path, context, outer_context, inner_expr, "exp", outer_identifier, "id",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_expr, "exp", outer_constant, "const",
+    path, context, outer_context, inner_expr, "exp", outer_constant, "const",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_expr, "exp", outer_pattern, "pat",
+    path, context, outer_context, inner_expr, "exp", outer_pattern, "pat",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_expr, "exp", outer_arg, "arg",
+    path, context, outer_context, inner_expr, "exp", outer_arg, "arg",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_identifier, "id", outer_expr, "exp",
+    path, context, outer_context, inner_identifier, "id", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_identifier, "id", outer_constant, "const",
+    path, context, outer_context, inner_identifier, "id", outer_constant, "const",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_identifier, "id", outer_pattern, "pat",
+    path, context, outer_context, inner_identifier, "id", outer_pattern, "pat",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_identifier, "id", outer_arg, "arg",
+    path, context, outer_context, inner_identifier, "id", outer_arg, "arg",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_constant, "const", outer_expr, "exp",
+    path, context, outer_context, inner_constant, "const", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_constant, "const", outer_identifier, "id",
+    path, context, outer_context, inner_constant, "const", outer_identifier, "id",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_constant, "const", outer_pattern, "pat",
+    path, context, outer_context, inner_constant, "const", outer_pattern, "pat",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_constant, "const", outer_arg, "arg",
+    path, context, outer_context, inner_constant, "const", outer_arg, "arg",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_arg, "arg", outer_expr, "exp",
+    path, context, outer_context, inner_arg, "arg", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_arg, "arg", outer_identifier, "id",
+    path, context, outer_context, inner_arg, "arg", outer_identifier, "id",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_arg, "arg", outer_constant, "const",
+    path, context, outer_context, inner_arg, "arg", outer_constant, "const",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_arg, "arg", outer_pattern, "pat",
+    path, context, outer_context, inner_arg, "arg", outer_pattern, "pat",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_pattern, "pat", outer_expr, "exp",
+    path, context, outer_context, inner_pattern, "pat", outer_expr, "exp",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_pattern, "pat", outer_identifier, "id",
+    path, context, outer_context, inner_pattern, "pat", outer_identifier, "id",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_pattern, "pat", outer_constant, "const",
+    path, context, outer_context, inner_pattern, "pat", outer_constant, "const",
   )
   ensure_not_inherited_as_other_kind(
-    path, context, inner_pattern, "pat", outer_arg, "arg",
+    path, context, outer_context, inner_pattern, "pat", outer_arg, "arg",
   )
 }
 
@@ -545,6 +587,7 @@ fn ensure_inherited_inside_expr_metavar_forms(
 fn ensure_not_inherited_as_other_kind(
   path : String,
   context : String,
+  outer_context : String,
   names : Array[String],
   kind : String,
   outer : Array[String],
@@ -554,7 +597,7 @@ fn ensure_not_inherited_as_other_kind(
     if array_contains(outer, name) {
       raise RuleLoadError::InvalidRule(
         path~,
-        info="\{context} cannot use inherited inside-expr metavar \{name} as \{kind} because it was declared as \{outer_kind}",
+        info="\{context} cannot use inherited \{outer_context} metavar \{name} as \{kind} because it was declared as \{outer_kind}",
       )
     }
   }

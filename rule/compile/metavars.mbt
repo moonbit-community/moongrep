@@ -82,6 +82,66 @@ fn compile_metavar_shape(
 }
 
 ///|
+fn compile_toplevel_metavar_shape(
+  path : String,
+  context : String,
+  source : String,
+) -> MetavarShape raise {
+  let parsed = parse_toplevel_shape(path, context, source)
+  let collect_ctx : MetavarRewriteContext = {
+    path,
+    context,
+    expr_metavars: [],
+    identifier_metavars: [],
+    constant_metavars: [],
+    arg_metavars: [],
+    pattern_metavars: [],
+    collecting: true,
+    bare_expression_metavars: [],
+    bare_identifier_metavars: [],
+    bare_pattern_metavars: [],
+    resolved_metavars: {},
+  }
+  ignore(collect_ctx.rewrite_impl(parsed))
+  let resolved_metavars = collect_ctx.resolve_metavar_kinds()
+  let ctx : MetavarRewriteContext = {
+    path,
+    context,
+    expr_metavars: [],
+    identifier_metavars: [],
+    constant_metavars: [],
+    arg_metavars: [],
+    pattern_metavars: [],
+    collecting: false,
+    bare_expression_metavars: [],
+    bare_identifier_metavars: [],
+    bare_pattern_metavars: [],
+    resolved_metavars,
+  }
+  let ast = @untyped_ast.from_impl(ctx.rewrite_impl(parsed))
+  let (
+    cleaned_expr_metavars,
+    cleaned_identifier_metavars,
+    cleaned_constant_metavars,
+    cleaned_arg_metavars,
+    pattern_metavars,
+  ) = cleanup_temporary_pattern_metavars(
+    ctx.expr_metavars,
+    ctx.identifier_metavars,
+    ctx.constant_metavars,
+    ctx.arg_metavars,
+  )
+  {
+    ast,
+    expr_metavars: cleaned_expr_metavars,
+    identifier_metavars: cleaned_identifier_metavars,
+    constant_metavars: cleaned_constant_metavars,
+    arg_metavars: cleaned_arg_metavars,
+    pattern_metavars,
+  }
+}
+
+///|
 fn parse_metavar(
   raw : String,
   path : String,

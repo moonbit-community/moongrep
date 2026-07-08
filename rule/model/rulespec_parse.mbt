@@ -25,7 +25,8 @@ pub fn RawRuleSpec::from_str(
     raise invalid_rule(path~, info="top-level YAML document must be a mapping")
   }
   ensure_allowed_keys(path, "top-level rule", doc, [
-    "id", "description", "patterns", "patterns-not", "inside-expr", "taint",
+    "id", "description", "patterns", "patterns-not", "inside-expr", "inside-toplevel",
+    "taint",
   ])
   let id = expect_rule_id(doc, path)
   let description = expect_yaml_string(doc, path, "description")
@@ -47,10 +48,23 @@ fn expect_rule_definition(
   let has_patterns_not = doc.contains("patterns-not")
   let has_taint = doc.contains("taint")
   let has_inside_expr = doc.contains("inside-expr")
+  let has_inside_toplevel = doc.contains("inside-toplevel")
   if has_taint && has_inside_expr {
     raise invalid_rule(
       path~,
       info="inside-expr is only supported for structural rules",
+    )
+  }
+  if has_taint && has_inside_toplevel {
+    raise invalid_rule(
+      path~,
+      info="inside-toplevel is only supported for structural rules",
+    )
+  }
+  if has_inside_expr && has_inside_toplevel {
+    raise invalid_rule(
+      path~,
+      info="inside-expr and inside-toplevel are mutually exclusive",
     )
   }
   if has_taint && has_patterns_not {
@@ -67,12 +81,15 @@ fn expect_rule_definition(
   }
   if has_taint {
     Taint(expect_taint_rule(doc, path))
-  } else if has_patterns || has_patterns_not || has_inside_expr {
+  } else if has_patterns ||
+    has_patterns_not ||
+    has_inside_expr ||
+    has_inside_toplevel {
     Structural(expect_structural_rule(doc, path))
   } else {
     raise invalid_rule(
       path~,
-      info="rule must contain patterns, patterns-not with inside-expr, or taint",
+      info="rule must contain patterns, patterns-not with inside-expr or inside-toplevel, or taint",
     )
   }
 }
@@ -111,10 +128,14 @@ fn expect_structural_rule(
     raise invalid_rule(path~, info="patterns-not must not be empty")
   }
   let inside_expr = expect_inside_expr(doc, path)
-  if !has_patterns && has_patterns_not && inside_expr is None {
+  let inside_toplevel = expect_inside_toplevel(doc, path)
+  if !has_patterns &&
+    has_patterns_not &&
+    inside_expr is None &&
+    inside_toplevel is None {
     raise invalid_rule(
       path~,
-      info="patterns-not requires patterns or inside-expr",
+      info="patterns-not requires patterns, inside-expr, or inside-toplevel",
     )
   }
   if !has_patterns && patterns_not.is_empty() && inside_expr is Some(_) {
@@ -123,19 +144,28 @@ fn expect_structural_rule(
       info="inside-expr requires patterns or patterns-not",
     )
   }
+  if !has_patterns && patterns_not.is_empty() && inside_toplevel is Some(_) {
+    raise invalid_rule(
+      path~,
+      info="inside-toplevel requires patterns or patterns-not",
+    )
+  }
   let patterns_not_mode = expect_patterns_not_mode(
-    inside_expr, patterns, patterns_not,
+    inside_expr, inside_toplevel, patterns, patterns_not,
   )
-  { inside_expr, patterns, patterns_not, patterns_not_mode }
+  { inside_expr, inside_toplevel, patterns, patterns_not, patterns_not_mode }
 }
 
 ///|
 fn expect_patterns_not_mode(
   inside_expr : RulePatternSpec?,
+  inside_toplevel : RulePatternSpec?,
   patterns : Array[RulePatternSpec],
   patterns_not : Array[RulePatternSpec],
 ) -> StructuralPatternsNotMode {
-  if inside_expr is Some(_) && !patterns.is_empty() && !patterns_not.is_empty() {
+  if (inside_expr is Some(_) || inside_toplevel is Some(_)) &&
+    !patterns.is_empty() &&
+    !patterns_not.is_empty() {
     RejectUncoveredNegative
   } else {
     PruneOnNegative
@@ -154,6 +184,27 @@ fn expect_inside_expr(
         parse_rule_clause_map(clause_map, path, "inside-expr", allow_guard=true),
       )
     Some(_) => raise invalid_rule(path~, info="inside-expr must be a mapping")
+  }
+}
+
+///|
+fn expect_inside_toplevel(
+  doc : Map[String, @yaml.Yaml],
+  path : String,
+) -> RulePatternSpec? raise {
+  match doc.get("inside-toplevel") {
+    None => None
+    Some(Map(clause_map)) =>
+      Some(
+        parse_rule_clause_map(
+          clause_map,
+          path,
+          "inside-toplevel",
+          allow_guard=true,
+        ),
+      )
+    Some(_) =>
+      raise invalid_rule(path~, info="inside-toplevel must be a mapping")
   }
 }
 

@@ -48,10 +48,12 @@ pub(all) enum StructuralPatternsNotMode {
 ///
 /// `inside_expr`, when present, is a pattern object whose shape must contain a
 /// single `__TARGET__` placeholder. The normal `patterns` are then matched
-/// inside that target. `patterns_not` holds negative structural patterns that
-/// suppress otherwise successful structural matches.
+/// inside that target. `inside_toplevel` is the top-level-item equivalent and
+/// is mutually exclusive with `inside_expr`. `patterns_not` holds negative
+/// structural patterns that suppress otherwise successful structural matches.
 pub(all) struct StructuralRuleSpec {
   inside_expr : RulePatternSpec?
+  inside_toplevel : RulePatternSpec?
   patterns : Array[RulePatternSpec]
   patterns_not : Array[RulePatternSpec]
   patterns_not_mode : StructuralPatternsNotMode
@@ -125,6 +127,7 @@ pub(all) struct CompiledRuleGuard {
 /// A structural rule after shape parsing and metavar validation.
 pub(all) struct CompiledStructuralRule {
   inside_expr : CompiledRulePattern?
+  inside_toplevel : CompiledRulePattern?
   patterns : Array[CompiledRulePattern]
   patterns_not : Array[CompiledRulePattern]
   patterns_not_mode : StructuralPatternsNotMode

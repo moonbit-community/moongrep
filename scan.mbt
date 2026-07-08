@@ -214,6 +214,7 @@ fn anonymous_pattern_rule(
     description: "Anonymous CLI pattern.",
     definition: Structural({
       inside_expr: None,
+      inside_toplevel: None,
       patterns: [pattern],
       patterns_not: [],
       patterns_not_mode: PruneOnNegative,
