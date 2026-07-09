@@ -9,9 +9,9 @@ import {
 }
 
 // Values
-pub fn collect_node_scoped_expr_roots(Node, Array[ScopedNodeExpr]) -> Unit
+pub fn collect_node_scoped_expr_roots(Node, Array[ScopedExprNode]) -> Unit
 
-pub fn collect_node_scoped_exprs(Node, Array[ScopedNodeExpr]) -> Unit
+pub fn collect_node_scoped_exprs(Node, Array[ScopedExprNode]) -> Unit
 
 pub fn from_expr(@syntax.Expr) -> Node
 
@@ -23,11 +23,11 @@ pub fn from_pattern(@syntax.Pattern) -> Node
 
 pub fn from_type(@syntax.Type) -> Node
 
-pub fn visit_node_scoped_expr_children(Node, Array[String], (ScopedNodeExpr) -> Unit) -> Unit
+pub fn visit_node_scoped_expr_children(Node, Array[String], (ScopedExprNode) -> Unit) -> Unit
 
-pub fn visit_node_scoped_expr_roots(Node, (ScopedNodeExpr) -> NodeVisitAction) -> Unit
+pub fn visit_node_scoped_expr_roots(Node, (ScopedExprNode) -> NodeVisitAction) -> Unit
 
-pub fn visit_node_scoped_exprs(Node, (ScopedNodeExpr) -> NodeVisitAction) -> Unit
+pub fn visit_node_scoped_exprs(Node, (ScopedExprNode) -> NodeVisitAction) -> Unit
 
 // Errors
 
@@ -390,9 +390,10 @@ pub(all) enum NodePayload {
 pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
+  NodeVisitReturn
 }
 
-pub(all) struct ScopedNodeExpr {
+pub(all) struct ScopedExprNode {
   expr : Node
   shadowed_names : Array[String]
 }

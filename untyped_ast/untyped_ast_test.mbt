@@ -125,7 +125,7 @@ fn node_test_expr_ident_name(node : Node) -> String? {
 
 ///|
 fn scoped_expr_ident_shadow_sets(source : String) -> Array[String] raise {
-  let exprs : Array[ScopedNodeExpr] = []
+  let exprs : Array[ScopedExprNode] = []
   collect_node_scoped_exprs(from_expr(parse_test_expr(source)), exprs)
   [
     for scoped in exprs if node_test_expr_ident_name(scoped.expr) is Some(name) => {
@@ -557,11 +557,46 @@ test "node scoped visitor prune skips children" {
 }
 
 ///|
+test "node scoped visitor return stops sibling traversal" {
+  let visited : Array[String] = []
+  visit_node_scoped_exprs(from_expr(parse_test_expr("target + source")), fn(
+    scoped,
+  ) {
+    match node_test_expr_ident_name(scoped.expr) {
+      Some(name) => {
+        visited.push(name)
+        NodeVisitReturn
+      }
+      None => NodeVisitContinue
+    }
+  })
+  assert_eq(visited.join("|"), "target")
+}
+
+///|
+test "node scoped root visitor return stops later roots" {
+  let first = parse_test_impl("fn first { target() }")
+  let second = parse_test_impl("fn second { source() }")
+  let root = from_impls(List([first, second]))
+  let visited : Array[String] = []
+  visit_node_scoped_expr_roots(root, fn(scoped) {
+    match node_test_expr_ident_name(scoped.expr) {
+      Some(name) => {
+        visited.push(name)
+        NodeVisitReturn
+      }
+      None => NodeVisitContinue
+    }
+  })
+  assert_eq(visited.join("|"), "target")
+}
+
+///|
 test "node scoped root traversal skips non-expression roots" {
   let first = parse_test_impl("fn sample { target() }")
   let second = parse_test_impl("let answer = 42")
   let root = from_impls(List([first, second]))
-  let exprs : Array[ScopedNodeExpr] = []
+  let exprs : Array[ScopedExprNode] = []
   collect_node_scoped_expr_roots(root, exprs)
   assert_true(exprs.length() > 0)
   for scoped in exprs {
@@ -622,6 +657,15 @@ test "node contains_unshadowed tracks identifier uses through function and match
       id="target",
     ),
   )
+}
+
+///|
+test "node contains_unshadowed tracks scoped roots" {
+  let first = parse_test_impl("fn first { let target = source; target }")
+  let second = parse_test_impl("fn second { () }")
+  let root = from_impls(List([first, second]))
+  assert_false(root.contains_unshadowed(id="target"))
+  assert_true(root.contains_unshadowed(id="source"))
 }
 
 ///|

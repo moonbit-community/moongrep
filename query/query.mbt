@@ -101,7 +101,7 @@ fn collect_node_matches(
 ///|
 fn collect_scoped_node_matches(
   pattern : CompiledRulePattern,
-  scoped_expr : @untyped_ast.ScopedNodeExpr,
+  scoped_expr : @untyped_ast.ScopedExprNode,
   matches : Array[Map[String, @untyped_ast.Node]],
 ) -> Unit {
   if @matching.match_expr_pattern(pattern.compiled, scoped_expr.expr)

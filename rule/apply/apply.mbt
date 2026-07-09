@@ -213,7 +213,7 @@ fn apply_toplevel_structural_rule_entries_to_node(
 fn apply_ast_structural_rule_entries_to_scoped_expr(
   file : String,
   entries : Array[AstStructuralRuleEntry],
-  scoped_expr : @untyped_ast.ScopedNodeExpr,
+  scoped_expr : @untyped_ast.ScopedExprNode,
   hits : Array[RuleFinding],
 ) -> Unit {
   let child_entries : Array[AstStructuralRuleEntry] = []
@@ -244,7 +244,7 @@ fn apply_ast_structural_rule_entries_to_scoped_expr(
 fn apply_ast_structural_rule_entry_to_scoped_expr(
   file : String,
   entry : AstStructuralRuleEntry,
-  scoped_expr : @untyped_ast.ScopedNodeExpr,
+  scoped_expr : @untyped_ast.ScopedExprNode,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
   if entry.structural.inside_expr is Some(inside) {
@@ -378,7 +378,7 @@ fn apply_inside_context_ast_bucketed(
   if match_node_rule_pattern(inside, context_node, None) is Some(result) {
     if result.bindings.get("__TARGET__") is Some(target) {
       if structural.patterns.is_empty() {
-        let target_exprs : Array[@untyped_ast.ScopedNodeExpr] = []
+        let target_exprs : Array[@untyped_ast.ScopedExprNode] = []
         @untyped_ast.collect_node_scoped_exprs(target, target_exprs)
         apply_inside_expr_only_ast_bucketed(
           file,
@@ -488,7 +488,7 @@ fn apply_inside_expr_only_ast_bucketed(
   file : String,
   rule : CompiledRule,
   negative_pattern_buckets : ExprPatternBuckets,
-  target_exprs : Array[@untyped_ast.ScopedNodeExpr],
+  target_exprs : Array[@untyped_ast.ScopedExprNode],
   outer_loc : @basic.Location,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
@@ -525,7 +525,7 @@ fn apply_ast_bucketed_covered_patterns_at_scoped_expr(
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  scoped_expr : @untyped_ast.ScopedNodeExpr,
+  scoped_expr : @untyped_ast.ScopedExprNode,
   outer_loc : @basic.Location?,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
@@ -571,7 +571,7 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  scoped_expr : @untyped_ast.ScopedNodeExpr,
+  scoped_expr : @untyped_ast.ScopedExprNode,
   outer_loc : @basic.Location?,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
@@ -662,7 +662,7 @@ fn ast_negative_patterns_match_node(
 ///|
 fn ast_bucketed_negative_patterns_match_scoped_expr(
   negative_pattern_buckets : ExprPatternBuckets,
-  scoped_expr : @untyped_ast.ScopedNodeExpr,
+  scoped_expr : @untyped_ast.ScopedExprNode,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
 ) -> Bool {
@@ -690,7 +690,7 @@ fn ast_bucketed_negative_patterns_match_scoped_expr(
 ///|
 fn ast_bucketed_negative_patterns_match_any_scoped_expr(
   negative_pattern_buckets : ExprPatternBuckets,
-  target_exprs : Array[@untyped_ast.ScopedNodeExpr],
+  target_exprs : Array[@untyped_ast.ScopedExprNode],
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
 ) -> Bool {
