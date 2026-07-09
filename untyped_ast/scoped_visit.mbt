@@ -1,5 +1,5 @@
 ///|
-pub(all) struct ScopedNodeExpr {
+pub(all) struct ScopedExprNode {
   expr : Node
   shadowed_names : Array[String]
 }
@@ -8,12 +8,13 @@ pub(all) struct ScopedNodeExpr {
 pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
+  NodeVisitReturn
 }
 
 ///|
 pub fn collect_node_scoped_exprs(
   expr : Node,
-  exprs : Array[ScopedNodeExpr],
+  exprs : Array[ScopedExprNode],
 ) -> Unit {
   collect_node_scoped_exprs_with_shadow(expr, [], exprs)
 }
@@ -21,7 +22,7 @@ pub fn collect_node_scoped_exprs(
 ///|
 pub fn collect_node_scoped_expr_roots(
   root : Node,
-  exprs : Array[ScopedNodeExpr],
+  exprs : Array[ScopedExprNode],
 ) -> Unit {
   visit_node_scoped_expr_roots(root, fn(scoped_expr) {
     exprs.push(scoped_expr)
@@ -33,7 +34,7 @@ pub fn collect_node_scoped_expr_roots(
 fn collect_node_scoped_exprs_with_shadow(
   expr : Node,
   shadowed : Array[String],
-  exprs : Array[ScopedNodeExpr],
+  exprs : Array[ScopedExprNode],
 ) -> Unit {
   exprs.push({ expr, shadowed_names: copy_names(shadowed) })
   visit_node_scoped_expr_children(expr, shadowed, fn(child) {
@@ -48,25 +49,25 @@ fn collect_node_scoped_exprs_with_shadow(
 ///|
 pub fn visit_node_scoped_exprs(
   expr : Node,
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+  visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> Unit {
-  visit_node_scoped_exprs_with_shadow(expr, [], visitor)
+  let _ = visit_node_scoped_exprs_with_shadow(expr, [], visitor)
 }
 
 ///|
 pub fn visit_node_scoped_expr_roots(
   root : Node,
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
+  visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> Unit {
-  visit_node_scoped_expr_roots_with_shadow(root, [], visitor)
+  let _ = visit_node_scoped_expr_roots_with_shadow(root, [], visitor)
 }
 
 ///|
 fn visit_node_scoped_expr_roots_with_shadow(
   root : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   match root.kind {
     ImplList => visit_node_root_children(root, shadowed, visitor)
     Impl_TopExpr | Impl_TopLetDef | Impl_TopTest =>
@@ -75,7 +76,8 @@ fn visit_node_scoped_expr_roots_with_shadow(
     Impl_TopFuncDef =>
       visit_node_root_named_expr(root, "decl_body", shadowed, visitor)
     Impl_TopImpl => visit_node_root_named_expr(root, "body", shadowed, visitor)
-    Impl_TopTypeDef | Impl_TopTrait | Impl_TopImplRelation | Impl_TopUsing => ()
+    Impl_TopTypeDef | Impl_TopTrait | Impl_TopImplRelation | Impl_TopUsing =>
+      NodeVisitContinue
     DeclBody_DeclBody =>
       visit_node_root_named_expr(root, "expr", shadowed, visitor)
     Func_Lambda => visit_node_func_root_exprs(root, shadowed, visitor)
@@ -93,10 +95,12 @@ fn visit_node_root_named_expr(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
-) -> Unit {
-  if node_child(node, name) is Some(child) {
-    visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match node_child(node, name) {
+    Some(child) =>
+      visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
+    None => NodeVisitContinue
   }
 }
 
@@ -104,20 +108,24 @@ fn visit_node_root_named_expr(
 fn visit_node_root_children(
   node : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   for entry in node.children {
     let (_, child) = entry
-    visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
+    match visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor) {
+      NodeVisitReturn => return NodeVisitReturn
+      _ => ()
+    }
   }
+  NodeVisitContinue
 }
 
 ///|
 fn visit_node_func_root_exprs(
   func : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   let body_shadowed = if node_child(func, "parameters") is Some(parameters) {
     shadowed_with_node_parameters(shadowed, parameters)
   } else {
@@ -130,13 +138,14 @@ fn visit_node_func_root_exprs(
 fn visit_node_scoped_exprs_with_shadow(
   expr : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> NodeVisitAction,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   let scoped_expr = { expr, shadowed_names: copy_names(shadowed) }
   match visitor(scoped_expr) {
-    NodeVisitPrune => ()
+    NodeVisitPrune => NodeVisitPrune
+    NodeVisitReturn => NodeVisitReturn
     NodeVisitContinue =>
-      visit_node_scoped_expr_children(expr, shadowed, fn(child) {
+      visit_node_scoped_expr_children_with_action(expr, shadowed, fn(child) {
         visit_node_scoped_exprs_with_shadow(
           child.expr,
           child.shadowed_names,
@@ -150,84 +159,169 @@ fn visit_node_scoped_exprs_with_shadow(
 pub fn visit_node_scoped_expr_children(
   expr : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
+  visitor : (ScopedExprNode) -> Unit,
 ) -> Unit {
+  let _ = visit_node_scoped_expr_children_with_action(expr, shadowed, fn(
+    scoped,
+  ) {
+    visitor(scoped)
+    NodeVisitContinue
+  })
+}
+
+///|
+fn visit_node_scoped_expr_children_with_action(
+  expr : Node,
+  shadowed : Array[String],
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   match expr.kind {
     Expr_Let => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let body_shadowed = if node_child(expr, "pattern") is Some(pattern) {
         shadowed_with_node_pattern(shadowed, pattern)
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(expr, "body", body_shadowed, visitor)
+      match visit_node_named_expr(expr, "body", body_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_LetMut => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let body_shadowed = if node_child(expr, "binder") is Some(binder) {
         shadowed_with_node_binder(shadowed, binder)
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(expr, "body", body_shadowed, visitor)
+      match visit_node_named_expr(expr, "body", body_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Infix =>
       if node_infix_op(expr, "&&") {
-        visit_node_named_expr(expr, "lhs", shadowed, visitor)
+        match visit_node_named_expr(expr, "lhs", shadowed, visitor) {
+          NodeVisitReturn => return NodeVisitReturn
+          _ => ()
+        }
         let rhs_shadowed = shadowed_with_node_condition_child(
           shadowed, expr, "lhs",
         )
-        visit_node_named_expr(expr, "rhs", rhs_shadowed, visitor)
+        match visit_node_named_expr(expr, "rhs", rhs_shadowed, visitor) {
+          NodeVisitReturn => NodeVisitReturn
+          _ => NodeVisitContinue
+        }
       } else {
         visit_node_all_child_exprs(expr, shadowed, visitor)
       }
     Expr_If => {
-      visit_node_named_expr(expr, "cond", shadowed, visitor)
+      match visit_node_named_expr(expr, "cond", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let true_shadowed = shadowed_with_node_condition_child(
         shadowed, expr, "cond",
       )
-      visit_node_named_expr(expr, "ifso", true_shadowed, visitor)
-      visit_node_named_expr(expr, "ifnot", shadowed, visitor)
+      match visit_node_named_expr(expr, "ifso", true_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "ifnot", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Guard => {
-      visit_node_named_expr(expr, "cond", shadowed, visitor)
+      match visit_node_named_expr(expr, "cond", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let true_shadowed = shadowed_with_node_condition_child(
         shadowed, expr, "cond",
       )
-      visit_node_named_expr(expr, "otherwise", shadowed, visitor)
-      visit_node_named_expr(expr, "body", true_shadowed, visitor)
+      match visit_node_named_expr(expr, "otherwise", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "body", true_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_While => {
-      visit_node_named_expr(expr, "loop_cond", shadowed, visitor)
+      match visit_node_named_expr(expr, "loop_cond", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let true_shadowed = shadowed_with_node_condition_child(
         shadowed, expr, "loop_cond",
       )
-      visit_node_named_expr(expr, "loop_body", true_shadowed, visitor)
-      visit_node_named_expr(expr, "while_else", shadowed, visitor)
+      match visit_node_named_expr(expr, "loop_body", true_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "while_else", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_For => {
-      visit_node_binding_list_exprs(expr, "binders", shadowed, visitor)
+      match visit_node_binding_list_exprs(expr, "binders", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let loop_shadowed = if node_child(expr, "binders") is Some(binders) {
         shadowed_with_node_binding_list_binders(shadowed, binders)
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(expr, "condition", loop_shadowed, visitor)
+      match visit_node_named_expr(expr, "condition", loop_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let true_shadowed = shadowed_with_node_condition_child(
         loop_shadowed, expr, "condition",
       )
-      visit_node_binding_list_exprs(
-        expr, "continue_block", true_shadowed, visitor,
-      )
-      visit_node_named_expr(expr, "body", true_shadowed, visitor)
-      visit_node_named_expr(expr, "for_else", loop_shadowed, visitor)
-      visit_node_named_container_exprs(
-        expr, "where_clause", loop_shadowed, visitor,
-      )
+      match
+        visit_node_binding_list_exprs(
+          expr, "continue_block", true_shadowed, visitor,
+        ) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "body", true_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "for_else", loop_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match
+        visit_node_named_container_exprs(
+          expr, "where_clause", loop_shadowed, visitor,
+        ) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_ForEach => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
-      visit_node_binding_list_exprs(expr, "init", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_binding_list_exprs(expr, "init", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let loop_shadowed = if node_child(expr, "binders") is Some(binders) {
         shadowed_with_node_optional_binders(shadowed, binders)
       } else {
@@ -236,42 +330,88 @@ pub fn visit_node_scoped_expr_children(
       if node_child(expr, "init") is Some(init) {
         add_node_binding_list_names(loop_shadowed, init)
       }
-      visit_node_binding_list_exprs(
-        expr, "continue_block", loop_shadowed, visitor,
-      )
-      visit_node_named_expr(expr, "body", loop_shadowed, visitor)
-      visit_node_named_expr(expr, "else_block", loop_shadowed, visitor)
-      visit_node_named_container_exprs(
-        expr, "where_clause", loop_shadowed, visitor,
-      )
+      match
+        visit_node_binding_list_exprs(
+          expr, "continue_block", loop_shadowed, visitor,
+        ) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "body", loop_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "else_block", loop_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match
+        visit_node_named_container_exprs(
+          expr, "where_clause", loop_shadowed, visitor,
+        ) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Match => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
-      visit_node_case_list_exprs(expr, "cases", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_case_list_exprs(expr, "cases", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Lexmatch => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
-      visit_node_lex_case_list_exprs(expr, "cases", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_lex_case_list_exprs(expr, "cases", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Lexscan => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
-      visit_node_lex_scan_case_list_exprs(expr, "cases", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match
+        visit_node_lex_scan_case_list_exprs(expr, "cases", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_ListComprehension => {
-      let body_shadowed = if node_child(expr, "kind") is Some(kind) {
+      let (kind_action, body_shadowed) = if node_child(expr, "kind")
+        is Some(kind) {
         visit_node_list_comprehension_kind_exprs(kind, shadowed, visitor)
       } else {
-        copy_names(shadowed)
+        (NodeVisitContinue, copy_names(shadowed))
       }
-      visit_node_named_expr(expr, "guard", body_shadowed, visitor)
+      match kind_action {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_expr(expr, "guard", body_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let guard_shadowed = shadowed_with_node_condition_child(
         body_shadowed, expr, "guard",
       )
-      visit_node_named_expr(expr, "body", guard_shadowed, visitor)
+      match visit_node_named_expr(expr, "body", guard_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Function =>
       if node_child(expr, "func") is Some(func) {
         visit_node_func_exprs(func, shadowed, visitor)
+      } else {
+        NodeVisitContinue
       }
     Expr_LetFn => {
       let name_shadowed = if node_child(expr, "name") is Some(binder) {
@@ -280,9 +420,15 @@ pub fn visit_node_scoped_expr_children(
         copy_names(shadowed)
       }
       if node_child(expr, "func") is Some(func) {
-        visit_node_func_exprs(func, name_shadowed, visitor)
+        match visit_node_func_exprs(func, name_shadowed, visitor) {
+          NodeVisitReturn => return NodeVisitReturn
+          _ => ()
+        }
       }
-      visit_node_named_expr(expr, "body", name_shadowed, visitor)
+      match visit_node_named_expr(expr, "body", name_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_LetAnd => {
       let binding_shadowed = if node_child(expr, "bindings") is Some(bindings) {
@@ -294,11 +440,17 @@ pub fn visit_node_scoped_expr_children(
         for entry in bindings.children {
           let (_, binding) = entry
           if node_child(binding, "func") is Some(func) {
-            visit_node_func_exprs(func, binding_shadowed, visitor)
+            match visit_node_func_exprs(func, binding_shadowed, visitor) {
+              NodeVisitReturn => return NodeVisitReturn
+              _ => ()
+            }
           }
         }
       }
-      visit_node_named_expr(expr, "body", binding_shadowed, visitor)
+      match visit_node_named_expr(expr, "body", binding_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Quantifier => {
       let body_shadowed = if node_child(expr, "binder") is Some(binder) {
@@ -306,20 +458,44 @@ pub fn visit_node_scoped_expr_children(
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(expr, "body", body_shadowed, visitor)
+      match visit_node_named_expr(expr, "body", body_shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_Try => {
-      visit_node_named_expr(expr, "body", shadowed, visitor)
-      visit_node_case_list_exprs(expr, "catch", shadowed, visitor)
-      visit_node_case_list_exprs(expr, "try_else", shadowed, visitor)
+      match visit_node_named_expr(expr, "body", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_case_list_exprs(expr, "catch", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_case_list_exprs(expr, "try_else", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_IsLexmatch => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
-      visit_node_named_container_exprs(expr, "pat", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_container_exprs(expr, "pat", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     Expr_RegexMatch => {
-      visit_node_named_expr(expr, "expr", shadowed, visitor)
-      visit_node_named_container_exprs(expr, "pat", shadowed, visitor)
+      match visit_node_named_expr(expr, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
+      match visit_node_named_container_exprs(expr, "pat", shadowed, visitor) {
+        NodeVisitReturn => NodeVisitReturn
+        _ => NodeVisitContinue
+      }
     }
     _ => visit_node_all_child_exprs(expr, shadowed, visitor)
   }
@@ -330,10 +506,11 @@ fn visit_node_named_expr(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
-  if node_child(node, name) is Some(child) {
-    visit_node_descendant_exprs(child, shadowed, visitor)
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match node_child(node, name) {
+    Some(child) => visit_node_descendant_exprs(child, shadowed, visitor)
+    None => NodeVisitContinue
   }
 }
 
@@ -342,10 +519,11 @@ fn visit_node_named_container_exprs(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
-  if node_child(node, name) is Some(child) {
-    visit_node_all_child_exprs(child, shadowed, visitor)
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match node_child(node, name) {
+    Some(child) => visit_node_all_child_exprs(child, shadowed, visitor)
+    None => NodeVisitContinue
   }
 }
 
@@ -353,8 +531,8 @@ fn visit_node_named_container_exprs(
 fn visit_node_descendant_exprs(
   node : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   if is_expr_node(node) {
     visitor({ expr: node, shadowed_names: copy_names(shadowed) })
   } else {
@@ -366,12 +544,16 @@ fn visit_node_descendant_exprs(
 fn visit_node_all_child_exprs(
   node : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   for entry in node.children {
     let (_, child) = entry
-    visit_node_descendant_exprs(child, shadowed, visitor)
+    match visit_node_descendant_exprs(child, shadowed, visitor) {
+      NodeVisitReturn => return NodeVisitReturn
+      _ => ()
+    }
   }
+  NodeVisitContinue
 }
 
 ///|
@@ -379,14 +561,18 @@ fn visit_node_binding_list_exprs(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   if node_child(node, name) is Some(list) {
     for entry in list.children {
       let (_, binding) = entry
-      visit_node_named_expr(binding, "expr", shadowed, visitor)
+      match visit_node_named_expr(binding, "expr", shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
     }
   }
+  NodeVisitContinue
 }
 
 ///|
@@ -394,10 +580,11 @@ fn visit_node_case_list_exprs(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
-  if node_child(node, name) is Some(list) {
-    visit_node_case_container_exprs(list, shadowed, visitor)
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match node_child(node, name) {
+    Some(list) => visit_node_case_container_exprs(list, shadowed, visitor)
+    None => NodeVisitContinue
   }
 }
 
@@ -405,8 +592,8 @@ fn visit_node_case_list_exprs(
 fn visit_node_case_container_exprs(
   list : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   for entry in list.children {
     let (_, case) = entry
     let case_shadowed = if node_child(case, "pattern") is Some(pattern) {
@@ -414,12 +601,19 @@ fn visit_node_case_container_exprs(
     } else {
       copy_names(shadowed)
     }
-    visit_node_named_expr(case, "guard", case_shadowed, visitor)
+    match visit_node_named_expr(case, "guard", case_shadowed, visitor) {
+      NodeVisitReturn => return NodeVisitReturn
+      _ => ()
+    }
     let body_shadowed = shadowed_with_node_condition_child(
       case_shadowed, case, "guard",
     )
-    visit_node_named_expr(case, "body", body_shadowed, visitor)
+    match visit_node_named_expr(case, "body", body_shadowed, visitor) {
+      NodeVisitReturn => return NodeVisitReturn
+      _ => ()
+    }
   }
+  NodeVisitContinue
 }
 
 ///|
@@ -427,8 +621,8 @@ fn visit_node_lex_case_list_exprs(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   if node_child(node, name) is Some(list) {
     for entry in list.children {
       let (_, case) = entry
@@ -437,13 +631,20 @@ fn visit_node_lex_case_list_exprs(
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(case, "guard", case_shadowed, visitor)
+      match visit_node_named_expr(case, "guard", case_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let body_shadowed = shadowed_with_node_condition_child(
         case_shadowed, case, "guard",
       )
-      visit_node_named_expr(case, "body", body_shadowed, visitor)
+      match visit_node_named_expr(case, "body", body_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
     }
   }
+  NodeVisitContinue
 }
 
 ///|
@@ -451,8 +652,8 @@ fn visit_node_lex_scan_case_list_exprs(
   node : Node,
   name : String,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   if node_child(node, name) is Some(list) {
     for entry in list.children {
       let (_, case) = entry
@@ -461,41 +662,63 @@ fn visit_node_lex_scan_case_list_exprs(
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(case, "guard", case_shadowed, visitor)
+      match visit_node_named_expr(case, "guard", case_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
       let body_shadowed = shadowed_with_node_condition_child(
         case_shadowed, case, "guard",
       )
-      visit_node_named_expr(case, "body", body_shadowed, visitor)
+      match visit_node_named_expr(case, "body", body_shadowed, visitor) {
+        NodeVisitReturn => return NodeVisitReturn
+        _ => ()
+      }
     }
   }
+  NodeVisitContinue
 }
 
 ///|
 fn visit_node_list_comprehension_kind_exprs(
   kind : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Array[String] {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> (NodeVisitAction, Array[String]) {
   match kind.kind {
     Expr_ListComprehension_Kind_For => {
-      visit_node_binding_list_exprs(kind, "binders", shadowed, visitor)
+      match visit_node_binding_list_exprs(kind, "binders", shadowed, visitor) {
+        NodeVisitReturn => return (NodeVisitReturn, copy_names(shadowed))
+        _ => ()
+      }
       let loop_shadowed = if node_child(kind, "binders") is Some(binders) {
         shadowed_with_node_binding_list_binders(shadowed, binders)
       } else {
         copy_names(shadowed)
       }
-      visit_node_named_expr(kind, "condition", loop_shadowed, visitor)
+      match visit_node_named_expr(kind, "condition", loop_shadowed, visitor) {
+        NodeVisitReturn => return (NodeVisitReturn, loop_shadowed)
+        _ => ()
+      }
       let true_shadowed = shadowed_with_node_condition_child(
         loop_shadowed, kind, "condition",
       )
-      visit_node_binding_list_exprs(
-        kind, "continue_block", true_shadowed, visitor,
-      )
-      true_shadowed
+      match
+        visit_node_binding_list_exprs(
+          kind, "continue_block", true_shadowed, visitor,
+        ) {
+        NodeVisitReturn => (NodeVisitReturn, true_shadowed)
+        _ => (NodeVisitContinue, true_shadowed)
+      }
     }
     Expr_ListComprehension_Kind_Foreach => {
-      visit_node_named_expr(kind, "expr", shadowed, visitor)
-      visit_node_binding_list_exprs(kind, "init", shadowed, visitor)
+      match visit_node_named_expr(kind, "expr", shadowed, visitor) {
+        NodeVisitReturn => return (NodeVisitReturn, copy_names(shadowed))
+        _ => ()
+      }
+      match visit_node_binding_list_exprs(kind, "init", shadowed, visitor) {
+        NodeVisitReturn => return (NodeVisitReturn, copy_names(shadowed))
+        _ => ()
+      }
       let loop_shadowed = if node_child(kind, "binders") is Some(binders) {
         shadowed_with_node_optional_binders(shadowed, binders)
       } else {
@@ -504,15 +727,19 @@ fn visit_node_list_comprehension_kind_exprs(
       if node_child(kind, "init") is Some(init) {
         add_node_binding_list_names(loop_shadowed, init)
       }
-      visit_node_binding_list_exprs(
-        kind, "continue_block", loop_shadowed, visitor,
-      )
-      loop_shadowed
+      match
+        visit_node_binding_list_exprs(
+          kind, "continue_block", loop_shadowed, visitor,
+        ) {
+        NodeVisitReturn => (NodeVisitReturn, loop_shadowed)
+        _ => (NodeVisitContinue, loop_shadowed)
+      }
     }
-    _ => {
-      visit_node_all_child_exprs(kind, shadowed, visitor)
-      copy_names(shadowed)
-    }
+    _ =>
+      match visit_node_all_child_exprs(kind, shadowed, visitor) {
+        NodeVisitReturn => (NodeVisitReturn, copy_names(shadowed))
+        _ => (NodeVisitContinue, copy_names(shadowed))
+      }
   }
 }
 
@@ -520,8 +747,8 @@ fn visit_node_list_comprehension_kind_exprs(
 fn visit_node_func_exprs(
   func : Node,
   shadowed : Array[String],
-  visitor : (ScopedNodeExpr) -> Unit,
-) -> Unit {
+  visitor : (ScopedExprNode) -> NodeVisitAction,
+) -> NodeVisitAction {
   let body_shadowed = if node_child(func, "parameters") is Some(parameters) {
     shadowed_with_node_parameters(shadowed, parameters)
   } else {
