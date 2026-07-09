@@ -3,8 +3,8 @@
 fn runtime_exit(code : Int) -> Unit = "wasi_snapshot_preview1" "proc_exit"
 
 ///|
-#cfg(target="wasm-gc")
-fn runtime_exit(code : Int) -> Unit = "__moonbit_sys_unstable" "exit"
+#cfg(target="native")
+extern "c" fn runtime_exit(code : Int) -> Unit = "exit"
 
 ///|
 fn write_cli_output(output : String) -> Unit {

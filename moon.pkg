@@ -22,7 +22,7 @@ import {
   "moonbitlang/parser/syntax",
 }
 
-supported_targets = "wasm"
+supported_targets = "+wasm+native"
 
 options(
   "is-main": true,
