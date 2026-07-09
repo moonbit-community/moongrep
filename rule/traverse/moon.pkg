@@ -1,9 +1,0 @@
-import {
-  "moonbit-community/moongrep/untyped_ast",
-}
-
-import {
-  "moonbitlang/lexer/basic",
-  "moonbitlang/parser/syntax",
-  "moonbitlang/core/list",
-} for "wbtest"
