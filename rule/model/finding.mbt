@@ -3,8 +3,9 @@
 ///
 /// `loc` points at the structural expression match or taint sink target
 /// location. Receiver sink targets currently use the enclosing call location.
-/// `outer_loc` is present for structural `inside-expr` rules and points at the
-/// context expression that contained the target.
+/// `outer_loc` is present for structural `inside-expr` and `inside-toplevel`
+/// rules and points at the context expression or top-level item that contained
+/// the target.
 pub(all) struct RuleFinding {
   file : String
   rule_id : String

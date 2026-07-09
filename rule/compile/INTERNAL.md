@@ -17,7 +17,8 @@ The package takes `RawRuleSpec` values from `rule/model` and produces
 Compilation is deliberately narrow. This package:
 
 - checks duplicate rule ids
-- parses every rule `shape` as one MoonBit expression
+- parses ordinary rule `shape` values as MoonBit expressions and
+  `inside-toplevel.shape` as one top-level item
 - rewrites metavars into matcher-readable AST names
 - rejects unsupported placeholder positions and malformed guards
 - records taint sink and sanitizer target metadata
@@ -52,16 +53,23 @@ comment = true
 enable_metavar = true
 ```
 
-Then it parses the token stream with `parse_expr`. A shape is therefore exactly
-one MoonBit expression, not a file fragment or top-level declaration.
+Then it parses the token stream with `parse_expr`. Ordinary `patterns`,
+`patterns-not`, `inside-expr`, and taint clause shapes are therefore exactly one
+MoonBit expression, not a file fragment or top-level declaration.
+
+`inside-toplevel.shape` uses the same lexer settings but is parsed with
+`parse_toplevel_shape`, which accepts exactly one MoonBit top-level item and
+converts it with `@untyped_ast.from_impl`.
 
 Lexing errors are reported before parse errors. `InvalidMetavarSyntax` gets a
 special diagnostic so legacy syntax such as `$exp:value` can point to the modern
 `$(value:exp)` form. Other lexing failures report lexical errors, and parse
-reports become "not a valid MoonBit expression".
+reports become "not a valid MoonBit expression" or "not a valid MoonBit
+top-level item" depending on the clause.
 
 The matcher never sees the parser AST directly. After metavar rewriting,
-the expression is converted to `@untyped_ast.Node` with `@untyped_ast.from_expr`.
+expressions are converted to `@untyped_ast.Node` with `@untyped_ast.from_expr`,
+and top-level context items are converted with `@untyped_ast.from_impl`.
 
 ## Metavar Rewrite
 
@@ -131,7 +139,7 @@ Inline declarations may not use:
 - `__SOURCE__`
 
 `$_` is the matcher ignore placeholder. `__TARGET__` is reserved for structural
-`inside-expr` traversal, and `__SOURCE__` is reserved for taint sink and
+inside-context traversal, and `__SOURCE__` is reserved for taint sink and
 sanitizer target selection.
 
 Names that merely start with underscores, such as `__moongrep_value`, are not
@@ -139,9 +147,10 @@ reserved unless they are exactly one of the built-ins above.
 
 ## Structural Rules
 
-`compile_structural_rule` compiles `inside-expr` first when it exists.
+`compile_structural_rule` compiles `inside-expr` or `inside-toplevel` before
+inner positive and negative patterns when an inside context exists.
 
-An `inside-expr` shape is compiled as a normal pattern with:
+An inside-context shape is compiled as a normal pattern with:
 
 - the guards declared on its pattern object
 - `target_metavar = Some("__TARGET__")`
@@ -152,13 +161,14 @@ It must contain exactly one `__TARGET__` name as counted by
 metavars specially in whole expression positions, so changes to supported-name
 counting must be checked against `matching` behavior.
 
-Metavars declared in `inside-expr` are visible while matching target
+Metavars declared in the inside context are visible while matching target
 expressions, but inner `patterns` and `patterns-not` must repeat the same inline
-form to reuse the binding. `ensure_inherited_inside_expr_metavar_forms` rejects
-an inner pattern that redeclares an inherited name with a different kind.
+form to reuse the binding. `ensure_inherited_inside_context_metavar_forms`
+rejects an inner pattern that redeclares an inherited name with a different
+kind.
 
-Normal `patterns` and `patterns-not` are compiled independently after
-`inside-expr`. They must not contain `__TARGET__`.
+Normal `patterns` and `patterns-not` are compiled independently after the
+inside context. They must not contain `__TARGET__`.
 
 ## Guards
 
@@ -238,13 +248,13 @@ When changing metavar kinds or positions:
    conflict diagnostics
 5. update the public rule spec only for rule-author-visible behavior
 
-When changing `inside-expr` behavior:
+When changing inside-context behavior:
 
 1. keep the `__TARGET__` compile-time check in sync with matcher support
 2. preserve inherited metavar kind checks for both `patterns` and
    `patterns-not`
 3. test rules with positive patterns, negative patterns, and negative-only
-   `inside-expr`
+   `inside-expr` / `inside-toplevel`
 4. check `rule/apply` traversal behavior
 
 When changing taint target behavior:

@@ -1,7 +1,8 @@
 ///|
-/// A compiled expression pattern.
+/// A compiled structural pattern.
 ///
-/// `ast` is the untyped AST node for the parsed pattern expression.
+/// `ast` is the untyped AST node for the parsed pattern expression or, for an
+/// `inside-toplevel` context, the parsed top-level item.
 /// `expr_metavars` bind whole expression AST nodes, `identifier_metavars`
 /// bind normalized identifier strings encoded as leaf string nodes, and
 /// `constant_metavars` bind literal constant nodes, and `arg_metavars` bind

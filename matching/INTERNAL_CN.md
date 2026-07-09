@@ -14,13 +14,14 @@
 
 ## 占位符分派
 
-表达式匹配会先调用 `match_expr_placeholder`。如果它返回 `Some(true)` 或
-`Some(false)`，就会跳过结构化 AST 比较。类型节点还会先经过
-`match_type_placeholder`。只有 `None` 会继续落到普通的节点类型匹配。
+匹配会先调用 `match_expr_placeholder`、`match_type_placeholder`、
+`match_pattern_placeholder` 和 `match_argument_placeholder` 这类占位符 matcher。如果其中一个返回
+`Some(true)` 或 `Some(false)`，就会跳过结构化 AST 比较。只有 `None`
+会继续落到普通的节点类型匹配。
 
 表达式位置里的占位符优先级如下：
 
-1. 只由下划线组成且长度至少为 2 的名字，是忽略占位符
+1. 精确拼写 `$_` 是忽略占位符
 2. `target_metavar` 和 `source_metavar` 在 `CompiledExprPattern`
    中存在时，会绑定整个表达式
 3. 声明过的 expression metavar 绑定整个表达式值

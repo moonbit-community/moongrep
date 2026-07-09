@@ -408,7 +408,7 @@ fn normalize_scan_multi_value_option_args(
 ///|
 /// Parses command-line arguments after the executable name has been removed.
 ///
-/// `scan` is required after the executable name. Within the `scan` subcommand,
+/// A supported subcommand is required after the executable name. Within `scan`,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`,
 /// `--rule <rule-file>`, at least one `--pattern <pattern>`, or
 /// `--enable-builtin-rules` is required, and `--verbose` is optional.

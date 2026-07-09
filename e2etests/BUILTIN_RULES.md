@@ -4,12 +4,13 @@
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --enable-builtin-rules testdata/builtin-rules-all
 testdata/builtin-rules-all/catch_all.mbt:3:3-5:4
 rule: moonbitlang/catch_all
+outer_loc: testdata/builtin-rules-all/catch_all.mbt:2:1-6:2
 description:
   Single catch arm handles every error, which can hide unexpected failures.
   Prefer matching only the specific error cases that can be recovered from.
 source:
 1 | ///|
-2 | fn catches_everything() -> Unit {
+2 | async fn catches_everything(_) -> Unit {
 3 >   try risky() catch {
 4 >     _ => recover()
 5 >   }

@@ -602,8 +602,10 @@ Why it works:
 
 ### Rule compilation says `shape` is invalid
 
-Your snippet is not accepted by the MoonBit expression parser. Reduce it to one
-valid expression-sized shape, then build back up carefully.
+Your snippet is not accepted by the MoonBit parser for that rule clause. For
+ordinary `patterns`, `patterns-not`, and `inside-expr`, reduce it to one valid
+expression-sized shape, then build back up carefully. For `inside-toplevel`,
+reduce it to exactly one valid top-level item.
 
 ### Rule compilation rejects an metavar
 
@@ -626,10 +628,11 @@ exact supported normalization cases in [RuleSpec.md](RuleSpec.md).
 
 ### A rule with `guard` fails to load
 
-Check that `guard` is under a structural `patterns`, `patterns-not`, or
-`inside-expr` pattern object, that it is a mapping, and that every key names an
-`id` or `const` capture visible to that pattern. `exp`, `arg`, `pat`, and
-`type` captures cannot be guarded. `guard` is still rejected in taint clauses.
+Check that `guard` is under a structural `patterns`, `patterns-not`,
+`inside-expr`, or `inside-toplevel` pattern object, that it is a mapping, and
+that every key names an `id` or `const` capture visible to that pattern. `exp`,
+`arg`, `pat`, and `type` captures cannot be guarded. `guard` is still rejected
+in taint clauses.
 
 ## Testing Workflow
 
