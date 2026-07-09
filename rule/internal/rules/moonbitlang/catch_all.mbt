@@ -6,6 +6,14 @@ let _embed_catch_all_yaml : String =
   #|description: |
   #|  Single catch arm handles every error, which can hide unexpected failures.
   #|  Prefer matching only the specific error cases that can be recovered from.
+  #|
+  #|inside-toplevel:
+  #|  # TODO: support matching params
+  #|  shape: |
+  #|      async fn $f(_) -> $T {
+  #|        __TARGET__
+  #|      }
+  #|
   #|patterns:
   #|  - shape: |
   #|      try $_ catch {
