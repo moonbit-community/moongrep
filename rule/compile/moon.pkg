@@ -2,7 +2,6 @@ import {
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
   "moonbit-community/moongrep/rule/prefilter",
-  "moonbit-community/moongrep/rule/traverse",
   "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/lexer",
   "moonbitlang/lexer/basic",

@@ -29,7 +29,7 @@ fn test_field_def(label : String, expr : @syntax.Expr) -> @syntax.FieldDef {
 }
 
 ///|
-test "traverse counts supported names in node expressions" {
+test "reserved name count counts supported names in node expressions" {
   let target = test_ident("__TARGET__")
   let expr = @syntax.Expr::ForEach(
     binders=List([Some(test_binder("item"))]),
@@ -52,7 +52,7 @@ test "traverse counts supported names in node expressions" {
 }
 
 ///|
-test "traverse counts expression identifiers once" {
+test "reserved name count counts expression identifiers once" {
   assert_eq(
     count_supported_name_in_node(
       @untyped_ast.from_expr(test_ident("target")),

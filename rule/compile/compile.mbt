@@ -22,9 +22,6 @@ using @model {
 using @prefilter {compile_rule_prefilter}
 
 ///|
-using @traverse {count_supported_name_in_node}
-
-///|
 /// Validates and compiles raw YAML rule specs into executable rules.
 ///
 /// This step parses each `shape`, discovers metavars, rejects reserved

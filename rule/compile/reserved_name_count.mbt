@@ -1,8 +1,5 @@
 ///|
-pub fn count_supported_name_in_node(
-  node : @untyped_ast.Node,
-  name : String,
-) -> Int {
+fn count_supported_name_in_node(node : @untyped_ast.Node, name : String) -> Int {
   match node.kind {
     Expr_Ident =>
       if node.normalized_expr_identifier_name() == Some(name) {
