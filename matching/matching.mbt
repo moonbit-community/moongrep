@@ -40,7 +40,7 @@ pub fn match_expr_pattern(
 ///|
 /// Matches with a caller-supplied binding context.
 ///
-/// This is used by `inside-expr` rules: the outer match establishes bindings,
+/// This is used by inside-context rules: the outer match establishes bindings,
 /// then candidate target expressions are matched with those bindings already in
 /// scope. The input map is copied before matching, so failed attempts cannot
 /// mutate the caller's context.

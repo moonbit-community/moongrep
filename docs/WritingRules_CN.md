@@ -466,7 +466,9 @@ patterns:
 
 ### 规则编译提示 `shape` 无效
 
-你的片段没有被 MoonBit 表达式 parser 接受。先将它缩减到一个有效的表达式大小 shape，然后小心地逐步补回结构。
+你的片段没有被对应规则子句的 MoonBit parser 接受。对普通 `patterns`、
+`patterns-not` 和 `inside-expr`，先缩减到一个有效的表达式大小 shape，然后小心地逐步补回结构。对
+`inside-toplevel`，先缩减到且仅有一个合法顶层项。
 
 ### 规则编译提示元变量语法无效
 
@@ -487,9 +489,9 @@ patterns:
 
 ### 带 `guard` 的规则加载失败
 
-请检查 `guard` 是否位于结构规则的 `patterns`、`patterns-not` 或 `inside-expr`
-pattern object 下，是否是映射，并且每个键都引用了该 pattern 可见的 `id` 或
-`const` 捕获。`exp`、`arg`、`pat` 和 `type` 捕获不能被 guard 过滤。taint 子句中仍然会拒绝 `guard`。
+请检查 `guard` 是否位于结构规则的 `patterns`、`patterns-not`、`inside-expr`
+或 `inside-toplevel` pattern object 下，是否是映射，并且每个键都引用了该 pattern 可见的
+`id` 或 `const` 捕获。`exp`、`arg`、`pat` 和 `type` 捕获不能被 guard 过滤。taint 子句中仍然会拒绝 `guard`。
 
 ## 测试工作流
 

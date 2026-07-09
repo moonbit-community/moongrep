@@ -21,10 +21,11 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
 ///|
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
-/// `shape` must be a valid MoonBit expression. Inline `$(name:exp)`,
-/// `$(name:id)`, `$(name:const)`, and `$(name:pat)` placeholders in the shape
-/// are discovered during compilation. `guard`, when present, maps
-/// `$`-prefixed id or const capture names to regex strings.
+/// `shape` must be a valid MoonBit expression, except for `inside-toplevel`
+/// where it must be one top-level item. Inline `$(name:exp)`, `$(name:id)`,
+/// `$(name:const)`, `$(name:arg)`, `$(name:pat)`, and `$(name:type)`
+/// placeholders in the shape are discovered during compilation. `guard`, when
+/// present, maps `$`-prefixed id or const capture names to regex strings.
 pub(all) struct RulePatternSpec {
   shape : String
   guards : Map[String, String]
@@ -34,10 +35,10 @@ pub(all) struct RulePatternSpec {
 /// How `patterns-not` is interpreted for structural rules.
 ///
 /// `PruneOnNegative` means negative patterns prune only candidate branches after
-/// all positive patterns miss. `RejectUncoveredNegative` is derived for
-/// `inside-expr` rules with both positive and negative patterns: positive
-/// subtrees cover negative matches, while uncovered negative matches reject the
-/// whole outer `inside-expr` match.
+/// all positive patterns miss. `RejectUncoveredNegative` is derived for inside
+/// context rules with both positive and negative patterns: positive subtrees
+/// cover negative matches, while uncovered negative matches reject the whole
+/// outer `inside-expr` or `inside-toplevel` match.
 pub(all) enum StructuralPatternsNotMode {
   PruneOnNegative
   RejectUncoveredNegative

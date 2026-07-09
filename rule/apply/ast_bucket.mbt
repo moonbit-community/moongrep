@@ -20,10 +20,10 @@
 // pattern in the YAML `patterns` array still wins and is reported as the same
 // `pattern_index`.
 //
-// `inside-expr` uses the same root-key idea only as a fast outer-expression
-// filter. Once the outer pattern binds `__TARGET__`, matching inside the target
-// subtree still uses the inner pattern buckets and inherited bindings from the
-// outer match.
+// `inside-expr` and `inside-toplevel` use the same root-key idea only as a fast
+// outer-context filter. Once the outer pattern binds `__TARGET__`, matching
+// inside the target subtree still uses the inner pattern buckets and inherited
+// bindings from the outer match.
 
 ///|
 priv struct IndexedCompiledRulePattern {
@@ -111,7 +111,7 @@ fn compiled_pattern_root_key(
 }
 
 ///|
-// Used by `inside-expr` before running the full outer pattern matcher.
+// Used by inside-context rules before running the full outer pattern matcher.
 fn node_root_key_matches(
   pattern_key : @untyped_ast.NodeKind?,
   node : @untyped_ast.Node,

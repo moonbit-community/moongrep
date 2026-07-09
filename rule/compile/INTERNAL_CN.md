@@ -15,7 +15,8 @@
 编译职责有意保持收窄。这个包会：
 
 - 检查重复 rule id
-- 把每个规则 `shape` 解析成一个 MoonBit 表达式
+- 把普通规则 `shape` 解析成 MoonBit 表达式，并把 `inside-toplevel.shape`
+  解析成一个顶层项
 - 把 metavar 重写成 matcher 可读取的 AST 名称
 - 拒绝不支持的占位符位置和格式错误的 guard
 - 记录 taint sink 和 sanitizer 的 target 元数据
@@ -47,15 +48,20 @@ comment = true
 enable_metavar = true
 ```
 
-随后用 `parse_expr` 解析 token 流。因此一个 shape 正好是一个 MoonBit 表达式，
-不是文件片段或顶层声明。
+随后用 `parse_expr` 解析 token 流。因此普通 `patterns`、`patterns-not`、
+`inside-expr` 和 taint 子句的 shape 正好是一个 MoonBit 表达式，不是文件片段或顶层声明。
+
+`inside-toplevel.shape` 使用同样的 lexer 配置，但通过 `parse_toplevel_shape`
+解析；它接受且只接受一个 MoonBit 顶层项，并通过 `@untyped_ast.from_impl` 转换。
 
 词法错误会先于解析错误报告。`InvalidMetavarSyntax` 有专门诊断，因此
 `$exp:value` 这样的旧语法可以提示迁移到现代的 `$(value:exp)` 形式。
-其他词法错误会报告 lexical errors，解析错误会报告 "not a valid MoonBit expression"。
+其他词法错误会报告 lexical errors，解析错误会根据子句报告
+"not a valid MoonBit expression" 或 "not a valid MoonBit top-level item"。
 
 matcher 不会直接看到 parser AST。metavar 重写完成后，表达式会通过
-`@untyped_ast.from_expr` 转成 `@untyped_ast.Node`。
+`@untyped_ast.from_expr` 转成 `@untyped_ast.Node`；顶层上下文项会通过
+`@untyped_ast.from_impl` 转换。
 
 ## Metavar 重写
 
@@ -117,16 +123,17 @@ Inline 声明不能使用：
 - `__TARGET__`
 - `__SOURCE__`
 
-`$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural
-`inside-expr` 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
+`$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural inside-context
+遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
 
 仅仅以下划线开头的名称，例如 `__moongrep_value`，并不是保留名称，除非它正好是上面的内置名。
 
 ## Structural Rule
 
-`compile_structural_rule` 会在存在 `inside-expr` 时先编译它。
+`compile_structural_rule` 会在存在 inside context 时，先编译 `inside-expr`
+或 `inside-toplevel`，再编译内部 positive / negative pattern。
 
-`inside-expr` shape 会被编译成普通 pattern，并使用：
+inside-context shape 会被编译成普通 pattern，并使用：
 
 - 它的 pattern object 上声明的 guard
 - `target_metavar = Some("__TARGET__")`
@@ -136,12 +143,12 @@ Inline 声明不能使用：
 运行时 matcher 只会在完整表达式位置特殊处理 target/source metavar，因此修改 supported-name
 统计时必须同时检查 `matching` 行为。
 
-`inside-expr` 中声明的 metavar 在匹配目标表达式时可见，但内部的 `patterns` 和
+inside context 中声明的 metavar 在匹配目标表达式时可见，但内部的 `patterns` 和
 `patterns-not` 必须重复相同 inline 形式才能复用该绑定。
-`ensure_inherited_inside_expr_metavar_forms` 会拒绝内部 pattern 用不同 kind
+`ensure_inherited_inside_context_metavar_forms` 会拒绝内部 pattern 用不同 kind
 重新声明继承来的名称。
 
-普通 `patterns` 和 `patterns-not` 会在 `inside-expr` 之后独立编译。它们不能包含
+普通 `patterns` 和 `patterns-not` 会在 inside context 之后独立编译。它们不能包含
 `__TARGET__`。
 
 ## Guard
@@ -213,11 +220,12 @@ call argument，并用 label 确认选中的是同一个 labelled slot。
 4. 为显式语法、bare 推断、重复捕获和冲突诊断添加测试
 5. 只有规则作者可见语义变化时才更新公开规则规格
 
-修改 `inside-expr` 行为时：
+修改 inside-context 行为时：
 
 1. 保持 `__TARGET__` 编译期检查与 matcher 支持一致
 2. 对 `patterns` 和 `patterns-not` 都保留继承 metavar 的 kind 检查
-3. 测试含 positive pattern、negative pattern 和 negative-only `inside-expr` 的规则
+3. 测试含 positive pattern、negative pattern 和 negative-only
+   `inside-expr` / `inside-toplevel` 的规则
 4. 检查 `rule/apply` 的遍历行为
 
 修改 taint target 行为时：
