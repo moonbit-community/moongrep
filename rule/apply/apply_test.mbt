@@ -1366,6 +1366,32 @@ test "apply structural rule supports inside expr inherited bindings" {
 }
 
 ///|
+test "apply inside expr inherits ellipsis sequence bindings" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Reuse an outer argument prefix inside the target.
+    #|inside-expr:
+    #|  shape: wrapper($$$args, __TARGET__)
+    #|patterns:
+    #|  - shape: target($$$args)
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(a, b, target(a, b));
+    #|  wrapper(a, b, target(a, other))
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  assert_true(hits[0].outer_loc is Some(_))
+}
+
+///|
 test "inside expr plain names do not reference inherited bindings" {
   let rule_source =
     #|id: example
@@ -1800,6 +1826,32 @@ test "apply taint rule reports source reaching sink" {
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
   assert_eq(hits[0].pattern_index, 0)
+}
+
+///|
+test "taint sink locates source argument after ellipsis captures" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  User input reaches a variadic sink slot.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: sink(prefix, $$$before, marker, __SOURCE__, $$$after)
+    #|
+  let source =
+    #|fn sample {
+    #|  let x = get_user_input();
+    #|  sink(prefix, clean, also_clean, marker, x, trailing)
+    #|}
+    #|
+  let hits = apply_taint_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
 }
 
 ///|

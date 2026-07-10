@@ -1,0 +1,10 @@
+id: ellipsis-taint
+description: |
+  Variadic sink arguments preserve taint and variadic cleaners sanitize it.
+taint:
+  sources:
+    - shape: get_user_input()
+  sinks:
+    - shape: sink(prefix, $$$before, marker, __SOURCE__, $$$after)
+  sanitizers:
+    - shape: clean(prefix, $$$before, __SOURCE__, $$$after)

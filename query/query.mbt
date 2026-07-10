@@ -39,8 +39,8 @@ pub fn ExprQuery::captures(
   self : ExprQuery,
   source_name~ : String,
   source : String,
-) -> ArrayView[Map[String, @untyped_ast.Node]] raise {
-  let matches : Array[Map[String, @untyped_ast.Node]] = []
+) -> ArrayView[Map[String, @matching.BoundValue]] raise {
+  let matches : Array[Map[String, @matching.BoundValue]] = []
   if !@rule_prefilter.rule_is_relevant_to_source(self.rule, source) {
     return matches
   }
@@ -64,8 +64,8 @@ pub fn ExprQuery::captures(
 pub fn ExprQuery::captures_from_ast(
   self : ExprQuery,
   ast~ : @untyped_ast.Node,
-) -> ArrayView[Map[String, @untyped_ast.Node]] {
-  let matches : Array[Map[String, @untyped_ast.Node]] = []
+) -> ArrayView[Map[String, @matching.BoundValue]] {
+  let matches : Array[Map[String, @matching.BoundValue]] = []
   collect_node_matches(self.pattern, ast, matches)
   matches
 }
@@ -90,7 +90,7 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
 fn collect_node_matches(
   pattern : CompiledRulePattern,
   ast : @untyped_ast.Node,
-  matches : Array[Map[String, @untyped_ast.Node]],
+  matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
   @untyped_ast.visit_node_scoped_expr_roots(ast, fn(scoped_expr) {
     collect_scoped_node_matches(pattern, scoped_expr, matches)
@@ -102,7 +102,7 @@ fn collect_node_matches(
 fn collect_scoped_node_matches(
   pattern : CompiledRulePattern,
   scoped_expr : @untyped_ast.ScopedExprNode,
-  matches : Array[Map[String, @untyped_ast.Node]],
+  matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
   if @matching.match_expr_pattern(pattern.compiled, scoped_expr.expr)
     is Some(result) {
@@ -119,8 +119,8 @@ fn collect_scoped_node_matches(
 ///|
 fn capture_map_from_bindings(
   bindings : @hashmap.HashMap[String, @matching.BoundValue],
-) -> Map[String, @untyped_ast.Node] {
-  let captures : Map[String, @untyped_ast.Node] = {}
+) -> Map[String, @matching.BoundValue] {
+  let captures : Map[String, @matching.BoundValue] = {}
   bindings.each(fn(name, value) { captures[name] = value })
   captures
 }

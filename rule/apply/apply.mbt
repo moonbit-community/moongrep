@@ -376,7 +376,7 @@ fn apply_inside_context_ast_bucketed(
     return
   }
   if match_node_rule_pattern(inside, context_node, None) is Some(result) {
-    if result.bindings.get("__TARGET__") is Some(target) {
+    if result.bindings.get("__TARGET__") is Some(Single(target)) {
       if structural.patterns.is_empty() {
         let target_exprs : Array[@untyped_ast.ScopedExprNode] = []
         @untyped_ast.collect_node_scoped_exprs(target, target_exprs)
@@ -713,7 +713,7 @@ fn ast_pattern_blocked_by_shadowed_outer_id(
 ) -> Bool {
   for metavar in inherited_identifier_metavars {
     if names_contain(pattern.compiled.identifier_metavars, metavar) {
-      if outer_bindings.get(metavar) is Some(bound_node) {
+      if outer_bindings.get(metavar) is Some(Single(bound_node)) {
         if node_leaf_string(bound_node) is Some(bound_name) &&
           names_contain(shadowed_names, bound_name) {
           return true
@@ -761,7 +761,7 @@ fn ast_guards_match(
     match guard_entry.capture_kind {
       IdentifierGuard =>
         match bindings.get(guard_entry.name) {
-          Some(value) => {
+          Some(Single(value)) => {
             guard node_leaf_string(value) is Some(text) else { return false }
             if guard_entry.regex.execute(text) is None {
               return false
@@ -771,7 +771,7 @@ fn ast_guards_match(
         }
       ConstantGuard =>
         match bindings.get(guard_entry.name) {
-          Some(value) => {
+          Some(Single(value)) => {
             guard constant_guard_value(value) is Some(text) else {
               return false
             }

@@ -44,6 +44,7 @@ fn untyped_compiled(
   constant_metavars? : Array[String] = [],
   arg_metavars? : Array[String] = [],
   type_metavars? : Array[String] = [],
+  ellipsis_metavars? : Array[EllipsisMetavar] = [],
   target_metavar? : String? = None,
   source_metavar? : String? = None,
 ) -> CompiledExprPattern {
@@ -54,6 +55,7 @@ fn untyped_compiled(
     constant_metavars,
     arg_metavars,
     type_metavars,
+    ellipsis_metavars,
     target_metavar,
     source_metavar,
   }
@@ -191,7 +193,7 @@ test "default matcher normalizes identifier metavars" {
   )
   if untyped_match(compiled, "@int.abs(@int.abs)") is Some(result) {
     match result.bindings.get("callee") {
-      Some(node) =>
+      Some(Single(node)) =>
         match node.kind {
           Leaf(PString(value)) => inspect(value, content="@int.abs")
           _ => fail("expected identifier binding to be a leaf string node")
@@ -214,7 +216,7 @@ test "default matcher binds constants and preserves guard values" {
   )
   if untyped_match(compiled, "match value { 1 => 1 }") is Some(result) {
     match result.bindings.get("lit") {
-      Some(node) => assert_true(node.kind == Constant_Int)
+      Some(Single(node)) => assert_true(node.kind == Constant_Int)
       _ => fail("expected constant binding")
     }
   } else {
@@ -258,7 +260,8 @@ test "default matcher captures complex type nodes" {
     match untyped_match(compiled, source) {
       Some(result) =>
         match result.bindings.get("T") {
-          Some(node) => assert_true(node.kind.to_string().has_prefix("Type::"))
+          Some(Single(node)) =>
+            assert_true(node.kind.to_string().has_prefix("Type::"))
           _ => fail("expected type binding for \{source}")
         }
       None => fail("expected type metavar to match \{source}")
@@ -297,7 +300,7 @@ test "default matcher supports target and source placeholders" {
   )
   if untyped_match(target_compiled, "sink(value)") is Some(result) {
     match result.bindings.get("__TARGET__") {
-      Some(expr) =>
+      Some(Single(expr)) =>
         assert_true(expr_matches(expr, parse_untyped_test_node("sink(value)")))
       _ => fail("expected target expression binding")
     }
@@ -320,6 +323,7 @@ test "node matcher accepts nodes and captures constant nodes" {
     constant_metavars: ["lit"],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -329,7 +333,7 @@ test "node matcher accepts nodes and captures constant nodes" {
     )
     is Some(result) {
     match result.bindings.get("lit") {
-      Some(node) => assert_true(node.kind == Constant_Int)
+      Some(Single(node)) => assert_true(node.kind == Constant_Int)
       _ => fail("expected constant node binding")
     }
   } else {

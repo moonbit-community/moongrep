@@ -24,8 +24,9 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
 /// `shape` must be a valid MoonBit expression, except for `inside-toplevel`
 /// where it must be one top-level item. Inline `$(name:exp)`, `$(name:id)`,
 /// `$(name:const)`, `$(name:arg)`, `$(name:pat)`, and `$(name:type)`
-/// placeholders in the shape are discovered during compilation. `guard`, when
-/// present, maps `$`-prefixed id or const capture names to regex strings.
+/// placeholders plus `$$$name` / `$$$(name:kind)` ordered-list ellipses are
+/// discovered during compilation. `guard`, when present, maps `$`-prefixed id
+/// or const capture names to regex strings.
 pub(all) struct RulePatternSpec {
   shape : String
   guards : Map[String, String]

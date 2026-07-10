@@ -275,6 +275,31 @@ Repeated `type` captures compare the complete parsed type node while ignoring
 source locations. A `type` capture must occupy a whole type node; it does not
 capture expression arguments, constructors, labels, or method type qualifiers.
 
+Use `$$$name` to capture zero or more consecutive items from an ordered AST
+list, or `$$$(name:kind)` to constrain every captured item:
+
+```yaml
+patterns:
+  - shape: inspect($$$args)
+  - shape: f(prefix, $$$(values:exp), suffix)
+```
+
+An ellipsis must be the complete list item. It can stand for call arguments,
+array or tuple elements, parameters, patterns, or type-list members when that
+syntax is parsed as an unnamed ordered AST list. It cannot be the pattern root,
+part of an expression, or a named scalar field such as the final expression of
+a block. Matching is left-to-right and lazy: each ellipsis tries length zero,
+then one, and so on, with backtracking until the complete shape matches.
+Multiple ellipses may appear in one list.
+
+Bare ellipses default to `AnyItem`. Explicit `exp`, `id`, `const`, `arg`, `pat`,
+and `type` kinds reuse the corresponding single-metavar constraint for each
+item. In a call argument list, `arg` accepts every argument kind, while `exp`,
+`id`, and `const` accept only compatible positional argument values. Repeating
+the same named ellipsis requires equal captured node sequences, ignoring source
+locations. `$$$_` and `$$$(_:kind)` are independent non-binding sequence
+wildcards.
+
 A bare simple pattern variable such as `match input { $item => body }` is
 ambiguous between `id`, `const`, and `pat`, so rule compilation asks you to
 choose explicitly. The `exp` kind is expression-only. The `const` kind is valid
@@ -505,8 +530,8 @@ normalized names such as `name` or `@pkg.name`. `const` guards see parser
 constant values, such as `raw` for `"raw"`, `42` for `42`, and `true` for
 `true`.
 
-Guards cannot filter `exp`, `arg`, `pat`, or `type` captures, and taint clauses
-do not support `guard`.
+Guards cannot filter `exp`, `arg`, `pat`, `type`, or ellipsis captures, and
+taint clauses do not support `guard`.
 
 ### 5. Add more `patterns` when the message is shared
 

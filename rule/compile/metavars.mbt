@@ -7,6 +7,7 @@ priv struct MetavarShape {
   arg_metavars : Array[String]
   type_metavars : Array[String]
   pattern_metavars : Array[String]
+  ellipsis_metavars : Array[@matching.EllipsisMetavar]
 }
 
 ///|
@@ -77,6 +78,17 @@ fn compile_metavar_shape(
     ctx.constant_metavars,
     ctx.arg_metavars,
   )
+  let ellipsis_metavars = compile_ellipsis_metavars(
+    path,
+    context,
+    ast,
+    cleaned_expr_metavars,
+    cleaned_identifier_metavars,
+    cleaned_constant_metavars,
+    cleaned_arg_metavars,
+    ctx.type_metavars,
+    pattern_metavars,
+  )
   {
     ast,
     expr_metavars: cleaned_expr_metavars,
@@ -85,6 +97,7 @@ fn compile_metavar_shape(
     arg_metavars: cleaned_arg_metavars,
     type_metavars: ctx.type_metavars,
     pattern_metavars,
+    ellipsis_metavars,
   }
 }
 
@@ -142,6 +155,17 @@ fn compile_toplevel_metavar_shape(
     ctx.constant_metavars,
     ctx.arg_metavars,
   )
+  let ellipsis_metavars = compile_ellipsis_metavars(
+    path,
+    context,
+    ast,
+    cleaned_expr_metavars,
+    cleaned_identifier_metavars,
+    cleaned_constant_metavars,
+    cleaned_arg_metavars,
+    ctx.type_metavars,
+    pattern_metavars,
+  )
   {
     ast,
     expr_metavars: cleaned_expr_metavars,
@@ -150,6 +174,7 @@ fn compile_toplevel_metavar_shape(
     arg_metavars: cleaned_arg_metavars,
     type_metavars: ctx.type_metavars,
     pattern_metavars,
+    ellipsis_metavars,
   }
 }
 
@@ -159,6 +184,9 @@ fn parse_metavar(
   path : String,
   context : String,
 ) -> MetavarSyntax? raise {
+  if raw.has_prefix("$$$") {
+    return None
+  }
   if raw == "$_" {
     return None
   }

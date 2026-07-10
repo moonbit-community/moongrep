@@ -11,9 +11,10 @@ callers, not for rule authors.
 matching. Failed matches may leave partial captures in that local copy, but
 they never mutate the caller's map.
 
-There is no backtracking engine. Helper functions bind as they walk left to
-right; if a later child fails, the whole candidate fails. This is fine because
-the current matcher has no alternatives that need rollback.
+Ordinary nodes bind as they walk left to right. Ordered child lists use a small
+backtracking matcher when they contain ellipses: each candidate length runs
+against a copied binding map, and only the first complete successful branch is
+committed.
 
 ## Placeholder Dispatch
 
@@ -47,11 +48,11 @@ exact `$_` is an ignore placeholder by spelling alone.
 
 ## Binding Kinds
 
-`BoundValue` is `@untyped_ast.Node`.
+`BoundValue` is either `Single(Node)` or `Multiple(Array[Node])`.
 
-Every binding is stored directly as an untyped AST node. Expression, constant,
-argument, pattern, and type metavars bind their matched nodes. Identifier
-metavars bind the normalized name encoded as a `Leaf(PString(_))` node.
+Expression, constant, argument, pattern, type, and identifier metavars use
+`Single`; normalized identifier names are encoded as `Leaf(PString(_))` nodes.
+Ellipsis metavars use `Multiple` and retain complete sibling nodes.
 
 Expression metavars capture the candidate expression node at that position.
 Repeated uses compare node structure and leaf values while ignoring source
@@ -71,7 +72,8 @@ as all other bindings.
 
 The matcher ignores source locations when comparing repeated expression,
 argument, pattern, and type captures. Repeated binding comparison is handled by
-`bound_value_equal`, which delegates to `node_equal_ignoring_loc`.
+`bound_value_equal`, which compares `Single` with `Single` and `Multiple` with
+`Multiple`; mixed variants are unequal.
 
 `node_equal_ignoring_loc` requires the same node kind and recursively compares
 child labels and child values in order. Leaf values compare through their node

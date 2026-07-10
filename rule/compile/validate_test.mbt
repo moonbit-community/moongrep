@@ -21,6 +21,129 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 }
 
 ///|
+test "validate compiles bare and typed ellipsis metavars" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: inspect($$$args, $$$(values:arg))
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      let metavars = rule.patterns[0].compiled.ellipsis_metavars
+      assert_eq(metavars.length(), 2)
+      inspect(metavars[0].name, content="args")
+      assert_true(metavars[0].kind == AnyItem)
+      inspect(metavars[1].name, content="values")
+      assert_true(metavars[1].kind == ArgItem)
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate typed ellipsis occurrence determines bare occurrence kind" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: pair([$$$items], [$$$(items:exp)])
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      let metavars = rule.patterns[0].compiled.ellipsis_metavars
+      assert_eq(metavars.length(), 1)
+      inspect(metavars[0].name, content="items")
+      assert_true(metavars[0].kind == ExpItem)
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects ellipsis outside a complete list item" {
+  let root =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: $$$items
+    #|
+  expect_compile_invalid(
+    root, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item",
+  )
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: wrap($$$items + 1)
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item",
+  )
+}
+
+///|
+test "validate rejects ellipsis guards" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: inspect($$$args)
+    #|    guard:
+    #|      $args: .+
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].guard.$args cannot reference ellipsis metavar args",
+  )
+}
+
+///|
+test "validate rejects conflicting and mixed ellipsis declarations" {
+  let conflicting =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: pair([$$$(items:exp)], [$$$(items:id)])
+    #|
+  expect_compile_invalid(
+    conflicting, "patterns[0].shape declares ellipsis metavar items as multiple metavar kinds",
+  )
+  let mixed =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: pair($items, [$$$items])
+    #|
+  expect_compile_invalid(
+    mixed, "patterns[0].shape cannot use items as both an ellipsis metavar and a single-node metavar",
+  )
+}
+
+///|
+test "validate rejects ellipsis kinds incompatible with their list slots" {
+  let parameter =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: fn($$$(params:exp)) { body }
+    #|
+  expect_compile_invalid(
+    parameter, "patterns[0].shape uses ellipsis kind exp in an incompatible ordered-list item position",
+  )
+  let argument =
+    #|id: example
+    #|description: Example.
+    #|patterns:
+    #|  - shape: sink($$$(values:pat))
+    #|
+  expect_compile_invalid(
+    argument, "patterns[0].shape uses ellipsis kind pat in an incompatible ordered-list item position",
+  )
+}
+
+///|
 test "validate accepts all-underscore metavar names" {
   let source =
     #|id: example

@@ -122,6 +122,11 @@ fn compile_structural_rule(
   } else {
     []
   }
+  let outer_ellipsis = if outer_pattern is Some(pattern) {
+    pattern.compiled.ellipsis_metavars
+  } else {
+    []
+  }
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
     let context = "patterns[\{index}]"
@@ -137,12 +142,14 @@ fn compile_structural_rule(
       compiled_shape.arg_metavars,
       compiled_shape.type_metavars,
       compiled_shape.pattern_metavars,
+      compiled_shape.ellipsis_metavars,
       outer_expr,
       outer_identifier,
       outer_constant,
       outer_arg,
       outer_type,
       outer_pattern_names,
+      outer_ellipsis,
     )
     let ast = compiled_shape.ast
     if count_supported_name_in_node(ast, "__TARGET__") != 0 {
@@ -163,6 +170,7 @@ fn compile_structural_rule(
         compiled_shape.arg_metavars,
         compiled_shape.type_metavars,
         compiled_shape.pattern_metavars,
+        compiled_shape.ellipsis_metavars,
         target_metavar=None,
         source_metavar=None,
       ),
@@ -183,12 +191,14 @@ fn compile_structural_rule(
       compiled_shape.arg_metavars,
       compiled_shape.type_metavars,
       compiled_shape.pattern_metavars,
+      compiled_shape.ellipsis_metavars,
       outer_expr,
       outer_identifier,
       outer_constant,
       outer_arg,
       outer_type,
       outer_pattern_names,
+      outer_ellipsis,
     )
     let ast = compiled_shape.ast
     if count_supported_name_in_node(ast, "__TARGET__") != 0 {
@@ -209,6 +219,7 @@ fn compile_structural_rule(
         compiled_shape.arg_metavars,
         compiled_shape.type_metavars,
         compiled_shape.pattern_metavars,
+        compiled_shape.ellipsis_metavars,
         target_metavar=None,
         source_metavar=None,
       ),
@@ -353,6 +364,7 @@ fn compile_pattern(
     compiled_shape.arg_metavars,
     compiled_shape.type_metavars,
     compiled_shape.pattern_metavars,
+    compiled_shape.ellipsis_metavars,
     target_metavar~,
     source_metavar~,
   )
@@ -370,6 +382,7 @@ fn compile_pattern_with_effective_metavars(
   arg_metavars : Array[String],
   type_metavars : Array[String],
   pattern_metavars : Array[String],
+  ellipsis_metavars : Array[@matching.EllipsisMetavar],
   target_metavar~ : String?,
   source_metavar~ : String?,
 ) -> CompiledRulePattern raise {
@@ -383,6 +396,7 @@ fn compile_pattern_with_effective_metavars(
     arg_metavars,
     type_metavars,
     pattern_metavars,
+    ellipsis_metavars,
   )
   let compiled : @matching.CompiledExprPattern = {
     ast,
@@ -391,6 +405,7 @@ fn compile_pattern_with_effective_metavars(
     constant_metavars,
     arg_metavars,
     type_metavars,
+    ellipsis_metavars,
     target_metavar,
     source_metavar,
   }
@@ -408,13 +423,14 @@ fn compile_guards(
   arg_metavars : Array[String],
   type_metavars : Array[String],
   pattern_metavars : Array[String],
+  ellipsis_metavars : Array[@matching.EllipsisMetavar],
 ) -> Array[CompiledRuleGuard] raise {
   let guards : Array[CompiledRuleGuard] = []
   for raw_name, regex_source in raw_guards {
     let name = guard_metavar_name(path, raw_name)
     let capture_kind = guard_capture_kind(
       path, context, raw_name, name, expr_metavars, identifier_metavars, constant_metavars,
-      arg_metavars, type_metavars, pattern_metavars,
+      arg_metavars, type_metavars, pattern_metavars, ellipsis_metavars,
     )
     let regex = Regex::Regex(regex_source) catch {
       _ =>
@@ -451,6 +467,7 @@ fn guard_capture_kind(
   arg_metavars : Array[String],
   type_metavars : Array[String],
   pattern_metavars : Array[String],
+  ellipsis_metavars : Array[@matching.EllipsisMetavar],
 ) -> RuleGuardCaptureKind raise {
   if array_contains(identifier_metavars, name) {
     IdentifierGuard
@@ -475,6 +492,11 @@ fn guard_capture_kind(
     raise RuleLoadError::InvalidRule(
       path~,
       info="\{context}.guard.\{raw_name} cannot reference pat metavar \{name}",
+    )
+  } else if ellipsis_metavars_contain(ellipsis_metavars, name) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{context}.guard.\{raw_name} cannot reference ellipsis metavar \{name}",
     )
   } else {
     raise RuleLoadError::InvalidRule(
@@ -534,12 +556,14 @@ fn ensure_inherited_inside_context_metavar_forms(
   inner_arg : Array[String],
   inner_type : Array[String],
   inner_pattern : Array[String],
+  inner_ellipsis : Array[@matching.EllipsisMetavar],
   outer_expr : Array[String],
   outer_identifier : Array[String],
   outer_constant : Array[String],
   outer_arg : Array[String],
   outer_type : Array[String],
   outer_pattern : Array[String],
+  outer_ellipsis : Array[@matching.EllipsisMetavar],
 ) -> Unit raise {
   ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_expr, "exp", outer_identifier, "id",
@@ -631,6 +655,107 @@ fn ensure_inherited_inside_context_metavar_forms(
   ensure_not_inherited_as_other_kind(
     path, context, outer_context, inner_pattern, "pat", outer_type, "type",
   )
+  ensure_single_metavars_not_inherited_from_ellipsis(
+    path, context, outer_context, inner_expr, "exp", outer_ellipsis,
+  )
+  ensure_single_metavars_not_inherited_from_ellipsis(
+    path, context, outer_context, inner_identifier, "id", outer_ellipsis,
+  )
+  ensure_single_metavars_not_inherited_from_ellipsis(
+    path, context, outer_context, inner_constant, "const", outer_ellipsis,
+  )
+  ensure_single_metavars_not_inherited_from_ellipsis(
+    path, context, outer_context, inner_arg, "arg", outer_ellipsis,
+  )
+  ensure_single_metavars_not_inherited_from_ellipsis(
+    path, context, outer_context, inner_type, "type", outer_ellipsis,
+  )
+  ensure_single_metavars_not_inherited_from_ellipsis(
+    path, context, outer_context, inner_pattern, "pat", outer_ellipsis,
+  )
+  for metavar in inner_ellipsis {
+    ensure_not_inherited_as_other_kind(
+      path,
+      context,
+      outer_context,
+      [metavar.name],
+      "ellipsis",
+      outer_expr,
+      "exp",
+    )
+    ensure_not_inherited_as_other_kind(
+      path,
+      context,
+      outer_context,
+      [metavar.name],
+      "ellipsis",
+      outer_identifier,
+      "id",
+    )
+    ensure_not_inherited_as_other_kind(
+      path,
+      context,
+      outer_context,
+      [metavar.name],
+      "ellipsis",
+      outer_constant,
+      "const",
+    )
+    ensure_not_inherited_as_other_kind(
+      path,
+      context,
+      outer_context,
+      [metavar.name],
+      "ellipsis",
+      outer_arg,
+      "arg",
+    )
+    ensure_not_inherited_as_other_kind(
+      path,
+      context,
+      outer_context,
+      [metavar.name],
+      "ellipsis",
+      outer_type,
+      "type",
+    )
+    ensure_not_inherited_as_other_kind(
+      path,
+      context,
+      outer_context,
+      [metavar.name],
+      "ellipsis",
+      outer_pattern,
+      "pat",
+    )
+    for inherited in outer_ellipsis {
+      if inherited.name == metavar.name && inherited.kind != metavar.kind {
+        raise RuleLoadError::InvalidRule(
+          path~,
+          info="\{context} cannot use inherited \{outer_context} ellipsis metavar \{metavar.name} with a different kind",
+        )
+      }
+    }
+  }
+}
+
+///|
+fn ensure_single_metavars_not_inherited_from_ellipsis(
+  path : String,
+  context : String,
+  outer_context : String,
+  names : Array[String],
+  kind : String,
+  outer_ellipsis : Array[@matching.EllipsisMetavar],
+) -> Unit raise {
+  for name in names {
+    if ellipsis_metavars_contain(outer_ellipsis, name) {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{context} cannot use inherited \{outer_context} ellipsis metavar \{name} as \{kind}",
+      )
+    }
+  }
 }
 
 ///|

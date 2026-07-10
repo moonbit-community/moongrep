@@ -99,7 +99,7 @@ test "query captures one repeated expression and rejects non-repeated candidates
     #|
   let matches = query.captures(source_name="sample.mbt", source)
   assert_eq(matches.length(), 1)
-  guard matches[0].get("value") is Some(value) else {
+  guard matches[0].get("value") is Some(Single(value)) else {
     fail("expected value capture")
   }
   assert_true(value.kind == Expr_Apply)
@@ -115,7 +115,7 @@ test "query captures identifiers and constants by metavar name" {
     #|
   let id_matches = id_query.captures(source_name="sample.mbt", id_source)
   assert_eq(id_matches.length(), 1)
-  guard id_matches[0].get("callee") is Some(callee) else {
+  guard id_matches[0].get("callee") is Some(Single(callee)) else {
     fail("expected callee capture")
   }
   guard query_leaf_string(callee) is Some(callee_name) else {
@@ -135,10 +135,10 @@ test "query captures identifiers and constants by metavar name" {
     const_source,
   )
   assert_eq(const_matches.length(), 2)
-  guard const_matches[0].get("literal") is Some(first) else {
+  guard const_matches[0].get("literal") is Some(Single(first)) else {
     fail("expected first literal capture")
   }
-  guard const_matches[1].get("literal") is Some(second) else {
+  guard const_matches[1].get("literal") is Some(Single(second)) else {
     fail("expected second literal capture")
   }
   guard query_constant_value(first) is Some(first_value) else {
@@ -167,7 +167,7 @@ test "query captures argument metavars as full argument nodes" {
   assert_eq(matches.length(), 5)
   let kinds : Array[String] = []
   for capture in matches {
-    guard capture.get("arg") is Some(arg) else {
+    guard capture.get("arg") is Some(Single(arg)) else {
       fail("expected argument capture")
     }
     guard query_argument_kind_signature(arg) is Some(kind) else {
@@ -197,7 +197,7 @@ test "query repeated argument metavars require full argument equality" {
   let matches = query.captures(source_name="sample.mbt", source)
   assert_eq(matches.length(), 2)
   for capture in matches {
-    guard capture.get("arg") is Some(arg) else {
+    guard capture.get("arg") is Some(Single(arg)) else {
       fail("expected argument capture")
     }
     assert_true(arg.kind == Argument)
@@ -261,7 +261,7 @@ test "query captures_from_ast matches a direct expression root" {
   let ast = @untyped_ast.from_expr(parse_query_expr("target(42)"))
   let matches = query.captures_from_ast(ast~)
   assert_eq(matches.length(), 1)
-  guard matches[0].get("literal") is Some(literal) else {
+  guard matches[0].get("literal") is Some(Single(literal)) else {
     fail("expected literal capture")
   }
   guard query_constant_value(literal) is Some(value) else {
@@ -295,18 +295,18 @@ test "query captures_from_ast preserves expression id and constant captures" {
   )
   assert_eq(ast_matches.length(), source_matches.length())
   assert_eq(ast_matches.length(), 1)
-  guard ast_matches[0].get("callee") is Some(callee) else {
+  guard ast_matches[0].get("callee") is Some(Single(callee)) else {
     fail("expected callee capture")
   }
   guard query_leaf_string(callee) is Some(callee_name) else {
     fail("expected callee name")
   }
   inspect(callee_name, content="source")
-  guard ast_matches[0].get("value") is Some(value) else {
+  guard ast_matches[0].get("value") is Some(Single(value)) else {
     fail("expected expression capture")
   }
   assert_true(value.kind == Expr_Apply)
-  guard ast_matches[0].get("literal") is Some(literal) else {
+  guard ast_matches[0].get("literal") is Some(Single(literal)) else {
     fail("expected literal capture")
   }
   guard query_constant_value(literal) is Some(literal_value) else {
@@ -321,8 +321,181 @@ test "query captures_from_ast prunes nested expressions after an outer match" {
   let ast = @untyped_ast.from_expr(parse_query_expr("wrap(wrap(1))"))
   let matches = query.captures_from_ast(ast~)
   assert_eq(matches.length(), 1)
-  guard matches[0].get("value") is Some(value) else {
+  guard matches[0].get("value") is Some(Single(value)) else {
     fail("expected value capture")
   }
   assert_true(value.kind == Expr_Apply)
+}
+
+///|
+test "query captures zero one and many sibling arguments with ellipsis" {
+  let query = ExprQuery::ExprQuery("inspect($$$args)")
+  let source =
+    #|fn sample {
+    #|  inspect();
+    #|  inspect(1);
+    #|  inspect(1, label=2)
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 3)
+  let lengths : Array[Int] = []
+  for capture in matches {
+    guard capture.get("args") is Some(Multiple(args)) else {
+      fail("expected multiple argument capture")
+    }
+    for arg in args {
+      assert_true(arg.kind == Argument)
+    }
+    lengths.push(args.length())
+  }
+  debug_inspect(lengths, content="[0, 1, 2]")
+}
+
+///|
+test "query ellipsis uses global left-to-right lazy backtracking" {
+  let query = ExprQuery::ExprQuery("f($$$left, marker, $$$right, marker)")
+  let matches = query.captures(
+    source_name="sample.mbt",
+    "fn sample { f(a, marker, b, marker) }",
+  )
+  assert_eq(matches.length(), 1)
+  guard matches[0].get("left") is Some(Multiple(left)) else {
+    fail("expected left sequence")
+  }
+  guard matches[0].get("right") is Some(Multiple(right)) else {
+    fail("expected right sequence")
+  }
+  debug_inspect((left.length(), right.length()), content="(1, 1)")
+}
+
+///|
+test "query repeated ellipsis names require equal node sequences" {
+  let query = ExprQuery::ExprQuery("pair([$$$items], [$$$items])")
+  let source =
+    #|fn sample {
+    #|  pair([], []);
+    #|  pair([a, b], [a, b]);
+    #|  pair([a], [b])
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 2)
+  guard matches[0].get("items") is Some(Multiple(empty)) else {
+    fail("expected empty sequence")
+  }
+  guard matches[1].get("items") is Some(Multiple(two)) else {
+    fail("expected two-item sequence")
+  }
+  debug_inspect((empty.length(), two.length()), content="(0, 2)")
+}
+
+///|
+test "query typed argument ellipsis distinguishes full args from positional values" {
+  let arg_query = ExprQuery::ExprQuery("sink($$$(args:arg))")
+  let exp_query = ExprQuery::ExprQuery("sink($$$(args:exp))")
+  let source =
+    #|fn sample {
+    #|  sink(value, label=other);
+    #|  sink(value, other);
+    #|  sink(label~);
+    #|  sink(label?=other);
+    #|  sink(label?)
+    #|}
+    #|
+  let arg_matches = arg_query.captures(source_name="sample.mbt", source)
+  let exp_matches = exp_query.captures(source_name="sample.mbt", source)
+  assert_eq(arg_matches.length(), 5)
+  assert_eq(exp_matches.length(), 1)
+}
+
+///|
+test "query anonymous ellipsis does not create a binding" {
+  let query = ExprQuery::ExprQuery("inspect($$$_)")
+  let matches = query.captures(
+    source_name="sample.mbt",
+    "fn sample { inspect(1, 2, 3) }",
+  )
+  assert_eq(matches.length(), 1)
+  assert_eq(matches[0].length(), 0)
+
+  let typed = ExprQuery::ExprQuery("sink($$$(_:const))")
+  let typed_matches = typed.captures(
+    source_name="sample.mbt",
+    "fn sample { sink(); sink(1, 2); sink(1, value) }",
+  )
+  assert_eq(typed_matches.length(), 2)
+  for capture in typed_matches {
+    assert_eq(capture.length(), 0)
+  }
+}
+
+///|
+test "query ellipsis covers parameter pattern and type lists" {
+  let parameter_query = ExprQuery::ExprQuery("fn($$$(params:id)) { body }")
+  let parameter_matches = parameter_query.captures(
+    source_name="sample.mbt",
+    "fn sample { let f = fn(a, b : Int, c? : String) { body } }",
+  )
+  assert_eq(parameter_matches.length(), 1)
+  guard parameter_matches[0].get("params") is Some(Multiple(params)) else {
+    fail("expected parameter sequence")
+  }
+  assert_eq(params.length(), 3)
+  for parameter in params {
+    assert_true(parameter.kind.to_string().has_prefix("Parameter::"))
+  }
+
+  let pattern_query = ExprQuery::ExprQuery(
+    "match input { [$$$(pats:pat)] => body }",
+  )
+  let pattern_matches = pattern_query.captures(
+    source_name="sample.mbt",
+    "fn sample { match input { [Some(x), _, 1] => body } }",
+  )
+  assert_eq(pattern_matches.length(), 1)
+  guard pattern_matches[0].get("pats") is Some(Multiple(patterns)) else {
+    fail("expected pattern sequence")
+  }
+  assert_eq(patterns.length(), 3)
+  for pattern in patterns {
+    assert_true(pattern.kind.to_string().has_prefix("ArrayPattern::"))
+  }
+
+  let type_query = ExprQuery::ExprQuery(
+    "let value : ($$$(Types:type), Bool) = input",
+  )
+  let type_matches = type_query.captures(
+    source_name="sample.mbt",
+    "fn sample { let value : (Int, String, Bool) = input }",
+  )
+  assert_eq(type_matches.length(), 1)
+  guard type_matches[0].get("Types") is Some(Multiple(types)) else {
+    fail("expected type sequence")
+  }
+  assert_eq(types.length(), 2)
+  for ty in types {
+    assert_true(ty.kind.to_string().has_prefix("Type::"))
+  }
+}
+
+///|
+test "query failed ellipsis branches do not leak single bindings" {
+  let query = ExprQuery::ExprQuery("f($$$gap, $(value:exp), marker)")
+  let matches = query.captures(
+    source_name="sample.mbt",
+    "fn sample { f(first, selected, marker) }",
+  )
+  assert_eq(matches.length(), 1)
+  guard matches[0].get("gap") is Some(Multiple(gap)) else {
+    fail("expected gap sequence")
+  }
+  guard matches[0].get("value") is Some(Single(value)) else {
+    fail("expected value binding")
+  }
+  assert_eq(gap.length(), 1)
+  guard value.normalized_expr_identifier_name() is Some(name) else {
+    fail("expected identifier expression")
+  }
+  inspect(name, content="selected")
 }

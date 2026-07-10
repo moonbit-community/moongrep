@@ -255,6 +255,55 @@ let _embed_rulespec_md : String =
   #|The old YAML `metavars` key is not supported. Pattern objects that contain it
   #|are rejected as using an unsupported key.
   #|
+  #|### Ellipsis Metavariables
+  #|
+  #|`$$$name` captures zero or more consecutive siblings in an ordered untyped-AST
+  #|list. `$$$(name:kind)` applies one of `exp`, `id`, `const`, `arg`, `pat`, or
+  #|`type` to every captured item. A bare named ellipsis has kind `AnyItem`; if the
+  #|same name also has a typed occurrence, that occurrence determines the kind for
+  #|all bare occurrences.
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: inspect($$$args)
+  #|  - shape: pair([$$$(items:exp)], [$$$items])
+  #|```
+  #|
+  #|The marker must occupy a complete child whose field name is absent in the
+  #|untyped AST. Valid examples include argument, expression, parameter, pattern,
+  #|and type lists. It cannot occupy the root, a normal named field, a label, or
+  #|part of another node. In particular it does not expand named fields such as
+  #|`Expr_Sequence.last_expr`.
+  #|
+  #|Matching processes pattern items from left to right. At an ellipsis it tries
+  #|the shortest possible capture first, starting with the empty sequence, and
+  #|backtracks with bindings restored until the remaining pattern succeeds. This
+  #|defines the result when one list contains multiple ellipses. Empty captures
+  #|satisfy every kind constraint.
+  #|
+  #|In expression lists, `exp`, `id`, and `const` accept the same candidate forms as
+  #|their single-node counterparts. In call argument lists, `arg` accepts
+  #|positional, labelled, pun, optional-labelled, and optional-pun arguments;
+  #|`exp`, `id`, and `const` accept only positional arguments whose values satisfy
+  #|that kind. `pat` applies to pattern-list items, `type` to type-list items, and
+  #|`id` can capture parameter items that have binders. The captured array always
+  #|contains the original complete sibling nodes, such as `Argument`, `Parameter`,
+  #|or expression nodes.
+  #|
+  #|Repeating a named ellipsis requires the captured arrays to have equal lengths
+  #|and structurally equal nodes after source locations are ignored. A name cannot
+  #|be shared by a normal metavar and an ellipsis, and conflicting explicit kinds
+  #|are rejected. `$$$_` and `$$$(_:kind)` do not bind and each occurrence is an
+  #|independent wildcard. Guards cannot reference ellipsis captures. Inside-context
+  #|bindings inherit `Multiple` values just like other bindings; a repeated inner
+  #|ellipsis must use the same kind. Taint sink and sanitizer shapes may place
+  #|ellipses around their single whole-argument or receiver `__SOURCE__` target.
+  #|
+  #|The public matcher and query APIs expose captures as `BoundValue`: ordinary
+  #|captures are `Single(Node)`, while ellipsis captures are
+  #|`Multiple(Array[Node])`. `ExprMatch.bindings`, `ExprQuery::captures`, and
+  #|`ExprQuery::captures_from_ast` all use this representation.
+  #|
   #|### Reserved Names
   #|
   #|These names must not be used as metavar names:
@@ -919,7 +968,10 @@ let _embed_rulespec_md : String =
   #|- `$(name:pat)` appears outside a bare pattern position
   #|- `$(name:type)` appears outside a whole type position
   #|- a guard key is not `$`-prefixed, or references an unknown, `exp`, `arg`,
-  #|  `pat`, or `type` capture
+  #|  `pat`, `type`, or ellipsis capture
+  #|- an ellipsis does not occupy a complete unnamed ordered-list item
+  #|- an ellipsis kind is incompatible with its list position, conflicts with
+  #|  another typed occurrence, or shares a name with a normal metavar
   #|- a guard regex is invalid
   #|- `inside-expr` does not contain exactly one binding-capable `__TARGET__`
   #|- `inside-toplevel` does not contain exactly one binding-capable `__TARGET__`

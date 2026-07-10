@@ -170,6 +170,23 @@ test "prefilter treats inline type metavars as placeholders" {
 }
 
 ///|
+test "prefilter ignores ellipsis spelling and keeps adjacent literals" {
+  let source =
+    #|id: example
+    #|description: Variadic target call.
+    #|patterns:
+    #|  - shape: sink($$$args, marker)
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { sink(value, marker) }\n"),
+  )
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { other(value, marker) }\n"),
+  )
+}
+
+///|
 test "prefilter ignores one digit int literals" {
   let one_digit_source =
     #|id: example

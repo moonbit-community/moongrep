@@ -14,6 +14,7 @@ pub fn expr_matches(
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -277,18 +278,101 @@ fn match_children(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  if pattern.length() != candidate.length() {
-    return false
+  match_children_from(pattern, candidate, 0, 0, compiled, bindings)
+}
+
+///|
+fn match_children_from(
+  pattern : Array[(String?, @untyped_ast.Node)],
+  candidate : Array[(String?, @untyped_ast.Node)],
+  pattern_index : Int,
+  candidate_index : Int,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  if pattern_index == pattern.length() {
+    return candidate_index == candidate.length()
   }
-  for index in 0..<pattern.length() {
-    let (pattern_name, pattern_value) = pattern[index]
-    let (candidate_name, candidate_value) = candidate[index]
-    if pattern_name != candidate_name ||
-      !match_node(pattern_value, candidate_value, compiled, bindings) {
+  let (pattern_name, pattern_value) = pattern[pattern_index]
+  if pattern_name is None &&
+    ellipsis_marker(pattern_value, compiled) is Some(marker) {
+    let fixed_remaining = minimum_fixed_children(
+      pattern,
+      pattern_index + 1,
+      compiled,
+    )
+    let maximum_length = candidate.length() - candidate_index - fixed_remaining
+    if maximum_length < 0 {
       return false
     }
+    for length in 0..<=maximum_length {
+      let captured : Array[@untyped_ast.Node] = []
+      let mut compatible = true
+      for offset in 0..<length {
+        let (candidate_name, candidate_value) = candidate[candidate_index +
+          offset]
+        if candidate_name is Some(_) ||
+          !ellipsis_candidate_matches(
+            pattern_value,
+            candidate_value,
+            marker.kind,
+          ) {
+          compatible = false
+          break
+        }
+        captured.push(candidate_value)
+      }
+      if compatible {
+        let branch = bindings.copy()
+        let bound = marker.name == "_" ||
+          bind_multiple(branch, marker.name, captured)
+        if bound &&
+          match_children_from(
+            pattern,
+            candidate,
+            pattern_index + 1,
+            candidate_index + length,
+            compiled,
+            branch,
+          ) {
+          replace_bindings(bindings, branch)
+          return true
+        }
+      }
+    }
+    false
+  } else {
+    if candidate_index >= candidate.length() {
+      return false
+    }
+    let (candidate_name, candidate_value) = candidate[candidate_index]
+    pattern_name == candidate_name &&
+    match_node(pattern_value, candidate_value, compiled, bindings) &&
+    match_children_from(
+      pattern,
+      candidate,
+      pattern_index + 1,
+      candidate_index + 1,
+      compiled,
+      bindings,
+    )
   }
-  true
+}
+
+///|
+fn minimum_fixed_children(
+  pattern : Array[(String?, @untyped_ast.Node)],
+  start : Int,
+  compiled : CompiledExprPattern,
+) -> Int {
+  let mut count = 0
+  for index in start..<pattern.length() {
+    let (name, value) = pattern[index]
+    if !(name is None && ellipsis_marker(value, compiled) is Some(_)) {
+      count += 1
+    }
+  }
+  count
 }
 
 ///|
@@ -509,8 +593,9 @@ fn match_constructor_extra_info(
 fn bind_value(
   bindings : @hashmap.HashMap[String, BoundValue],
   name : String,
-  value : BoundValue,
+  value : @untyped_ast.Node,
 ) -> Bool {
+  let value = Single(value)
   if bindings.get(name) is Some(existing) {
     bound_value_equal(existing, value)
   } else {
@@ -520,13 +605,36 @@ fn bind_value(
 }
 
 ///|
-fn string_binding(value : String, source : @untyped_ast.Node) -> BoundValue {
+fn string_binding(
+  value : String,
+  source : @untyped_ast.Node,
+) -> @untyped_ast.Node {
   { kind: Leaf(PString(value)), loc: source.loc, children: [] }
 }
 
 ///|
 fn bound_value_equal(left : BoundValue, right : BoundValue) -> Bool {
-  node_equal_ignoring_loc(left, right)
+  match (left, right) {
+    (Single(left), Single(right)) => node_equal_ignoring_loc(left, right)
+    (Multiple(left), Multiple(right)) => nodes_equal_ignoring_loc(left, right)
+    _ => false
+  }
+}
+
+///|
+fn nodes_equal_ignoring_loc(
+  left : Array[@untyped_ast.Node],
+  right : Array[@untyped_ast.Node],
+) -> Bool {
+  if left.length() != right.length() {
+    return false
+  }
+  for index in 0..<left.length() {
+    if !node_equal_ignoring_loc(left[index], right[index]) {
+      return false
+    }
+  }
+  true
 }
 
 ///|

@@ -9,6 +9,8 @@
 /// whole call argument AST nodes. `type_metavars` bind whole type AST nodes.
 /// Pattern metavars are represented directly in `ast` as `$(name:pat)` pattern
 /// variables and bind whole pattern AST nodes.
+/// `ellipsis_metavars` describe named `$$$name` / `$$$(name:kind)` list-item
+/// sequence captures. Anonymous ellipses are represented only in `ast`.
 /// `target_metavar` and `source_metavar` are reserved bare-expression
 /// placeholders injected by the rules package for `__TARGET__` and
 /// `__SOURCE__`.
@@ -19,18 +21,42 @@ pub(all) struct CompiledExprPattern {
   constant_metavars : Array[String]
   arg_metavars : Array[String]
   type_metavars : Array[String]
+  ellipsis_metavars : Array[EllipsisMetavar]
   target_metavar : String?
   source_metavar : String?
 }
 
 ///|
+/// The per-item constraint applied by an ellipsis metavar.
+pub(all) enum EllipsisMetavarKind {
+  AnyItem
+  ExpItem
+  IdItem
+  ConstItem
+  ArgItem
+  PatItem
+  TypeItem
+} derive(Eq)
+
+///|
+/// A named ellipsis metavar discovered while compiling a pattern.
+pub(all) struct EllipsisMetavar {
+  name : String
+  kind : EllipsisMetavarKind
+}
+
+///|
 /// Values captured while matching a `CompiledExprPattern`.
 ///
-/// Every binding is stored directly as an untyped AST node. Expression,
+/// Ordinary metavars use `Single`. Expression,
 /// constant, argument, type, and pattern metavars capture their matched nodes.
 /// Identifier metavars capture their normalized name in a `Leaf(PString(_))`
-/// node.
-pub type BoundValue = @untyped_ast.Node
+/// node. Ellipsis metavars use `Multiple` and retain the complete sibling nodes
+/// from the candidate list.
+pub(all) enum BoundValue {
+  Single(@untyped_ast.Node)
+  Multiple(Array[@untyped_ast.Node])
+}
 
 ///|
 /// Result of a successful expression-pattern match.

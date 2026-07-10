@@ -61,6 +61,7 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: Some("__SOURCE__"),
   }

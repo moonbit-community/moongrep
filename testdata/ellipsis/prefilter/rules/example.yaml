@@ -1,0 +1,5 @@
+id: ellipsis-prefilter
+description: |
+  Keep literals adjacent to an ellipsis as prefilter anchors.
+patterns:
+  - shape: anchored(prefix, $$$middle, suffix)

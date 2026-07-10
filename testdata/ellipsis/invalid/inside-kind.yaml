@@ -1,0 +1,6 @@
+id: invalid-inside-kind
+description: Invalid inherited ellipsis kind.
+inside-expr:
+  shape: wrapper($$$(items:exp), __TARGET__)
+patterns:
+  - shape: target($$$(items:id))

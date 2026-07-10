@@ -200,6 +200,27 @@ patterns:
 
 重复的 `type` 捕获会比较完整解析类型节点并忽略源码位置。`type` 捕获必须占据完整类型节点；它不捕获表达式参数、构造器、标签或方法类型限定符。
 
+使用 `$$$name` 捕获有序 AST 列表中零个或多个连续项；使用
+`$$$(name:kind)` 约束捕获序列中的每一项：
+
+```yaml
+patterns:
+  - shape: inspect($$$args)
+  - shape: f(prefix, $$$(values:exp), suffix)
+```
+
+ellipsis 必须占据完整列表项。只要对应语法会解析为无字段名的有序 AST
+列表项，它就可以用于调用实参、数组或 tuple 元素、parameter、pattern 或类型列表。
+它不能作为整个 pattern 根、表达式的一部分，也不能展开块的最后表达式等具名标量字段。
+匹配从左到右采用惰性策略：每个 ellipsis 依次尝试长度 0、1、2……，并回滚直到
+完整 shape 成功。同一列表可以出现多个 ellipsis。
+
+裸 ellipsis 默认为 `AnyItem`。显式 `exp`、`id`、`const`、`arg`、`pat`
+和 `type` 会对每个元素复用对应的单节点元变量约束。在调用实参列表中，`arg`
+接受所有 argument kind，而 `exp`、`id` 和 `const` 只接受兼容的 positional
+argument value。同名 ellipsis 重复出现时，捕获的节点序列必须在忽略源码位置后
+结构相等。`$$$_` 和 `$$$(_:kind)` 是彼此独立且不绑定的序列通配符。
+
 像 `match input { $item => body }` 这样的裸简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义，因此规则编译会要求你显式选择。`exp` kind 只能出现在表达式位置。`const` kind 只在常量表达式或常量 pattern 位置有效。`arg` kind 只在调用 pattern 的整个裸参数位置有效。`pat` kind 只在简单 pattern variable 位置有效。`type` kind 只在完整类型节点位置有效。如果需要非表达式源码名称，请使用 `id`，或者让该名称保持字面量。任何其他 kind 都是编译错误。
 
 旧的 YAML `metavars` 键无效。
@@ -377,7 +398,7 @@ Guard 键是带 `$` 前缀的捕获名。值是正则字符串，使用包含匹
 `@pkg.name`。`const` guard 看到的是 parser 常量值，例如 `"raw"` 对应 `raw`，
 `42` 对应 `42`，`true` 对应 `true`。
 
-Guard 不能过滤 `exp`、`arg`、`pat` 或 `type` 捕获，taint 子句也不支持 `guard`。
+Guard 不能过滤 `exp`、`arg`、`pat`、`type` 或 ellipsis 捕获，taint 子句也不支持 `guard`。
 
 ### 5. 当消息共享时添加更多 `patterns`
 
@@ -482,6 +503,8 @@ patterns:
 - 非表达式源码名称使用 `$(name:id)`，或者保持字面量
 - 没有使用不支持的 kind
 - 没有跨多个元变量 kind 使用同一个名称
+- ellipsis 使用 `$$$name` 或 `$$$(name:kind)`，并占据完整有序列表项
+- 普通元变量和 ellipsis 没有共用名称
 
 ### 一个 `id` 规则看起来正确但从不命中
 
@@ -491,7 +514,7 @@ patterns:
 
 请检查 `guard` 是否位于结构规则的 `patterns`、`patterns-not`、`inside-expr`
 或 `inside-toplevel` pattern object 下，是否是映射，并且每个键都引用了该 pattern 可见的
-`id` 或 `const` 捕获。`exp`、`arg`、`pat` 和 `type` 捕获不能被 guard 过滤。taint 子句中仍然会拒绝 `guard`。
+`id` 或 `const` 捕获。`exp`、`arg`、`pat`、`type` 和 ellipsis 捕获不能被 guard 过滤。taint 子句中仍然会拒绝 `guard`。
 
 ## 测试工作流
 

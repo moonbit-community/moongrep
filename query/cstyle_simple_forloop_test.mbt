@@ -23,11 +23,11 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
     source,
   )
   assert_eq(captures.length(), 3)
-  let filtered_capture_maps : Array[Map[String, @untyped_ast.Node]] = []
+  let filtered_capture_maps : Array[Map[String, @matching.BoundValue]] = []
   for capture in captures {
-    if capture.get("counter") is Some(counter_node) &&
+    if capture.get("counter") is Some(Single(counter_node)) &&
       counter_node.kind is Leaf(PString(counter_name)) &&
-      capture.get("body") is Some(body) {
+      capture.get("body") is Some(Single(body)) {
       // unused variable in for loop body
       if !body.contains_unshadowed(id=counter_name) {
         filtered_capture_maps.push(capture)
@@ -35,30 +35,14 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
     }
   }
   assert_eq(filtered_capture_maps.length(), 2)
-  debug_inspect(
-    filtered_capture_maps[0].get("counter").unwrap(),
-    content=(
-      #|{
-      #|  kind: Leaf(PString("i")),
-      #|  loc: {
-      #|    start: { fname: "sample.mbt", lnum: 2, bol: 12, cnum: 18 },
-      #|    end: { fname: "sample.mbt", lnum: 2, bol: 12, cnum: 19 },
-      #|  },
-      #|  children: [],
-      #|}
-    ),
-  )
-  debug_inspect(
-    filtered_capture_maps[1].get("counter").unwrap(),
-    content=(
-      #|{
-      #|  kind: Leaf(PString("k")),
-      #|  loc: {
-      #|    start: { fname: "sample.mbt", lnum: 8, bol: 121, cnum: 127 },
-      #|    end: { fname: "sample.mbt", lnum: 8, bol: 121, cnum: 128 },
-      #|  },
-      #|  children: [],
-      #|}
-    ),
-  )
+  guard filtered_capture_maps[0].get("counter") is Some(Single(first)) &&
+    first.kind is Leaf(PString(first_name)) else {
+    fail("expected first counter")
+  }
+  inspect(first_name, content="i")
+  guard filtered_capture_maps[1].get("counter") is Some(Single(second)) &&
+    second.kind is Leaf(PString(second_name)) else {
+    fail("expected second counter")
+  }
+  inspect(second_name, content="k")
 }

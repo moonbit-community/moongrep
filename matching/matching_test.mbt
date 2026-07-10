@@ -183,6 +183,7 @@ test "declared expression metavar requires structural equality" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -202,6 +203,7 @@ test "identifier metavar compares binder and uses by normalized name" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -233,6 +235,7 @@ test "identifier metavar matches loop counter" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -262,6 +265,7 @@ test "expression metavar matches repeated call expression" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -283,6 +287,7 @@ test "expression metavar keeps structural equality" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -304,6 +309,7 @@ test "constant metavar requires repeated constant equality" {
     constant_metavars: ["value"],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -322,6 +328,7 @@ test "constant metavar matches only constant patterns" {
     constant_metavars: ["lit"],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -348,6 +355,7 @@ test "argument metavar captures complete argument nodes" {
     constant_metavars: [],
     arg_metavars: ["arg"],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -358,7 +366,7 @@ test "argument metavar captures complete argument nodes" {
     match match_expr_pattern(compiled, parse_expr(source)) {
       Some(result) =>
         match result.bindings.get("arg") {
-          Some(node) => assert_true(node.kind == Argument)
+          Some(Single(node)) => assert_true(node.kind == Argument)
           _ => fail("expected argument binding")
         }
       None => fail("expected argument metavar to match \{source}")
@@ -379,6 +387,7 @@ test "argument metavar requires repeated argument equality" {
     constant_metavars: [],
     arg_metavars: ["arg"],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -407,6 +416,7 @@ test "pattern metavar captures whole pattern AST" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -416,7 +426,7 @@ test "pattern metavar captures whole pattern AST" {
     )
     is Some(result) {
     match result.bindings.get("item") {
-      Some(node) => {
+      Some(Single(node)) => {
         guard test_pattern_constructor_name(node) is Some(name) else {
           fail("expected constructor pattern binding")
         }
@@ -443,6 +453,7 @@ test "pattern metavar requires repeated pattern equality" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -472,6 +483,7 @@ test "identifier metavar matches pattern vars" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -495,6 +507,7 @@ test "identifier metavar matches labels" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -517,6 +530,7 @@ test "identifier metavar matches qualified function names" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -538,6 +552,7 @@ test "qualified identifier metavar keeps literal package" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -560,6 +575,7 @@ test "identifier metavar matches constructor identity with extra info" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -586,6 +602,7 @@ test "identifier metavar matches constructor type extra info" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
@@ -612,6 +629,7 @@ test "identifier metavar matches constructor patterns" {
     constant_metavars: [],
     arg_metavars: [],
     type_metavars: [],
+    ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
   }
