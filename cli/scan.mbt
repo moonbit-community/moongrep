@@ -16,6 +16,7 @@ priv struct DirectoryScanResult {
 ///|
 priv struct ScanHit {
   finding : @rule_model.RuleFinding
+  matched_source : String
   source_context : SourceContext
 }
 
@@ -35,7 +36,11 @@ priv struct SourceContextLine {
 /// Runs a scan and renders its command-line output.
 pub async fn render_scan_command(options : CliOptions) -> String {
   let result = collect_directory_hits(options)
-  render_directory_scan_result(result, no_color=options.no_color)
+  if options.output_json {
+    render_directory_scan_json(result)
+  } else {
+    render_directory_scan_result(result, no_color=options.no_color)
+  }
 }
 
 ///|
@@ -107,7 +112,60 @@ async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
 
 ///|
 fn make_scan_hit(source : String, finding : @rule_model.RuleFinding) -> ScanHit {
-  { finding, source_context: source_context_for_location(source, finding.loc) }
+  {
+    finding,
+    matched_source: matched_source_for_location(source, finding.loc),
+    source_context: source_context_for_location(source, finding.loc),
+  }
+}
+
+///|
+fn clamp_source_index(index : Int, length : Int) -> Int {
+  if index < 0 {
+    0
+  } else if index > length {
+    length
+  } else {
+    index
+  }
+}
+
+///|
+fn matched_source_for_location(
+  source : String,
+  loc : @basic.Location,
+) -> String {
+  let lines = source.split("\n").to_array()
+  let line_count = source_context_line_count(source, lines.length())
+  if line_count == 0 ||
+    loc.start.lnum <= 0 ||
+    loc.end.lnum <= 0 ||
+    loc.end.lnum < loc.start.lnum ||
+    loc.start.lnum > line_count ||
+    loc.end.lnum > line_count {
+    return ""
+  }
+  let start_line = lines[loc.start.lnum - 1]
+  let end_line = lines[loc.end.lnum - 1]
+  let start_index = clamp_source_index(
+    loc.start.column() - 1,
+    start_line.length(),
+  )
+  let end_index = clamp_source_index(loc.end.column() - 1, end_line.length())
+  if loc.start.lnum == loc.end.lnum {
+    if end_index < start_index {
+      ""
+    } else {
+      start_line[start_index:end_index].to_owned()
+    }
+  } else {
+    let matched_lines : Array[String] = [start_line[start_index:].to_owned()]
+    for line_number in (loc.start.lnum + 1)..<loc.end.lnum {
+      matched_lines.push(lines[line_number - 1].to_owned())
+    }
+    matched_lines.push(end_line[:end_index].to_owned())
+    matched_lines.join("\n")
+  }
 }
 
 ///|

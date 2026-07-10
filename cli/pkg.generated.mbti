@@ -33,6 +33,7 @@ pub(all) struct CliOptions {
   verbose : Bool
   enable_builtin_rules : Bool
   no_color : Bool
+  output_json : Bool
 }
 
 // Type aliases

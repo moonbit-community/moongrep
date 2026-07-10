@@ -10,6 +10,7 @@ Run the scanner with a rule directory and an optional scan target directory or
 
 ```bash
 moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules path/to/src
+moon runwasm moonbit-community/moongrep -- scan --output-json --rules path/to/rules path/to/src
 moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
 moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --guard '{$callee: "^safe_"}' path/to/src
 ```
@@ -17,7 +18,7 @@ moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --gua
 Synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--output-json] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
 ```
 
 The scanner is available through the `scan` subcommand. `--rules` / `-r` is
@@ -56,6 +57,17 @@ the CLI prints the error and exits with code 1.
 
 Pass `--verbose` to print loaded rule ids and the directory traversal progress
 before warnings and match results.
+
+Pass `--output-json` to emit JSON Lines for coding agents. Each finding is one
+compact JSON object with `file`, `rule_id`, `description`, `range`,
+`outer_range`, `matched_source`, and `source_context` fields. Line and column
+numbers are 1-based, and range ends are exclusive. `outer_range` is `null` when
+the rule has no outer match. The output does not include `pattern_index`.
+
+JSON mode emits findings only. Parse warnings, verbose trace, and the human
+`no match hits` summary are omitted; a scan with no findings writes zero bytes
+to standard output. Usage and fatal errors retain their existing text and exit
+codes.
 
 Each match result prints the source line covered by the finding plus up to two
 lines of surrounding source context. Surrounding context lines are rendered in

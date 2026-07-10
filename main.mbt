@@ -8,9 +8,11 @@ extern "c" fn runtime_exit(code : Int) -> Unit = "exit"
 
 ///|
 fn write_cli_output(output : String) -> Unit {
-  match output.strip_suffix("\n") {
-    Some(trimmed) => println(trimmed.to_owned())
-    None => println(output)
+  if output != "" {
+    match output.strip_suffix("\n") {
+      Some(trimmed) => println(trimmed.to_owned())
+      None => println(output)
+    }
   }
 }
 

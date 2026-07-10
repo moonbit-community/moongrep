@@ -9,6 +9,7 @@
 
 ```bash
 moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules path/to/src
+moon runwasm moonbit-community/moongrep -- scan --output-json --rules path/to/rules path/to/src
 moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
 moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --guard '{$callee: "^safe_"}' path/to/src
 ```
@@ -16,7 +17,7 @@ moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --gua
 用法概要：
 
 ```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
+moon runwasm moonbit-community/moongrep -- scan [--verbose] [--output-json] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
 ```
 
 扫描器通过 `scan` 子命令使用。当提供了 `--rule <rule-file>`、至少一个
@@ -48,6 +49,16 @@ YAML 规则文件。内联模式会被视为匿名结构化规则，其规则 id
 或源码读取失败，都会中止本次运行；CLI 会打印错误并以退出码 1 退出。
 
 传入 `--verbose` 可以在警告和匹配结果之前，打印已加载的规则 id 和目录遍历进度。
+
+传入 `--output-json` 可以为 Coding Agent 输出 JSON Lines。每个 finding 对应一行
+紧凑 JSON object，字段包括 `file`、`rule_id`、`description`、`range`、
+`outer_range`、`matched_source` 和 `source_context`。行号和列号从 1 开始，
+range 的 end 为半开区间终点；不存在 outer match 时 `outer_range` 为 `null`。
+输出不包含 `pattern_index`。
+
+JSON 模式只输出 finding。解析警告、verbose trace 和人类可读的
+`no match hits` 摘要都会被省略；没有 finding 时，标准输出为零字节。用法错误和
+致命错误继续使用现有文本格式和退出码。
 
 每个匹配结果都会打印发现项覆盖的源码行，以及最多两行周边源码上下文。周边上下文
 行以灰色渲染；匹配的源码行不使用灰色样式。设置 `NO_COLOR=1` 可以禁用灰色上下文
