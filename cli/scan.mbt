@@ -32,6 +32,13 @@ priv struct SourceContextLine {
 }
 
 ///|
+/// Runs a scan and renders its command-line output.
+pub async fn render_scan_command(options : CliOptions) -> String {
+  let result = collect_directory_hits(options)
+  render_directory_scan_result(result, no_color=options.no_color)
+}
+
+///|
 async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
   let raw_rules = load_scan_rules(options)
   let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
@@ -68,7 +75,7 @@ async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
         // the CLI useful on in-progress worktrees.
         skipped_files.push({
           file,
-          reason: "parse failed due to \{compact_reports(reports)}",
+          reason: "parse failed due to \{compact_scan_reports(reports)}",
         })
       } else {
         for node in impls {
@@ -343,8 +350,7 @@ fn should_skip_entry(
 }
 
 ///|
-#moongrep.skip
-fn compact_reports(reports : Array[@basic.Report]) -> String {
+fn compact_scan_reports(reports : Array[@basic.Report]) -> String {
   let messages : Array[String] = []
   for report in reports {
     messages.push(report.msg.replace_all(old="\n", new=" "))

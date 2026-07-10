@@ -1,0 +1,27 @@
+import {
+  "moonbit-community/chalk",
+  "moonbit-community/moongrep/docs",
+  "moonbit-community/moongrep/rule/apply" @rule_apply,
+  "moonbit-community/moongrep/rule/builtin" @rule_builtin,
+  "moonbit-community/moongrep/rule/compile" @rule_compile,
+  "moonbit-community/moongrep/rule/load" @rule_load,
+  "moonbit-community/moongrep/rule/model" @rule_model,
+  "moonbit-community/moongrep/untyped_ast",
+  "moonbit-community/yaml",
+  "moonbitlang/async/fs",
+  "moonbitlang/async/io",
+  "moonbitlang/core/argparse",
+  "moonbitlang/core/list",
+  "moonbitlang/lexer",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser",
+  "moonbitlang/parser/attribute",
+  "moonbitlang/parser/handrolled_parser",
+  "moonbitlang/parser/syntax",
+}
+
+import {
+  "moonbitlang/async",
+} for "wbtest"
+
+supported_targets = "+wasm+native"
