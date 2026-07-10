@@ -5,10 +5,10 @@ version = "0.1.13"
 preferred_target = "wasm"
 
 import {
-  "moonbitlang/parser@0.3.8",
+  "moonbitlang/parser@0.3.9",
   "moonbit-community/yaml@0.0.4",
   "moonbit-community/chalk@0.0.1",
-  "moonbitlang/lexer@0.3.7",
+  "moonbitlang/lexer@0.3.9",
   "moonbitlang/async@0.20.1",
 }
 
