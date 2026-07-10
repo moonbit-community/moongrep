@@ -203,6 +203,46 @@ moongrep会为同名的所有出现位置推导出单一 kind。只出现在表�
 
 旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
 
+### Ellipsis 元变量
+
+`$$$name` 捕获 untyped AST 有序列表中零个或多个连续 sibling；
+`$$$(name:kind)` 使用 `exp`、`id`、`const`、`arg`、`pat` 或 `type`
+约束捕获到的每一项。裸命名 ellipsis 的 kind 是 `AnyItem`；如果同名位置中还存在
+typed occurrence，则由 typed occurrence 决定所有裸 occurrence 的 kind。
+
+```yaml
+patterns:
+  - shape: inspect($$$args)
+  - shape: pair([$$$(items:exp)], [$$$items])
+```
+
+标记必须占据 untyped AST 中没有字段名的完整 child。调用实参列表、表达式列表、
+parameter 列表、pattern 列表和类型列表都可以支持它。它不能作为根、普通具名字段、
+标签或另一个节点的一部分；尤其不会展开 `Expr_Sequence.last_expr` 这样的具名字段。
+
+匹配器从左到右处理 pattern item。遇到 ellipsis 时从空序列开始尝试最短捕获，
+失败时恢复 bindings 并逐步增加长度，直到剩余 pattern 成功。一个列表包含多个
+ellipsis 时也按这一规则确定结果。空捕获满足任何 kind 约束。
+
+在表达式列表中，`exp`、`id` 和 `const` 接受与对应单节点元变量相同的候选。
+在调用实参列表中，`arg` 接受 positional、labelled、pun、optional-labelled 和
+optional-pun argument；`exp`、`id` 和 `const` 只接受 value 满足相应 kind 的
+positional argument。`pat` 用于 pattern 列表项，`type` 用于类型列表项，`id`
+可以捕获带 binder 的 parameter 项。捕获数组始终保存原始完整 sibling 节点，
+例如 `Argument`、`Parameter` 或表达式节点。
+
+同名 ellipsis 重复出现时，捕获数组长度必须相同，且节点在忽略源码位置后结构相等。
+普通元变量与 ellipsis 不能共用名称，冲突的显式 kind 会被拒绝。`$$$_` 和
+`$$$(_:kind)` 不绑定，且每个 occurrence 都是独立通配符。guard 不能引用
+ellipsis 捕获。inside context 会像其他 binding 一样继承 `Multiple`；内部重复的
+ellipsis 必须使用相同 kind。taint sink 和 sanitizer 可以在唯一的完整 argument
+或 receiver `__SOURCE__` target 前后放置 ellipsis。
+
+公开 matcher 和 query API 使用 `BoundValue` 表示捕获：普通捕获是
+`Single(Node)`，ellipsis 捕获是 `Multiple(Array[Node])`。
+`ExprMatch.bindings`、`ExprQuery::captures` 和 `ExprQuery::captures_from_ast`
+都返回这种表示。
+
 ### 保留名称
 
 这些名称不能用作内联元变量名：
@@ -745,7 +785,9 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `$(name:arg)` 出现在裸参数位置之外
 - `$(name:pat)` 出现在裸 pattern 位置之外
 - `$(name:type)` 出现在完整类型位置之外
-- guard 键没有 `$` 前缀，或引用未知捕获、`exp` 捕获、`arg` 捕获、`pat` 捕获或 `type` 捕获
+- guard 键没有 `$` 前缀，或引用未知捕获、`exp` 捕获、`arg` 捕获、`pat` 捕获、`type` 捕获或 ellipsis 捕获
+- ellipsis 没有占据完整的无字段名有序列表项
+- ellipsis kind 与列表位置不兼容、与另一个 typed occurrence 冲突，或和普通元变量共用名称
 - guard 正则无效
 - `inside-expr` 没有且只有一个可绑定的 `__TARGET__`
 - `inside-toplevel` 没有且只有一个可绑定的 `__TARGET__`

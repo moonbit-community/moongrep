@@ -9,8 +9,8 @@
 `match_expr_pattern_with_bindings` 会在匹配前复制调用方传入的 map。失败的匹配可能在这个本地副本里留下部分捕获，
 但绝不会修改调用方的 map。
 
-这里没有回溯引擎。辅助函数会在从左到右遍历时完成绑定；如果后面的子节点失败，整个候选匹配失败。
-这没有问题，因为当前 matcher 没有需要回滚的替代分支。
+普通节点仍从左到右完成绑定。包含 ellipsis 的有序 child 列表使用局部回溯：
+每个候选长度都在 bindings 副本上运行，只有首个完整成功分支会被提交。
 
 ## 占位符分派
 
@@ -40,11 +40,11 @@
 
 ## 绑定种类
 
-`BoundValue` 是 `@untyped_ast.Node`。
+`BoundValue` 是 `Single(Node)` 或 `Multiple(Array[Node])`。
 
-每个绑定都会直接存为 untyped AST 节点。expression、constant、argument、pattern
-和 type metavar 绑定它们匹配到的节点。identifier metavar 会把归一化名称编码成
-`Leaf(PString(_))` 节点。
+expression、constant、argument、pattern、type 和 identifier metavar 使用
+`Single`；identifier 的归一化名称仍编码为 `Leaf(PString(_))`。ellipsis metavar
+使用 `Multiple`，并保留完整 sibling 节点。
 
 expression metavar 会捕获该位置上的候选表达式节点。重复使用时比较节点结构和 leaf
 值，并忽略源码位置。
@@ -59,7 +59,8 @@ pattern 节点。type metavar 绑定完整类型节点。重复的 constant、pa
 ## 相等性忽略位置
 
 matcher 在比较重复的 expression、argument、pattern 和 type 捕获时会忽略源码位置。重复绑定比较由
-`bound_value_equal` 处理，并委托给 `node_equal_ignoring_loc`。
+`bound_value_equal` 处理：`Single` 只和 `Single` 比较，`Multiple` 只和
+`Multiple` 比较，混合 variant 不相等。
 
 `node_equal_ignoring_loc` 要求节点 kind 相同，并按顺序递归比较子节点标签和子值。
 Leaf 值通过节点 kind 比较；整个遍历都会忽略 `loc` 字段。

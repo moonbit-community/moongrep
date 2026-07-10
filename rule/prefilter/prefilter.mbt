@@ -324,6 +324,7 @@ fn is_filter_placeholder(
   name : String,
   compiled : @matching.CompiledExprPattern,
 ) -> Bool {
+  name.has_prefix("$$$") ||
   is_underscore_placeholder(name) ||
   is_pattern_placeholder(name) ||
   compiled.target_metavar == Some(name) ||
