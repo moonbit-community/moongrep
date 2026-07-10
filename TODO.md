@@ -2,6 +2,10 @@
 
 ## Current Limitations
 
+- `scan --output-json` currently emits finding records only, so parse warnings
+  for skipped files are silently omitted. Add a machine-readable warning record
+  or a separate diagnostic channel before treating JSON output as a complete
+  scan report.
 - Matching is AST based and location preserving. Reported locations are exactly
   the locations supplied by the parser/tree builder.
 - Structural `id` and `const` guards are supported. Guards for `exp`, `arg`,

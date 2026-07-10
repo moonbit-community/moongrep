@@ -16,6 +16,7 @@ pub(all) struct CliOptions {
   verbose : Bool
   enable_builtin_rules : Bool
   no_color : Bool
+  output_json : Bool
 }
 
 ///|
@@ -41,6 +42,11 @@ let scan_command : @argparse.Command = Command(
       "enable-builtin-rules",
       long="enable-builtin-rules",
       about="Enable embedded builtin rules.",
+    ),
+    FlagArg(
+      "output-json",
+      long="output-json",
+      about="Print each match as one JSON record.",
     ),
   ],
   options=[
@@ -228,6 +234,7 @@ fn scan_cli_options(
     scan_matches.flags,
     "enable-builtin-rules",
   )
+  let output_json = cli_flag_enabled(scan_matches.flags, "output-json")
   let no_color = no_color_enabled(env)
   let rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
@@ -261,6 +268,7 @@ fn scan_cli_options(
     verbose,
     enable_builtin_rules,
     no_color,
+    output_json,
   }
 }
 
@@ -411,7 +419,8 @@ fn normalize_scan_multi_value_option_args(
 /// A supported subcommand is required after the executable name. Within `scan`,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`,
 /// `--rule <rule-file>`, at least one `--pattern <pattern>`, or
-/// `--enable-builtin-rules` is required, and `--verbose` is optional.
+/// `--enable-builtin-rules` is required. `--verbose` and `--output-json` are
+/// optional.
 /// `--exclude-dir <dir>...` skips matching child directory names or paths
 /// during recursive source scanning. `--exclude-rules <rule-id>...` disables
 /// loaded rules by exact rule id before matching.

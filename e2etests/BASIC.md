@@ -31,6 +31,7 @@ Options:
   -h, --help                       Show help information.
   --verbose                        Print loaded rule ids and directory traversal progress.
   --enable-builtin-rules           Enable embedded builtin rules.
+  --output-json                    Print each match as one JSON record.
   -r, --rules <rules>              Directory containing YAML rules.
   --rule <rule>                    Single YAML rule file.
   --pattern <pattern>              Anonymous structural pattern to match.

@@ -48,6 +48,7 @@ fn skip_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -63,6 +64,7 @@ fn exclude_dir_scan_options() -> CliOptions {
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -78,6 +80,7 @@ fn single_rule_file_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -98,6 +101,7 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -113,6 +117,7 @@ fn verbose_rules_scan_options() -> CliOptions {
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -128,6 +133,7 @@ fn impl_prefilter_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -143,6 +149,7 @@ fn exclude_rule_scan_options() -> CliOptions {
     verbose: true,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 
@@ -158,6 +165,7 @@ fn unknown_exclude_rule_scan_options() -> CliOptions {
     verbose: false,
     enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
   }
 }
 

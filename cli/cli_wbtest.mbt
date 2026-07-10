@@ -115,6 +115,7 @@ test "cli args parse rules root and default scan root" {
       assert_false(options.verbose)
       assert_false(options.enable_builtin_rules)
       assert_false(options.no_color)
+      assert_false(options.output_json)
     }
     _ => fail("unexpected command")
   }
@@ -188,6 +189,21 @@ test "cli args parse scan verbose flag" {
       inspect(options.scan_root, content="src")
       assert_true(options.verbose)
       assert_false(options.enable_builtin_rules)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse scan output json flag" {
+  match
+    parse_cli_command([
+      "scan", "--rules", "custom-rules", "--output-json", "src",
+    ]) {
+    ("scan", Some(options), None) => {
+      inspect(options.scan_root, content="src")
+      assert_true(options.output_json)
+      assert_false(options.verbose)
     }
     _ => fail("unexpected command")
   }
