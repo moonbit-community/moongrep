@@ -61,13 +61,13 @@ description:
   Found an Option value handled with match over Some and None.
   Prefer if + is for simple Option checks.
 source:
-3 |   inspect(1, content="1")
-4 |   assert_true(
-5 >     match value {
-6 >       Some(inner) => inner > 0
-7 >       None => false
-8 >     },
-9 |   )
+ 3 |   inspect(1, content="1")
+ 4 |   assert_true(
+ 5 >     match value {
+ 6 >       Some(inner) => inner > 0
+ 7 >       None => false
+ 8 >     },
+ 9 |   )
 10 | }
 ```
 

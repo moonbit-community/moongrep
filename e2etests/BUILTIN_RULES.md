@@ -16,19 +16,22 @@ source:
 5 >   }
 6 | }
 
-testdata/builtin-rules-all/match_option.mbt:3:3-6:4
+testdata/builtin-rules-all/match_option.mbt:3:3-11:4
 rule: moonbitlang/match_option
 description:
   Found an Option value handled with match over Some and None.
   Prefer if + is for simple Option checks.
 source:
-1 | ///|
-2 | fn option_match(value : Int?) -> Bool {
-3 >   match value {
-4 >     Some(inner) => inner > 0
-5 >     None => false
-6 >   }
-7 | }
+ 1 | ///|
+ 2 | fn option_match(value : Int?) -> Bool {
+ 3 >   match value {
+ 4 >     Some(inner) => {
+ 5 >       let prepared = prepare(inner)
+ . >       line 6-8: 3 matched lines omitted
+ 9 >     }
+10 >     None => false
+11 >   }
+12 | }
 
 testdata/builtin-rules-all/inspect_number.mbt:3:3-3:26
 rule: moonbitlang/inspect_number

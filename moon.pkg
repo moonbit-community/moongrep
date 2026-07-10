@@ -1,25 +1,7 @@
 import {
-  "moonbit-community/chalk",
-  "moonbit-community/moongrep/docs",
-  "moonbit-community/moongrep/rule/apply" @rule_apply,
-  "moonbit-community/moongrep/rule/builtin" @rule_builtin,
-  "moonbit-community/moongrep/rule/compile" @rule_compile,
-  "moonbit-community/moongrep/rule/load" @rule_load,
-  "moonbit-community/moongrep/rule/model" @rule_model,
-  "moonbit-community/moongrep/untyped_ast",
-  "moonbit-community/yaml",
+  "moonbit-community/moongrep/cli",
   "moonbitlang/async",
-  "moonbitlang/async/fs",
-  "moonbitlang/async/io",
-  "moonbitlang/core/argparse",
   "moonbitlang/core/env",
-  "moonbitlang/core/list",
-  "moonbitlang/parser",
-  "moonbitlang/parser/attribute",
-  "moonbitlang/parser/handrolled_parser",
-  "moonbitlang/lexer/basic",
-  "moonbitlang/lexer",
-  "moonbitlang/parser/syntax",
 }
 
 supported_targets = "+wasm+native"

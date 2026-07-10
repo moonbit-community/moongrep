@@ -23,7 +23,7 @@ fn render_doc_body(name : String) -> String raise {
 }
 
 ///|
-fn render_docs_command(
+pub fn render_docs_command(
   command : (String, CliOptions?, String?),
 ) -> String raise {
   match command {

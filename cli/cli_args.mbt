@@ -1,12 +1,12 @@
 ///|
 /// CLI argument errors with the process exit code the frontend should use.
-priv suberror CliError {
+pub(all) suberror CliError {
   Usage(message~ : String, exit_code~ : Int)
 } derive(Debug)
 
 ///|
 /// Parsed command-line options for one scan target.
-priv struct CliOptions {
+pub(all) struct CliOptions {
   rules_root : String?
   rule_file : String?
   patterns : Array[@rule_model.RulePatternSpec]
@@ -19,7 +19,7 @@ priv struct CliOptions {
 }
 
 ///|
-fn runtime_cli_args(argv : Array[String]) -> Array[String] {
+pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
   let args : Array[String] = []
   for index in 1..<argv.length() {
     args.push(argv[index])
@@ -421,8 +421,7 @@ fn normalize_scan_multi_value_option_args(
 /// appended in order.
 /// Missing subcommands, required arguments, unknown options, or more than one
 /// scan root raise `CliError::Usage` with exit code 2.
-#moongrep.skip
-fn parse_cli_command(
+pub fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = {},
 ) -> (String, CliOptions?, String?) raise {

@@ -1,0 +1,41 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/cli"
+
+import {
+  "moonbit-community/moongrep/rule/model",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn parse_cli_command(Array[String], env? : Map[String, String]) -> (String, CliOptions?, String?) raise
+
+pub fn render_docs_command((String, CliOptions?, String?)) -> String raise
+
+pub fn render_dump_command((String, CliOptions?, String?)) -> String raise
+
+pub async fn render_scan_command(CliOptions) -> String
+
+pub fn runtime_cli_args(Array[String]) -> Array[String]
+
+// Errors
+pub(all) suberror CliError {
+  Usage(message~ : String, exit_code~ : Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct CliOptions {
+  rules_root : String?
+  rule_file : String?
+  patterns : Array[@model.RulePatternSpec]
+  scan_root : String
+  exclude_dirs : Array[String]
+  exclude_rules : Array[String]
+  verbose : Bool
+  enable_builtin_rules : Bool
+  no_color : Bool
+}
+
+// Type aliases
+
+// Traits
+

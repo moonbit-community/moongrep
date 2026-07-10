@@ -1,5 +1,5 @@
 ///|
-fn render_dump_command(
+pub fn render_dump_command(
   command : (String, CliOptions?, String?),
 ) -> String raise {
   match command {
@@ -56,4 +56,13 @@ fn parse_dump_expr(source : String) -> @syntax.Expr raise {
     )
   }
   expr
+}
+
+///|
+fn compact_reports(reports : Array[@basic.Report]) -> String {
+  let messages : Array[String] = []
+  for report in reports {
+    messages.push(report.msg.replace_all(old="\n", new=" "))
+  }
+  messages.join(" ")
 }
