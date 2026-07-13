@@ -94,11 +94,42 @@ user.name == other.name
 
 `$_` 表示忽略占位符。它可以匹配当前位置上的任意内容，不记录捕获结果。同一模式中的多个 `$_` 相互独立。
 
+## 结构化输出
+
 默认情况下，moongrep输出为人类用户准备的报告。如果希望让Coding Agent读取moongrep的输出, 请加上`--output-json`选项.
 
 ```bash
-moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }' --output-json
+moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
+
+## 模式附加条件
+
+`--guard`选项可以为表达式模式添加额外的筛选条件，筛选条件的对象是表达式模式里面的元变量捕获的内容。
+
+一个实用且简短的例子是使用`guard`查找针对数字的inspect调用，这样的调用通常不是一种良好的代码实践，最好改写成使用`assert_eq`或者其他的检查方式。
+
+```bash
+moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\\\.[0-9]+)?$"}'
+```
+
+`--guard`的参数是一个YAML Map，通常紧跟在需要筛选的`--pattern`之后：
+
+```text
+--pattern '...$(name:id)...$(value:const)...' \
+--guard '{$name: "正则表达式", $value: "正则表达式"}'
+```
+
+映射的键必须是模式中已经声明的具名元变量，并保留`$`前缀；映射的值必须是正则表达式字符串。建议用单引号包住整个YAML Map，避免shell展开`$name`，再用双引号包住其中的正则字符串。双引号YAML字符串中的反斜杠需要转义，例如正则中的`\.`要写成`\\.`。
+
+目前guard只能筛选`id`和`const`捕获，不能筛选`exp`、`arg`、`pat`、`type`、ellipsis捕获或`$_`。对于`id`捕获，正则匹配的是归一化后的标识符，例如`name`或`@pkg.name`；对于`const`捕获，正则匹配的是parser得到的常量值，例如字符串字面量`"raw"`对应`raw`，数字`42`对应`42`，布尔值`true`对应`true`。
+
+正则默认使用包含匹配语义。例如`"raw"`也会匹配`"draw"`；需要匹配整个捕获值时，应使用`^`和`$`，写成`"^raw$"`。同一个映射中的多个条件必须全部满足，因此可以同时限定函数名和参数：
+
+```bash
+moongrep scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@html\\.render$", $value: "^(danger|raw)$"}'
+```
+
+每个`--pattern`最多接受一个`--guard`。如果需要扫描多个带筛选条件的模式，应按`--pattern`、`--guard`成对书写；一个模式需要多个条件时，应把它们放在同一个YAML Map中。
 
 ## 打印ast
 
