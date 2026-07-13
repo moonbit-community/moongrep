@@ -297,9 +297,9 @@ fn parse_guard_map(
   clause_context : String,
 ) -> Map[String, String] raise {
   match clause_map.get("guard") {
-    None => {}
+    None => Map([])
     Some(Map(guard_map)) => {
-      let guards : Map[String, String] = {}
+      let guards : Map[String, String] = Map([])
       for key, value in guard_map {
         ensure_guard_key(key, path)
         match value {

@@ -288,13 +288,13 @@ fn parse_scan_pattern_specs(
           exit_code=2,
         )
       }
-      patterns.push({ shape: argv[index + 1], guards: {} })
+      patterns.push({ shape: argv[index + 1], guards: Map([]) })
       has_guard.push(false)
       index += 2
     } else if arg.has_prefix("--pattern=") {
       patterns.push({
         shape: arg["--pattern=".length():].to_owned(),
-        guards: {},
+        guards: Map([]),
       })
       has_guard.push(false)
       index += 1
@@ -350,7 +350,10 @@ fn attach_scan_guard(
 fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
   let docs = @yaml.Yaml::load_from_string(source) catch {
     err =>
-      raise CliError::Usage(message="invalid --guard YAML: \{err}", exit_code=2)
+      raise CliError::Usage(
+        message="invalid --guard YAML: \{to_repr(err)}",
+        exit_code=2,
+      )
   }
   if docs.length() != 1 {
     raise CliError::Usage(
@@ -361,7 +364,7 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
   guard docs[0] is Map(map) else {
     raise CliError::Usage(message="--guard must be a YAML mapping", exit_code=2)
   }
-  let guards : Map[String, String] = {}
+  let guards : Map[String, String] = Map([])
   for key, value in map {
     if !key.has_prefix("$") || key.length() <= 1 {
       raise CliError::Usage(
@@ -432,7 +435,7 @@ fn normalize_scan_multi_value_option_args(
 /// scan root raise `CliError::Usage` with exit code 2.
 pub fn parse_cli_command(
   argv : Array[String],
-  env? : Map[String, String] = {},
+  env? : Map[String, String] = Map([]),
 ) -> (String, CliOptions?, String?) raise {
   let normalized_argv = normalize_scan_multi_value_option_args(argv, [
     "--exclude-dir", "--exclude-rules",

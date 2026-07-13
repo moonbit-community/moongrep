@@ -57,7 +57,7 @@ Then it parses the token stream with `parse_expr`. Ordinary `patterns`,
 `patterns-not`, `inside-expr`, and taint clause shapes are therefore exactly one
 MoonBit expression, not a file fragment or top-level declaration.
 
-`inside-toplevel.shape` uses the same lexer settings but is parsed with
+`inside-toplevel.shape` uses the same lexer settings. It is parsed with
 `parse_toplevel_shape`, which accepts exactly one MoonBit top-level item and
 converts it with `@untyped_ast.from_impl`.
 
@@ -143,7 +143,7 @@ inside-context traversal, and `__SOURCE__` is reserved for taint sink and
 sanitizer target selection.
 
 Names that merely start with underscores, such as `__moongrep_value`, are not
-reserved unless they are exactly one of the built-ins above.
+reserved. The exact built-ins listed above are reserved.
 
 ## Structural Rules
 
@@ -161,9 +161,9 @@ It must contain exactly one `__TARGET__` name as counted by
 metavars specially in whole expression positions, so changes to supported-name
 counting must be checked against `matching` behavior.
 
-Metavars declared in the inside context are visible while matching target
-expressions, but inner `patterns` and `patterns-not` must repeat the same inline
-form to reuse the binding. `ensure_inherited_inside_context_metavar_forms`
+Metavars declared in the inside context are visible during target-expression
+matching. Inner `patterns` and `patterns-not` must repeat the same inline form
+to reuse the binding. `ensure_inherited_inside_context_metavar_forms`
 rejects an inner pattern that redeclares an inherited name with a different
 kind.
 

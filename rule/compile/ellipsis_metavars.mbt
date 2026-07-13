@@ -31,7 +31,7 @@ fn compile_ellipsis_metavars(
 ) -> Array[@matching.EllipsisMetavar] raise {
   let occurrences : Array[EllipsisOccurrence] = []
   collect_ellipsis_occurrences(path, context, ast, occurrences)
-  let explicit_kinds : Map[String, @matching.EllipsisMetavarKind] = {}
+  let explicit_kinds : Map[String, @matching.EllipsisMetavarKind] = Map([])
   for occurrence in occurrences {
     if occurrence.name != "_" {
       validate_declared_metavar(path, context, occurrence.name, true)

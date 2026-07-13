@@ -139,7 +139,7 @@ fn MetavarRewriteContext::record_bare_metavar(
 fn MetavarRewriteContext::resolve_metavar_kinds(
   ctx : MetavarRewriteContext,
 ) -> Map[String, String] raise {
-  let resolved : Map[String, String] = {}
+  let resolved : Map[String, String] = Map([])
   for name in ctx.pattern_metavars {
     resolved[name] = "pat"
   }

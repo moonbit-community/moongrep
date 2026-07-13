@@ -6,7 +6,7 @@
 
 ## 扫描
 
-`moongrep`的最简单使用方法是在一个MoonBit项目根目录运行scan命令(默认递归扫描，但是会绕过Git和MoonBit工具链生成的目录), 并使用`--pattern`选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对Option类型的值进行`match`的表达式。
+`moongrep`的最简单使用方法是在一个MoonBit项目根目录运行scan命令(默认递归扫描，同时绕过Git和MoonBit工具链生成的目录), 并使用`--pattern`选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对Option类型的值进行`match`的表达式。
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'

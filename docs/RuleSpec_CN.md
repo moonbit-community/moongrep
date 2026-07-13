@@ -10,7 +10,7 @@
 
 关键词 "must"、"must not"、"may" 和 "currently" 描述的是规则作者今天可以依赖的行为。
 
-规则使用 YAML 编写，但每个 `shape` 值都是 MoonBit 表面语法。扫描器匹配的是解析后的 MoonBit 表达式结构，而不是原始文本。因此，格式和注释不重要；表达式形式、操作符、字面量值、标签、被调用名称和参数结构是重要的，除非通配符或声明的元变量另有规定。
+规则使用 YAML 格式。每个 `shape` 值都是 MoonBit 表面语法。扫描器匹配解析后的 MoonBit 表达式结构，不匹配原始文本。格式和注释不参与匹配。表达式形式、操作符、字面量值、标签、被调用名称和参数结构参与匹配。通配符和已声明元变量按下文规则修改这些匹配要求。
 
 ## 规则文件
 
@@ -56,7 +56,7 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 - `inside-expr`（结构规则可选）：YAML 映射，使用与 `patterns` 相同的
   `shape` 和可选 `guard` schema，作为外层上下文
 - `inside-toplevel`（结构规则可选）：YAML 映射，使用与 `inside-expr`
-  相同的 `shape` 和可选 `guard` schema，但解析为一个 MoonBit 顶层项
+  相同的 `shape` 和可选 `guard` schema；它的 shape 解析为一个 MoonBit 顶层项
 - `taint`（污点规则必需）：YAML 映射
 
 未知顶层键会被拒绝。
@@ -88,15 +88,14 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 pattern object 中的未知键会被拒绝。
 
-对于 taint `sources`、`sinks` 和 `sanitizers`，同样使用 `shape` 键，但
-`guard` 会被拒绝。
+Taint `sources`、`sinks` 和 `sanitizers` 同样使用 `shape` 键。这些字段不接受 `guard`。
 
 ## Shapes
 
-`shape` 必须是一个单独的 MoonBit 表达式片段；但
+普通 `shape` 必须是一个单独的 MoonBit 表达式片段。
 `inside-toplevel.shape` 必须且只能是一个 MoonBit 顶层项。
 
-有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `inside-expr` shape 不是整个文件、顶层声明、包片段或 import 列表。`inside-toplevel.shape` 可以是一个函数、顶层 `let`、`test`、方法 `impl`、view 或顶层表达式，但仍然只能是一个顶层项，而不是整个文件或 import 列表。
+有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `inside-expr` shape 不表示整个文件、顶层声明、包片段或 import 列表。`inside-toplevel.shape` 可以是一个函数、顶层 `let`、`test`、方法 `impl`、view 或顶层表达式。它只能表示一个顶层项，不能表示整个文件或 import 列表。
 
 shape 是结构性的：
 
@@ -107,12 +106,12 @@ shape 是结构性的：
 - 匹配语法中出现的类型注解和类型名必须匹配
 - 源码位置、格式和注释不参与匹配
 
-扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个不同的导入名称即使指向同一定义，仍然是不同的；除非它们解析后的源码拼写一致，或被元变量捕获。
+扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个指向同一定义的导入名称只在解析后的源码拼写一致或被元变量捕获时视为相同。
 
 ### 省略 body 的 let shape
 
 没有显式 body 的普通 `let` shape 是 let-header pattern。例如，下面的 shape
-会匹配绑定 pattern 和右侧表达式，但不会约束候选表达式的 body：
+会匹配绑定 pattern 和右侧表达式。它不约束候选表达式的 body：
 
 ```yaml
 patterns:
@@ -133,10 +132,7 @@ let item = load(); use(item)
 let item = load(); { trace(item); item }
 ```
 
-这个例外来自 MoonBit parser 的表示方式：`let item = load()` 会被表示为
-`Expr::Let`，其 body 是一个合成的 unit 表达式。当 pattern shape 中出现这个合成
-unit 时，matcher 会把它视为“pattern 省略了 body”，而不是要求候选 body
-也必须是同一个 unit node。
+MoonBit parser 会把 `let item = load()` 表示为 `Expr::Let`，其 body 是一个合成的 unit 表达式。当 pattern shape 中出现这个合成 unit 时，matcher 会把它解释为“pattern 省略了 body”。候选 body 无需匹配同一个 unit node。
 
 如果 body 重要，请显式写出 body：
 
@@ -145,7 +141,7 @@ patterns:
   - shape: let $(name:id) = $(value:exp); use($(name:id))
 ```
 
-如果候选 body 可以是任意表达式，但你想捕获它，请显式写 body 元变量：
+如需捕获任意形式的候选 body，请显式写 body 元变量：
 
 ```yaml
 patterns:
@@ -201,7 +197,7 @@ moongrep会为同名的所有出现位置推导出单一 kind。只出现在表�
 
 裸 `$name` 的推导是保守的。它不会默认推导为 `const`、`arg` 或 `pat`。像 `match input { $item => body }` 这样的简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义；请写成 `$(item:id)`、`$(item:const)` 或 `$(item:pat)` 来明确选择。裸 `$name` 不会推导为 `arg`；完整调用参数请显式写 `$(name:arg)`。类型标注中的裸 `$name` 可以推导为 `type`；当类型位置不明显时可显式写 `$(name:type)`。同名的显式出现也可以在位置兼容时为后续裸出现确定 kind。
 
-旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因为使用不支持的键而被拒绝。
+旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因使用不支持的键被拒绝。
 
 ### Ellipsis 元变量
 
@@ -321,7 +317,7 @@ patterns:
 
 上面的例子可以匹配 `pair(left, right)`。
 
-只有精确的 `$_` 具有这种内置行为。像 `__`、`___` 和 `__x` 这样的名称是字面量，除非它们使用 `$__` 或 `$(__x:exp)` 这样的内联语法。
+只有精确的 `$_` 具有这种内置行为。`__`、`___` 和 `__x` 等名称默认是字面量。`$__` 或 `$(__x:exp)` 等内联语法会把它们标记为元变量。
 
 ### `exp`
 
@@ -351,7 +347,7 @@ make(value) == make(other)
 
 当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`exp` 通常不是合适选择。此时应使用 `id`。
 
-重复 `exp` 相等性由 untyped AST 节点比较保证：比较节点 kind 和子值，并忽略源码位置。它不再限定为一组固定表达式形状。AST 结构不同的语义等价代码仍然不会匹配，除非差异被占位符吸收。
+重复 `exp` 相等性由 untyped AST 节点比较保证：比较节点 kind 和子值，并忽略源码位置。它不再限定为一组固定表达式形状。AST 结构不同的语义等价代码不会匹配。占位符可以吸收结构差异。
 
 ### `id`
 
@@ -440,9 +436,9 @@ sink(label?=value)
 sink(label?)
 ```
 
-重复使用同一个 `arg` 名称时，完整参数节点必须结构相等；源码位置会被忽略。参数 kind、标签和值都必须相同。`sink($(arg:arg), $(arg:arg))` 可以匹配 `sink(value, value)` 和 `sink(label=value, label=value)`，但不会匹配 `sink(value, other)` 或 `sink(label=value, other=value)`。
+重复使用同一个 `arg` 名称时，完整参数节点必须结构相等；源码位置会被忽略。参数 kind、标签和值都必须相同。`sink($(arg:arg), $(arg:arg))` 可以匹配 `sink(value, value)` 和 `sink(label=value, label=value)`。它不会匹配 `sink(value, other)` 或 `sink(label=value, other=value)`。
 
-`arg` 只能显式使用。`sink($arg)` 中的裸 `$arg` 仍按普通裸元变量推导处理，除非该名称在别处已经被显式声明为其他 kind，否则它是 `exp` 捕获。`$(arg:arg)` 必须占据整个参数槽；`sink(label=$(arg:arg))`、`sink($(arg:arg) + 1)` 和根 shape `$(arg:arg)` 都无效。
+`arg` 只能显式使用。`sink($arg)` 中的裸 `$arg` 按普通裸元变量推导处理。该名称在别处的显式 kind 声明决定其 kind，没有这类声明时它是 `exp` 捕获。`$(arg:arg)` 必须占据整个参数槽；`sink(label=$(arg:arg))`、`sink($(arg:arg) + 1)` 和根 shape `$(arg:arg)` 都无效。
 
 ### `type`
 
@@ -538,7 +534,7 @@ patterns:
 - 如果所有正向 pattern 都失败，才会针对当前候选表达式根检查
   `patterns-not`
 - 如果此时负向 pattern 匹配，该候选表达式子树会对这条规则剪枝，且不会产生命中
-- 兄弟表达式子树以及其他规则仍会继续扫描
+- 兄弟表达式子树以及其他规则会继续扫描
 
 报告的 pattern index 从零开始，指向 `patterns` 中匹配的条目。
 
@@ -552,7 +548,7 @@ patterns:
 ```yaml
 id: unblocked-target
 description: |
-  Match target calls unless they are inside a blocked wrapper.
+  Match target calls outside blocked wrappers.
 patterns:
   - shape: target()
 patterns-not:
@@ -563,7 +559,7 @@ patterns-not:
 
 如果正向 pattern 全部失败后负向 pattern 匹配，该候选不会产生命中，并且它的子表达式不会再为这条规则搜索。如果正向和负向 pattern 都不匹配，则继续进入该候选的子表达式。
 
-负向 pattern 仍然只匹配当前候选根。在上面的例子中，`blocked(target())` 不会搜索内部的 `target()`，因为 `blocked` 根先未命中所有正向 pattern，随后命中 `patterns-not`，从而剪枝该分支。如果某个 `blocked(...)` 节点本身也能命中正向 pattern，它会被报告，并且不会检查 `patterns-not`；需要排除同根形状时，应把正向 pattern 写得更窄。
+负向 pattern 只匹配当前候选根。在上面的例子中，`blocked` 根先未命中所有正向 pattern，随后命中 `patterns-not`。该分支被剪枝，`blocked(target())` 不会搜索内部的 `target()`。如果某个 `blocked(...)` 节点本身也能命中正向 pattern，它会被报告，并且不会检查 `patterns-not`。需要排除同根形状时，应把正向 pattern 写得更窄。
 
 与 `inside-expr` 或 `inside-toplevel` 一起使用时，负向匹配会带着外层匹配建立的绑定开始。如果规则同时有 `patterns`，捕获到的 `__TARGET__` 子树中的每个表达式都使用相同的步进顺序：先运行正向 pattern；只有正向 pattern 全部失败后，才检查 `patterns-not`。当外层上下文、`patterns` 和 `patterns-not` 同时存在时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝整个外层匹配。`patterns-not` 也可以与只有 `inside-expr` 或 `inside-toplevel`、没有 `patterns` 的规则一起使用；这种形式见下文。
 
@@ -592,7 +588,7 @@ patterns:
 - `__TARGET__` 是保留名称，不能用作内联元变量名。
 - `patterns` 和 `patterns-not` 条目不能在可绑定位置包含 `__TARGET__`。
 - `inside-expr` 声明的内联元变量在匹配内部 `patterns` 和
-  `patterns-not` 时仍然可见；内部 shape 通过重复相同的内联元变量形式引用它们。
+  `patterns-not` 时可见；内部 shape 通过重复相同的内联元变量形式引用它们。
 - 内部 `patterns` 和 `patterns-not` 不能用不同 kind 使用已经从
   `inside-expr` 可见的元变量名。
 
@@ -612,8 +608,8 @@ patterns:
 ### `inside-toplevel`
 
 `inside-toplevel` 将结构规则限制在某个 MoonBit 顶层项内部匹配。它使用与
-`inside-expr` 相同的对象 schema 和 target 子树语义，但它的 `shape`
-解析为且只能解析为一个顶层项，而不是表达式。
+`inside-expr` 相同的对象 schema 和 target 子树语义。它的 `shape`
+解析为且只能解析为一个顶层项，不解析为表达式。
 
 ```yaml
 id: safe-function-target
@@ -685,7 +681,7 @@ receiver.method(arg)
 sink(label=arg)
 ```
 
-pipe 和 reverse-pipe 语法目前不是有效的 taint 规则 shape，即使源程序在解析后可能包含这类调用。
+pipe 和 reverse-pipe 语法目前不是有效的 taint 规则 shape。源程序在解析后可能包含这类调用。
 
 `__SOURCE__` 在 taint 子句中是保留名称：
 
@@ -716,7 +712,7 @@ taint:
     - shape: sink(wrap(__SOURCE__))
 ```
 
-无效示例将 `__SOURCE__` 嵌套在另一个表达式内部，而不是把它作为整个参数值使用。
+无效示例将 `__SOURCE__` 嵌套在另一个表达式内部。有效 shape 会把它作为整个参数值使用。
 
 ### 污点语义
 
@@ -730,11 +726,11 @@ taint:
 - 匹配 sanitizer 只会在选中的 `__SOURCE__` 值是 storage path 时清除该值的已存储污点，例如变量、字段访问、元组字段访问或数组访问
 - 未匹配的调用对污点没有影响
 
-YAML 污点规则目前没有过程间传播。如果 tainted 数据传入一个 helper 调用，而该调用没有匹配同一规则中的 source、sink 或 sanitizer 子句，那么这个 helper 调用不会把污点传播到它的返回值。
+YAML 污点规则目前没有过程间传播。如果 tainted 数据传入的 helper 调用没有匹配同一规则中的 source、sink 或 sanitizer 子句，这个调用不会把污点传播到它的返回值。
 
 当一个调用匹配多种 taint 子句类型时，效果顺序如下：
 
-- 如果一个调用同时匹配 source 和 sanitizer，source 返回污点仍会产生
+- 如果一个调用同时匹配 source 和 sanitizer，source 返回污点会产生
 - 如果一个调用同时匹配 sink 和 sanitizer，sink 会使用 sanitizer 效果影响后续读取之前的污点状态进行报告
 
 taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
@@ -754,10 +750,10 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - taint 规则中出现 `inside-expr`
 - taint 规则中出现 `inside-toplevel`
 - 同时出现 `inside-expr` 和 `inside-toplevel`
-- `inside-expr` 存在但不是映射
-- `inside-toplevel` 存在但不是映射
-- `inside-expr` 存在但没有 `patterns` 或 `patterns-not`
-- `inside-toplevel` 存在但没有 `patterns` 或 `patterns-not`
+- `inside-expr` 的值不是映射
+- `inside-toplevel` 的值不是映射
+- `inside-expr` 出现时没有 `patterns` 或 `patterns-not`
+- `inside-toplevel` 出现时没有 `patterns` 或 `patterns-not`
 - `patterns` 不是数组或为空
 - `patterns` 条目不是映射
 - `patterns-not` 不是数组或为空
@@ -768,9 +764,9 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `patterns-not` 条目不是映射
 - `taint` 不是映射
 - `taint.sources` 或 `taint.sinks` 缺失、不是数组或为空
-- `taint.sanitizers` 存在但不是数组
+- `taint.sanitizers` 的值不是数组
 - taint 子句条目不是映射
-- 结构规则的 `guard` 存在但不是映射，或 guard 值不是字符串
+- 结构规则的 `guard` 值不是映射，或 guard 值不是字符串
 - taint 子句中出现 `guard`
 - 任何 pattern object 中出现 `metavars`
 - `shape` 不是一个有效的 MoonBit 表达式

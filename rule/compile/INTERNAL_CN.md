@@ -1,7 +1,7 @@
 # rule/compile 内部说明
 
 本文记录修改 `rule/compile` 包时容易遗漏的实现细节。它面向规则编译器及其调用方的维护者，
-而不是规则作者。
+不面向规则作者。
 
 ## 包职责
 
@@ -36,8 +36,8 @@
 2. taint rule 走 `compile_taint_rule`
 3. `compile_rule_prefilter(definition)` 从编译后的 AST 推导必需源码字面量
 
-prefilter 必须基于编译后的 definition，而不是原始 YAML，因为此时 metavar
-已经被规范化，可以从字面量收集中排除。
+prefilter 必须基于编译后的 definition。此时 metavar
+已经被规范化，可以从字面量收集中排除。原始 YAML 不具备这个条件。
 
 ## Shape 解析
 
@@ -51,8 +51,8 @@ enable_metavar = true
 随后用 `parse_expr` 解析 token 流。因此普通 `patterns`、`patterns-not`、
 `inside-expr` 和 taint 子句的 shape 正好是一个 MoonBit 表达式，不是文件片段或顶层声明。
 
-`inside-toplevel.shape` 使用同样的 lexer 配置，但通过 `parse_toplevel_shape`
-解析；它接受且只接受一个 MoonBit 顶层项，并通过 `@untyped_ast.from_impl` 转换。
+`inside-toplevel.shape` 使用同样的 lexer 配置。它通过 `parse_toplevel_shape`
+解析，接受且只接受一个 MoonBit 顶层项，并通过 `@untyped_ast.from_impl` 转换。
 
 词法错误会先于解析错误报告。`InvalidMetavarSyntax` 有专门诊断，因此
 `$exp:value` 这样的旧语法可以提示迁移到现代的 `$(value:exp)` 形式。
@@ -126,7 +126,7 @@ Inline 声明不能使用：
 `$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural inside-context
 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
 
-仅仅以下划线开头的名称，例如 `__moongrep_value`，并不是保留名称，除非它正好是上面的内置名。
+以下划线开头不会自动成为保留名称。`__moongrep_value` 等名称不是保留名称。上面列出的精确内置名是保留名称。
 
 ## Structural Rule
 
@@ -143,7 +143,7 @@ inside-context shape 会被编译成普通 pattern，并使用：
 运行时 matcher 只会在完整表达式位置特殊处理 target/source metavar，因此修改 supported-name
 统计时必须同时检查 `matching` 行为。
 
-inside context 中声明的 metavar 在匹配目标表达式时可见，但内部的 `patterns` 和
+inside context 中声明的 metavar 在匹配目标表达式时可见。内部的 `patterns` 和
 `patterns-not` 必须重复相同 inline 形式才能复用该绑定。
 `ensure_inherited_inside_context_metavar_forms` 会拒绝内部 pattern 用不同 kind
 重新声明继承来的名称。
@@ -164,7 +164,7 @@ Guard 只能引用 `id` 和 `const` 捕获。它不能引用：
 - `type` 捕获
 
 这是规则编译器层面的限制。`rule/apply` 中的 guard 求值期望从规范化 identifier
-或 constant 中得到类似字符串的值，而不是任意 expression、pattern、argument 或 type AST。
+或 constant 中得到类似字符串的值。它不接受任意 expression、pattern、argument 或 type AST。
 
 ## Taint Rule
 

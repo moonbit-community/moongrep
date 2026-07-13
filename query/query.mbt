@@ -79,7 +79,7 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
     definition: Structural({
       inside_expr: None,
       inside_toplevel: None,
-      patterns: [{ shape: pattern, guards: {} }],
+      patterns: [{ shape: pattern, guards: Map([]) }],
       patterns_not: [],
       patterns_not_mode: PruneOnNegative,
     }),
@@ -120,7 +120,7 @@ fn collect_scoped_node_matches(
 fn capture_map_from_bindings(
   bindings : @hashmap.HashMap[String, @matching.BoundValue],
 ) -> Map[String, @matching.BoundValue] {
-  let captures : Map[String, @matching.BoundValue] = {}
+  let captures : Map[String, @matching.BoundValue] = Map([])
   bindings.each(fn(name, value) { captures[name] = value })
   captures
 }

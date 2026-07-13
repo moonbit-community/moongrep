@@ -508,7 +508,7 @@ fn guard_capture_kind(
 
 ///|
 fn ensure_unique_rule_ids(raw_rules : Array[RawRuleSpec]) -> Unit raise {
-  let seen : Map[String, String] = {}
+  let seen : Map[String, String] = Map([])
   for raw in raw_rules {
     if seen.contains(raw.rule_id) {
       raise RuleLoadError::InvalidRule(

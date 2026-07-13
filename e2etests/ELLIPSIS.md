@@ -58,8 +58,8 @@ restore(first, selected, marker, selected)
 
 ## Typed call arguments
 
-Bare and `arg` ellipses accept every complete argument kind, while `exp`, `id`,
-and `const` accept only compatible positional argument values.
+Bare and `arg` ellipses accept every complete argument kind. The `exp`, `id`,
+and `const` forms accept only compatible positional argument values.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern 'any_args($$$(args:arg))' testdata/ellipsis/arguments.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
