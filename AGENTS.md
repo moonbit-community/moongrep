@@ -21,6 +21,11 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
 - Try to keep deprecated blocks in file called `deprecated.mbt` in each
   directory.
 
+## Documentation style
+
+- When writing documentation, keep the prose as plain and straightforward as
+  possible.
+
 ## Tooling
 
 - `moon fmt` is used to format your code properly.
