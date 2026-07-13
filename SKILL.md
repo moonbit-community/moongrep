@@ -1,3 +1,8 @@
+---
+name: moongrep
+description: Use moongrep to structurally search and perform taint analysis on MoonBit source code. Use when an agent needs syntax-aware MoonBit structural code search.
+---
+
 # moongrep
 
 `moongrep` is an experimental structural search and taint-analysis tool for
