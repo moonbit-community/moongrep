@@ -1,15 +1,15 @@
 # matching 内部说明
 
 本文记录修改 `matching` 包时容易遗漏的实现细节。它面向 matcher
-及其调用方的维护者，而不是规则作者。
+及其调用方的维护者，不面向规则作者。
 
 ## 匹配状态
 
 `match_expr_pattern` 会从一个新的 `HashMap[String, BoundValue]` 开始。
-`match_expr_pattern_with_bindings` 会在匹配前复制调用方传入的 map。失败的匹配可能在这个本地副本里留下部分捕获，
-但绝不会修改调用方的 map。
+`match_expr_pattern_with_bindings` 会在匹配前复制调用方传入的 map。失败的匹配可能在这个本地副本里留下部分捕获。
+调用方的 map 保持不变。
 
-普通节点仍从左到右完成绑定。包含 ellipsis 的有序 child 列表使用局部回溯：
+普通节点从左到右完成绑定。包含 ellipsis 的有序 child 列表使用局部回溯：
 每个候选长度都在 bindings 副本上运行，只有首个完整成功分支会被提交。
 
 ## 占位符分派
@@ -43,7 +43,7 @@
 `BoundValue` 是 `Single(Node)` 或 `Multiple(Array[Node])`。
 
 expression、constant、argument、pattern、type 和 identifier metavar 使用
-`Single`；identifier 的归一化名称仍编码为 `Leaf(PString(_))`。ellipsis metavar
+`Single`；identifier 的归一化名称编码为 `Leaf(PString(_))`。ellipsis metavar
 使用 `Multiple`，并保留完整 sibling 节点。
 
 expression metavar 会捕获该位置上的候选表达式节点。重复使用时比较节点结构和 leaf
@@ -70,10 +70,10 @@ Leaf 值通过节点 kind 比较；整个遍历都会忽略 `loc` 字段。
 MoonBit 会把 `let ($_, $_) = $_` 这样的表达式解析为 `Expr::Let`，
 其 body 是 parser 合成的 `Unit(faked=true)`。
 
-matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `Expr::Let` 而言，
-它仍会匹配绑定 pattern 和右侧表达式，但不要求候选 body 也匹配。
+matcher 会把这个 faked unit 视为“pattern 中省略了 body”。这条快捷路径只适用于 `Expr::Let`：
+它匹配绑定 pattern 和右侧表达式，不要求候选 body 匹配。
 
-显式的 let body 仍使用普通结构匹配。以下形式保持原有含义：
+显式的 let body 使用普通结构匹配。以下形式保持原有含义：
 
 - `let ($_, $_) = $_; finish($_)`
 - `let x = $_; $_`
@@ -81,7 +81,7 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `
 
 `LetMut`、`LetFn` 和 `LetAnd` 不使用 faked-unit 快捷路径。
 
-这个行为属于 matcher，而不是 parser，因此 `inside-expr` 仍可以使用嵌套 let 表达式，
+这个行为属于 matcher。它允许 `inside-expr` 使用嵌套 let 表达式，
 例如 `let println = $_; __TARGET__`，并正常遍历目标 body。
 
 ## 精确性和小例外
@@ -91,14 +91,14 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `
 
 值得注意的精确性细节：
 
-- argument kind 和 label 必须匹配，除非 label 是已声明的占位符
+- argument kind 必须匹配；label 也必须匹配，已声明的 label 占位符可以捕获变化的 label
 - record/map 的 trailing marker 和 open/closed flag 都有意义
 - `Unit(faked=...)` 会比较 `faked` flag
 - parser hole 是字面 AST 节点，会按 hole kind 比较
 - interpolation 的 `Source(_)` 节点只按节点种类匹配；不会比较 parser token 内部结构
 
 除了 identifier metavar 使用的显式标识符规范化之外，没有其他语义规范化。
-例如，语义等价但 AST 形状不同的代码不会匹配，除非差异被占位符吸收。
+例如，AST 形状不同的语义等价代码不会匹配。占位符可以吸收形状差异。
 
 ## 集成说明
 
@@ -114,7 +114,7 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。仅对 `
 1. 新增或调整根级 `match_expr` 分支
 2. 必要时为子结构添加辅助 matcher
 3. 如果该节点可以被 metavar 绑定，更新重复捕获相等性
-4. 更新 prefilter 的字面量收集，保证规则仍然可搜索
+4. 更新 prefilter 的字面量收集，保证规则可搜索
 5. 在 `matching/matching_test.mbt` 添加聚焦测试
 6. 如果 compiled rule 行为发生变化，添加 `rule/apply` 或 taint 集成测试
 

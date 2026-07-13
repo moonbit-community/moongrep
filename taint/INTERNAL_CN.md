@@ -1,7 +1,7 @@
 # taint 内部说明
 
 本文记录修改 `taint` 包及其规则集成时容易遗漏的实现细节。它面向
-analyzer 及其调用方的维护者，而不是规则作者。
+analyzer 及其调用方的维护者，不面向规则作者。
 
 ## 包职责
 
@@ -29,7 +29,7 @@ analyzer 及其调用方的维护者，而不是规则作者。
 3. `eval_expr` 解释执行 body。
 4. 求值过程中累积的 sink finding 会作为 `AnalysisResult` 返回。
 
-这个引擎不是跨过程分析。它通过 `TaintSpec` 和 `CallInfo` 建模调用，但绝不会查找或分析 callee body。
+这个引擎不是跨过程分析。它通过 `TaintSpec` 和 `CallInfo` 建模调用。它不会查找或分析 callee body。
 
 ## 状态和值
 
@@ -73,9 +73,8 @@ origin 会按结构相等去重。merge 操作会保留同一路径上的所有�
 - array get
 - 围绕这些形式的 group 和 constraint
 
-调用、infix 表达式、constructor 和任意计算等表达式没有存储路径。它们仍然可以作为临时值携带
-`TaintTree`，但 sanitizer 和 kill effect 无法移除后续的存储污点，除非被选择的值有
-`StoragePath`。
+调用、infix 表达式、constructor 和任意计算等表达式没有存储路径。它们可以作为临时值携带
+`TaintTree`。被选择的值有 `StoragePath` 时，sanitizer 和 kill effect 才能移除后续的存储污点。
 
 读和写有意使用不同的前缀语义：
 
@@ -100,15 +99,15 @@ origin 会按结构相等去重。merge 操作会保留同一路径上的所有�
 - array 第 `i` 项同时变为 `ConstIndex(i)` 和 `AnyIndex`
 - record field `f` 变为 `Field(f)`
 
-路径形态的表达式会优先读取存储。如果表达式有具体存储路径，它的值就是
-`state_read_path(state, path)`。否则，field 和 array 投影会先求值 base value，
+路径形态的表达式会优先读取存储。有具体存储路径的表达式从
+`state_read_path(state, path)` 获取值。没有具体存储路径的 field 和 array 投影会先求值 base value，
 再使用 `tree_project`。
 
 `let` 和 `let mut` 会先求值右侧表达式，然后用 `bind_pattern` 绑定 pattern，再继续进入 body。
 assignment 和 mutation 会在左侧可表示为存储路径时通过 `state_write_path` 更新存储。
 
 不支持或不够具体的表达式形式会走 `eval_unknown_expr`。这个函数在局部意义上是保守的：
-它会求值已知的子表达式，使嵌套调用仍然可以报告 sink；在需要值结果时，返回子值污点的并集。
+它会求值已知的子表达式，使嵌套调用可以报告 sink；在需要值结果时，返回子值污点的并集。
 完全不支持的叶子形式不会返回污点。
 
 ## Pattern 绑定
@@ -125,7 +124,7 @@ assignment 和 mutation 会在左侧可表示为存储路径时通过 `state_wri
 Pattern 绑定是结构化且类型无关的。它不会检查 MoonBit 类型声明、constructor 定义、field 定义或 collection 长度。
 
 当整个值在空相对路径上带有污点时，解构也会把这份 whole-value 污点复制到每个被解构出的
-binder 中。这样即使不解析 constructor payload 的类型信息，`input is Some(item)` 也会把
+binder 中。无需解析 constructor payload 的类型信息，`input is Some(item)` 就会把
 `item` 视为来自被污染的 `input`。
 
 词法 binder 会在离开作用域后恢复。求值器会记录 `let`、case pattern、catch 和 try-else
@@ -160,7 +159,7 @@ pipe desugaring 后的参数下标是语义下标：
 - receiver 与参数保持分离
 
 如果某个参数求值为 `return` 这类非 normal flow，则不会执行 call transfer。
-这样可以避免某个参数已经退出控制流后，sink 调用仍然报告 finding。
+这样可以避免某个参数已经退出控制流后的 sink finding。
 
 ## Transfer 顺序
 
@@ -208,7 +207,7 @@ receiver/argument taint。
 循环使用由 `spec.max_fixpoint_iterations` 控制的有界不动点。`while`、`for` 和
 `foreach` 会反复从当前 join state 求值 body，直到下一轮没有添加新的污点事实或达到上限。
 `return` 和 `raise` 会立即逃逸。`break` 会 join break state，然后离开循环。
-`continue` 被视为 loop-body exit，但仍参与 join 路径。
+`continue` 被视为 loop-body exit 并参与 join 路径。
 
 `foreach` 会在 body fixpoint 开始前，把循环变量绑定到 collection 的 `AnyIndex` 投影。
 
@@ -229,7 +228,7 @@ lowering 层会把 YAML taint 语义实现为 custom transfer：
 
 `rule/compile` 层保证 `__SOURCE__` 在 sink 或 sanitizer 中恰好出现一次，
 并且是完整 receiver 或完整 argument。正因如此，`rule/taint_lowering` 可以直接从
-`CallInfo` 中选择 target，而不需要遍历任意 subexpression。
+`CallInfo` 中选择 target，无需遍历任意 subexpression。
 
 Lowered YAML taint spec 使用：
 
@@ -239,18 +238,18 @@ Lowered YAML taint spec 使用：
 - `max_fixpoint_iterations = 6`
 
 这有意比通用 `taint` API 更窄。`TaintSpec` 的直接用户可以建模 entry source、
-传播 unknown call，以及声明式 call effect，而这些目前都没有暴露给 YAML 规则。
+传播 unknown call，以及声明式 call effect。这些能力目前都没有暴露给 YAML 规则。
 
 ## 重要限制
 
-这个 analyzer 对简单存储路径是 path-sensitive 的，但除此之外是 path-insensitive 且类型无关的。
+这个 analyzer 对简单存储路径是 path-sensitive 的。其他情况是 path-insensitive 且类型无关的。
 
 它不会：
 
 - 跨函数边界分析
 - 解析 import、overload、method、field、constructor 或 type
 - 证明分支可行性
-- 建模别名，除非通过显式存储写入和值拷贝
+- 建模通用别名；显式存储写入和值拷贝提供当前可用的别名行为
 - 把任意 subexpression 表示为可被 kill 的存储
 - 保证不支持 AST 形式的完整语义
 

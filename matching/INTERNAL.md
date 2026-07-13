@@ -8,8 +8,8 @@ callers, not for rule authors.
 
 `match_expr_pattern` starts with a fresh `HashMap[String, BoundValue]`.
 `match_expr_pattern_with_bindings` copies the caller-supplied map before
-matching. Failed matches may leave partial captures in that local copy, but
-they never mutate the caller's map.
+matching. Failed matches may leave partial captures in that local copy. The
+caller's map remains unchanged.
 
 Ordinary nodes bind as they walk left to right. Ordered child lists use a small
 backtracking matcher when they contain ellipses: each candidate length runs
@@ -55,7 +55,7 @@ Expression, constant, argument, pattern, type, and identifier metavars use
 Ellipsis metavars use `Multiple` and retain complete sibling nodes.
 
 Expression metavars capture the candidate expression node at that position.
-Repeated uses compare node structure and leaf values while ignoring source
+Repeated uses compare node structure and leaf values and ignore source
 locations.
 
 Identifier metavars normalize source-level names before binding. Expr, var, and
@@ -85,10 +85,10 @@ MoonBit parses an expression such as `let ($_, $_) = $_` as an `Expr::Let`
 whose body is a parser-synthesized `Unit(faked=true)`.
 
 The matcher treats that faked unit as "body omitted in the pattern". For
-`Expr::Let` only, it still matches the binding pattern and right-hand side, but
-does not require the candidate body to match.
+`Expr::Let`, it matches the binding pattern and right-hand side and places no
+matching requirement on the candidate body.
 
-Explicit let bodies still use normal structural matching. These forms keep
+Explicit let bodies use normal structural matching. These forms keep
 their old meaning:
 
 - `let ($_, $_) = $_; finish($_)`
@@ -97,9 +97,9 @@ their old meaning:
 
 `LetMut`, `LetFn`, and `LetAnd` do not use the faked-unit shortcut.
 
-This behavior belongs in the matcher, not the parser, so `inside-expr` can
-still use nested let expressions such as `let println = $_; __TARGET__` and
-traverse the target body normally.
+This behavior belongs in the matcher. It lets `inside-expr` use nested let
+expressions such as `let println = $_; __TARGET__` and traverse the target body
+normally.
 
 ## Exactness and Small Exceptions
 
@@ -108,7 +108,8 @@ untyped matcher compares children in stored order after checking equal lengths.
 
 Notable exactness details:
 
-- argument kind and labels must match, unless a label is a declared placeholder
+- argument kind must match; labels must also match, and a declared label
+  placeholder can capture a varying label
 - record/map trailing markers and open/closed flags are significant
 - `Unit(faked=...)` compares the `faked` flag
 - parser holes are literal AST nodes and compare by hole kind
@@ -117,7 +118,7 @@ Notable exactness details:
 
 There is no semantic normalization beyond the explicit identifier normalization
 used for identifier metavars. For example, equivalent code with a different AST
-shape does not match unless a placeholder absorbs the difference.
+shape does not match. A placeholder can absorb the structural difference.
 
 ## Integration Notes
 

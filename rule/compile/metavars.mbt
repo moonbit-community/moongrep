@@ -45,7 +45,7 @@ fn compile_metavar_shape(
     bare_identifier_metavars: [],
     bare_pattern_metavars: [],
     bare_type_metavars: [],
-    resolved_metavars: {},
+    resolved_metavars: Map([]),
   }
   ignore(collect_ctx.rewrite_expr(parsed))
   let resolved_metavars = collect_ctx.resolve_metavar_kinds()
@@ -122,7 +122,7 @@ fn compile_toplevel_metavar_shape(
     bare_identifier_metavars: [],
     bare_pattern_metavars: [],
     bare_type_metavars: [],
-    resolved_metavars: {},
+    resolved_metavars: Map([]),
   }
   ignore(collect_ctx.rewrite_impl(parsed))
   let resolved_metavars = collect_ctx.resolve_metavar_kinds()

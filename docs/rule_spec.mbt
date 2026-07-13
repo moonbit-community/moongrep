@@ -17,11 +17,12 @@ let _embed_rulespec_md : String =
   #|The keywords "must", "must not", "may", and "currently" describe the behavior
   #|rule authors can rely on today.
   #|
-  #|Rules are written as YAML, but every `shape` value is MoonBit surface syntax.
-  #|The scanner matches parsed MoonBit expression structure, not raw text. As a
-  #|result, formatting and comments are not significant, while expression form,
-  #|operators, literal values, labels, callee names, and argument structure are
-  #|significant unless a wildcard or declared metavariable says otherwise.
+  #|Rules use YAML. Every `shape` value is MoonBit surface syntax. The scanner
+  #|matches parsed MoonBit expression structure and does not match raw text.
+  #|Formatting and comments are not significant. Expression form, operators,
+  #|literal values, labels, callee names, and argument structure are significant.
+  #|Wildcards and declared metavariables modify these matching requirements as
+  #|documented below.
   #|
   #|## Rule Files
   #|
@@ -72,8 +73,8 @@ let _embed_rulespec_md : String =
   #|- `inside-expr` (optional for structural rules): YAML mapping using the same
   #|  `shape` and optional `guard` schema as `patterns`, used as an outer context
   #|- `inside-toplevel` (optional for structural rules): YAML mapping using the
-  #|  same `shape` and optional `guard` schema as `inside-expr`, but parsed as one
-  #|  MoonBit top-level item
+  #|  same `shape` and optional `guard` schema as `inside-expr`; its shape is parsed
+  #|  as one MoonBit top-level item
   #|- `taint` (required for taint rules): YAML mapping
   #|
   #|Unknown top-level keys are rejected.
@@ -107,13 +108,13 @@ let _embed_rulespec_md : String =
   #|
   #|Unknown keys inside a pattern object are rejected.
   #|
-  #|For taint `sources`, `sinks`, and `sanitizers`, the same `shape` key is used but
-  #|`guard` is rejected.
+  #|Taint `sources`, `sinks`, and `sanitizers` use the same `shape` key. A `guard`
+  #|is invalid in these entries.
   #|
   #|## Shapes
   #|
-  #|`shape` must be a single MoonBit expression snippet except for
-  #|`inside-toplevel.shape`, which must be exactly one MoonBit top-level item.
+  #|An ordinary `shape` must be a single MoonBit expression snippet.
+  #|`inside-toplevel.shape` must be exactly one MoonBit top-level item.
   #|
   #|Valid expression shapes include calls, method calls, field accesses,
   #|operators, blocks, conditionals, loops, matches, lambdas, collection literals,
@@ -123,7 +124,7 @@ let _embed_rulespec_md : String =
   #|
   #|`inside-toplevel.shape` is parsed as one top-level item, such as a function,
   #|top-level `let`, `test`, method `impl`, view, or top-level expression. It is
-  #|still one item, not a whole file or import list.
+  #|one item and cannot represent a whole file or import list.
   #|
   #|Shapes are structural:
   #|
@@ -135,15 +136,15 @@ let _embed_rulespec_md : String =
   #|- source locations, formatting, and comments do not participate in matching
   #|
   #|The scanner does not type-check shapes and does not resolve names semantically.
-  #|For example, two different imported names that refer to the same definition are
-  #|still different unless their parsed source spelling matches or a metavariable
-  #|captures them.
+  #|For example, two imported names that refer to the same definition compare as
+  #|equal only when their parsed source spelling matches or a metavariable captures
+  #|them.
   #|
   #|### Let Shapes With Omitted Bodies
   #|
   #|An ordinary `let` shape without an explicit body is a let-header pattern. For
-  #|example, this shape matches the binding pattern and right-hand side, but does
-  #|not constrain the candidate body:
+  #|example, this shape matches the binding pattern and right-hand side. It places
+  #|no constraint on the candidate body:
   #|
   #|```yaml
   #|patterns:
@@ -164,11 +165,10 @@ let _embed_rulespec_md : String =
   #|let item = load(); { trace(item); item }
   #|```
   #|
-  #|This exception exists because the MoonBit parser represents `let item = load()`
-  #|as an `Expr::Let` whose body is a synthesized unit expression. When that
-  #|synthesized unit appears in the pattern shape, the matcher treats it as "body
-  #|omitted in the pattern" instead of requiring the candidate body to be the same
-  #|unit node.
+  #|The MoonBit parser represents `let item = load()` as an `Expr::Let` whose body
+  #|is a synthesized unit expression. When that synthesized unit appears in the
+  #|pattern shape, the matcher interprets it as "body omitted in the pattern". It
+  #|does not require the candidate body to be the same unit node.
   #|
   #|Write an explicit body when the body matters:
   #|
@@ -200,9 +200,9 @@ let _embed_rulespec_md : String =
   #|
   #|## Metavariables
   #|
-  #|Identifiers and labels in a shape are literal by default. A name becomes a
-  #|metavariable only when it uses metavar syntax inside `shape`, except for
-  #|the built-in wildcard forms described below.
+  #|Identifiers and labels in a shape are literal by default. Metavar syntax inside
+  #|`shape` turns a name into a metavariable. The built-in wildcard forms described
+  #|below retain their documented behavior.
   #|
   #|### Syntax
   #|
@@ -239,8 +239,8 @@ let _embed_rulespec_md : String =
   #|`$T` infers `type`.
   #|
   #|Only `exp`, `id`, `const`, `arg`, `pat`, and `type` are supported. A name may be
-  #|repeated within one kind, but using the same payload across multiple kinds such
-  #|as `$(name:exp)`, `$(name:id)`, `$(name:const)`, `$(name:arg)`,
+  #|repeated within one kind. Using the same payload across multiple kinds such as
+  #|`$(name:exp)`, `$(name:id)`, `$(name:const)`, `$(name:arg)`,
   #|`$(name:pat)`, and `$(name:type)` in one shape is invalid.
   #|
   #|Bare `$name` inference is intentionally conservative. It does not default to
@@ -299,9 +299,9 @@ let _embed_rulespec_md : String =
   #|ellipsis must use the same kind. Taint sink and sanitizer shapes may place
   #|ellipses around their single whole-argument or receiver `__SOURCE__` target.
   #|
-  #|The public matcher and query APIs expose captures as `BoundValue`: ordinary
-  #|captures are `Single(Node)`, while ellipsis captures are
-  #|`Multiple(Array[Node])`. `ExprMatch.bindings`, `ExprQuery::captures`, and
+  #|The public matcher and query APIs expose captures as `BoundValue`. Ordinary
+  #|captures are `Single(Node)`. Ellipsis captures are `Multiple(Array[Node])`.
+  #|`ExprMatch.bindings`, `ExprQuery::captures`, and
   #|`ExprQuery::captures_from_ast` all use this representation.
   #|
   #|### Reserved Names
@@ -402,7 +402,8 @@ let _embed_rulespec_md : String =
   #|The example above can match `pair(left, right)`.
   #|
   #|Only exact `$_` has this built-in behavior. Names such as `__`, `___`, and
-  #|`__x` are literal unless they use inline syntax such as `$__` or `$(__x:exp)`.
+  #|`__x` are literal by default. Inline syntax such as `$__` or `$(__x:exp)` marks
+  #|them as metavars.
   #|
   #|### `exp`
   #|
@@ -439,8 +440,8 @@ let _embed_rulespec_md : String =
   #|Repeated `exp` equality is currently guaranteed because captured values are
   #|compared as untyped AST nodes by node kind and child values, ignoring source
   #|locations. It is not limited to a fixed list of expression shapes. Semantic
-  #|equivalents with different AST structure still do not match unless a
-  #|placeholder absorbs the difference.
+  #|equivalents with different AST structures do not match. A placeholder can
+  #|absorb the structural difference.
   #|
   #|### `id`
   #|
@@ -516,9 +517,9 @@ let _embed_rulespec_md : String =
   #|
   #|### `arg`
   #|
-  #|An `arg` metavar captures a complete call argument node. It is useful when a
-  #|rule should accept any argument spelling in one slot while still comparing the
-  #|entire slot on repeated occurrences.
+  #|An `arg` metavar captures a complete call argument node. It lets a rule accept
+  #|any argument spelling in one slot and compare the entire slot on repeated
+  #|occurrences.
   #|
   #|Example:
   #|
@@ -540,14 +541,14 @@ let _embed_rulespec_md : String =
   #|Repeating the same `arg` name requires the full argument nodes to be
   #|structurally equal, ignoring source locations. Argument kind, label, and value
   #|must all match. The pattern `sink($(arg:arg), $(arg:arg))` can match
-  #|`sink(value, value)` and `sink(label=value, label=value)`, but not
+  #|`sink(value, value)` and `sink(label=value, label=value)`. It does not match
   #|`sink(value, other)` or `sink(label=value, other=value)`.
   #|
-  #|`arg` is explicit-only. Bare `$arg` in `sink($arg)` still follows normal bare
-  #|metavar inference and is an `exp` capture unless the name was explicitly
-  #|declared as another kind elsewhere. `$(arg:arg)` must occupy the whole
-  #|argument slot; `sink(label=$(arg:arg))`, `sink($(arg:arg) + 1)`, and a root
-  #|shape `$(arg:arg)` are invalid.
+  #|`arg` is explicit-only. Bare `$arg` in `sink($arg)` follows normal bare
+  #|metavar inference. An explicit declaration of the same name elsewhere
+  #|determines its kind. With no such declaration, it is an `exp` capture.
+  #|`$(arg:arg)` must occupy the whole argument slot; `sink(label=$(arg:arg))`,
+  #|`sink($(arg:arg) + 1)`, and a root shape `$(arg:arg)` are invalid.
   #|
   #|### `type`
   #|
@@ -672,7 +673,7 @@ let _embed_rulespec_md : String =
   #|```yaml
   #|id: unblocked-target
   #|description: |
-  #|  Match target calls unless they are inside a blocked wrapper.
+  #|  Match target calls outside blocked wrappers.
   #|patterns:
   #|  - shape: target()
   #|patterns-not:
@@ -691,7 +692,7 @@ let _embed_rulespec_md : String =
   #|positive nor a negative pattern matches, traversal continues into the
   #|candidate's children.
   #|
-  #|Negative patterns still match only the current candidate root. In the example
+  #|Negative patterns match only the current candidate root. In the example
   #|above, `target()` inside `blocked(...)` is not searched because the `blocked`
   #|root fails all positive patterns, then matches `patterns-not`, pruning that
   #|branch. A `blocked(...)` node that also matched a positive pattern would be
@@ -773,8 +774,8 @@ let _embed_rulespec_md : String =
   #|
   #|`inside-toplevel` restricts a structural rule to matches inside one MoonBit
   #|top-level item. It uses the same object schema and target-subtree semantics as
-  #|`inside-expr`, but its `shape` is parsed as exactly one top-level item instead
-  #|of an expression.
+  #|`inside-expr`. Its `shape` is parsed as exactly one top-level item, not as an
+  #|expression.
   #|
   #|```yaml
   #|id: safe-function-target
@@ -850,8 +851,8 @@ let _embed_rulespec_md : String =
   #|sink(label=arg)
   #|```
   #|
-  #|Pipe and reverse-pipe syntax are not valid taint rule shapes today, even though
-  #|source programs may contain those calls after parsing.
+  #|Pipe and reverse-pipe syntax are not valid taint rule shapes today. Source
+  #|programs may contain those calls after parsing.
   #|
   #|`__SOURCE__` is reserved in taint clauses:
   #|
@@ -883,8 +884,8 @@ let _embed_rulespec_md : String =
   #|    - shape: sink(wrap(__SOURCE__))
   #|```
   #|
-  #|The invalid example nests `__SOURCE__` inside another expression instead of
-  #|using it as the whole argument value.
+  #|The invalid example nests `__SOURCE__` inside another expression. A valid shape
+  #|uses it as the whole argument value.
   #|
   #|### Taint Semantics
   #|
@@ -911,7 +912,7 @@ let _embed_rulespec_md : String =
   #|When one call matches more than one taint clause type, effects are ordered as
   #|follows:
   #|
-  #|- if a call matches both a source and a sanitizer, source return taint is still
+  #|- if a call matches both a source and a sanitizer, source return taint is
   #|  produced
   #|- if a call matches both a sink and a sanitizer, the sink is reported using the
   #|  taint state before sanitizer effects affect later reads
@@ -935,8 +936,8 @@ let _embed_rulespec_md : String =
   #|- `inside-expr` appears on a taint rule
   #|- `inside-toplevel` appears on a taint rule
   #|- both `inside-expr` and `inside-toplevel` appear
-  #|- `inside-expr` is present but is not a mapping
-  #|- `inside-toplevel` is present but is not a mapping
+  #|- `inside-expr` has a non-mapping value
+  #|- `inside-toplevel` has a non-mapping value
   #|- `inside-expr` is present without `patterns` or `patterns-not`
   #|- `inside-toplevel` is present without `patterns` or `patterns-not`
   #|- `patterns` is not an array or is empty
@@ -949,10 +950,9 @@ let _embed_rulespec_md : String =
   #|- a `patterns-not` entry is not a mapping
   #|- `taint` is not a mapping
   #|- `taint.sources` or `taint.sinks` is missing, not an array, or empty
-  #|- `taint.sanitizers` is present but is not an array
+  #|- `taint.sanitizers` has a non-array value
   #|- a taint clause entry is not a mapping
-  #|- structural `guard` is present but is not a mapping, or a guard value is not a
-  #|  string
+  #|- a structural `guard` has a non-mapping value, or a guard value is not a string
   #|- `guard` appears in any taint clause
   #|- `metavars` appears in any pattern object
   #|- `shape` is not valid as one MoonBit expression

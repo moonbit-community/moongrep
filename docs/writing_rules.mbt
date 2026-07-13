@@ -45,9 +45,9 @@ let _embed_writingrules_md : String =
   #|Unknown keys are rejected at every schema level: top-level rule keys, `taint`
   #|keys, and rule clause keys.
   #|
-  #|Structural rules may also add one optional outer context: `inside-expr` filters
-  #|an outer expression, while `inside-toplevel` filters one MoonBit top-level item.
-  #|Both bind outer inline captures and then search the captured `__TARGET__`
+  #|Structural rules may also add one optional outer context. `inside-expr` filters
+  #|an outer expression. `inside-toplevel` filters one MoonBit top-level item. Both
+  #|bind outer inline captures and then search the captured `__TARGET__`
   #|expression subtree with the inner `patterns` or `patterns-not`.
   #|
   #|## Mental Model
@@ -105,7 +105,7 @@ let _embed_writingrules_md : String =
   #|- `taint.sanitizers` contributes no return taint and clears stored taint only
   #|  when `__SOURCE__` resolves to a storage path such as an identifier, field, or
   #|  array access. If the same call also matches a source clause, source return
-  #|  taint is still produced.
+  #|  taint is produced.
   #|- taint clause shapes use the same inline `$(name:kind)` syntax as
   #|  structural patterns.
   #|- taint clauses do not support `guard`.
@@ -117,9 +117,9 @@ let _embed_writingrules_md : String =
   #|  argument value.
   #|- YAML taint shapes use direct call or method-call syntax only. Pipe and
   #|  reverse-pipe calls are not expressible by YAML taint rules today.
-  #|- Unmatched calls have no effect, so taint is not propagated through arbitrary
-  #|  wrapper or helper calls unless those calls match a source, sink, or sanitizer
-  #|  clause.
+  #|- Unmatched calls have no effect. Calls that match a source, sink, or sanitizer
+  #|  clause use that model. Other arbitrary wrapper or helper calls do not
+  #|  propagate taint.
   #|- If one call matches both a sink and a sanitizer, the sink is reported from
   #|  pre-call taint; sanitizer effects only affect later storage reads.
   #|- Taint analysis runs only on function definitions and impl methods with
@@ -184,8 +184,7 @@ let _embed_writingrules_md : String =
   #|  - shape: let $(name:id) = $(value:exp); use($(name:id))
   #|```
   #|
-  #|If the body can be anything but you want to capture it, add an explicit body
-  #|metavar:
+  #|To capture an unrestricted body, add an explicit body metavar:
   #|
   #|```yaml
   #|patterns:
@@ -206,7 +205,7 @@ let _embed_writingrules_md : String =
   #|
   #|### 2. Mark metavars inline in `shape`
   #|
-  #|Names in `shape` are literal by default, even if they look like placeholders.
+  #|Names that look like placeholders are literal by default in `shape`.
   #|
   #|This:
   #|
@@ -275,8 +274,8 @@ let _embed_writingrules_md : String =
   #|      let values : Array[$T] = input
   #|```
   #|
-  #|Repeated `type` captures compare the complete parsed type node while ignoring
-  #|source locations. A `type` capture must occupy a whole type node; it does not
+  #|Repeated `type` captures compare the complete parsed type node and ignore source
+  #|locations. A `type` capture must occupy a whole type node; it does not
   #|capture expression arguments, constructors, labels, or method type qualifiers.
   #|
   #|Use `$$$name` to capture zero or more consecutive items from an ordered AST
@@ -298,8 +297,8 @@ let _embed_writingrules_md : String =
   #|
   #|Bare ellipses default to `AnyItem`. Explicit `exp`, `id`, `const`, `arg`, `pat`,
   #|and `type` kinds reuse the corresponding single-metavar constraint for each
-  #|item. In a call argument list, `arg` accepts every argument kind, while `exp`,
-  #|`id`, and `const` accept only compatible positional argument values. Repeating
+  #|item. In a call argument list, `arg` accepts every argument kind. The `exp`,
+  #|`id`, and `const` kinds accept only compatible positional argument values. Repeating
   #|the same named ellipsis requires equal captured node sequences, ignoring source
   #|locations. `$$$_` and `$$$(_:kind)` are independent non-binding sequence
   #|wildcards.
@@ -358,12 +357,12 @@ let _embed_writingrules_md : String =
   #|```
   #|
   #|Here `counter` appears as both a binder and later identifier expressions. The
-  #|same spelling should match, but the raw AST nodes are different, so
-  #|`id` is the right tool.
+  #|same spelling should match. The raw AST nodes are different. The `id` kind
+  #|compares their normalized names.
   #|
-  #|`id` also works for simple assignment targets represented in the parser
-  #|AST as `Var`, so rules like `x = x + 1` can bind the left-hand target by
-  #|normalized name instead of treating it as a literal string.
+  #|`id` also works for simple assignment targets represented in the parser AST as
+  #|`Var`. Rules such as `x = x + 1` can bind the left-hand target by normalized
+  #|name. They do not treat the target as a literal string.
   #|
   #|`id` can also compare qualified function names and constructor identities. A
   #|qualified function such as `@int.abs` normalizes to `@int.abs`; a qualified
@@ -371,8 +370,8 @@ let _embed_writingrules_md : String =
   #|`@pkg.Type::Ctor`.
   #|
   #|Use `const` when the candidate must be a parsed MoonBit constant. Repeated
-  #|`const` captures compare constant kind and value, so `1 + 1` can match while
-  #|`1 + 2` and `x + x` do not.
+  #|`const` captures compare constant kind and value. `1 + 1` can match. `1 + 2`
+  #|and `x + x` do not match.
   #|
   #|Use `pat` when the candidate must be a whole pattern AST:
   #|
@@ -383,15 +382,15 @@ let _embed_writingrules_md : String =
   #|
   #|Use `arg` when the candidate must be a complete call argument slot, including
   #|its kind, label, and value. Repeated `arg` captures compare the whole argument
-  #|node while ignoring source locations.
+  #|node and ignore source locations.
   #|
   #|```yaml
   #|patterns:
   #|  - shape: sink($(arg:arg), $(arg:arg))
   #|```
   #|
-  #|This can match `sink(value, value)` and `sink(label=value, label=value)`, but
-  #|not `sink(value, other)` or `sink(label=value, other=value)`.
+  #|This can match `sink(value, value)` and `sink(label=value, label=value)`. It
+  #|does not match `sink(value, other)` or `sink(label=value, other=value)`.
   #|
   #|Use `type` when the candidate must be a complete type annotation or type
   #|component. Repeated `type` captures compare the whole type AST node, so a rule
@@ -429,8 +428,8 @@ let _embed_writingrules_md : String =
   #|  expression is expected so runtime traversal can search that subtree
   #|- `__TARGET__` is reserved and must not be used as an metavar name
   #|- inner `patterns` and `patterns-not` must not contain `__TARGET__`; the target
-  #|  placeholder selects the subtree to search, but it is not a binding available
-  #|  to inner shapes
+  #|  placeholder selects the subtree to search and creates no binding for inner
+  #|  shapes
   #|- inherited `id` captures observe lexical shadowing inside the searched target
   #|  subtree
   #|- inner `patterns` and `patterns-not` reference outer captures by repeating the
@@ -438,7 +437,7 @@ let _embed_writingrules_md : String =
   #|  different kind is rejected
   #|
   #|Use `inside-toplevel` for the same target-subtree workflow when the context is
-  #|a top-level item rather than an expression:
+  #|a top-level item:
   #|
   #|```yaml
   #|id: safe-function-target
@@ -517,8 +516,8 @@ let _embed_writingrules_md : String =
   #|
   #|### 4. Use `guard` for id and const filters
   #|
-  #|Use `guard` when the shape is right but an `id` or `const` capture needs a
-  #|regex filter:
+  #|Use `guard` to apply a regex filter to an `id` or `const` capture after the
+  #|shape matches:
   #|
   #|```yaml
   #|patterns:
@@ -571,7 +570,7 @@ let _embed_writingrules_md : String =
   #|
   #|The scanner uses the untyped AST matcher by default. Repeated `exp`, `arg`,
   #|`pat`, and `type` captures are compared by structural untyped AST equality
-  #|while ignoring source locations.
+  #|and ignore source locations.
   #|
   #|## Worked Examples
   #|
@@ -649,7 +648,7 @@ let _embed_writingrules_md : String =
   #|- the same payload name is not used across multiple metavar kinds
   #|- the payload is not a reserved name such as `$_`, `__TARGET__`, or `__SOURCE__`
   #|
-  #|### An `id` rule looks right but never hits
+  #|### An `id` rule appears correct and never hits
   #|
   #|The repeated captures may normalize to different source-level names. For
   #|example, `abs` and `@int.abs` are different normalized identifiers. Review the
@@ -660,8 +659,8 @@ let _embed_writingrules_md : String =
   #|Check that `guard` is under a structural `patterns`, `patterns-not`,
   #|`inside-expr`, or `inside-toplevel` pattern object, that it is a mapping, and
   #|that every key names an `id` or `const` capture visible to that pattern. `exp`,
-  #|`arg`, `pat`, and `type` captures cannot be guarded. `guard` is still rejected
-  #|in taint clauses.
+  #|`arg`, `pat`, and `type` captures cannot be guarded. Taint clauses reject
+  #|`guard`.
   #|
   #|## Testing Workflow
   #|

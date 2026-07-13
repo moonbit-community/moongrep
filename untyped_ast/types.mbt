@@ -708,7 +708,7 @@ fn fields_node_to_json(
   loc : @basic.Location,
   fields : Array[(String?, Node)],
 ) -> Json {
-  let children : Map[String, Json] = {}
+  let children : Map[String, Json] = Map([])
   fields.each(fn(field) {
     let (name, node) = field
     if name is Some(name) {

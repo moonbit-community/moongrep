@@ -236,7 +236,7 @@ fn exclude_scan_rules(
     return raw_rules
   }
   ensure_exclude_rule_ids_exist(raw_rules, exclude_rules)
-  let excluded : Map[String, Bool] = {}
+  let excluded : Map[String, Bool] = Map([])
   for rule_id in exclude_rules {
     excluded[rule_id] = true
   }
@@ -254,7 +254,7 @@ fn ensure_exclude_rule_ids_exist(
   raw_rules : Array[@rule_model.RawRuleSpec],
   exclude_rules : Array[String],
 ) -> Unit raise {
-  let loaded : Map[String, Bool] = {}
+  let loaded : Map[String, Bool] = Map([])
   for raw in raw_rules {
     loaded[raw.rule_id] = true
   }

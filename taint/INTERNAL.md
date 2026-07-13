@@ -21,7 +21,7 @@ Only function-like top-level nodes are executable:
 Declarations without bodies, top-level expressions, tests, type definitions,
 traits, and other `Impl` forms raise
 `TaintAnalysisError::UnsupportedFunctionLike`. The rule application layer
-intentionally catches and ignores that error while scanning files.
+intentionally catches and ignores that error during file scans.
 
 ## Main Flow
 
@@ -35,7 +35,7 @@ Analysis starts in `analyze_single_function_like`:
 4. Sink findings accumulated during evaluation are returned in `AnalysisResult`.
 
 The engine is not interprocedural. It models calls through `TaintSpec` and
-`CallInfo`, but it never looks up or analyzes a callee body.
+`CallInfo`. It never looks up or analyzes a callee body.
 
 ## State and Values
 
@@ -83,9 +83,9 @@ simple projected storage:
 - groups and constraints around those forms
 
 Expressions such as calls, infix expressions, constructors, and arbitrary
-computations have no storage path. They can still carry a `TaintTree` as a
-temporary value, but sanitizers and kill effects cannot remove later storage
-taint unless the selected value has a `StoragePath`.
+computations have no storage path. They can carry a `TaintTree` as a temporary
+value. Sanitizers and kill effects can remove later storage taint when the
+selected value has a `StoragePath`.
 
 Reads and writes deliberately use different prefix semantics:
 
@@ -113,9 +113,10 @@ Common value construction shifts child taint into relative subpaths:
 - array item `i` becomes both `ConstIndex(i)` and `AnyIndex`
 - record field `f` becomes `Field(f)`
 
-Path-like expressions prefer storage reads. If an expression has a concrete
-storage path, its value is `state_read_path(state, path)`. Otherwise field and
-array projections evaluate the base value and use `tree_project`.
+Path-like expressions prefer storage reads. An expression with a concrete
+storage path gets its value from `state_read_path(state, path)`. Field and array
+projections without a concrete storage path evaluate the base value and use
+`tree_project`.
 
 `let` and `let mut` evaluate the right-hand side, bind the pattern with
 `bind_pattern`, and continue into the body. Assignment and mutation update
@@ -124,8 +125,8 @@ storage path.
 
 Unsupported or less-specific expression forms go through `eval_unknown_expr`.
 That function is conservative in the local sense: it evaluates known child
-expressions so nested calls can still report sinks, and returns the union of
-child value taint where a value result is useful. Completely unsupported leaf
+expressions so nested calls can report sinks. It returns the union of child
+value taint where a value result is useful. Completely unsupported leaf
 forms return no taint.
 
 ## Pattern Binding
@@ -146,14 +147,14 @@ lengths.
 
 When a whole value is tainted at the empty relative path, destructuring also
 copies that whole-value taint into each destructured binder. This lets
-`input is Some(item)` treat `item` as derived from a tainted `input` even though
-constructor payloads are not resolved through type information.
+`input is Some(item)` treat `item` as derived from a tainted `input` without
+resolving constructor payloads through type information.
 
 Lexical binders are restored after their scope. The evaluator records the root
 names introduced by `let`, case patterns, catch and try-else patterns,
 lex/regex patterns, loop binders, and local function names. After the scoped
 body is evaluated, entries for those roots are restored from the pre-scope base
-state, while mutations to non-shadowed roots are preserved.
+state. Mutations to non-shadowed roots are preserved.
 
 Condition patterns create a separate true-branch state. `is`, `lexmatch?`,
 regex matches, grouped conditions, and `&&` expose their binders only to the
@@ -241,8 +242,8 @@ Loops use a bounded fixpoint controlled by `spec.max_fixpoint_iterations`.
 `while`, `for`, and `foreach` repeatedly evaluate the body from the current
 joined state until another pass adds no new taint facts or the bound is reached.
 `return` and `raise` escape immediately. `break` joins the break state and then
-leaves the loop. `continue` is treated as a loop-body exit that still
-participates in the join path.
+leaves the loop. `continue` is treated as a loop-body exit and participates in
+the join path.
 
 `foreach` binds loop variables to the collection's `AnyIndex` projection before
 the body fixpoint starts.
@@ -265,7 +266,7 @@ The lowering layer implements YAML taint semantics as a custom transfer:
 
 The `rule/compile` layer guarantees that `__SOURCE__` appears exactly once in a
 sink or sanitizer and is the whole receiver or whole argument. Because of that,
-`rule/taint_lowering` can select the target directly from `CallInfo` instead of
+`rule/taint_lowering` can select the target directly from `CallInfo` without
 walking arbitrary subexpressions.
 
 Lowered YAML taint specs use:
@@ -281,7 +282,7 @@ call effects that YAML rules do not expose today.
 
 ## Important Limits
 
-The analyzer is path-sensitive for simple storage paths but otherwise
+The analyzer is path-sensitive for simple storage paths. Other cases are
 path-insensitive and type-agnostic.
 
 It does not:
@@ -289,7 +290,8 @@ It does not:
 - analyze across function boundaries
 - resolve imports, overloads, methods, fields, constructors, or types
 - prove branch feasibility
-- model aliases except through explicit storage writes and value copies
+- model aliases; explicit storage writes and value copies provide the available
+  alias behavior
 - represent arbitrary subexpressions as killable storage
 - guarantee full semantics for unsupported AST forms
 

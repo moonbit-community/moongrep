@@ -27,7 +27,7 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 ## 心智模型
 
-请针对单个 MoonBit 表达式子树的形状编写规则，而不是针对整个文件。
+请针对单个 MoonBit 表达式子树的形状编写规则。整个文件不属于表达式子树。
 
 `moongrep` 使用 `moonbitlang/parser` 解析源文件，从顶层函数、方法、let、test、view 和表达式 body 中收集表达式子树，并将结构规则应用到这些表达式子树。
 
@@ -35,7 +35,7 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - `patterns` 下的多个条目是有序备选项。对于一个表达式和一条规则，第一个匹配的 pattern 获胜，并决定 `pattern_index`。
 - `patterns-not` 只会在当前候选表达式根的所有正向 `patterns`
   都失败后检查。正向命中会报告一个结果，并跳过该候选的
-  `patterns-not`。负向命中会剪枝该候选子树，但不产生命中。
+  `patterns-not`。负向命中会剪枝该候选子树且不产生命中。
 - 同一规则中的所有 pattern 共享相同的规则 id 和 `description`。
 - 结构规则的 pattern object 可以使用 `guard`，在 shape 匹配后用正则过滤
   `id` 和 `const` 捕获。
@@ -43,8 +43,8 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - 当外层上下文规则同时有正向和负向 pattern 时，正向命中会默认覆盖其中嵌套的负向形状用法；任何未被覆盖的负向命中都会拒绝外层上下文。
 - `inside-expr` 或 `inside-toplevel` 声明的内联捕获对内部
   `patterns` 和 `patterns-not` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 pattern 使用。
-- 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，而通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
-- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自外层上下文的名称；同名但 kind 不同会被拒绝。
+- 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，并且通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
+- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自外层上下文的名称。同名且 kind 不同的形式会被拒绝。
 - 外层上下文规则的命中会记录上下文表达式或顶层项的 `outer_loc`，以及内部匹配的 `loc`；只有 `patterns-not` 的规则中，`loc` 是外层上下文位置。
 
 对于污点规则：
@@ -52,13 +52,13 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - `taint` 必须是映射，且包含非空 `sources` 和 `sinks` 数组。`sanitizers` 是可选的，默认值为空；如果出现，它必须是数组。
 - `taint.sources` 将匹配的调用结果标记为 tainted values。
 - 当由 `__SOURCE__` 标记的 receiver 或参数为 tainted 时，`taint.sinks` 会报告命中。
-- `taint.sanitizers` 不贡献返回污点，只在 `__SOURCE__` 解析到 storage path（例如标识符、字段或数组访问）时清除已存储的污点。如果同一调用也匹配 source 子句，source 返回污点仍会产生。
+- `taint.sanitizers` 不贡献返回污点，只在 `__SOURCE__` 解析到 storage path（例如标识符、字段或数组访问）时清除已存储的污点。如果同一调用也匹配 source 子句，source 返回污点会产生。
 - taint 子句 shape 使用与结构 pattern 相同的内联 `$(name:kind)` 语法。
 - taint 子句不支持 `guard`。
 - `__SOURCE__` 在 taint 规则中是保留名称，不能用作内联元变量名。它只在 sink 和 sanitizer shape 中有效；source shape 不能包含它。
 - source、sink 和 sanitizer shape 必须是调用表达式。Sink 和 sanitizer shape 必须将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置。
 - YAML taint shape 只使用直接调用或方法调用语法。pipe 和 reverse-pipe 调用目前不能用 YAML taint 规则表达。
-- 未匹配的调用没有效果，因此污点不会通过任意 wrapper 或 helper 调用传播，除非这些调用匹配 source、sink 或 sanitizer 子句。
+- 未匹配的调用没有效果。匹配 source、sink 或 sanitizer 子句的 wrapper 和 helper 调用使用相应模型，其他这类调用不传播污点。
 - 如果一个调用同时匹配 sink 和 sanitizer，sink 会根据调用前的污点报告；sanitizer 效果只影响后续 storage 读取。
 - 污点分析只运行在函数定义和带 body 的 impl method 上。
 
@@ -117,7 +117,7 @@ patterns:
   - shape: let $(name:id) = $(value:exp); use($(name:id))
 ```
 
-如果 body 可以是任意表达式，但你想捕获它，请显式添加 body 元变量：
+如需捕获任意形式的 body，请显式添加 body 元变量：
 
 ```yaml
 patterns:
@@ -137,7 +137,7 @@ patterns:
 
 ### 2. 在 `shape` 中内联标记元变量
 
-`shape` 中的名称默认都是字面量，即使它们看起来像占位符。
+`shape` 中看起来像占位符的名称默认也是字面量。
 
 这个规则：
 
@@ -217,7 +217,7 @@ ellipsis 必须占据完整列表项。只要对应语法会解析为无字段�
 
 裸 ellipsis 默认为 `AnyItem`。显式 `exp`、`id`、`const`、`arg`、`pat`
 和 `type` 会对每个元素复用对应的单节点元变量约束。在调用实参列表中，`arg`
-接受所有 argument kind，而 `exp`、`id` 和 `const` 只接受兼容的 positional
+接受所有 argument kind。`exp`、`id` 和 `const` 只接受兼容的 positional
 argument value。同名 ellipsis 重复出现时，捕获的节点序列必须在忽略源码位置后
 结构相等。`$$$_` 和 `$$$(_:kind)` 是彼此独立且不绑定的序列通配符。
 
@@ -259,13 +259,13 @@ patterns:
       }
 ```
 
-这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配，但原始 AST node 不同，因此 `id` 是合适工具。
+这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配。原始 AST node 不同。`id` 会比较它们规范化后的名称。
 
-`id` 也适用于 parser AST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，而不是把它当作字面字符串。
+`id` 也适用于 parser AST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，不把它当作字面字符串。
 
 `id` 也可以比较限定函数名和构造器 identity。像 `@int.abs` 这样的限定函数名会归一化为 `@int.abs`；限定构造器会包含 extra info，例如 `@pkg.Ctor` 或 `@pkg.Type::Ctor`。
 
-当候选必须是解析后的 MoonBit 常量时，使用 `const`。重复的 `const` 捕获会比较常量 kind 和值，因此 `1 + 1` 可以匹配，而 `1 + 2` 和 `x + x` 不会匹配。
+当候选必须是解析后的 MoonBit 常量时，使用 `const`。重复的 `const` 捕获会比较常量 kind 和值。`1 + 1` 可以匹配。`1 + 2` 和 `x + x` 不会匹配。
 
 当候选必须是整个 pattern AST 时，使用 `pat`：
 
@@ -281,7 +281,7 @@ patterns:
   - shape: sink($(arg:arg), $(arg:arg))
 ```
 
-这可以匹配 `sink(value, value)` 和 `sink(label=value, label=value)`，但不会匹配 `sink(value, other)` 或 `sink(label=value, other=value)`。
+这可以匹配 `sink(value, value)` 和 `sink(label=value, label=value)`。它不会匹配 `sink(value, other)` 或 `sink(label=value, other=value)`。
 
 当候选必须是完整类型标注或类型组成部分时，使用 `type`。重复的 `type` 捕获会比较完整类型 AST 节点，因此可以要求两个标注使用同一种类型：
 
@@ -312,11 +312,11 @@ patterns:
 - 它使用与一个结构 pattern 相同的 `shape` 和可选 `guard` schema
 - 它必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
 - `__TARGET__` 是保留名称，不能用作内联元变量名
-- 内部 `patterns` 和 `patterns-not` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，但不是内部 shape 可用的绑定
+- 内部 `patterns` 和 `patterns-not` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，不为内部 shape 创建绑定
 - 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
-- 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名但 kind 不同会被拒绝
+- 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名且 kind 不同的形式会被拒绝
 
-当上下文是顶层项而不是表达式时，使用 `inside-toplevel`：
+当上下文是顶层项时，使用 `inside-toplevel`：
 
 ```yaml
 id: safe-function-target
@@ -351,7 +351,7 @@ patterns-not:
   - shape: blocked($(value:exp))
 ```
 
-正向 pattern 会先于负向 pattern 在每个候选根上运行。只有所有正向备选都失败后，才会检查负向 pattern。负向 pattern 检查的是当前根，而不是根下面的每个子表达式。在示例中，`blocked(target())` 会剪枝 `blocked(...)` 分支，因此内部的 `target()` 不会被报告。`patterns-not` 内的 `value` 由负向 pattern 自己捕获，不复用任何正向 pattern 捕获。
+正向 pattern 会先于负向 pattern 在每个候选根上运行。只有所有正向备选都失败后，才会检查负向 pattern。负向 pattern 只检查当前根，不检查根下面的每个子表达式。在示例中，`blocked(target())` 会剪枝 `blocked(...)` 分支，因此内部的 `target()` 不会被报告。`patterns-not` 内的 `value` 由负向 pattern 自己捕获，不复用任何正向 pattern 捕获。
 
 如果只有 `inside-expr` 或 `inside-toplevel` 和 `patterns-not`，可以描述“某个上下文内不包含禁止形状”：
 
@@ -383,7 +383,7 @@ patterns-not:
 
 ### 4. 使用 `guard` 过滤 id 和 const
 
-当 shape 正确，但某个 `id` 或 `const` 捕获还需要正则过滤时，使用 `guard`：
+当 shape 匹配后还需要对某个 `id` 或 `const` 捕获进行正则过滤时，使用 `guard`：
 
 ```yaml
 patterns:
@@ -463,7 +463,7 @@ patterns:
 
 为什么它能工作：
 
-- `counter` 按归一化后的标识符名称比较，而不是按原始 AST 相等性比较
+- `counter` 按归一化后的标识符名称比较，不使用原始 AST 相等性
 - `start`、`limit` 和 `body` 是以 untyped AST 节点保存的表达式捕获
 
 ### 同一规则，多个 shape
@@ -506,7 +506,7 @@ patterns:
 - ellipsis 使用 `$$$name` 或 `$$$(name:kind)`，并占据完整有序列表项
 - 普通元变量和 ellipsis 没有共用名称
 
-### 一个 `id` 规则看起来正确但从不命中
+### 一个看起来正确且从不命中的 `id` 规则
 
 重复捕获可能归一化为不同的源码层面名称。例如，`abs` 和 `@int.abs` 是不同的归一化标识符。请查看 [RuleSpec_CN.md](RuleSpec_CN.md) 中精确支持的归一化情况。
 
@@ -514,7 +514,7 @@ patterns:
 
 请检查 `guard` 是否位于结构规则的 `patterns`、`patterns-not`、`inside-expr`
 或 `inside-toplevel` pattern object 下，是否是映射，并且每个键都引用了该 pattern 可见的
-`id` 或 `const` 捕获。`exp`、`arg`、`pat`、`type` 和 ellipsis 捕获不能被 guard 过滤。taint 子句中仍然会拒绝 `guard`。
+`id` 或 `const` 捕获。`exp`、`arg`、`pat`、`type` 和 ellipsis 捕获不能被 guard 过滤。taint 子句会拒绝 `guard`。
 
 ## 测试工作流
 

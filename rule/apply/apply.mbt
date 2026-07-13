@@ -67,7 +67,7 @@ pub fn ScanPlan::from_rules(rules : Array[CompiledRule]) -> ScanPlan {
 
 ///|
 pub fn ScanPlan::filter_source(self : ScanPlan, source : String) -> ScanPlan {
-  let literal_cache : Map[String, Bool] = {}
+  let literal_cache : Map[String, Bool] = Map([])
   let structural_entries : Array[AstStructuralRuleEntry] = []
   let taint_entries : Array[PlannedTaintRule] = []
   for entry in self.structural_entries {

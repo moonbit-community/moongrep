@@ -65,7 +65,7 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
     target_metavar: None,
     source_metavar: Some("__SOURCE__"),
   }
-  { source: { shape, guards: {} }, compiled, guards: [] }
+  { source: { shape, guards: Map([]) }, compiled, guards: [] }
 }
 
 ///|
