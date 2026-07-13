@@ -1,3 +1,8 @@
+---
+name: moongrep
+description: 使用 moongrep 对 MoonBit 源码进行结构化搜索和污点分析。适用于需要语法感知的 MoonBit 代码搜索。
+---
+
 # moongrep
 
 `moongrep` 是一个实验性的 MoonBit 结构化搜索和污点分析工具。
