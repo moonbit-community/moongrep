@@ -2,9 +2,7 @@
 
 `moongrep` 是一个实验性的 MoonBit 结构化搜索和污点分析工具。
 
-
-
-## 扫描
+## 快速入门
 
 `moongrep`的最简单使用方法是在一个MoonBit项目根目录运行scan命令(默认递归扫描，同时绕过Git和MoonBit工具链生成的目录), 并使用`--pattern`选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对Option类型的值进行`match`的表达式。
 
@@ -12,7 +10,7 @@
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
-### 表达式模式和元变量
+## 表达式模式和元变量
 
 `moongrep`会将表达式模式和待扫描的 MoonBit 代码解析成抽象语法树（AST），然后比较两棵语法树的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
 
@@ -95,12 +93,6 @@ user.name == other.name
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }' --output-json
-```
-
-命令行参数概要：
-
-```text
-moon runwasm moonbit-community/moongrep -- scan [--verbose] [--output-json] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
 ```
 
 ## 打印ast
