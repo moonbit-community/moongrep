@@ -1,89 +1,109 @@
 # moongrep
 
 `moongrep` 是一个实验性的 MoonBit 结构化搜索和污点分析工具。
-匹配规则以 YAML 文件声明。
 
-## Scan
 
-使用规则目录，以及一个可选的扫描目标目录或 `.mbt` 文件来运行扫描器：
+
+## 扫描
+
+`moongrep`的最简单使用方法是在一个MoonBit项目根目录运行scan命令(默认递归扫描，但是会绕过Git和MoonBit工具链生成的目录), 并使用`--pattern`选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对Option类型的值进行`match`的表达式。
 
 ```bash
-moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules path/to/src
-moon runwasm moonbit-community/moongrep -- scan --output-json --rules path/to/rules path/to/src
-moon runwasm moonbit-community/moongrep -- scan --pattern 'target()' path/to/src
-moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --guard '{$callee: "^safe_"}' path/to/src
+moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
-用法概要：
+### 表达式模式和元变量
+
+`moongrep`会将表达式模式和待扫描的 MoonBit 代码解析成抽象语法树（AST），然后比较两棵语法树的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
+
+元变量使用以下格式：
+
+```text
+$(name:kind)
+```
+
+`name`是元变量的名称。匹配成功后，当前位置上的代码会记录在这个名称下。`kind`指定允许匹配的语法节点类别。
+
+常用的 `kind` 包括：
+
+- `exp`：匹配一个完整表达式，例如变量、函数调用、字段访问或 `if` 表达式；
+- `id`：匹配一个标识符，例如变量名、参数名或 pattern 中绑定的名称；
+- `const`：匹配一个字面常量，例如整数、字符串或布尔值；
+- `arg`：匹配一个完整的函数调用参数；
+- `pat`：匹配一个完整的 pattern；
+- `type`：匹配一个完整的类型。
+
+下面的模式匹配一个包含 `Some` 和 `None` 两个分支的 `match` 表达式：
+
+```moonbit
+match $(value:exp) {
+  Some($(some:id)) => $(some_body:exp)
+  None => $(none_body:exp)
+}
+```
+
+其中：
+
+- `$(value:exp)` 捕获 `match` 检查的表达式；
+- `$(some:id)` 捕获 `Some` pattern 中绑定的标识符；
+- `$(some_body:exp)` 捕获 `Some` 分支的表达式；
+- `$(none_body:exp)` 捕获 `None` 分支的表达式。
+
+这个模式可以匹配：
+
+```moonbit
+match load_user() {
+  Some(user) => display(user)
+  None => show_error()
+}
+```
+
+这次匹配会产生以下捕获：
+
+```text
+value     = load_user()
+some      = user
+some_body = display(user)
+none_body = show_error()
+```
+
+模式中的 `match`、`Some`、`None` 和两个分支的位置属于固定结构。使用 `Ok` 和 `Err` 分支的表达式不满足这个模式。`Some(1)` 也不满足 `Some($(some:id))`，因为 `1` 的语法类别是常量，`$(some:id)` 要求该位置是标识符。
+
+同一个具名元变量可以在一条模式中出现多次。每次出现都必须捕获结构相同的语法节点。例如：
+
+```moonbit
+$(value:exp) == $(value:exp)
+```
+
+这个模式可以匹配：
+
+```moonbit
+user.name == user.name
+```
+
+下面的表达式不满足该模式：
+
+```moonbit
+user.name == other.name
+```
+
+重复捕获的比较基于语法树结构，源码位置不参与比较。
+
+`$_` 表示忽略占位符。它可以匹配当前位置上的任意内容，不记录捕获结果。同一模式中的多个 `$_` 相互独立。
+
+默认情况下，moongrep输出为人类用户准备的报告。如果希望让Coding Agent读取moongrep的输出, 请加上`--output-json`选项.
+
+```bash
+moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }' --output-json
+```
+
+命令行参数概要：
 
 ```text
 moon runwasm moonbit-community/moongrep -- scan [--verbose] [--output-json] [--enable-builtin-rules] [--exclude-dir <dir>...] [--exclude-rules <rule-id>...] ((--rules <rules-root> | --rules=<rules-root> | -r <rules-root> | --rule <rule-file>) | --pattern <pattern> [--guard <guard>])... [scan-root]
 ```
 
-扫描器通过 `scan` 子命令使用。当提供了 `--rule <rule-file>`、至少一个
-`--pattern <pattern>`，或启用了 `--enable-builtin-rules` 时，`--rules` /
-`-r` 是可选的。长规则选项同时接受 `--rules <rules-root>` 和
-`--rules=<rules-root>` 两种形式。使用 `--rule <rule-file>` 可以只加载一个
-YAML 规则文件。内联模式会被视为匿名结构化规则，其规则 id 就是模式字符串
-本身。`--enable-builtin-rules` 会在命令行提供的规则和内联模式之外，额外加载
-内嵌的内置规则。`scan` 参数列表中可以出现一个可选的位置参数 `scan-root`，
-默认值为 `.`。如果规则或规则选项出现多次，最后一个值生效。重复的
-`--pattern` 值会作为独立的匿名规则追加。可以在匿名 `--pattern` 之后使用
-`--guard <guard>`，为其附加 YAML guard 映射；该映射使用以 `$` 为前缀的元变量
-键，并采用与规则文件中 `guard` 相同的 schema。
-
-使用 `--exclude-dir <dir>...` 可以在递归扫描源码树时跳过指定的目录名或路径。
-当在一个 flag 后传入多个排除目录时，请把 `scan-root` 放在 `--exclude-dir`
-之前；也可以重复使用 `--exclude-dir <dir>` 和 `--exclude-dir=<dir>` 形式。
-
-使用 `--exclude-rules <rule-id>...` 可以通过精确的规则 id 禁用已加载的规则。
-这适用于内置规则、文件规则、目录规则和匿名模式规则。当在一个 flag 后传入多个
-排除规则 id 时，请把 `scan-root` 放在 `--exclude-rules` 之前；也可以重复使用
-`--exclude-rules <rule-id>` 和 `--exclude-rules=<rule-id>` 形式。未知的排除
-规则 id 会被视为用法错误。
-
-用法错误会打印消息并以退出码 2 退出：缺少 `scan` 命令、缺少所有规则来源
-（`--rules`、`--rule`、`--pattern` 和 `--enable-builtin-rules`）、缺少选项值、
-`--guard` 位置错误或格式错误、未知选项、未知的排除规则 id，或出现多个扫描
-根目录。非用法错误，包括路径不可读、规则目录为空、YAML/schema/shape 无效，
-或源码读取失败，都会中止本次运行；CLI 会打印错误并以退出码 1 退出。
-
-传入 `--verbose` 可以在警告和匹配结果之前，打印已加载的规则 id 和目录遍历进度。
-
-传入 `--output-json` 可以为 Coding Agent 输出 JSON Lines。每个 finding 对应一行
-紧凑 JSON object，字段包括 `file`、`rule_id`、`description`、`range`、
-`outer_range`、`matched_source` 和 `source_context`。行号和列号从 1 开始，
-range 的 end 为半开区间终点；不存在 outer match 时 `outer_range` 为 `null`。
-输出不包含 `pattern_index`。
-
-JSON 模式只输出 finding。解析警告、verbose trace 和人类可读的
-`no match hits` 摘要都会被省略；没有 finding 时，标准输出为零字节。用法错误和
-致命错误继续使用现有文本格式和退出码。
-
-每个匹配结果都会打印发现项覆盖的源码行，以及最多两行周边源码上下文。周边上下文
-行以灰色渲染；匹配的源码行不使用灰色样式。设置 `NO_COLOR=1` 可以禁用灰色上下文
-样式，并使用 `>` 而不是 `|` 渲染匹配的源码行。
-
-如果省略 `scan-root`，`moongrep` 会扫描当前目录：
-
-```bash
-moon runwasm moonbit-community/moongrep -- scan --rules path/to/rules
-moon runwasm moonbit-community/moongrep -- scan -r path/to/rules
-moon runwasm moonbit-community/moongrep -- scan --rule path/to/rule.yaml
-moon runwasm moonbit-community/moongrep -- scan --pattern 'target()'
-moon runwasm moonbit-community/moongrep -- scan --pattern '$(callee:id)()' --guard '{$callee: "^safe_"}'
-moon runwasm moonbit-community/moongrep -- scan --enable-builtin-rules
-```
-
-扫描器会递归读取 `.mbt` 文件。从 `scan-root` 向下遍历时，名为 `.git`、`_build`、
-`.mooncakes` 或 `target` 的子项会被跳过；如果这些目录之一被显式作为 `scan-root`
-传入，则会被扫描。通过 `--exclude-dir` 提供的目录会按 `scan-root` 下任意位置的
-条目名跳过，或按精确的子路径跳过。
-
-递归遍历源码或规则时遇到的符号链接会被跟随。解析失败的文件会作为警告报告并跳过；
-其他文件会继续被扫描。
-
-## Dump
+## 打印ast
 
 MoonBit `untyped_ast` 调试 dump 可通过 `dump` 子命令使用：
 
@@ -92,7 +112,7 @@ moon runwasm moonbit-community/moongrep -- dump --impl 'fn answer { 42 }'
 moon runwasm moonbit-community/moongrep -- dump --expr 'x + 1'
 ```
 
-用法概要：
+命令行参数概要：
 
 ```text
 moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
@@ -105,9 +125,9 @@ moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
 用法错误，包括同时缺少两种 dump 模式，或组合使用 `--impl` 和 `--expr`，会打印
 消息并以退出码 2 退出。解析或词法失败会打印消息并以退出码 1 退出。
 
-## Document
+## 文档
 
-内嵌文档可通过 `docs` 子命令使用：
+内嵌文档可通过 `docs` 子命令查看：
 
 ```bash
 moon runwasm moonbit-community/moongrep -- docs --list
