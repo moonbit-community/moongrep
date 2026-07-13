@@ -17,7 +17,7 @@ let _embed_rulespec_md : String =
   #|The keywords "must", "must not", "may", and "currently" describe the behavior
   #|rule authors can rely on today.
   #|
-  #|Rules use YAML. Every `shape` value is MoonBit surface syntax. The scanner
+  #|Rules use YAML format. Every `shape` value is MoonBit surface syntax. The scanner
   #|matches parsed MoonBit expression structure and does not match raw text.
   #|Formatting and comments are not significant. Expression form, operators,
   #|literal values, labels, callee names, and argument structure are significant.
