@@ -9,12 +9,9 @@ fn render_directory_scan_result(
   if result.scan_trace.length() > 0 {
     sections.push(result.scan_trace.join("\n"))
   }
-  let warnings : Array[String] = []
-  for skipped in result.skipped_files {
-    warnings.push("warning: skipping \{skipped.file}: \{skipped.reason}")
-  }
-  if warnings.length() > 0 {
-    sections.push(warnings.join("\n"))
+  let warnings = render_skipped_file_warnings(result.skipped_files)
+  if warnings != "" {
+    sections.push(warnings)
   }
   if result.hits.length() == 0 {
     sections.push("no match hits")
@@ -26,6 +23,15 @@ fn render_directory_scan_result(
     sections.push(rendered_hits.join("\n\n"))
   }
   sections.join("\n\n")
+}
+
+///|
+fn render_skipped_file_warnings(skipped_files : Array[SkippedFile]) -> String {
+  let warnings : Array[String] = []
+  for skipped in skipped_files {
+    warnings.push("warning: skipping \{skipped.file}: \{skipped.reason}")
+  }
+  warnings.join("\n")
 }
 
 ///|

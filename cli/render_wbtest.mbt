@@ -42,7 +42,7 @@ fn render_test_hit(start_line : Int, end_line : Int) -> ScanHit {
 }
 
 ///|
-test "matched source line prefix is not dimmed" {
+async test "matched source line prefix is not dimmed" {
   let match_loc = render_test_location(12, 13, 12, 21)
   inspect(
     render_source_context_line(
@@ -55,7 +55,7 @@ test "matched source line prefix is not dimmed" {
   let arr = [5, 6, 7]
   for i = 0; i < arr.length(); i = i + 1 {
     if arr[i] == 0 {
-      println(i)
+      @stdio.stdout.write("\{i}\n")
     }
   }
 }

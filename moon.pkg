@@ -1,11 +1,10 @@
 import {
   "moonbit-community/moongrep/cli",
   "moonbitlang/async",
+  "moonbitlang/async/stdio",
   "moonbitlang/core/env",
 }
 
 supported_targets = "+wasm+native"
 
-options(
-  "is-main": true,
-)
+pkgtype(kind: "executable")
