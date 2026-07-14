@@ -7,11 +7,11 @@ fn runtime_exit(code : Int) -> Unit = "wasi_snapshot_preview1" "proc_exit"
 extern "c" fn runtime_exit(code : Int) -> Unit = "exit"
 
 ///|
-fn write_cli_output(output : String) -> Unit {
+async fn write_cli_output(output : String) -> Unit {
   if output != "" {
     match output.strip_suffix("\n") {
-      Some(trimmed) => println(trimmed.to_owned())
-      None => println(output)
+      Some(_) => @stdio.stdout.write(output)
+      None => @stdio.stdout.write(output + "\n")
     }
   }
 }

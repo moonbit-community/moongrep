@@ -37,6 +37,10 @@ priv struct SourceContextLine {
 pub async fn render_scan_command(options : CliOptions) -> String {
   let result = collect_directory_hits(options)
   if options.output_json {
+    let warnings = render_skipped_file_warnings(result.skipped_files)
+    if warnings != "" {
+      @stdio.stderr.write(warnings + "\n")
+    }
     render_directory_scan_json(result)
   } else {
     render_directory_scan_result(result, no_color=options.no_color)
