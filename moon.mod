@@ -9,7 +9,7 @@ import {
   "moonbit-community/yaml@0.0.6",
   "moonbit-community/chalk@0.0.1",
   "moonbitlang/lexer@0.3.9",
-  "moonbitlang/async@0.20.1",
+  "moonbitlang/async@0.20.2",
 }
 
 readme = "README.md"
