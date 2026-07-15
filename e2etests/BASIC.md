@@ -7,7 +7,7 @@ Usage: moongrep <command>
 Scan MoonBit source files with structural and taint rules.
 
 Commands:
-  scan  Scan MoonBit source files with structural and taint rules.
+  scan  Scan MoonBit source files.
   docs  Print embedded moongrep documentation.
   dump  Parse a MoonBit impl or expression and print untyped_ast debug output.
   help  Print help for the subcommand(s).
@@ -22,16 +22,16 @@ Options:
 $ moonrun "$TESTDIR"/moongrep.wasm -- scan --help
 Usage: moongrep scan [options] [scan-root]
 
-Scan MoonBit source files with structural and taint rules.
+Scan MoonBit source files.
 
 Arguments:
   scan-root  Directory to scan.
 
 Options:
   -h, --help                       Show help information.
-  --verbose                        Print loaded rule ids and directory traversal progress.
+  --verbose                        Write loaded rule ids and traversal progress to stderr.
   --enable-builtin-rules           Enable embedded builtin rules.
-  --output-json                    Print each match as one JSON record.
+  --output-json                    Write each match as one JSON record to stdout.
   -r, --rules <rules>              Directory containing YAML rules.
   --rule <rule>                    Single YAML rule file.
   --pattern <pattern>              Anonymous structural pattern to match.

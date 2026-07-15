@@ -29,9 +29,14 @@ fn render_directory_scan_result(
 fn render_skipped_file_warnings(skipped_files : Array[SkippedFile]) -> String {
   let warnings : Array[String] = []
   for skipped in skipped_files {
-    warnings.push("warning: skipping \{skipped.file}: \{skipped.reason}")
+    warnings.push(render_skipped_file_warning(skipped))
   }
   warnings.join("\n")
+}
+
+///|
+fn render_skipped_file_warning(skipped : SkippedFile) -> String {
+  "warning: skipping \{skipped.file}: \{skipped.reason}"
 }
 
 ///|

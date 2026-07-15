@@ -24,8 +24,7 @@ async fn main {
       env=@env.get_env_vars(),
     )
     match command {
-      ("scan", Some(options), None) =>
-        write_cli_output(@cli.render_scan_command(options))
+      ("scan", Some(options), None) => @cli.run_scan_command(options)
       ("docs-list", None, None) | ("docs-show", None, Some(_)) =>
         write_cli_output(@cli.render_docs_command(command))
       ("dump-impl", None, Some(_)) | ("dump-expr", None, Some(_)) =>

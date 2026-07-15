@@ -33,7 +33,37 @@ priv struct SourceContextLine {
 }
 
 ///|
-/// Runs a scan and renders its command-line output.
+priv struct SourceLines {
+  source : String
+  lines : Array[StringView]
+  line_count : Int
+}
+
+///|
+priv enum ScanEvent {
+  Trace(String)
+  Warning(SkippedFile)
+  Hit(ScanHit)
+}
+
+///|
+priv struct BufferedScanHit {
+  hit : ScanHit
+  ordinal : Int
+}
+
+///|
+priv struct BufferedSkippedFile {
+  skipped_file : SkippedFile
+  ordinal : Int
+}
+
+///|
+/// Runs a scan and renders its command-line output into one buffered string.
+///
+/// This compatibility API retains the historical file sorting and
+/// warnings-first layout. The executable uses `run_scan_command` so matches
+/// can be written as soon as they are found.
 pub async fn render_scan_command(options : CliOptions) -> String {
   let result = collect_directory_hits(options)
   if options.output_json {
@@ -48,78 +78,100 @@ pub async fn render_scan_command(options : CliOptions) -> String {
 }
 
 ///|
-async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
-  let raw_rules = load_scan_rules(options)
-  let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
-  let compiled_rules = @rule_compile.compile_rules(enabled_rules)
+async fn scan_events(
+  options : CliOptions,
+  receive : async (ScanEvent) -> Unit,
+) -> Unit {
+  let compiled_rules = prepare_scan_rules(options)
   let scan_plan = @rule_apply.ScanPlan::from_rules(compiled_rules)
-  let files : Array[String] = []
-  let scan_trace : Array[String] = []
   if options.verbose {
     for rule in compiled_rules {
-      scan_trace.push("moongrep scan: loaded rule \{rule.rule_id}")
+      receive(Trace("moongrep scan: loaded rule \{rule.rule_id}"))
     }
   }
   let exclude_dirs = normalize_scan_exclude_dirs(options.exclude_dirs)
-  collect_source_files(
+  scan_path(
     options.scan_root,
     exclude_dirs,
-    files,
-    if options.verbose {
-      Some(scan_trace)
-    } else {
-      None
-    },
+    scan_plan,
+    options.verbose,
+    receive,
   )
-  files.sort()
-  let hits : Array[ScanHit] = []
-  let skipped_files : Array[SkippedFile] = []
-  for file in files {
-    let source = read_text_file(file)
-    let file_plan = scan_plan.filter_source(source)
-    if !file_plan.is_empty() {
-      let (impls, reports) = @parser.parse_string(source, name=file)
-      if reports.length() > 0 {
-        // Keep scanning other files even when one file fails to parse. This makes
-        // the CLI useful on in-progress worktrees.
-        skipped_files.push({
-          file,
-          reason: "parse failed due to \{compact_scan_reports(reports)}",
+}
+
+///|
+async fn prepare_scan_rules(
+  options : CliOptions,
+) -> Array[@rule_model.CompiledRule] {
+  let raw_rules = load_scan_rules(options)
+  let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
+  @rule_compile.compile_rules(enabled_rules)
+}
+
+///|
+async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
+  let scan_trace : Array[String] = []
+  let buffered_hits : Array[BufferedScanHit] = []
+  let buffered_skipped_files : Array[BufferedSkippedFile] = []
+  scan_events(options, event => {
+    match event {
+      Trace(message) => scan_trace.push(message)
+      Warning(skipped_file) =>
+        buffered_skipped_files.push({
+          skipped_file,
+          ordinal: buffered_skipped_files.length(),
         })
-      } else {
-        for node in impls {
-          let impl_source = source_text_for_impl(source, node)
-          let impl_plan = file_plan.filter_source(impl_source)
-          if !impl_plan.is_empty() {
-            let untyped_node = @untyped_ast.from_impl(node)
-            if !impl_has_moongrep_skip(node) {
-              let structural_hits = @rule_apply.apply_structural_scan_plan_to_node(
-                file, untyped_node, impl_plan,
-              )
-              for hit in structural_hits {
-                hits.push(make_scan_hit(source, hit))
-              }
-            }
-            let taint_hits = @rule_apply.apply_taint_scan_plan_to_node(
-              file, untyped_node, impl_plan,
-            )
-            for hit in taint_hits {
-              hits.push(make_scan_hit(source, hit))
-            }
-          }
-        }
-      }
+      Hit(hit) => buffered_hits.push({ hit, ordinal: buffered_hits.length() })
     }
+  })
+  buffered_hits.sort_by(compare_buffered_scan_hits)
+  buffered_skipped_files.sort_by(compare_buffered_skipped_files)
+  let hits : Array[ScanHit] = []
+  for buffered in buffered_hits {
+    hits.push(buffered.hit)
+  }
+  let skipped_files : Array[SkippedFile] = []
+  for buffered in buffered_skipped_files {
+    skipped_files.push(buffered.skipped_file)
   }
   { scan_trace, hits, skipped_files }
 }
 
 ///|
-fn make_scan_hit(source : String, finding : @rule_model.RuleFinding) -> ScanHit {
+fn compare_buffered_scan_hits(
+  left : BufferedScanHit,
+  right : BufferedScanHit,
+) -> Int {
+  let file_order = left.hit.finding.file.compare(right.hit.finding.file)
+  if file_order == 0 {
+    left.ordinal.compare(right.ordinal)
+  } else {
+    file_order
+  }
+}
+
+///|
+fn compare_buffered_skipped_files(
+  left : BufferedSkippedFile,
+  right : BufferedSkippedFile,
+) -> Int {
+  let file_order = left.skipped_file.file.compare(right.skipped_file.file)
+  if file_order == 0 {
+    left.ordinal.compare(right.ordinal)
+  } else {
+    file_order
+  }
+}
+
+///|
+fn make_scan_hit(
+  source_lines : SourceLines,
+  finding : @rule_model.RuleFinding,
+) -> ScanHit {
   {
     finding,
-    matched_source: matched_source_for_location(source, finding.loc),
-    source_context: source_context_for_location(source, finding.loc),
+    matched_source: matched_source_for_location(source_lines, finding.loc),
+    source_context: source_context_for_location(source_lines, finding.loc),
   }
 }
 
@@ -135,22 +187,31 @@ fn clamp_source_index(index : Int, length : Int) -> Int {
 }
 
 ///|
+fn cache_source_lines(source : String) -> SourceLines {
+  let lines : Array[StringView] = source.split("\n").to_array()
+  let line_count = if source.has_suffix("\n") && !lines.is_empty() {
+    lines.length() - 1
+  } else {
+    lines.length()
+  }
+  { source, lines, line_count }
+}
+
+///|
 fn matched_source_for_location(
-  source : String,
+  source_lines : SourceLines,
   loc : @basic.Location,
 ) -> String {
-  let lines = source.split("\n").to_array()
-  let line_count = source_context_line_count(source, lines.length())
-  if line_count == 0 ||
+  if source_lines.line_count == 0 ||
     loc.start.lnum <= 0 ||
     loc.end.lnum <= 0 ||
     loc.end.lnum < loc.start.lnum ||
-    loc.start.lnum > line_count ||
-    loc.end.lnum > line_count {
+    loc.start.lnum > source_lines.line_count ||
+    loc.end.lnum > source_lines.line_count {
     return ""
   }
-  let start_line = lines[loc.start.lnum - 1]
-  let end_line = lines[loc.end.lnum - 1]
+  let start_line = source_lines.lines[loc.start.lnum - 1]
+  let end_line = source_lines.lines[loc.end.lnum - 1]
   let start_index = clamp_source_index(
     loc.start.column() - 1,
     start_line.length(),
@@ -163,52 +224,45 @@ fn matched_source_for_location(
       start_line[start_index:end_index].to_owned()
     }
   } else {
-    let matched_lines : Array[String] = [start_line[start_index:].to_owned()]
+    let matched = StringBuilder()
+    matched.write_stringview(start_line[start_index:])
     for line_number in (loc.start.lnum + 1)..<loc.end.lnum {
-      matched_lines.push(lines[line_number - 1].to_owned())
+      matched.write_string("\n")
+      matched.write_stringview(source_lines.lines[line_number - 1])
     }
-    matched_lines.push(end_line[:end_index].to_owned())
-    matched_lines.join("\n")
+    matched.write_string("\n")
+    matched.write_stringview(end_line[:end_index])
+    matched.to_string()
   }
 }
 
 ///|
 fn source_context_for_location(
-  source : String,
+  source_lines : SourceLines,
   loc : @basic.Location,
 ) -> SourceContext {
-  let split_lines = source.split("\n").to_array()
-  let line_count = source_context_line_count(source, split_lines.length())
-  if line_count == 0 ||
+  if source_lines.line_count == 0 ||
     loc.start.lnum <= 0 ||
     loc.end.lnum <= 0 ||
-    loc.end.lnum < loc.start.lnum {
+    loc.end.lnum < loc.start.lnum ||
+    loc.start.lnum > source_lines.line_count {
     return { lines: [] }
   }
   let start_line = if loc.start.lnum > 2 { loc.start.lnum - 2 } else { 1 }
-  let end_line = if loc.end.lnum + 2 < line_count {
+  let end_line = if loc.end.lnum + 2 < source_lines.line_count {
     loc.end.lnum + 2
   } else {
-    line_count
+    source_lines.line_count
   }
   let lines : Array[SourceContextLine] = []
   for line_number in start_line..<=end_line {
     lines.push({
       line_number,
-      text: split_lines[line_number - 1].to_owned(),
+      text: source_lines.lines[line_number - 1].to_owned(),
       is_match: line_number >= loc.start.lnum && line_number <= loc.end.lnum,
     })
   }
   { lines, }
-}
-
-///|
-fn source_context_line_count(source : String, split_line_count : Int) -> Int {
-  if source.has_suffix("\n") && split_line_count > 0 {
-    split_line_count - 1
-  } else {
-    split_line_count
-  }
 }
 
 ///|
@@ -292,8 +346,11 @@ fn anonymous_pattern_rule(
 }
 
 ///|
-fn source_text_for_impl(source : String, node : @syntax.Impl) -> String {
-  source_text_for_location(source, node.loc())
+fn source_text_for_impl(
+  source_lines : SourceLines,
+  node : @syntax.Impl,
+) -> String {
+  source_text_for_location(source_lines, node.loc())
 }
 
 ///|
@@ -330,69 +387,124 @@ fn attribute_is_moongrep_skip(attr : @attribute.Attribute) -> Bool {
 }
 
 ///|
-fn source_text_for_location(source : String, loc : @basic.Location) -> String {
-  let lines = source.split("\n").to_array()
+fn source_text_for_location(
+  source_lines : SourceLines,
+  loc : @basic.Location,
+) -> String {
   let start_line = loc.start.lnum
   let end_line = loc.end.lnum
   if start_line <= 0 || end_line <= 0 || end_line < start_line {
-    return source
+    return source_lines.source
   }
   let start_index = start_line - 1
   let end_index = end_line
-  if start_index >= lines.length() || end_index > lines.length() {
-    return source
+  if start_index >= source_lines.line_count ||
+    end_index > source_lines.line_count {
+    return source_lines.source
   }
-  let block_lines = []
-  for line in lines[start_index:end_index] {
-    block_lines.push(line)
-  }
-  let block = block_lines.join("\n")
+  let block = source_lines.lines[start_index:end_index].join("\n")
   if block.length() == 0 {
-    source
+    source_lines.source
   } else {
     block
   }
 }
 
 ///|
-async fn collect_source_files(
+async fn scan_path(
   path : String,
   exclude_dirs : Array[String],
-  files : Array[String],
-  scan_trace : Array[String]?,
+  scan_plan : @rule_apply.ScanPlan,
+  verbose : Bool,
+  receive : async (ScanEvent) -> Unit,
 ) -> Unit {
   match @fs.kind(path) {
     Directory => {
-      push_scan_trace(scan_trace, "moongrep scan: entering \{path}")
+      emit_scan_trace(verbose, receive, "moongrep scan: entering \{path}")
       let entries = @fs.readdir(path, sort=true)
       for entry in entries {
         let child_path = "\{path}/\{entry}"
         if !should_skip_entry(child_path, entry, exclude_dirs) {
-          collect_source_files(child_path, exclude_dirs, files, scan_trace)
+          scan_path(child_path, exclude_dirs, scan_plan, verbose, receive)
         } else {
-          push_scan_trace(scan_trace, "moongrep scan: skipping \{child_path}")
+          emit_scan_trace(
+            verbose,
+            receive,
+            "moongrep scan: skipping \{child_path}",
+          )
         }
       }
     }
     Regular =>
       if path.has_suffix(".mbt") {
-        files.push(path)
-        push_scan_trace(scan_trace, "moongrep scan: file \{path}")
+        emit_scan_trace(verbose, receive, "moongrep scan: file \{path}")
+        scan_source_file(path, scan_plan, receive)
       }
     _ => ()
   }
 }
 
 ///|
-async fn read_text_file(path : String) -> String {
-  @fs.read_file(path).text()
+async fn scan_source_file(
+  file : String,
+  scan_plan : @rule_apply.ScanPlan,
+  receive : async (ScanEvent) -> Unit,
+) -> Unit {
+  let source = read_text_file(file)
+  let file_plan = scan_plan.filter_source(source)
+  if file_plan.is_empty() {
+    return
+  }
+  let (impls, reports) = @parser.parse_string(source, name=file)
+  if reports.length() > 0 {
+    // Keep scanning other files even when one file fails to parse. This makes
+    // the CLI useful on in-progress worktrees.
+    receive(
+      Warning({
+        file,
+        reason: "parse failed due to \{compact_scan_reports(reports)}",
+      }),
+    )
+    return
+  }
+  let source_lines = cache_source_lines(source)
+  for node in impls {
+    let impl_source = source_text_for_impl(source_lines, node)
+    let impl_plan = file_plan.filter_source(impl_source)
+    if !impl_plan.is_empty() {
+      let untyped_node = @untyped_ast.from_impl(node)
+      if !impl_has_moongrep_skip(node) {
+        let structural_hits = @rule_apply.apply_structural_scan_plan_to_node(
+          file, untyped_node, impl_plan,
+        )
+        for finding in structural_hits {
+          receive(Hit(make_scan_hit(source_lines, finding)))
+        }
+      }
+      let taint_hits = @rule_apply.apply_taint_scan_plan_to_node(
+        file, untyped_node, impl_plan,
+      )
+      for finding in taint_hits {
+        receive(Hit(make_scan_hit(source_lines, finding)))
+      }
+    }
+  }
 }
 
 ///|
-fn push_scan_trace(scan_trace : Array[String]?, message : String) -> Unit {
-  if scan_trace is Some(lines) {
-    lines.push(message)
+async fn emit_scan_trace(
+  verbose : Bool,
+  receive : async (ScanEvent) -> Unit,
+  message : String,
+) -> Unit {
+  if verbose {
+    receive(Trace(message))
   }
+}
+
+///|
+async fn read_text_file(path : String) -> String {
+  @fs.read_file(path).text()
 }
 
 ///|

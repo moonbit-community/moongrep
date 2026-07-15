@@ -15,6 +15,8 @@ pub fn render_dump_command((String, CliOptions?, String?)) -> String raise
 
 pub async fn render_scan_command(CliOptions) -> String
 
+pub async fn run_scan_command(CliOptions) -> Unit
+
 pub fn runtime_cli_args(Array[String]) -> Array[String]
 
 // Errors

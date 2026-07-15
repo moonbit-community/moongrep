@@ -20,6 +20,14 @@ typical expression that uses `match` on an `Option` value:
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
+`moongrep` outputs scan results directly as it scans. For a better terminal
+reading experience, human users should use it with a terminal pager such as
+`less`:
+
+```bash
+moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }' | less -R
+```
+
 ## Expression Patterns and Metavariables
 
 `moongrep` parses both the expression pattern and the MoonBit code being
