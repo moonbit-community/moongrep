@@ -515,6 +515,9 @@ let _embed_rulespec_md : String =
   #|  - shape: match input { $(lit:const) => lit }
   #|```
   #|
+  #|The inner body references the outer constant capture with the plain payload
+  #|name, `lit`.
+  #|
   #|### `arg`
   #|
   #|An `arg` metavar captures a complete call argument node. It lets a rule accept
@@ -599,9 +602,6 @@ let _embed_rulespec_md : String =
   #|
   #|Repeating the same `pat` name requires the captured patterns to be structurally
   #|equal.
-  #|
-  #|The inner body references the outer constant capture with the plain payload
-  #|name, `lit`.
   #|
   #|## Guards
   #|

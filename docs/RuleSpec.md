@@ -511,6 +511,9 @@ patterns:
   - shape: match input { $(lit:const) => lit }
 ```
 
+The inner body references the outer constant capture with the plain payload
+name, `lit`.
+
 ### `arg`
 
 An `arg` metavar captures a complete call argument node. It lets a rule accept
@@ -595,9 +598,6 @@ patterns:
 
 Repeating the same `pat` name requires the captured patterns to be structurally
 equal.
-
-The inner body references the outer constant capture with the plain payload
-name, `lit`.
 
 ## Guards
 

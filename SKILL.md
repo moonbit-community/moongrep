@@ -100,8 +100,11 @@ does not match it. `Some(1)` does not match `Some($(some:id))` either, because
 `1` is syntactically a constant. `$(some:id)` requires an identifier in that
 position.
 
-The same named metavariable may appear multiple times in a pattern. Every
-occurrence must capture a structurally identical syntax node. For example:
+The same named metavariable may appear multiple times in a pattern. Repeated
+captures must agree according to their kind: `id` compares normalized names,
+`const` compares parsed constants, and AST-valued kinds such as `exp`, `arg`,
+`pat`, and `type` compare syntax-tree structure while ignoring source
+locations. For example:
 
 ```moonbit
 $(value:exp) == $(value:exp)
@@ -119,8 +122,8 @@ The following expression does not match the pattern:
 user.name == other.name
 ```
 
-Repeated captures are compared by syntax-tree structure; source locations are
-not considered.
+Here `value` is an `exp` capture, so its two syntax trees must be structurally
+equal; source locations are not considered.
 
 `$_` is a discard placeholder. It matches any content at its position without
 recording a capture. Multiple `$_` placeholders in the same pattern are
@@ -135,6 +138,10 @@ its output suitable for a coding agent, add the `--output-json` option:
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
 
+JSON match records are written to standard output, one per line. Verbose
+traversal messages and parse warnings are written to standard error. When no
+match is found, JSON mode writes nothing to standard output.
+
 ## Pattern Guards
 
 Use `--guard` to add filters to an expression pattern. The filters apply to
@@ -145,7 +152,7 @@ numbers. Such calls are usually not good coding practice and should preferably
 be rewritten to use `assert_eq` or another assertion.
 
 ```bash
-moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\\\.[0-9]+)?$"}'
+moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
 ```
 
 The argument to `--guard` is a YAML map and normally immediately follows the
