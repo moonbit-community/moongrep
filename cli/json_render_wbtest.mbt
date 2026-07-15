@@ -72,7 +72,10 @@ test "matched source follows multiline UTF-16 locations" {
     #|}
     #|
   inspect(
-    matched_source_for_location(source, render_test_location(2, 6, 4, 4)),
+    matched_source_for_location(
+      cache_source_lines(source),
+      render_test_location(2, 6, 4, 4),
+    ),
     content=(
       #|target(
       #|    "quoted"

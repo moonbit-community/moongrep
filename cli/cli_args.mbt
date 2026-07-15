@@ -31,12 +31,12 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 ///|
 let scan_command : @argparse.Command = Command(
   "scan",
-  about="Scan MoonBit source files with structural and taint rules.",
+  about="Scan MoonBit source files.",
   flags=[
     FlagArg(
       "verbose",
       long="verbose",
-      about="Print loaded rule ids and directory traversal progress.",
+      about="Write loaded rule ids and traversal progress to stderr.",
     ),
     FlagArg(
       "enable-builtin-rules",
@@ -46,7 +46,7 @@ let scan_command : @argparse.Command = Command(
     FlagArg(
       "output-json",
       long="output-json",
-      about="Print each match as one JSON record.",
+      about="Write each match as one JSON record to stdout.",
     ),
   ],
   options=[

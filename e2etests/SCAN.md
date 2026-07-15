@@ -2,14 +2,6 @@
 
 ```mooncram
 $ cd "$TESTDIR"/.. && sh testdata/skip-dirs/run.sh "$TESTDIR"/moongrep.wasm
-moongrep scan: loaded rule example
-moongrep scan: entering testdata/skip-dirs
-moongrep scan: skipping testdata/skip-dirs/.git
-moongrep scan: skipping testdata/skip-dirs/_build
-moongrep scan: skipping testdata/skip-dirs/target
-moongrep scan: file testdata/skip-dirs/hit.mbt
-moongrep scan: skipping testdata/skip-dirs/.mooncakes
-
 testdata/skip-dirs/hit.mbt:1:13-1:21
 rule: example
 description:
@@ -20,12 +12,6 @@ source:
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --verbose --rules e2etests/rules/structural testdata/exclude-dirs --exclude-dir ignored/ ./testdata/exclude-dirs/generated/
-moongrep scan: loaded rule example
-moongrep scan: entering testdata/exclude-dirs
-moongrep scan: file testdata/exclude-dirs/hit.mbt
-moongrep scan: skipping testdata/exclude-dirs/ignored
-moongrep scan: skipping testdata/exclude-dirs/generated
-
 testdata/exclude-dirs/hit.mbt:1:13-1:21
 rule: example
 description:
@@ -34,12 +20,36 @@ source:
 1 > fn sample { target() }
 ```
 
+## Deterministic streaming order
+
+Sorted depth-first traversal writes the nested file before returning to the
+next entry in the parent directory.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/stream-order
+testdata/stream-order/a/hit.mbt:2:3-2:11
+rule: example
+description:
+  Target call.
+source:
+1 | fn nested {
+2 >   target()
+3 | }
+
+testdata/stream-order/a.mbt:2:3-2:11
+rule: example
+description:
+  Target call.
+source:
+1 | fn flat {
+2 >   target()
+3 | }
+```
+
 ## Parse warnings
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/structural testdata/parse-warning
-warning: skipping testdata/parse-warning/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.
-
 testdata/parse-warning/hit.mbt:1:13-1:21
 rule: example
 description:
@@ -55,8 +65,6 @@ no match hits
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/general testdata/prefilter-general
-warning: skipping testdata/prefilter-general/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.
-
 no match hits
 ```
 
@@ -199,7 +207,11 @@ $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --v
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>&1 >/dev/null
+moongrep scan: loaded rule example
+moongrep scan: entering testdata/parse-warning
+moongrep scan: file testdata/parse-warning/bad.mbt
 warning: skipping testdata/parse-warning/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.
+moongrep scan: file testdata/parse-warning/hit.mbt
 ```
 
 ```mooncram
