@@ -426,7 +426,9 @@ patterns:
 moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 ```
 
-`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，扫描器使用 `.`。`--verbose` 会在 warning 和匹配结果之前打印已加载的 rule id 和目录遍历进度。
+`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，
+扫描器使用 `.`。匹配结果会流式写入标准输出；`--verbose` 会在扫描过程中把已加载的
+rule id 和目录遍历进度写入标准错误，解析 warning 也写入标准错误。
 
 扫描器默认使用 untyped AST matcher。重复的 `exp`、`arg`、`pat` 和 `type` 捕获会按忽略源码位置的 untyped AST 结构相等性进行比较。
 

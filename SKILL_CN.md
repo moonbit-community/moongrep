@@ -78,7 +78,9 @@ none_body = show_error()
 
 模式中的 `match`、`Some`、`None` 和两个分支的位置属于固定结构。使用 `Ok` 和 `Err` 分支的表达式不满足这个模式。`Some(1)` 也不满足 `Some($(some:id))`，因为 `1` 的语法类别是常量，`$(some:id)` 要求该位置是标识符。
 
-同一个具名元变量可以在一条模式中出现多次。每次出现都必须捕获结构相同的语法节点。例如：
+同一个具名元变量可以在一条模式中出现多次。重复捕获必须按 kind 保持一致：`id`
+比较规范化后的名称，`const` 比较解析后的常量，`exp`、`arg`、`pat`、`type`
+等 AST 类型的捕获按忽略源码位置的语法树结构比较。例如：
 
 ```moonbit
 $(value:exp) == $(value:exp)
@@ -96,7 +98,7 @@ user.name == user.name
 user.name == other.name
 ```
 
-重复捕获的比较基于语法树结构，源码位置不参与比较。
+这里的 `value` 是 `exp` 捕获，因此两次捕获的语法树必须结构相等，源码位置不参与比较。
 
 `$_` 表示忽略占位符。它可以匹配当前位置上的任意内容，不记录捕获结果。同一模式中的多个 `$_` 相互独立。
 
@@ -108,6 +110,9 @@ user.name == other.name
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
 
+JSON 匹配记录会逐行写入标准输出。详细遍历信息和解析 warning 会写入标准错误；
+JSON 模式下没有命中时，标准输出为空。
+
 ## 模式附加条件
 
 `--guard`选项可以为表达式模式添加额外的筛选条件，筛选条件的对象是表达式模式里面的元变量捕获的内容。
@@ -115,7 +120,7 @@ moongrep scan --pattern 'inspect($_, content="true")' --output-json
 一个实用且简短的例子是使用`guard`查找针对数字的inspect调用，这样的调用通常不是一种良好的代码实践，最好改写成使用`assert_eq`或者其他的检查方式。
 
 ```bash
-moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\\\.[0-9]+)?$"}'
+moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
 ```
 
 `--guard`的参数是一个YAML Map，通常紧跟在需要筛选的`--pattern`之后：

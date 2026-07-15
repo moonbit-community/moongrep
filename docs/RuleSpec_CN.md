@@ -2,7 +2,7 @@
 
 本文档是 moongrep 接受的 YAML 规则的权威规范。
 
-如果你是第一次编写规则，请先阅读 [WritingRules.md](WritingRules.md)。
+如果你是第一次编写规则，请先阅读 [WritingRules_CN.md](WritingRules_CN.md)。
 
 ## 范围和状态
 

@@ -561,8 +561,10 @@ moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
 ```
 
 `--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
-If `scan-root` is omitted, the scanner uses `.`. `--verbose` prints loaded rule
-ids and directory traversal progress before warnings and match results.
+If `scan-root` is omitted, the scanner uses `.`. Match results are streamed to
+standard output. `--verbose` writes loaded rule ids and directory traversal
+progress to standard error as the scan proceeds; parse warnings also use
+standard error.
 
 The scanner uses the untyped AST matcher by default. Repeated `exp`, `arg`,
 `pat`, and `type` captures are compared by structural untyped AST equality
