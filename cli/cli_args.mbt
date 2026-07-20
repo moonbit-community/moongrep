@@ -32,6 +32,7 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 let scan_command : @argparse.Command = Command(
   "scan",
   about="Scan MoonBit source files.",
+  arg_required_else_help=true,
   flags=[
     FlagArg(
       "verbose",
@@ -85,6 +86,7 @@ let scan_command : @argparse.Command = Command(
 let docs_command : @argparse.Command = Command(
   "docs",
   about="Print embedded moongrep documentation.",
+  arg_required_else_help=true,
   flags=[
     FlagArg("list", long="list", about="List available embedded documents."),
   ],
@@ -101,6 +103,7 @@ let docs_command : @argparse.Command = Command(
 let dump_command : @argparse.Command = Command(
   "dump",
   about="Parse a MoonBit impl or expression and print untyped_ast debug output.",
+  arg_required_else_help=true,
   options=[
     OptionArg(
       "impl",
@@ -431,8 +434,10 @@ fn normalize_scan_multi_value_option_args(
 /// rules option or single rule option appears multiple times, the last value
 /// wins. Repeated patterns, exclude directories, and excluded rules are
 /// appended in order.
-/// Missing subcommands, required arguments, unknown options, or more than one
-/// scan root raise `CliError::Usage` with exit code 2.
+/// Invoking `scan`, `docs`, or `dump` without any arguments prints that
+/// subcommand's help and exits successfully. Missing subcommands, other missing
+/// required arguments, unknown options, or more than one scan root raise
+/// `CliError::Usage` with exit code 2.
 pub fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = Map([]),
