@@ -16,6 +16,23 @@ Options:
   -h, --help  Show help information.
 ```
 
+## moongrep subcommands without arguments
+
+Each check verifies that invoking a subcommand without arguments succeeds and
+prints exactly the same help text as invoking it with `--help`.
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- scan > /dev/null && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- scan --help) <(moonrun "$TESTDIR"/moongrep.wasm -- scan)
+```
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- docs > /dev/null && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- docs --help) <(moonrun "$TESTDIR"/moongrep.wasm -- docs)
+```
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- dump > /dev/null && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- dump --help) <(moonrun "$TESTDIR"/moongrep.wasm -- dump)
+```
+
 ## moongrep scan --help
 
 ```mooncram

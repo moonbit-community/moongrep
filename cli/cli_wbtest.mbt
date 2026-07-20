@@ -77,7 +77,6 @@ test "cli args parse docs named command" {
 
 ///|
 test "cli args reject ambiguous docs command" {
-  expect_cli_usage(["docs"], 2)
   expect_cli_usage(["docs", "--list", "RuleSpec"], 2)
 }
 
@@ -100,7 +99,6 @@ test "cli args parse dump expr command" {
 
 ///|
 test "cli args reject ambiguous dump command" {
-  expect_cli_usage(["dump"], 2)
   expect_cli_usage(["dump", "--impl", "fn answer { 42 }", "--expr", "x + 1"], 2)
 }
 

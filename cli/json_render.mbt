@@ -58,7 +58,7 @@ fn json_scan_finding(hit : ScanHit) -> JsonScanFinding {
     description: trim_trailing_newlines(finding.description),
     range: json_scan_range(finding.loc),
     outer_range: match finding.outer_loc {
-      Some(loc) => json_scan_range(loc).to_json()
+      Some(loc) => ToJson::to_json(json_scan_range(loc))
       None => Json::null()
     },
     matched_source: hit.matched_source,
@@ -68,7 +68,7 @@ fn json_scan_finding(hit : ScanHit) -> JsonScanFinding {
 
 ///|
 fn render_scan_hit_json(hit : ScanHit) -> String {
-  json_scan_finding(hit).to_json().stringify()
+  ToJson::to_json(json_scan_finding(hit)).stringify()
 }
 
 ///|
