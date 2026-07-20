@@ -1,5 +1,9 @@
 ## Builtin rules
 
+This fixture contains one hit for each embedded rule. The scan checks the
+stable rule order, the selected inner and outer ranges, and the explanatory
+diagnostic shown with each match.
+
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --enable-builtin-rules testdata/builtin-rules-all
 testdata/builtin-rules-all/catch_all.mbt:3:3-5:4
@@ -107,6 +111,10 @@ source:
 ```
 
 ## Builtin rules JSON output
+
+The same builtin matches can be streamed as one JSON object per line. Each
+record preserves the rule description, matched source, optional outer range,
+and annotated source context from the human-readable result.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --enable-builtin-rules testdata/builtin-rules-all
