@@ -71,12 +71,12 @@ let scan_command : @argparse.Command = Command(
     OptionArg(
       "exclude-dir",
       action=Append,
-      about="Directory name or path to skip while recursively scanning.",
+      about="Directory name or path to skip while recursively scanning. May be repeated.",
     ),
     OptionArg(
-      "exclude-rules",
+      "exclude-rule",
       action=Append,
-      about="Rule id to disable after loading rules.",
+      about="Rule id to disable after loading rules. May be repeated.",
     ),
   ],
   positionals=[PositionArg("scan-root", about="Directory to scan.")],
@@ -245,7 +245,7 @@ fn scan_cli_options(
   let exclude_dirs = normalize_scan_exclude_dirs(
     all_cli_values(scan_matches.values, "exclude-dir"),
   )
-  let exclude_rules = all_cli_values(scan_matches.values, "exclude-rules")
+  let exclude_rules = all_cli_values(scan_matches.values, "exclude-rule")
   if rules_root is None &&
     rule_file is None &&
     patterns.is_empty() &&
@@ -388,38 +388,6 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 }
 
 ///|
-fn normalize_scan_multi_value_option_args(
-  argv : Array[String],
-  option_names : Array[String],
-) -> Array[String] raise {
-  if argv.length() == 0 || argv[0] != "scan" {
-    return argv
-  }
-  let normalized : Array[String] = [argv[0]]
-  let mut index = 1
-  while index < argv.length() {
-    let arg = argv[index]
-    if option_names.contains(arg) {
-      let mut value_count = 0
-      index += 1
-      while index < argv.length() && !argv[index].has_prefix("-") {
-        normalized.push(arg)
-        normalized.push(argv[index])
-        value_count += 1
-        index += 1
-      }
-      if value_count == 0 {
-        raise CliError::Usage(message="missing value for \{arg}", exit_code=2)
-      }
-    } else {
-      normalized.push(arg)
-      index += 1
-    }
-  }
-  normalized
-}
-
-///|
 /// Parses command-line arguments after the executable name has been removed.
 ///
 /// A supported subcommand is required after the executable name. Within `scan`,
@@ -427,9 +395,10 @@ fn normalize_scan_multi_value_option_args(
 /// `--rule <rule-file>`, at least one `--pattern <pattern>`, or
 /// `--enable-builtin-rules` is required. `--verbose` and `--output-json` are
 /// optional.
-/// `--exclude-dir <dir>...` skips matching child directory names or paths
-/// during recursive source scanning. `--exclude-rules <rule-id>...` disables
-/// loaded rules by exact rule id before matching.
+/// Each `--exclude-dir <dir>` skips one matching child directory name or path
+/// during recursive source scanning. Each `--exclude-rule <rule-id>` disables
+/// one loaded rule by exact rule id before matching. Both options may be
+/// repeated.
 /// One optional scan-root positional may appear in the argument list. If the
 /// rules option or single rule option appears multiple times, the last value
 /// wins. Repeated patterns, exclude directories, and excluded rules are
@@ -442,10 +411,7 @@ pub fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = Map([]),
 ) -> (String, CliOptions?, String?) raise {
-  let normalized_argv = normalize_scan_multi_value_option_args(argv, [
-    "--exclude-dir", "--exclude-rules",
-  ])
-  let matches = moongrep_command.parse(argv=normalized_argv, env~) catch {
+  let matches = moongrep_command.parse(argv~, env~) catch {
     err => {
       let message = "\{err}"
       raise CliError::Usage(message~, exit_code=2)
@@ -453,7 +419,7 @@ pub fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches, env, normalized_argv)), None)
+      ("scan", Some(scan_cli_options(scan_matches, env, argv)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)

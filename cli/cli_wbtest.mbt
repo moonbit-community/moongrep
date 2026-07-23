@@ -208,10 +208,11 @@ test "cli args parse scan output json flag" {
 }
 
 ///|
-test "cli args parse scan exclude dirs" {
+test "cli args parse repeated scan exclude dirs before scan root" {
   match
     parse_cli_command([
-      "scan", "--rules", "custom-rules", "src", "--exclude-dir", "./vendor/", "generated/",
+      "scan", "--rules", "custom-rules", "--exclude-dir", "./vendor/", "--exclude-dir=generated/",
+      "src",
     ]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
@@ -225,11 +226,11 @@ test "cli args parse scan exclude dirs" {
 }
 
 ///|
-test "cli args parse scan exclude rules" {
+test "cli args parse repeated scan exclude rules before scan root" {
   match
     parse_cli_command([
-      "scan", "--rules", "custom-rules", "src", "--exclude-rules", "target", "other",
-      "--exclude-rules=third", "--exclude-rules", "last",
+      "scan", "--rules", "custom-rules", "--exclude-rule", "target", "--exclude-rule=other",
+      "--exclude-rule", "third", "--exclude-rule", "last", "src",
     ]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
@@ -389,8 +390,33 @@ test "cli args reject missing rules value" {
 }
 
 ///|
-test "cli args reject missing exclude rules value" {
-  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude-rules"], 2)
+test "cli args reject missing exclude option values" {
+  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude-dir"], 2)
+  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude-rule"], 2)
+}
+
+///|
+test "cli args reject plural exclude rules option" {
+  expect_cli_usage(
+    ["scan", "--rules", "custom-rules", "--exclude-rules", "target"],
+    2,
+  )
+}
+
+///|
+test "cli args reject multiple values after one exclude option" {
+  expect_cli_usage(
+    [
+      "scan", "--rules", "custom-rules", "src", "--exclude-dir", "vendor", "generated",
+    ],
+    2,
+  )
+  expect_cli_usage(
+    [
+      "scan", "--rules", "custom-rules", "src", "--exclude-rule", "target", "other",
+    ],
+    2,
+  )
 }
 
 ///|

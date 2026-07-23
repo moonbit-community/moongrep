@@ -319,7 +319,7 @@ fn ensure_exclude_rule_ids_exist(
   for rule_id in exclude_rules {
     if !loaded.contains(rule_id) {
       raise CliError::Usage(
-        message="unknown rule id in --exclude-rules: \{rule_id}",
+        message="unknown rule id in --exclude-rule: \{rule_id}",
         exit_code=2,
       )
     }
