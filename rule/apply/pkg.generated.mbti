@@ -17,7 +17,7 @@ pub fn apply_taint_scan_plan_to_node(String, @untyped_ast.Node, ScanPlan) -> Arr
 pub struct ScanPlan {
   // private fields
 }
-pub fn ScanPlan::filter_source(Self, String) -> Self
+pub fn ScanPlan::filter_source(Self, StringView) -> Self
 pub fn ScanPlan::from_rules(Array[@model.CompiledRule]) -> Self
 pub fn ScanPlan::is_empty(Self) -> Bool
 

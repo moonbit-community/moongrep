@@ -171,14 +171,14 @@ source:
 1 | fn first {
 2 >   target()
 3 | }
-4 | 
+4 | ///|
 
 testdata/prefilter-impl/hits.mbt:6:3-6:10
 rule: other
 description:
   Other call.
 source:
-4 | 
+4 | ///|
 5 | fn second {
 6 >   other()
 7 | }
@@ -194,7 +194,7 @@ rule: other
 description:
   Other call.
 source:
-4 | 
+4 | ///|
 5 | fn second {
 6 >   other()
 7 | }
