@@ -597,13 +597,15 @@ patterns:
 - 当前表达式首先与 `inside-expr` 匹配
 - 如果匹配成功，会搜索由 `__TARGET__` 捕获的子树
 - 当存在 `patterns` 时，捕获子树中的每个表达式会先用
-  `inside-expr` 建立的绑定运行有序正向 pattern；正向命中会被报告，其命中子树会覆盖嵌套的负向匹配
+  `inside-expr` 建立的绑定运行有序正向 pattern；正向命中会被记录，其命中子树会覆盖嵌套的负向匹配
 - 当同时存在 `patterns` 和 `patterns-not` 时，只有正向 pattern 全部失败的候选才会用 `inside-expr` 绑定检查 `patterns-not`；正向命中子树之外的负向命中会拒绝整个外层匹配
 - 当不存在 `patterns` 时，捕获子树中的每个表达式都会用 `inside-expr` 绑定检查 `patterns-not`；如果没有任何负向 pattern 匹配，外层表达式产生一个命中
 - 如果内部 pattern 通过相同的 `$(name:id)` inline 形式引用了继承来的 `id` 捕获，并且从 `__TARGET__` 到候选表达式的路径上出现了同名（按规范化后的 identifier 名称计算）的词法绑定，则跳过该候选
 
-带 `patterns` 的 `inside-expr` 命中报告位置是内部正向匹配位置。只有
-`patterns-not` 的 `inside-expr` 规则报告外层表达式位置。暴露上下文位置的消费者也可以通过 `outer_loc` 暴露外层表达式位置。
+每个成功匹配的外层表达式最多产生一个 finding，其 `loc` 是外层表达式位置。
+存在 `patterns` 时，遍历顺序中的第一个内部正向命中决定 `pattern_index`；
+同一外层表达式中的后续正向命中不再产生额外 finding。只有
+`patterns-not` 时，`pattern_index` 为 `0`。
 
 ### `inside-toplevel`
 
@@ -634,10 +636,11 @@ patterns:
   中保持可见，并使用与 `inside-expr` 相同的继承绑定和 kind 一致性规则。
 - taint 规则不支持 `inside-toplevel`。
 
-运行时行为与 `inside-expr` 一致：候选顶层项先与 `inside-toplevel` 匹配；
-如果匹配成功，会在 `__TARGET__` 捕获到的表达式子树中用继承绑定继续搜索。
-带 `patterns` 时，报告的 `loc` 是内部正向匹配位置；只有 `patterns-not`
-时，报告的 `loc` 是匹配到的顶层项位置。两种形式的 `outer_loc` 都是匹配到的顶层项位置。
+候选顶层项先与 `inside-toplevel` 匹配；如果匹配成功，会在
+`__TARGET__` 捕获到的表达式子树中继续搜索，并沿用 `inside-expr`
+的继承绑定和负向覆盖行为。报告方式不同：带 `patterns` 时，每个内部正向
+命中都会产生一个 finding，其 `loc` 是内部匹配位置；只有
+`patterns-not` 时，会在匹配到的顶层项位置产生一个 finding。
 
 ## 污点规则
 

@@ -38,12 +38,7 @@ fn scan_plan_location_signature(loc : @basic.Location) -> String {
 
 ///|
 fn scan_plan_finding_signature(finding : RuleFinding) -> String {
-  let outer = if finding.outer_loc is Some(loc) {
-    scan_plan_location_signature(loc)
-  } else {
-    "none"
-  }
-  "\{finding.file}|\{finding.rule_id}|\{finding.pattern_index}|\{scan_plan_location_signature(finding.loc)}|\{outer}"
+  "\{finding.file}|\{finding.rule_id}|\{finding.pattern_index}|\{scan_plan_location_signature(finding.loc)}"
 }
 
 ///|

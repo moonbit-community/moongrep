@@ -49,9 +49,6 @@ fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
     format_location(finding.file, finding.loc),
     "rule: \{finding.rule_id}",
   ]
-  if finding.outer_loc is Some(loc) {
-    lines.push("outer_loc: \{format_location(finding.file, loc)}")
-  }
   lines.push("description:")
   let description = trim_trailing_newlines(finding.description)
   if description == "" {

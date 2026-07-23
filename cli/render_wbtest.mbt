@@ -34,7 +34,6 @@ fn render_test_hit(start_line : Int, end_line : Int) -> ScanHit {
       description: "Test finding.",
       pattern_index: 0,
       loc: render_test_location(start_line, 1, end_line, end_text.length() + 1),
-      outer_loc: None,
     },
     matched_source: "line \{start_line}",
     source_context: { lines: context_lines },

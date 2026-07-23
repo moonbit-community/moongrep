@@ -89,7 +89,6 @@ pub(all) struct RuleFinding {
   description : String
   pattern_index : Int
   loc : @basic.Location
-  outer_loc : @basic.Location?
 }
 
 pub(all) enum RuleGuardCaptureKind {

@@ -86,9 +86,12 @@ bodies, and applies structural rules to those expression subtrees.
 - Inner positive and negative patterns reuse names from the outer context by
   repeating the same metavar form; the same name with a different kind is
   rejected.
-- Hits from outer-context rules record `outer_loc` for the context expression or
-  top-level item in addition to `loc` for the inner match. For rules that only
-  use `patterns-not`, `loc` is the outer context location.
+- An `inside-expr` outer match reports at most one hit. Its `loc` is the outer
+  expression location; when inner positive patterns match, the first hit in
+  traversal order determines `pattern_index`.
+- An `inside-toplevel` rule reports each inner positive match at its inner
+  location. With only `patterns-not`, it reports the matched top-level item
+  location instead.
 
 For taint rules:
 
@@ -431,6 +434,9 @@ Rules for `inside-expr`:
 - inner `patterns` and `patterns-not` reference outer captures by repeating the
   same metavar form, such as `$(prefix:exp)`; using the same name with a
   different kind is rejected
+- each matching outer expression reports at most one hit at the outer
+  expression location; if multiple inner positive patterns match, the first
+  hit in traversal order determines `pattern_index`
 
 Use `inside-toplevel` for the same target-subtree workflow when the context is
 a top-level item:
@@ -450,9 +456,9 @@ patterns:
 
 `inside-toplevel` and `inside-expr` are mutually exclusive. Its `shape` must be
 exactly one MoonBit top-level item and must place exactly one supported
-`__TARGET__` in an expression position within that item. Hits report inner
-positive match locations, and `outer_loc` points at the matched top-level item.
-With only `patterns-not`, `loc` is also the top-level item location.
+`__TARGET__` in an expression position within that item. Positive hits report
+their inner match locations. With only `patterns-not`, `loc` is the top-level
+item location.
 
 ### 3.6 Use `patterns-not` to prune blocked branches
 
@@ -506,9 +512,10 @@ patterns-not:
   - shape: $(counter:id)
 ```
 
-This reports covered `arr[i]` hits only when every unshadowed use of the
-inherited counter `i` in the target subtree is inside one of those array-access
-matches. An uncovered `i`, such as `println(i)`, rejects that wrapper match.
+This reports the wrapper once only when every unshadowed use of the inherited
+counter `i` in the target subtree is inside one of those array-access matches.
+The first covered `arr[i]` hit determines `pattern_index`. An uncovered `i`,
+such as `println(i)`, rejects that wrapper match.
 
 ### 4. Use `guard` for id and const filters
 

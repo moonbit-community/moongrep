@@ -751,7 +751,7 @@ let _embed_rulespec_md : String =
   #|- if it matches, the subtree captured by `__TARGET__` is searched
   #|- when `patterns` is present, each expression in the captured subtree first
   #|  tries the ordered positive patterns using the bindings established by
-  #|  `inside-expr`; a positive hit is reported and its matched subtree covers any
+  #|  `inside-expr`; a positive hit is recorded and its matched subtree covers any
   #|  nested negative matches
   #|- when `patterns` and `patterns-not` are both present, a candidate that fails
   #|  all positive patterns is then checked against `patterns-not` using the
@@ -765,10 +765,11 @@ let _embed_rulespec_md : String =
   #|  path from `__TARGET__` to the candidate crosses a lexical binder with the
   #|  same normalized identifier name
   #|
-  #|With `patterns`, the reported location is the inner positive match location.
-  #|With `inside-expr` and only `patterns-not`, the reported location is the outer
-  #|expression location. Consumers that expose context locations may also expose
-  #|the outer expression location through `outer_loc`.
+  #|Each successful outer expression produces at most one finding. Its `loc` is
+  #|the outer expression location. With `patterns`, the first inner positive hit in
+  #|traversal order determines `pattern_index`; later positive hits in the same
+  #|outer expression do not produce additional findings. With only `patterns-not`,
+  #|`pattern_index` is `0`.
   #|
   #|### `inside-toplevel`
   #|
@@ -802,12 +803,12 @@ let _embed_rulespec_md : String =
   #|  `inside-expr`.
   #|- `inside-toplevel` is not supported on taint rules.
   #|
-  #|Runtime behavior mirrors `inside-expr`: the candidate top-level item is first
-  #|matched against `inside-toplevel`; if it matches, the expression subtree
-  #|captured by `__TARGET__` is searched with inherited bindings. With `patterns`,
-  #|the reported `loc` is the inner positive match location. With only
-  #|`patterns-not`, the reported `loc` is the matched top-level item location.
-  #|`outer_loc` is the matched top-level item location for both forms.
+  #|The candidate top-level item is first matched against `inside-toplevel`; if it
+  #|matches, the expression subtree captured by `__TARGET__` is searched with the
+  #|same inherited-binding and negative-coverage behavior as `inside-expr`.
+  #|Reporting differs: with `patterns`, every inner positive hit produces a
+  #|finding whose `loc` is the inner match location. With only `patterns-not`, one
+  #|finding is produced at the matched top-level item location.
   #|
   #|## Taint Rules
   #|

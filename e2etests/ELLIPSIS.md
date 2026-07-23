@@ -234,9 +234,8 @@ empty prefix, and rejects a differing final argument.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/ellipsis/inside/rules testdata/ellipsis/inside/src
-testdata/ellipsis/inside/src/sample.mbt:2:11-2:19
+testdata/ellipsis/inside/src/sample.mbt:2:3-2:20
 rule: ellipsis-inside
-outer_loc: testdata/ellipsis/inside/src/sample.mbt:2:3-2:20
 description:
   Reuse the surrounding argument prefix inside the target.
 source:
@@ -245,9 +244,8 @@ source:
 3 |   wrapper(a, b, target(a, b))
 4 |   wrapper(a, b, target(a, other))
 
-testdata/ellipsis/inside/src/sample.mbt:3:17-3:29
+testdata/ellipsis/inside/src/sample.mbt:3:3-3:30
 rule: ellipsis-inside
-outer_loc: testdata/ellipsis/inside/src/sample.mbt:3:3-3:30
 description:
   Reuse the surrounding argument prefix inside the target.
 source:
