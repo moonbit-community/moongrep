@@ -14,12 +14,12 @@ source:
 1 > fn sample { target() }
 ```
 
-Additional directories can be excluded by name or by path. The two
-`--exclude-dir` forms remove the `ignored` and `generated` subtrees, leaving
-only the match in the root of the fixture.
+Additional directories can be excluded by name or by path. The two repeated
+`--exclude-dir` options remove the `ignored` and `generated` subtrees, leaving
+only the match in the root of the fixture. The scan root may follow them.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --verbose --rules e2etests/rules/structural testdata/exclude-dirs --exclude-dir ignored/ ./testdata/exclude-dirs/generated/
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --verbose --rules e2etests/rules/structural --exclude-dir ignored/ --exclude-dir ./testdata/exclude-dirs/generated/ testdata/exclude-dirs
 testdata/exclude-dirs/hit.mbt:1:13-1:21
 rule: example
 description:
@@ -188,7 +188,7 @@ Excluding a loaded rule by id removes only that rule. The remaining rule still
 scans the same source and reports its match.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter testdata/prefilter-impl --exclude-rules target
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter --exclude-rule target testdata/prefilter-impl
 testdata/prefilter-impl/hits.mbt:6:3-6:10
 rule: other
 description:
@@ -204,8 +204,8 @@ An excluded id must refer to a loaded rule. An unknown id is a command-line
 error and returns exit status 2.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter testdata/prefilter-impl --exclude-rules missing
-unknown rule id in --exclude-rules: missing
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules e2etests/rules/prefilter --exclude-rule missing testdata/prefilter-impl
+unknown rule id in --exclude-rule: missing
 [2]
 ```
 
