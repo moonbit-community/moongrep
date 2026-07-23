@@ -564,7 +564,7 @@ test "validate rejects type metavar outside whole type positions" {
     #|  - shape: sink($(T:type)=value)
     #|
   expect_compile_invalid(
-    label_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+    label_source, "patterns[0].shape is not a valid MoonBit expression: Unexpected uppercase identifier $(T:type), expected lowercase identifier.",
   )
   let constructor_source =
     #|id: example

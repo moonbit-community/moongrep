@@ -28,9 +28,10 @@ fn parse_shape(
   }
   let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
   if reports.length() != 0 {
+    let message = reports[0].msg.replace_all(old=" in .", new=".")
     raise RuleLoadError::InvalidRule(
       path~,
-      info="\{shape_context_name(context)} is not a valid MoonBit expression",
+      info="\{shape_context_name(context)} is not a valid MoonBit expression: \{message}",
     )
   }
   expr

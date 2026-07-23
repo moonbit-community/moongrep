@@ -196,11 +196,7 @@ fn MetavarRewriteContext::rewrite_type_desc(
       ExtendEnum(target~, constructors=ctx.rewrite_constr_decls(constructors))
     ExtensibleEnum(constructors) =>
       ExtensibleEnum(ctx.rewrite_constr_decls(constructors))
-    Record(fields~, constr_decl~) =>
-      Record(
-        fields=ctx.rewrite_field_decls(fields),
-        constr_decl=ctx.rewrite_optional_fun_decl(constr_decl),
-      )
+    Record(fields~) => Record(fields=ctx.rewrite_field_decls(fields))
     TupleStruct(tys) => TupleStruct(ctx.rewrite_types(tys))
     Variant(constructors) => Variant(ctx.rewrite_constr_decls(constructors))
   }
@@ -348,17 +344,6 @@ fn MetavarRewriteContext::rewrite_trait_method_decl(
     params: ctx.rewrite_parameters(method_decl.params),
     quantifiers: method_decl.quantifiers,
     return_type: ctx.rewrite_optional_type(method_decl.return_type),
-  }
-}
-
-///|
-fn MetavarRewriteContext::rewrite_optional_fun_decl(
-  ctx : MetavarRewriteContext,
-  fun_decl : @syntax.FunDecl?,
-) -> @syntax.FunDecl? raise {
-  match fun_decl {
-    None => None
-    Some(fun_decl) => Some(ctx.rewrite_fun_decl(fun_decl))
   }
 }
 
