@@ -16,6 +16,7 @@ import {
   "moonbitlang/core/list",
   "moonbitlang/lexer",
   "moonbitlang/lexer/basic",
+  "moonbitlang/lexer/tokens",
   "moonbitlang/parser",
   "moonbitlang/parser/attribute",
   "moonbitlang/parser/handrolled_parser",

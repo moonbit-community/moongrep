@@ -3,6 +3,7 @@
 // parse failures stay here as warnings for the CLI renderer.
 priv struct SkippedFile {
   file : String
+  block_start_line : Int?
   reason : String
 }
 
@@ -34,7 +35,6 @@ priv struct SourceContextLine {
 
 ///|
 priv struct SourceLines {
-  source : String
   lines : Array[StringView]
   line_count : Int
 }
@@ -194,7 +194,7 @@ fn cache_source_lines(source : String) -> SourceLines {
   } else {
     lines.length()
   }
-  { source, lines, line_count }
+  { lines, line_count }
 }
 
 ///|
@@ -346,14 +346,6 @@ fn anonymous_pattern_rule(
 }
 
 ///|
-fn source_text_for_impl(
-  source_lines : SourceLines,
-  node : @syntax.Impl,
-) -> String {
-  source_text_for_location(source_lines, node.loc())
-}
-
-///|
 fn impl_has_moongrep_skip(node : @syntax.Impl) -> Bool {
   match node {
     TopFuncDef(fun_decl~, ..) => attributes_have_moongrep_skip(fun_decl.attrs)
@@ -383,30 +375,6 @@ fn attribute_is_moongrep_skip(attr : @attribute.Attribute) -> Bool {
     Some(Ident(id)) | Some(Apply(id, _)) =>
       id.qual == Some("moongrep") && id.name == "skip"
     _ => false
-  }
-}
-
-///|
-fn source_text_for_location(
-  source_lines : SourceLines,
-  loc : @basic.Location,
-) -> String {
-  let start_line = loc.start.lnum
-  let end_line = loc.end.lnum
-  if start_line <= 0 || end_line <= 0 || end_line < start_line {
-    return source_lines.source
-  }
-  let start_index = start_line - 1
-  let end_index = end_line
-  if start_index >= source_lines.line_count ||
-    end_index > source_lines.line_count {
-    return source_lines.source
-  }
-  let block = source_lines.lines[start_index:end_index].join("\n")
-  if block.length() == 0 {
-    source_lines.source
-  } else {
-    block
   }
 }
 
@@ -455,37 +423,48 @@ async fn scan_source_file(
   if file_plan.is_empty() {
     return
   }
-  let (impls, reports) = @parser.parse_string(source, name=file)
-  if reports.length() > 0 {
-    // Keep scanning other files even when one file fails to parse. This makes
-    // the CLI useful on in-progress worktrees.
-    receive(
-      Warning({
-        file,
-        reason: "parse failed due to \{compact_scan_reports(reports)}",
-      }),
-    )
-    return
-  }
   let source_lines = cache_source_lines(source)
-  for node in impls {
-    let impl_source = source_text_for_impl(source_lines, node)
-    let impl_plan = file_plan.filter_source(impl_source)
-    if !impl_plan.is_empty() {
+  let blocks = split_source_blocks(source)
+  let has_multiple_blocks = blocks.length() > 1
+  for block in blocks {
+    let block_plan = file_plan.filter_source(block.source)
+    if block_plan.is_empty() {
+      continue
+    }
+    let (impls, reports) = parse_source_block(block.source, file)
+    if reports.length() > 0 {
+      // A malformed matching block does not prevent other matching blocks in
+      // the same file from being scanned.
+      receive(
+        Warning({
+          file,
+          block_start_line: if has_multiple_blocks {
+            Some(block.start_line)
+          } else {
+            None
+          },
+          reason: "parse failed due to \{compact_scan_reports(reports)}",
+        }),
+      )
+      continue
+    }
+    for node in impls {
       let untyped_node = @untyped_ast.from_impl(node)
       if !impl_has_moongrep_skip(node) {
         let structural_hits = @rule_apply.apply_structural_scan_plan_to_node(
-          file, untyped_node, impl_plan,
+          file, untyped_node, block_plan,
         )
         for finding in structural_hits {
-          receive(Hit(make_scan_hit(source_lines, finding)))
+          receive(
+            Hit(make_scan_hit(source_lines, block.rebase_finding(finding))),
+          )
         }
       }
       let taint_hits = @rule_apply.apply_taint_scan_plan_to_node(
-        file, untyped_node, impl_plan,
+        file, untyped_node, block_plan,
       )
       for finding in taint_hits {
-        receive(Hit(make_scan_hit(source_lines, finding)))
+        receive(Hit(make_scan_hit(source_lines, block.rebase_finding(finding))))
       }
     }
   }

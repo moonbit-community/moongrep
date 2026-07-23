@@ -132,7 +132,8 @@ test "scan plan filter source matches compiled rule prefilter" {
     #|
   let rules = compile_scan_plan_rules([target_rule, other_rule, taint_rule])
   let source = "fn sample { let x = read_input(); target(); sink(x) }\n"
-  let plan = ScanPlan::from_rules(rules).filter_source(source)
+  let source_view : StringView = source[:]
+  let plan = ScanPlan::from_rules(rules).filter_source(source_view)
   debug_inspect(
     scan_plan_rule_ids(plan),
     content="[\"S:structural-target\", \"T:taint-flow\"]",

@@ -66,7 +66,10 @@ pub fn ScanPlan::from_rules(rules : Array[CompiledRule]) -> ScanPlan {
 }
 
 ///|
-pub fn ScanPlan::filter_source(self : ScanPlan, source : String) -> ScanPlan {
+pub fn ScanPlan::filter_source(
+  self : ScanPlan,
+  source : StringView,
+) -> ScanPlan {
   let literal_cache : Map[String, Bool] = Map([])
   let structural_entries : Array[AstStructuralRuleEntry] = []
   let taint_entries : Array[PlannedTaintRule] = []
@@ -91,7 +94,7 @@ pub fn ScanPlan::is_empty(self : ScanPlan) -> Bool {
 ///|
 fn scan_plan_rule_matches_source(
   rule : CompiledRule,
-  source : String,
+  source : StringView,
   literal_cache : Map[String, Bool],
 ) -> Bool {
   @rule_prefilter.prefilter_matches_with_literal_matcher(rule.prefilter, fn(
@@ -103,7 +106,7 @@ fn scan_plan_rule_matches_source(
 
 ///|
 fn scan_plan_literal_matches(
-  source : String,
+  source : StringView,
   literal_cache : Map[String, Bool],
   literal : String,
 ) -> Bool {

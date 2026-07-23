@@ -36,7 +36,11 @@ fn render_skipped_file_warnings(skipped_files : Array[SkippedFile]) -> String {
 
 ///|
 fn render_skipped_file_warning(skipped : SkippedFile) -> String {
-  "warning: skipping \{skipped.file}: \{skipped.reason}"
+  match skipped.block_start_line {
+    Some(line) =>
+      "warning: skipping \{skipped.file} block starting at line \{line}: \{skipped.reason}"
+    None => "warning: skipping \{skipped.file}: \{skipped.reason}"
+  }
 }
 
 ///|

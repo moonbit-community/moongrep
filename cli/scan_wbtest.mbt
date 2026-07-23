@@ -122,12 +122,44 @@ fn verbose_rules_scan_options() -> CliOptions {
 }
 
 ///|
-fn impl_prefilter_scan_options() -> CliOptions {
+fn block_prefilter_scan_options() -> CliOptions {
   {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
     scan_root: "testdata/prefilter-impl",
+    exclude_dirs: [],
+    exclude_rules: [],
+    verbose: false,
+    enable_builtin_rules: false,
+    no_color: false,
+    output_json: false,
+  }
+}
+
+///|
+fn irrelevant_broken_block_scan_options() -> CliOptions {
+  {
+    rules_root: Some("e2etests/rules/prefilter"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/prefilter-block/irrelevant-broken.mbt",
+    exclude_dirs: [],
+    exclude_rules: [],
+    verbose: false,
+    enable_builtin_rules: false,
+    no_color: false,
+    output_json: false,
+  }
+}
+
+///|
+fn matched_broken_block_scan_options() -> CliOptions {
+  {
+    rules_root: Some("e2etests/rules/prefilter"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/prefilter-block/matched-broken.mbt",
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
@@ -237,13 +269,43 @@ async test "scan anonymous guarded pattern filters matches" {
 }
 
 ///|
-async test "scan plan keeps impl level prefilter distribution" {
-  let result = collect_directory_hits(impl_prefilter_scan_options())
+async test "scan plan keeps block level prefilter distribution" {
+  let result = collect_directory_hits(block_prefilter_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"target:2\", \"other:6\"]")
+}
+
+///|
+async test "scan does not parse unmatched source blocks" {
+  let result = collect_directory_hits(irrelevant_broken_block_scan_options())
+  let summaries : Array[String] = []
+  for hit in result.hits {
+    summaries.push(scan_hit_line_summary(hit))
+  }
+  debug_inspect(summaries, content="[\"target:6\"]")
+  assert_true(result.skipped_files.is_empty())
+}
+
+///|
+async test "scan isolates matching source block parse failures" {
+  let result = collect_directory_hits(matched_broken_block_scan_options())
+  let summaries : Array[String] = []
+  for hit in result.hits {
+    summaries.push(scan_hit_line_summary(hit))
+  }
+  debug_inspect(summaries, content="[\"other:3\", \"target:10\"]")
+  guard result.skipped_files is [skipped] else {
+    fail("expected one skipped source block")
+  }
+  assert_true(skipped.block_start_line == Some(5))
+  assert_true(
+    render_skipped_file_warning(skipped).has_prefix(
+      "warning: skipping testdata/prefilter-block/matched-broken.mbt block starting at line 5: parse failed due to ",
+    ),
+  )
 }
 
 ///|
