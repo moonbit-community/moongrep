@@ -908,7 +908,9 @@ test "inside expr positive array access wins over patterns-not identifier" {
   guard hits[0].outer_loc is Some(_) else { fail("expected outer location") }
   inspect(
     finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:14-2:17|2:3-2:18",
+    content=(
+      #|sample.mbt|example|0|2:11-2:17|2:3-2:18
+    ),
   )
 }
 
@@ -934,7 +936,9 @@ test "inside expr rejects only uncovered negative and accepts covered array acce
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:17-2:20|2:3-2:21",
+    content=(
+      #|sample.mbt|example|0|2:14-2:20|2:3-2:21
+    ),
   )
 }
 
@@ -988,11 +992,15 @@ test "inside expr reports multiple covered positive hits" {
   assert_eq(hits.length(), 2)
   inspect(
     finding_signature(hits[0]),
-    content="sample.mbt|example|0|3:8-3:11|2:3-5:5",
+    content=(
+      #|sample.mbt|example|0|3:5-3:11|2:3-5:5
+    ),
   )
   inspect(
     finding_signature(hits[1]),
-    content="sample.mbt|example|0|4:8-4:11|2:3-5:5",
+    content=(
+      #|sample.mbt|example|0|4:5-4:11|2:3-5:5
+    ),
   )
 }
 
@@ -1022,7 +1030,9 @@ test "inside expr reject-uncovered-negative respects shadowed inherited identifi
   assert_eq(hits.length(), 1)
   inspect(
     finding_signature(hits[0]),
-    content="sample.mbt|example|0|3:8-3:11|2:3-6:5",
+    content=(
+      #|sample.mbt|example|0|3:5-3:11|2:3-6:5
+    ),
   )
 }
 
@@ -1335,7 +1345,12 @@ test "inside toplevel patterns-not rejects uncovered negative" {
   guard hits[0].outer_loc is Some(outer) else {
     fail("expected outer location")
   }
-  inspect(location_signature(hits[0].loc), content="1:11-1:14")
+  inspect(
+    location_signature(hits[0].loc),
+    content=(
+      #|1:8-1:14
+    ),
+  )
   inspect(location_signature(outer), content="1:1-1:16")
 }
 

@@ -382,7 +382,6 @@ test "untyped ast covers expression root variants" {
     ("a + b", Expr_Infix),
     ("\"hello \\{name}\"", Expr_Interp),
     ("value is Some(x)", Expr_Is),
-    ("value lexmatch? _", Expr_IsLexmatch),
     ("let x = 1; x", Expr_Let),
     ("letrec f = fn(x) { x } and g = fn(y) { y }; f(1)", Expr_LetAnd),
     ("fn helper(x) { x }; helper(1)", Expr_LetFn),
@@ -702,9 +701,6 @@ test "node contains_unshadowed tracks conditional pattern scopes" {
   )
   assert_contains_unshadowed(
     "while maybe is Some(target) { () } nobreak { target }", "target", true,
-  )
-  assert_contains_unshadowed(
-    "if s lexmatch? (\"a\", target) { target }", "target", false,
   )
   assert_contains_unshadowed(
     "if s =~ (re\".\" as target) { target }", "target", false,

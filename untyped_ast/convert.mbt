@@ -319,20 +319,14 @@ fn type_desc_node(item : @syntax.TypeDesc, loc : @basic.Location) -> Node {
         ),
       ])
     }
-    Record(fields~, constr_decl~) => {
-      let children : Array[(String, Node)] = [
-        (
-          "value",
-          node_value(
-            list_node(TypeDesc_Record_FieldList, loc, fields, field_decl_value),
-          ),
+    Record(fields~) =>
+      node1(
+        TypeDesc_Record,
+        loc,
+        node_value(
+          list_node(TypeDesc_Record_FieldList, loc, fields, field_decl_value),
         ),
-      ]
-      if constr_decl is Some(decl) {
-        children.push(("constr_decl", node_value(fun_decl_node(decl))))
-      }
-      node(TypeDesc_Record, loc, children)
-    }
+      )
     TupleStruct(tys) => {
       let tys_loc = list_loc_or(tys, loc, fn(ty) { ty.loc() })
       node1(
@@ -620,19 +614,6 @@ fn expr_node(item : @syntax.Expr) -> Node {
       node(Expr_Is, loc, [
         ("expr", expr_value(expr)),
         ("pat", pattern_value(pat)),
-      ])
-    IsLexMatch(expr~, strategy~, pat~, pat_loc~, loc~) =>
-      node(Expr_IsLexmatch, loc, [
-        ("expr", expr_value(expr)),
-        ("strategy", option_value(strategy, label_value)),
-        (
-          "pat",
-          node_value(
-            list_node(Expr_IsLexmatch_PatternList, pat_loc, pat, fn(p) {
-              node_value(lex_top_pattern_node(p, pat_loc))
-            }),
-          ),
-        ),
       ])
     RegexMatch(expr~, pat~, bindings~, loc~) =>
       node(Expr_RegexMatch, loc, [
