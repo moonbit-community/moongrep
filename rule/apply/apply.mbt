@@ -270,7 +270,6 @@ fn apply_ast_structural_rule_entry_to_scoped_expr(
       entry.negative_pattern_buckets,
       scoped_expr.expr,
       None,
-      None,
       hits,
     )
   }
@@ -308,7 +307,6 @@ fn apply_planned_taint_rule_to_node(
           description: entry.rule.description,
           pattern_index: sink_pattern_index(entry.taint_rule, finding.sink_id),
           loc: finding.sink_loc,
-          outer_loc: None,
         })
       }
   }
@@ -354,10 +352,20 @@ fn apply_inside_expr_ast_bucketed(
   expr : @untyped_ast.Node,
   hits : Array[RuleFinding],
 ) -> Unit {
+  let context_hits : Array[RuleFinding] = []
   apply_inside_context_ast_bucketed(
     file, rule, structural, inside, inside_root_key, pattern_buckets, negative_pattern_buckets,
-    expr, hits,
+    expr, context_hits,
   )
+  if context_hits.get(0) is Some(first) {
+    hits.push({
+      file: first.file,
+      rule_id: first.rule_id,
+      description: first.description,
+      pattern_index: first.pattern_index,
+      loc: expr.loc,
+    })
+  }
 }
 
 ///|
@@ -380,7 +388,7 @@ fn apply_inside_context_ast_bucketed(
       if structural.patterns.is_empty() {
         let target_exprs : Array[@untyped_ast.ScopedExprNode] = []
         @untyped_ast.collect_node_scoped_exprs(target, target_exprs)
-        apply_inside_expr_only_ast_bucketed(
+        apply_inside_context_only_ast_bucketed(
           file,
           rule,
           negative_pattern_buckets,
@@ -399,7 +407,6 @@ fn apply_inside_context_ast_bucketed(
               pattern_buckets,
               negative_pattern_buckets,
               target,
-              Some(context_node.loc),
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
@@ -411,7 +418,6 @@ fn apply_inside_context_ast_bucketed(
               pattern_buckets,
               negative_pattern_buckets,
               target,
-              Some(context_node.loc),
               result.bindings,
               inside.compiled.identifier_metavars,
               hits,
@@ -429,7 +435,6 @@ fn apply_ast_bucketed_patterns_in_target_subtree(
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
   target : @untyped_ast.Node,
-  outer_loc : @basic.Location?,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
@@ -437,8 +442,8 @@ fn apply_ast_bucketed_patterns_in_target_subtree(
   @untyped_ast.visit_node_scoped_exprs(target, fn(scoped_expr) {
     match
       apply_ast_bucketed_patterns_at_scoped_expr(
-        file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_loc,
-        outer_bindings, inherited_identifier_metavars, hits,
+        file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_bindings,
+        inherited_identifier_metavars, hits,
       ) {
       RulePrune => NodeVisitPrune
       RuleContinue => NodeVisitContinue
@@ -453,7 +458,6 @@ fn apply_ast_bucketed_covered_patterns_in_target_subtree(
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
   target : @untyped_ast.Node,
-  outer_loc : @basic.Location?,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
@@ -466,8 +470,8 @@ fn apply_ast_bucketed_covered_patterns_in_target_subtree(
     } else {
       match
         apply_ast_bucketed_covered_patterns_at_scoped_expr(
-          file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_loc,
-          outer_bindings, inherited_identifier_metavars, pending_hits,
+          file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_bindings,
+          inherited_identifier_metavars, pending_hits,
         ) {
         InsideTargetPrune => NodeVisitPrune
         InsideTargetReject => {
@@ -484,12 +488,12 @@ fn apply_ast_bucketed_covered_patterns_in_target_subtree(
 }
 
 ///|
-fn apply_inside_expr_only_ast_bucketed(
+fn apply_inside_context_only_ast_bucketed(
   file : String,
   rule : CompiledRule,
   negative_pattern_buckets : ExprPatternBuckets,
   target_exprs : Array[@untyped_ast.ScopedExprNode],
-  outer_loc : @basic.Location,
+  context_loc : @basic.Location,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
@@ -499,14 +503,14 @@ fn apply_inside_expr_only_ast_bucketed(
     ) {
     return
   }
-  push_inside_expr_only_hit(file, rule, outer_loc, hits)
+  push_inside_context_only_hit(file, rule, context_loc, hits)
 }
 
 ///|
-fn push_inside_expr_only_hit(
+fn push_inside_context_only_hit(
   file : String,
   rule : CompiledRule,
-  outer_loc : @basic.Location,
+  context_loc : @basic.Location,
   hits : Array[RuleFinding],
 ) -> Unit {
   hits.push({
@@ -514,8 +518,7 @@ fn push_inside_expr_only_hit(
     rule_id: rule.rule_id,
     description: rule.description,
     pattern_index: 0,
-    loc: outer_loc,
-    outer_loc: Some(outer_loc),
+    loc: context_loc,
   })
 }
 
@@ -526,7 +529,6 @@ fn apply_ast_bucketed_covered_patterns_at_scoped_expr(
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
   scoped_expr : @untyped_ast.ScopedExprNode,
-  outer_loc : @basic.Location?,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
@@ -552,7 +554,6 @@ fn apply_ast_bucketed_covered_patterns_at_scoped_expr(
         description: rule.description,
         pattern_index: indexed.pattern_index,
         loc: scoped_expr.expr.loc,
-        outer_loc,
       })
       return InsideTargetPrune
     }
@@ -572,7 +573,6 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
   scoped_expr : @untyped_ast.ScopedExprNode,
-  outer_loc : @basic.Location?,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
@@ -598,7 +598,6 @@ fn apply_ast_bucketed_patterns_at_scoped_expr(
         description: rule.description,
         pattern_index: indexed.pattern_index,
         loc: scoped_expr.expr.loc,
-        outer_loc,
       })
       return RulePrune
     }
@@ -618,7 +617,6 @@ fn apply_ast_patterns_at_node(
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
   expr : @untyped_ast.Node,
-  outer_loc : @basic.Location?,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
@@ -631,7 +629,6 @@ fn apply_ast_patterns_at_node(
         description: rule.description,
         pattern_index: indexed.pattern_index,
         loc: expr.loc,
-        outer_loc,
       })
       return RulePrune
     }

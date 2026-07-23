@@ -23,7 +23,6 @@ priv struct JsonScanFinding {
   rule_id : String
   description : String
   range : JsonScanRange
-  outer_range : Json
   matched_source : String
   source_context : Array[JsonSourceContextLine]
 } derive(ToJson)
@@ -57,10 +56,6 @@ fn json_scan_finding(hit : ScanHit) -> JsonScanFinding {
     rule_id: finding.rule_id,
     description: trim_trailing_newlines(finding.description),
     range: json_scan_range(finding.loc),
-    outer_range: match finding.outer_loc {
-      Some(loc) => ToJson::to_json(json_scan_range(loc))
-      None => Json::null()
-    },
     matched_source: hit.matched_source,
     source_context: json_source_context(hit.source_context),
   }

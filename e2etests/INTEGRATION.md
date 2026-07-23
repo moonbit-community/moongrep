@@ -1,19 +1,18 @@
 ## Integration scenarios
 
 An `inside-expr` rule first binds a local declaration and then searches the
-remaining expression for the target call. The result reports the call as the
-match and the declaration-plus-target sequence as its outer location.
+remaining expression for the target call. The result reports the complete
+declaration-plus-target outer expression as its match location.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/inside-expr-target/rules testdata/inside-expr-target/src
-testdata/inside-expr-target/src/hit.mbt:3:3-3:15
+testdata/inside-expr-target/src/hit.mbt:2:3-3:15
 rule: example
-outer_loc: testdata/inside-expr-target/src/hit.mbt:2:3-3:15
 description:
   Local println shadows the builtin.
 source:
 1 | fn sample {
-2 |   let println = custom;
+2 >   let println = custom;
 3 >   println("x")
 4 | }
 ```
@@ -71,7 +70,6 @@ containing `danger()` are omitted.
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/patterns-not-inside/rules testdata/patterns-not-inside/src
 testdata/patterns-not-inside/src/hit.mbt:2:3-2:18
 rule: example
-outer_loc: testdata/patterns-not-inside/src/hit.mbt:2:3-2:18
 description:
   Wrapper payload without danger.
 source:

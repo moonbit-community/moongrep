@@ -45,7 +45,8 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
   `patterns` 和 `patterns-not` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 pattern 使用。
 - 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，并且通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
 - 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自外层上下文的名称。同名且 kind 不同的形式会被拒绝。
-- 外层上下文规则的命中会记录上下文表达式或顶层项的 `outer_loc`，以及内部匹配的 `loc`；只有 `patterns-not` 的规则中，`loc` 是外层上下文位置。
+- 每个成功匹配的 `inside-expr` 外层表达式最多报告一个命中，`loc` 是外层表达式位置；当内部正向 pattern 命中时，遍历顺序中的第一个命中决定 `pattern_index`。
+- `inside-toplevel` 会在内部正向匹配位置分别报告命中；只有 `patterns-not` 时，报告匹配到的顶层项位置。
 
 对于污点规则：
 
@@ -315,6 +316,7 @@ patterns:
 - 内部 `patterns` 和 `patterns-not` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，不为内部 shape 创建绑定
 - 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
 - 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名且 kind 不同的形式会被拒绝
+- 每个匹配成功的外层表达式最多在该外层表达式位置报告一个命中；如果有多个内部正向 pattern 命中，遍历顺序中的第一个命中决定 `pattern_index`
 
 当上下文是顶层项时，使用 `inside-toplevel`：
 
@@ -333,8 +335,8 @@ patterns:
 
 `inside-toplevel` 和 `inside-expr` 互斥。它的 `shape` 必须且只能是一个
 MoonBit 顶层项，并且必须在该顶层项内部的表达式位置放置且只放置一个支持的
-`__TARGET__`。带正向 `patterns` 的命中报告内部匹配位置，`outer_loc`
-指向匹配到的顶层项；只有 `patterns-not` 时，`loc` 也是顶层项位置。
+`__TARGET__`。带正向 `patterns` 的命中报告内部匹配位置；只有
+`patterns-not` 时，`loc` 是顶层项位置。
 
 ### 3.6 使用 `patterns-not` 剪枝禁止的子树
 
@@ -379,7 +381,10 @@ patterns-not:
   - shape: $(counter:id)
 ```
 
-这只会在 target 子树中继承来的计数器 `i` 的每个未被遮蔽用法都位于某个 `arr[i]` 匹配内部时报告这些被覆盖的命中。像 `println(i)` 这样的未覆盖 `i` 会拒绝该 wrapper 匹配。
+只有 target 子树中继承来的计数器 `i` 的每个未被遮蔽用法都位于某个
+`arr[i]` 匹配内部时，才会报告一次该 wrapper；第一个被覆盖的 `arr[i]`
+命中决定 `pattern_index`。像 `println(i)` 这样的未覆盖 `i` 会拒绝该
+wrapper 匹配。
 
 ### 4. 使用 `guard` 过滤 id 和 const
 

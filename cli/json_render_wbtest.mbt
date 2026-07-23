@@ -7,7 +7,6 @@ test "json scan finding uses the agent record schema" {
       description: "Line \"one\".\n\n",
       pattern_index: 7,
       loc: render_test_location(3, 3, 3, 11),
-      outer_loc: Some(render_test_location(2, 1, 4, 2)),
     },
     matched_source: "target()",
     source_context: {
@@ -28,10 +27,6 @@ test "json scan finding uses the agent record schema" {
       "start": { "line": 3, "column": 3 },
       "end": { "line": 3, "column": 11 },
     },
-    "outer_range": {
-      "start": { "line": 2, "column": 1 },
-      "end": { "line": 4, "column": 2 },
-    },
     "matched_source": "target()",
     "source_context": [
       { "line": 2, "text": "fn sample {", "is_match": false },
@@ -42,7 +37,7 @@ test "json scan finding uses the agent record schema" {
 }
 
 ///|
-test "json scan finding writes absent outer range as null" {
+test "json scan finding uses the compact range schema" {
   let rendered = render_scan_hit_json(render_test_hit(3, 3))
   json_inspect(@json.parse(rendered), content={
     "file": "test.mbt",
@@ -52,7 +47,6 @@ test "json scan finding writes absent outer range as null" {
       "start": { "line": 3, "column": 1 },
       "end": { "line": 3, "column": 9 },
     },
-    "outer_range": null,
     "matched_source": "line 3",
     "source_context": [
       { "line": 2, "text": "  line 2", "is_match": false },

@@ -70,12 +70,7 @@ fn location_signature(loc : @basic.Location) -> String {
 
 ///|
 fn finding_signature(finding : RuleFinding) -> String {
-  let outer = if finding.outer_loc is Some(loc) {
-    location_signature(loc)
-  } else {
-    "none"
-  }
-  "\{finding.file}|\{finding.rule_id}|\{finding.pattern_index}|\{location_signature(finding.loc)}|\{outer}"
+  "\{finding.file}|\{finding.rule_id}|\{finding.pattern_index}|\{location_signature(finding.loc)}"
 }
 
 ///|
@@ -556,7 +551,6 @@ test "apply inside expr and inner guards filter inherited bindings" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -585,7 +579,6 @@ test "apply inside expr guard filters outer context matches" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -614,11 +607,10 @@ test "apply structural rule matches guards inside expr" {
   let impls = parse_root_node(source)
   let hits = apply_structural_test_rules("sample.mbt", impls, rules)
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
-test "inside expr reports nested target locations" {
+test "inside expr reports the outer context location" {
   let rule_source =
     #|id: example
     #|description: |
@@ -637,7 +629,33 @@ test "inside expr reports nested target locations" {
   let impls = parse_root_node(source)
   let hits = apply_structural_test_rules("sample.mbt", impls, rules)
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
+  inspect(location_signature(hits[0].loc), content="2:3-2:34")
+}
+
+///|
+test "inside expr merges inner hits and keeps the first pattern index" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Wrapped calls.
+    #|inside-expr:
+    #|  shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: second()
+    #|  - shape: first()
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper({
+    #|    first();
+    #|    second()
+    #|  })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 1)
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|1|2:3-5:5")
 }
 
 ///|
@@ -709,14 +727,8 @@ test "apply structural patterns-not is ignored after positive root match" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 2)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:3-2:15|none",
-  )
-  inspect(
-    finding_signature(hits[1]),
-    content="sample.mbt|example|0|3:3-3:18|none",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:15")
+  inspect(finding_signature(hits[1]), content="sample.mbt|example|0|3:3-3:18")
 }
 
 ///|
@@ -739,10 +751,7 @@ test "apply structural patterns-not uses independent bindings after positives fa
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|1|3:3-3:11|none",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|1|3:3-3:11")
 }
 
 ///|
@@ -762,10 +771,7 @@ test "apply structural positive root prunes descendants" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:3-2:20|none",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:20")
 }
 
 ///|
@@ -787,10 +793,7 @@ test "apply structural patterns-not prunes descendants after positives fail" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|3:3-3:11|none",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|3:3-3:11")
 }
 
 ///|
@@ -813,10 +816,7 @@ test "inside expr positive root ignores descendant patterns-not" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:11-2:27|2:3-2:28",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:28")
 }
 
 ///|
@@ -840,14 +840,8 @@ test "inside expr positive root wins over same-root patterns-not" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 2)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:11-2:26|2:3-2:27",
-  )
-  inspect(
-    finding_signature(hits[1]),
-    content="sample.mbt|example|0|3:11-3:26|3:3-3:27",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:27")
+  inspect(finding_signature(hits[1]), content="sample.mbt|example|0|3:3-3:27")
 }
 
 ///|
@@ -879,10 +873,7 @@ test "inside expr patterns-not rejects outer on uncovered negative" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|11:11-11:19|11:3-11:20",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|11:3-11:20")
 }
 
 ///|
@@ -905,13 +896,7 @@ test "inside expr positive array access wins over patterns-not identifier" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  guard hits[0].outer_loc is Some(_) else { fail("expected outer location") }
-  inspect(
-    finding_signature(hits[0]),
-    content=(
-      #|sample.mbt|example|0|2:11-2:17|2:3-2:18
-    ),
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:18")
 }
 
 ///|
@@ -934,12 +919,7 @@ test "inside expr rejects only uncovered negative and accepts covered array acce
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content=(
-      #|sample.mbt|example|0|2:14-2:20|2:3-2:21
-    ),
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:21")
 }
 
 ///|
@@ -968,7 +948,7 @@ test "inside expr rejects uncovered inherited id outside positive coverage" {
 }
 
 ///|
-test "inside expr reports multiple covered positive hits" {
+test "inside expr merges multiple covered positive hits" {
   let rule_source =
     #|id: example
     #|description: |
@@ -989,19 +969,8 @@ test "inside expr reports multiple covered positive hits" {
     #|}
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
-  assert_eq(hits.length(), 2)
-  inspect(
-    finding_signature(hits[0]),
-    content=(
-      #|sample.mbt|example|0|3:5-3:11|2:3-5:5
-    ),
-  )
-  inspect(
-    finding_signature(hits[1]),
-    content=(
-      #|sample.mbt|example|0|4:5-4:11|2:3-5:5
-    ),
-  )
+  assert_eq(hits.length(), 1)
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-5:5")
 }
 
 ///|
@@ -1028,12 +997,7 @@ test "inside expr reject-uncovered-negative respects shadowed inherited identifi
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content=(
-      #|sample.mbt|example|0|3:5-3:11|2:3-6:5
-    ),
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-6:5")
 }
 
 ///|
@@ -1066,11 +1030,7 @@ test "inside expr accepts only loop counter uses covered by array access" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  assert_eq(hits[0].loc.start.lnum, 3)
-  guard hits[0].outer_loc is Some(outer) else {
-    fail("expected outer location")
-  }
-  assert_eq(outer.start.lnum, 2)
+  assert_eq(hits[0].loc.start.lnum, 2)
 }
 
 ///|
@@ -1093,17 +1053,7 @@ test "inside expr with only patterns-not reports outer when target subtree is cl
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  guard hits[0].outer_loc is Some(outer) else {
-    fail("expected outer location")
-  }
-  assert_eq(hits[0].loc.start.lnum, outer.start.lnum)
-  assert_eq(hits[0].loc.start.column(), outer.start.column())
-  assert_eq(hits[0].loc.end.lnum, outer.end.lnum)
-  assert_eq(hits[0].loc.end.column(), outer.end.column())
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|2:3-2:18|2:3-2:18",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-2:18")
 }
 
 ///|
@@ -1229,7 +1179,7 @@ test "apply structural root patterns preserve pattern indexes" {
 }
 
 ///|
-test "inside expr preserves source order and outer locations" {
+test "inside expr preserves source order of outer locations" {
   let rule_source =
     #|id: example
     #|description: |
@@ -1254,14 +1204,9 @@ test "inside expr preserves source order and outer locations" {
   assert_eq(hits.length(), 2)
   assert_eq(hits[0].pattern_index, 0)
   assert_eq(hits[1].pattern_index, 0)
-  guard hits[0].outer_loc is Some(first_outer) else {
-    fail("expected first outer location")
-  }
-  guard hits[1].outer_loc is Some(second_outer) else {
-    fail("expected second outer location")
-  }
   assert_true(hits[0].loc.start.lnum < hits[1].loc.start.lnum)
-  assert_true(first_outer.start.lnum < second_outer.start.lnum)
+  assert_eq(hits[0].loc.start.column(), 3)
+  assert_eq(hits[1].loc.start.column(), 3)
 }
 
 ///|
@@ -1290,12 +1235,7 @@ test "inside toplevel matches functions and inherits bindings" {
   )
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
-  assert_true(hits[0].outer_loc is Some(_))
-  guard hits[0].outer_loc is Some(outer) else {
-    fail("expected outer location")
-  }
   inspect(location_signature(hits[0].loc), content="1:35-1:46")
-  inspect(location_signature(outer), content="1:1-1:48")
 }
 
 ///|
@@ -1315,11 +1255,7 @@ test "inside toplevel with only patterns-not reports clean top-level let" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  guard hits[0].outer_loc is Some(outer) else {
-    fail("expected outer location")
-  }
   inspect(location_signature(hits[0].loc), content="1:1-1:31")
-  inspect(location_signature(outer), content="1:1-1:31")
 }
 
 ///|
@@ -1342,16 +1278,12 @@ test "inside toplevel patterns-not rejects uncovered negative" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  guard hits[0].outer_loc is Some(outer) else {
-    fail("expected outer location")
-  }
   inspect(
     location_signature(hits[0].loc),
     content=(
       #|1:8-1:14
     ),
   )
-  inspect(location_signature(outer), content="1:1-1:16")
 }
 
 ///|
@@ -1377,7 +1309,6 @@ test "apply structural rule supports inside expr inherited bindings" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1403,7 +1334,6 @@ test "apply inside expr inherits ellipsis sequence bindings" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1453,7 +1383,6 @@ test "apply structural rule inherits inside expr identifier bindings" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1497,7 +1426,6 @@ test "inside expr inherited id still matches without shadow" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1522,7 +1450,6 @@ test "inside expr later shadow does not block earlier candidate" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1549,7 +1476,6 @@ test "inside expr only blocks patterns referencing shadowed outer id" {
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
   assert_eq(hits[0].pattern_index, 0)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1577,7 +1503,6 @@ test "inside expr traverses guard target children" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1602,7 +1527,6 @@ test "inside expr traverses reverse pipe target children" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1627,7 +1551,6 @@ test "inside expr traverses list comprehension target children" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1689,10 +1612,7 @@ test "default structural matcher prunes descendants with patterns-not" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  inspect(
-    finding_signature(hits[0]),
-    content="sample.mbt|example|0|3:3-3:11|none",
-  )
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|3:3-3:11")
 }
 
 ///|
@@ -1714,7 +1634,6 @@ test "default structural matcher carries inside target bindings" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
@@ -1739,7 +1658,6 @@ test "default structural matcher respects shadowed inherited identifiers" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  assert_true(hits[0].outer_loc is Some(_))
 }
 
 ///|
