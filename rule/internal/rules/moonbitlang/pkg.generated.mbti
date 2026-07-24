@@ -18,6 +18,8 @@ pub let inspect_number_yaml : String
 
 pub let match_option_yaml : String
 
+pub let unnessary_else_yaml : String
+
 // Errors
 
 // Types and methods
