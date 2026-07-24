@@ -21,6 +21,12 @@ dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
 
 dev_build(
   rule: "embed",
+  input: "unnessary_else.yaml",
+  output: "unnessary_else.mbt",
+)
+
+dev_build(
+  rule: "embed",
   input: "cstyle_forward_simple_forloop.yaml",
   output: "cstyle_forward_simple_forloop.mbt",
 )

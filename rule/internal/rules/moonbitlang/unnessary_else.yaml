@@ -1,0 +1,16 @@
+id: unnessary_else
+description: |
+  Found an if expression whose else branch is empty or only returns ().
+  Prefer omitting the unnecessary else branch.
+
+patterns:
+  - shape: |
+      if $_ {
+        $_
+      } else {
+        ()
+      }
+  - shape: |
+      if $_ {
+        $_
+      } else {}
