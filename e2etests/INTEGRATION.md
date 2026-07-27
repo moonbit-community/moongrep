@@ -17,6 +17,51 @@ source:
 4 | }
 ```
 
+Ordered outer alternatives work for both expression and top-level contexts in
+one rule set. Inner captures are shared across every alternative.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/inside-alternatives/rules testdata/inside-alternatives/src
+testdata/inside-alternatives/src/expr.mbt:2:3-2:32
+rule: expr
+description:
+  Multiple expression contexts share one inner pattern.
+source:
+1 | fn sample {
+2 >   wrapper(alpha, target(alpha));
+3 |   container(beta, target(beta))
+4 | }
+
+testdata/inside-alternatives/src/expr.mbt:3:3-3:32
+rule: expr
+description:
+  Multiple expression contexts share one inner pattern.
+source:
+1 | fn sample {
+2 |   wrapper(alpha, target(alpha));
+3 >   container(beta, target(beta))
+4 | }
+
+testdata/inside-alternatives/src/toplevel.mbt:2:3-2:15
+rule: toplevel
+description:
+  Multiple top-level contexts share one inner pattern.
+source:
+1 | fn run {
+2 >   consume(run)
+3 | }
+4 | let value = box(consume(value))
+
+testdata/inside-alternatives/src/toplevel.mbt:4:17-4:31
+rule: toplevel
+description:
+  Multiple top-level contexts share one inner pattern.
+source:
+2 |   consume(run)
+3 | }
+4 > let value = box(consume(value))
+```
+
 An HTML builder chain is a taint source whose result is stored in a local
 variable and passed into the `attrs` argument of a sink. The reported range is
 the tainted local use, confirming propagation through the assignment.

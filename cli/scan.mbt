@@ -336,8 +336,8 @@ fn anonymous_pattern_rule(
     rule_id: pattern.shape,
     description: "Anonymous CLI pattern.",
     definition: Structural({
-      inside_expr: None,
-      inside_toplevel: None,
+      inside_expr: [],
+      inside_toplevel: [],
       patterns: [pattern],
       patterns_not: [],
       patterns_not_mode: PruneOnNegative,

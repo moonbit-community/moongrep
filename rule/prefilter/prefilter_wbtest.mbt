@@ -219,7 +219,7 @@ test "prefilter requires inside expr and inner pattern literals together" {
     #|id: example
     #|description: Wrapped target call.
     #|inside-expr:
-    #|  shape: wrapper(__TARGET__)
+    #|  - shape: wrapper(__TARGET__)
     #|patterns:
     #|  - shape: target()
     #|
@@ -239,7 +239,7 @@ test "prefilter requires inside toplevel and inner pattern literals together" {
     #|id: example
     #|description: Top-level target call.
     #|inside-toplevel:
-    #|  shape: fn safe_entry { __TARGET__ }
+    #|  - shape: fn safe_entry { __TARGET__ }
     #|patterns:
     #|  - shape: target()
     #|
@@ -270,7 +270,7 @@ test "prefilter uses inside expr literals for patterns-not only rules" {
     #|id: example
     #|description: Wrapped target unless ignored.
     #|inside-expr:
-    #|  shape: wrapper(__TARGET__)
+    #|  - shape: wrapper(__TARGET__)
     #|patterns-not:
     #|  - shape: impossible_negative_literal()
     #|
@@ -312,4 +312,66 @@ test "prefilter literal matching treats regex metacharacters literally" {
   assert_false(literal_matches_source("a+b(c)", "fn sample { abcc }\n"))
   assert_true(literal_matches_source("target.name", "let _ = target.name\n"))
   assert_false(literal_matches_source("target.name", "let _ = targetxname\n"))
+}
+
+///|
+test "prefilter builds outer and positive pattern cartesian alternatives" {
+  let source =
+    #|id: example
+    #|description: Multiple outer and inner alternatives.
+    #|inside-expr:
+    #|  - shape: wrapper(__TARGET__)
+    #|  - shape: container(__TARGET__)
+    #|patterns:
+    #|  - shape: first_target()
+    #|  - shape: second_target()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_eq(rule.prefilter.alternatives.length(), 4)
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { wrapper(first_target()) }\n"),
+  )
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { wrapper(second_target()) }\n"),
+  )
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { container(first_target()) }\n",
+    ),
+  )
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { container(second_target()) }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { wrapper(noop()) }\n"),
+  )
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { other(first_target()) }\n"),
+  )
+}
+
+///|
+test "prefilter gives each patterns-not-only outer its own alternative" {
+  let source =
+    #|id: example
+    #|description: Multiple clean contexts.
+    #|inside-expr:
+    #|  - shape: wrapper(__TARGET__)
+    #|  - shape: container(__TARGET__)
+    #|patterns-not:
+    #|  - shape: impossible_negative_literal()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_eq(rule.prefilter.alternatives.length(), 2)
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { wrapper(ok()) }\n"))
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { container(ok()) }\n"),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { impossible_negative_literal() }\n",
+    ),
+  )
 }

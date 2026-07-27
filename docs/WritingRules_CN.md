@@ -22,8 +22,10 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 
 `patterns` 必须是非空数组。未知键会在每个 schema 层级被拒绝：顶层规则键、`taint` 键和规则子句键。
 
-结构规则还可以添加一个可选外层上下文：`inside-expr` 过滤外层表达式，
-`inside-toplevel` 过滤一个 MoonBit 顶层项。两者都会绑定外层内联捕获，然后使用内部 `patterns` 或 `patterns-not` 搜索捕获到的 `__TARGET__` 表达式子树。
+结构规则还可以添加一个可选的外层上下文字段：`inside-expr` 过滤外层表达式，
+`inside-toplevel` 过滤 MoonBit 顶层项。每个字段都是由 pattern object
+组成的非空有序备选数组。两者都会使用首个匹配的外层条目绑定捕获，然后使用
+内部 `patterns` 或 `patterns-not` 搜索其 `__TARGET__` 表达式子树。
 
 ## 心智模型
 
@@ -39,12 +41,12 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - 同一规则中的所有 pattern 共享相同的规则 id 和 `description`。
 - 结构规则的 pattern object 可以使用 `guard`，在 shape 匹配后用正则过滤
   `id` 和 `const` 捕获。
-- 如果存在 `inside-expr` 或 `inside-toplevel`，它会先在当前外层候选上运行。如果它将 `__TARGET__` 捕获为表达式且存在 `patterns`，目标子树中的每个候选都会先运行正向 pattern，只有正向失败后才检查 `patterns-not`。如果没有 `patterns`，只有整个目标子树没有负向匹配时才报告外层上下文。
+- 如果存在 `inside-expr` 或 `inside-toplevel`，当前候选会按 YAML 顺序尝试可用的外层条目。首个同时通过 shape 和 guard 的条目会选定 `__TARGET__` 与绑定。guard 失败会继续尝试下一项，但一旦选中，即使内部没有命中也不会回退到后续外层条目。存在 `patterns` 时，选中目标子树中的每个候选都会先运行正向 pattern，只有正向失败后才检查 `patterns-not`。如果没有 `patterns`，只有整个目标子树没有负向匹配时才报告外层上下文。
 - 当外层上下文规则同时有正向和负向 pattern 时，正向命中会默认覆盖其中嵌套的负向形状用法；任何未被覆盖的负向命中都会拒绝外层上下文。
-- `inside-expr` 或 `inside-toplevel` 声明的内联捕获对内部
+- 选中的 `inside-expr` 或 `inside-toplevel` 条目所声明的内联捕获对内部
   `patterns` 和 `patterns-not` 保持可见；`__TARGET__` 只选择要遍历的表达式子树，不能被内部 pattern 使用。
 - 继承来的 `id` 捕获遵守词法遮蔽；如果内部 pattern 引用了外层 `id` 捕获，并且通向候选表达式的路径上有同名（规范化后）的局部绑定，则跳过该候选。
-- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自外层上下文的名称。同名且 kind 不同的形式会被拒绝。
+- 内部正向和负向 pattern 通过重复相同的内联元变量形式复用来自外层上下文的名称。每个外层备选项都必须以相同 kind 声明被复用的名称，包括命名 ellipsis 捕获。内部未引用的额外外层捕获可以因备选项而异。
 - 每个成功匹配的 `inside-expr` 外层表达式最多报告一个命中，`loc` 是外层表达式位置；当内部正向 pattern 命中时，遍历顺序中的第一个命中决定 `pattern_index`。
 - `inside-toplevel` 会在内部正向匹配位置分别报告命中；只有 `patterns-not` 时，报告匹配到的顶层项位置。
 
@@ -299,10 +301,12 @@ patterns:
 ```yaml
 id: wrapped-target
 description: |
-  Match a call only when it appears inside a specific wrapper.
+  Match a call only when it appears inside a supported context.
 inside-expr:
-  shape: |
-    wrapper($(prefix:exp), __TARGET__)
+  - shape: |
+      wrapper($(prefix:exp), __TARGET__)
+  - shape: |
+      container($(prefix:exp), __TARGET__)
 patterns:
   - shape: |
       target.call($(prefix:exp))
@@ -310,12 +314,16 @@ patterns:
 
 `inside-expr` 的规则：
 
-- 它使用与一个结构 pattern 相同的 `shape` 和可选 `guard` schema
-- 它必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
+- 它是非空数组，使用与 `patterns` 相同的 `shape` 和可选 `guard`
+  对象 schema
+- 条目是有序备选项，首个同时匹配 shape 和 guard 的条目会被选中
+- 每个条目都必须放置且只放置一个支持的 `__TARGET__`；请将其放在期望完整表达式的位置，使运行时遍历可以搜索该子树
 - `__TARGET__` 是保留名称，不能用作内联元变量名
 - 内部 `patterns` 和 `patterns-not` 不能包含 `__TARGET__`；target placeholder 选择要搜索的子树，不为内部 shape 创建绑定
 - 继承来的 `id` 捕获在被搜索的 target 子树内遵守词法遮蔽
-- 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；同名且 kind 不同的形式会被拒绝
+- 内部 `patterns` 和 `patterns-not` 通过重复相同的内联元变量形式引用外层捕获，例如 `$(prefix:exp)`；每个外层备选项都必须以相同 kind 声明被复用的捕获
+- 内部条目未引用的分支局部外层捕获允许不同
+- 外层 guard 失败时会尝试下一项；条目一旦选中，即使 target 子树没有产生 finding，也不会替换成后续项
 - 每个匹配成功的外层表达式最多在该外层表达式位置报告一个命中；如果有多个内部正向 pattern 命中，遍历顺序中的第一个命中决定 `pattern_index`
 
 当上下文是顶层项时，使用 `inside-toplevel`：
@@ -325,18 +333,19 @@ id: safe-function-target
 description: |
   Match a call only in selected top-level functions.
 inside-toplevel:
-  shape: |
-    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
-  guard:
-    $name: "^safe_"
+  - shape: |
+      fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+    guard:
+      $name: "^safe_"
 patterns:
   - shape: call($(param:id))
 ```
 
-`inside-toplevel` 和 `inside-expr` 互斥。它的 `shape` 必须且只能是一个
-MoonBit 顶层项，并且必须在该顶层项内部的表达式位置放置且只放置一个支持的
-`__TARGET__`。带正向 `patterns` 的命中报告内部匹配位置；只有
-`patterns-not` 时，`loc` 是顶层项位置。
+`inside-toplevel` 和 `inside-expr` 互斥。`inside-toplevel` 同样是非空
+有序数组。每个条目的 `shape` 必须且只能是一个 MoonBit 顶层项，并且必须在
+该顶层项内部的表达式位置放置且只放置一个支持的 `__TARGET__`。它使用与
+`inside-expr` 相同的选择和共享捕获规则。带正向 `patterns` 的命中报告内部
+匹配位置；只有 `patterns-not` 时，`loc` 是顶层项位置。
 
 ### 3.6 使用 `patterns-not` 剪枝禁止的子树
 
@@ -362,7 +371,7 @@ id: wrapper-without-danger
 description: |
   Wrapper payload contains no danger call.
 inside-expr:
-  shape: wrapper(__TARGET__)
+  - shape: wrapper(__TARGET__)
 patterns-not:
   - shape: danger()
 ```
@@ -374,7 +383,7 @@ patterns-not:
 
 ```yaml
 inside-expr:
-  shape: wrapper($(counter:id), __TARGET__)
+  - shape: wrapper($(counter:id), __TARGET__)
 patterns:
   - shape: arr[$(counter:id)]
 patterns-not:

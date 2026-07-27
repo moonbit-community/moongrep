@@ -131,20 +131,20 @@ fn expect_structural_rule(
   let inside_toplevel = expect_inside_toplevel(doc, path)
   if !has_patterns &&
     has_patterns_not &&
-    inside_expr is None &&
-    inside_toplevel is None {
+    inside_expr.is_empty() &&
+    inside_toplevel.is_empty() {
     raise invalid_rule(
       path~,
       info="patterns-not requires patterns, inside-expr, or inside-toplevel",
     )
   }
-  if !has_patterns && patterns_not.is_empty() && inside_expr is Some(_) {
+  if !has_patterns && patterns_not.is_empty() && !inside_expr.is_empty() {
     raise invalid_rule(
       path~,
       info="inside-expr requires patterns or patterns-not",
     )
   }
-  if !has_patterns && patterns_not.is_empty() && inside_toplevel is Some(_) {
+  if !has_patterns && patterns_not.is_empty() && !inside_toplevel.is_empty() {
     raise invalid_rule(
       path~,
       info="inside-toplevel requires patterns or patterns-not",
@@ -158,12 +158,12 @@ fn expect_structural_rule(
 
 ///|
 fn expect_patterns_not_mode(
-  inside_expr : RulePatternSpec?,
-  inside_toplevel : RulePatternSpec?,
+  inside_expr : Array[RulePatternSpec],
+  inside_toplevel : Array[RulePatternSpec],
   patterns : Array[RulePatternSpec],
   patterns_not : Array[RulePatternSpec],
 ) -> StructuralPatternsNotMode {
-  if (inside_expr is Some(_) || inside_toplevel is Some(_)) &&
+  if (!inside_expr.is_empty() || !inside_toplevel.is_empty()) &&
     !patterns.is_empty() &&
     !patterns_not.is_empty() {
     RejectUncoveredNegative
@@ -176,14 +176,21 @@ fn expect_patterns_not_mode(
 fn expect_inside_expr(
   doc : Map[String, @yaml.Yaml],
   path : String,
-) -> RulePatternSpec? raise {
+) -> Array[RulePatternSpec] raise {
   match doc.get("inside-expr") {
-    None => None
-    Some(Map(clause_map)) =>
-      Some(
-        parse_rule_clause_map(clause_map, path, "inside-expr", allow_guard=true),
+    None => []
+    Some(value) => {
+      let patterns = parse_rule_clause_array(
+        expect_yaml_array_value(value, path, "inside-expr"),
+        path,
+        "inside-expr",
+        allow_guard=true,
       )
-    Some(_) => raise invalid_rule(path~, info="inside-expr must be a mapping")
+      if patterns.is_empty() {
+        raise invalid_rule(path~, info="inside-expr must not be empty")
+      }
+      patterns
+    }
   }
 }
 
@@ -191,20 +198,21 @@ fn expect_inside_expr(
 fn expect_inside_toplevel(
   doc : Map[String, @yaml.Yaml],
   path : String,
-) -> RulePatternSpec? raise {
+) -> Array[RulePatternSpec] raise {
   match doc.get("inside-toplevel") {
-    None => None
-    Some(Map(clause_map)) =>
-      Some(
-        parse_rule_clause_map(
-          clause_map,
-          path,
-          "inside-toplevel",
-          allow_guard=true,
-        ),
+    None => []
+    Some(value) => {
+      let patterns = parse_rule_clause_array(
+        expect_yaml_array_value(value, path, "inside-toplevel"),
+        path,
+        "inside-toplevel",
+        allow_guard=true,
       )
-    Some(_) =>
-      raise invalid_rule(path~, info="inside-toplevel must be a mapping")
+      if patterns.is_empty() {
+        raise invalid_rule(path~, info="inside-toplevel must not be empty")
+      }
+      patterns
+    }
   }
 }
 
@@ -285,7 +293,7 @@ fn parse_rule_clause_map(
       info="\{clause_context}.guard is not supported for taint rules",
     )
   }
-  let shape = expect_yaml_string(clause_map, path, "shape")
+  let shape = expect_rule_clause_shape(clause_map, path, clause_context)
   let guards = parse_guard_map(clause_map, path, clause_context)
   { shape, guards }
 }
@@ -301,7 +309,7 @@ fn parse_guard_map(
     Some(Map(guard_map)) => {
       let guards : Map[String, String] = Map([])
       for key, value in guard_map {
-        ensure_guard_key(key, path)
+        ensure_guard_key(key, path, clause_context)
         match value {
           String(regex_source) => guards[key] = regex_source
           _ =>
@@ -322,12 +330,34 @@ fn parse_guard_map(
 }
 
 ///|
-fn ensure_guard_key(key : String, path : String) -> Unit raise {
+fn ensure_guard_key(
+  key : String,
+  path : String,
+  clause_context : String,
+) -> Unit raise {
   if !key.has_prefix("$") || key.length() <= 1 {
     raise invalid_rule(
       path~,
-      info="guard key \{key} must be a $-prefixed metavar name",
+      info="\{clause_context}.guard.\{key} must be a $-prefixed metavar name",
     )
+  }
+}
+
+///|
+fn expect_rule_clause_shape(
+  map : Map[String, @yaml.Yaml],
+  path : String,
+  clause_context : String,
+) -> String raise {
+  match map.get("shape") {
+    Some(String(value)) => value
+    Some(_) =>
+      raise invalid_rule(path~, info="\{clause_context}.shape must be a string")
+    None =>
+      raise invalid_rule(
+        path~,
+        info="missing required key \{clause_context}.shape",
+      )
   }
 }
 

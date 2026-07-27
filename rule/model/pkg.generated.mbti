@@ -43,8 +43,8 @@ pub(all) struct CompiledRulePattern {
 }
 
 pub(all) struct CompiledStructuralRule {
-  inside_expr : CompiledRulePattern?
-  inside_toplevel : CompiledRulePattern?
+  inside_expr : Array[CompiledRulePattern]
+  inside_toplevel : Array[CompiledRulePattern]
   patterns : Array[CompiledRulePattern]
   patterns_not : Array[CompiledRulePattern]
   patterns_not_mode : StructuralPatternsNotMode
@@ -111,8 +111,8 @@ pub(all) enum StructuralPatternsNotMode {
 }
 
 pub(all) struct StructuralRuleSpec {
-  inside_expr : RulePatternSpec?
-  inside_toplevel : RulePatternSpec?
+  inside_expr : Array[RulePatternSpec]
+  inside_toplevel : Array[RulePatternSpec]
   patterns : Array[RulePatternSpec]
   patterns_not : Array[RulePatternSpec]
   patterns_not_mode : StructuralPatternsNotMode

@@ -452,7 +452,7 @@ capture contract and is rejected while loading the rule.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-kind.yaml testdata/ellipsis/sample.mbt
-testdata/ellipsis/invalid/inside-kind.yaml: patterns[0] cannot use inherited inside-expr ellipsis metavar items with a different kind
+testdata/ellipsis/invalid/inside-kind.yaml: patterns[0] cannot use inherited inside-expr[0] ellipsis metavar items with a different kind
 [1]
 ```
 
@@ -461,6 +461,6 @@ the target pattern.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-single.yaml testdata/ellipsis/sample.mbt
-testdata/ellipsis/invalid/inside-single.yaml: patterns[0] cannot use inherited inside-expr ellipsis metavar items as exp
+testdata/ellipsis/invalid/inside-single.yaml: patterns[0] cannot use inherited inside-expr[0] ellipsis metavar items as exp
 [1]
 ```

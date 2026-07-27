@@ -45,10 +45,12 @@ let _embed_writingrules_md : String =
   #|Unknown keys are rejected at every schema level: top-level rule keys, `taint`
   #|keys, and rule clause keys.
   #|
-  #|Structural rules may also add one optional outer context. `inside-expr` filters
-  #|an outer expression. `inside-toplevel` filters one MoonBit top-level item. Both
-  #|bind outer inline captures and then search the captured `__TARGET__`
-  #|expression subtree with the inner `patterns` or `patterns-not`.
+  #|Structural rules may also add one optional outer-context field. `inside-expr`
+  #|filters outer expressions. `inside-toplevel` filters MoonBit top-level items.
+  #|Each field is a non-empty array of ordered alternative pattern objects. Both
+  #|bind captures from the first matching outer alternative and then search its
+  #|captured `__TARGET__` expression subtree with the inner `patterns` or
+  #|`patterns-not`.
   #|
   #|## Mental Model
   #|
@@ -71,25 +73,28 @@ let _embed_writingrules_md : String =
   #|- All patterns in one rule share the same rule id and `description`.
   #|- Structural pattern objects may use `guard` to regex-filter `id` and `const`
   #|  captures after shape matching.
-  #|- If `inside-expr` or `inside-toplevel` is present, it runs first on the
-  #|  current outer candidate. If it captures `__TARGET__` as an expression and
-  #|  `patterns` are present, each candidate in that target subtree tries positives
-  #|  first, then `patterns-not` only after a positive miss. If there are no
-  #|  `patterns`, the outer context is reported only when no negative pattern
-  #|  matches anywhere in the target subtree.
+  #|- If `inside-expr` or `inside-toplevel` is present, eligible outer entries are
+  #|  tried in YAML order on the current candidate. The first entry whose shape and
+  #|  guard match selects `__TARGET__` and its bindings. A guard failure falls
+  #|  through, but after selection an inner miss does not try later outer entries.
+  #|  If `patterns` are present, each candidate in the selected target subtree
+  #|  tries positives first, then `patterns-not` only after a positive miss. If
+  #|  there are no `patterns`, the outer context is reported only when no negative
+  #|  pattern matches anywhere in the target subtree.
   #|- When an outer-context rule has both positive and negative patterns, positive
   #|  hits cover all nested negative-shaped uses by default. Any uncovered negative
   #|  match rejects the outer context.
-  #|- Inline captures declared by `inside-expr` or `inside-toplevel` stay visible
-  #|  to inner `patterns` and `patterns-not`; `__TARGET__` only
-  #|  selects the expression subtree to traverse and must not be used by inner
-  #|  pattern entries.
+  #|- Inline captures declared by the selected `inside-expr` or
+  #|  `inside-toplevel` entry stay visible to inner `patterns` and `patterns-not`;
+  #|  `__TARGET__` only selects the expression subtree to traverse and must not be
+  #|  used by inner pattern entries.
   #|- Inherited `id` captures follow lexical shadowing. If an inner pattern refers
   #|  to an outer `id` capture and the path to a candidate expression crosses a
   #|  local binder with the same normalized identifier, that candidate is skipped.
   #|- Inner positive and negative patterns reuse names from the outer context by
-  #|  repeating the same metavar form; the same name with a different kind is
-  #|  rejected.
+  #|  repeating the same metavar form. Every outer alternative must declare each
+  #|  reused name with the same kind, including named ellipsis captures. Extra
+  #|  outer captures that no inner entry references may differ by alternative.
   #|- An `inside-expr` outer match reports at most one hit. Its `loc` is the outer
   #|  expression location; when inner positive patterns match, the first hit in
   #|  traversal order determines `pattern_index`.
@@ -414,10 +419,12 @@ let _embed_writingrules_md : String =
   #|```yaml
   #|id: wrapped-target
   #|description: |
-  #|  Match a call only when it appears inside a specific wrapper.
+  #|  Match a call only when it appears inside a supported context.
   #|inside-expr:
-  #|  shape: |
-  #|    wrapper($(prefix:exp), __TARGET__)
+  #|  - shape: |
+  #|      wrapper($(prefix:exp), __TARGET__)
+  #|  - shape: |
+  #|      container($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: |
   #|      target.call($(prefix:exp))
@@ -425,10 +432,11 @@ let _embed_writingrules_md : String =
   #|
   #|Rules for `inside-expr`:
   #|
-  #|- it uses the same `shape` and optional `guard` schema as one structural
-  #|  pattern
-  #|- it must place exactly one supported `__TARGET__`; place it where a whole
-  #|  expression is expected so runtime traversal can search that subtree
+  #|- it is a non-empty array using the same `shape` and optional `guard` object
+  #|  schema as `patterns`
+  #|- entries are ordered alternatives; the first shape and guard match is selected
+  #|- every entry must place exactly one supported `__TARGET__`; place it where a
+  #|  whole expression is expected so runtime traversal can search that subtree
   #|- `__TARGET__` is reserved and must not be used as an metavar name
   #|- inner `patterns` and `patterns-not` must not contain `__TARGET__`; the target
   #|  placeholder selects the subtree to search and creates no binding for inner
@@ -436,8 +444,12 @@ let _embed_writingrules_md : String =
   #|- inherited `id` captures observe lexical shadowing inside the searched target
   #|  subtree
   #|- inner `patterns` and `patterns-not` reference outer captures by repeating the
-  #|  same metavar form, such as `$(prefix:exp)`; using the same name with a
-  #|  different kind is rejected
+  #|  same metavar form, such as `$(prefix:exp)`; every outer alternative must
+  #|  declare a reused capture with the same kind
+  #|- branch-local outer captures are allowed when inner entries do not reference
+  #|  them
+  #|- a failed outer guard tries the next entry, but a selected entry is not
+  #|  replaced when its target subtree produces no finding
   #|- each matching outer expression reports at most one hit at the outer
   #|  expression location; if multiple inner positive patterns match, the first
   #|  hit in traversal order determines `pattern_index`
@@ -450,19 +462,21 @@ let _embed_writingrules_md : String =
   #|description: |
   #|  Match a call only in selected top-level functions.
   #|inside-toplevel:
-  #|  shape: |
-  #|    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
-  #|  guard:
-  #|    $name: "^safe_"
+  #|  - shape: |
+  #|      fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+  #|    guard:
+  #|      $name: "^safe_"
   #|patterns:
   #|  - shape: call($(param:id))
   #|```
   #|
-  #|`inside-toplevel` and `inside-expr` are mutually exclusive. Its `shape` must be
-  #|exactly one MoonBit top-level item and must place exactly one supported
-  #|`__TARGET__` in an expression position within that item. Positive hits report
-  #|their inner match locations. With only `patterns-not`, `loc` is the top-level
-  #|item location.
+  #|`inside-toplevel` and `inside-expr` are mutually exclusive.
+  #|`inside-toplevel` is also a non-empty ordered array. Every entry's `shape` must
+  #|be exactly one MoonBit top-level item and must place exactly one supported
+  #|`__TARGET__` in an expression position within that item. It uses the same
+  #|selection and shared-capture rules as `inside-expr`. Positive hits report their
+  #|inner match locations. With only `patterns-not`, `loc` is the top-level item
+  #|location.
   #|
   #|### 3.6 Use `patterns-not` to prune blocked branches
   #|
@@ -495,7 +509,7 @@ let _embed_writingrules_md : String =
   #|description: |
   #|  Wrapper payload contains no danger call.
   #|inside-expr:
-  #|  shape: wrapper(__TARGET__)
+  #|  - shape: wrapper(__TARGET__)
   #|patterns-not:
   #|  - shape: danger()
   #|```
@@ -509,7 +523,7 @@ let _embed_writingrules_md : String =
   #|
   #|```yaml
   #|inside-expr:
-  #|  shape: wrapper($(counter:id), __TARGET__)
+  #|  - shape: wrapper($(counter:id), __TARGET__)
   #|patterns:
   #|  - shape: arr[$(counter:id)]
   #|patterns-not:

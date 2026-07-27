@@ -1,0 +1,8 @@
+id: expr
+description: |
+  Multiple expression contexts share one inner pattern.
+inside-expr:
+  - shape: wrapper($(name:id), __TARGET__)
+  - shape: container($(name:id), __TARGET__)
+patterns:
+  - shape: target($(name:id))

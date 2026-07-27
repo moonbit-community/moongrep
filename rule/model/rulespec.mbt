@@ -21,8 +21,9 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
 ///|
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
-/// `shape` must be a valid MoonBit expression, except for `inside-toplevel`
-/// where it must be one top-level item. Inline `$(name:exp)`, `$(name:id)`,
+/// `shape` must be a valid MoonBit expression, except in an
+/// `inside-toplevel` entry where it must be one top-level item. Inline
+/// `$(name:exp)`, `$(name:id)`,
 /// `$(name:const)`, `$(name:arg)`, `$(name:pat)`, and `$(name:type)`
 /// placeholders plus `$$$name` / `$$$(name:kind)` ordered-list ellipses are
 /// discovered during compilation. `guard`, when present, maps `$`-prefixed id
@@ -48,14 +49,16 @@ pub(all) enum StructuralPatternsNotMode {
 ///|
 /// Raw structural-rule definition loaded from YAML.
 ///
-/// `inside_expr`, when present, is a pattern object whose shape must contain a
-/// single `__TARGET__` placeholder. The normal `patterns` are then matched
-/// inside that target. `inside_toplevel` is the top-level-item equivalent and
-/// is mutually exclusive with `inside_expr`. `patterns_not` holds negative
+/// `inside_expr` is an ordered array of alternative pattern objects whose
+/// shapes must each contain a single `__TARGET__` placeholder. The normal
+/// `patterns` are then matched inside the target selected by the first matching
+/// outer alternative. `inside_toplevel` is the top-level-item equivalent and
+/// is mutually exclusive with `inside_expr`. Empty arrays mean that the
+/// corresponding outer context is absent. `patterns_not` holds negative
 /// structural patterns that suppress otherwise successful structural matches.
 pub(all) struct StructuralRuleSpec {
-  inside_expr : RulePatternSpec?
-  inside_toplevel : RulePatternSpec?
+  inside_expr : Array[RulePatternSpec]
+  inside_toplevel : Array[RulePatternSpec]
   patterns : Array[RulePatternSpec]
   patterns_not : Array[RulePatternSpec]
   patterns_not_mode : StructuralPatternsNotMode
@@ -128,8 +131,8 @@ pub(all) struct CompiledRuleGuard {
 ///|
 /// A structural rule after shape parsing and metavar validation.
 pub(all) struct CompiledStructuralRule {
-  inside_expr : CompiledRulePattern?
-  inside_toplevel : CompiledRulePattern?
+  inside_expr : Array[CompiledRulePattern]
+  inside_toplevel : Array[CompiledRulePattern]
   patterns : Array[CompiledRulePattern]
   patterns_not : Array[CompiledRulePattern]
   patterns_not_mode : StructuralPatternsNotMode

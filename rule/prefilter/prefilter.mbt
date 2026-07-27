@@ -107,25 +107,35 @@ pub fn compile_rule_prefilter(
 ///|
 fn compile_structural_prefilter(rule : CompiledStructuralRule) -> RulePrefilter {
   let alternatives : Array[Array[String]] = []
-  let inside_literals : Array[String] = if rule.inside_toplevel is Some(pattern) {
-    required_literals_from_compiled_pattern(pattern)
-  } else if rule.inside_expr is Some(pattern) {
-    required_literals_from_compiled_pattern(pattern)
+  let inside_patterns = if !rule.inside_toplevel.is_empty() {
+    rule.inside_toplevel
   } else {
-    []
+    rule.inside_expr
   }
-  if rule.patterns.is_empty() {
-    alternatives.push(unique_literals(inside_literals))
-  }
-  for pattern in rule.patterns {
-    alternatives.push(
-      unique_literals(
-        concat_string_arrays(
-          inside_literals,
-          required_literals_from_compiled_pattern(pattern),
-        ),
-      ),
-    )
+  if inside_patterns.is_empty() {
+    for pattern in rule.patterns {
+      alternatives.push(
+        unique_literals(required_literals_from_compiled_pattern(pattern)),
+      )
+    }
+  } else {
+    for inside in inside_patterns {
+      let inside_literals = required_literals_from_compiled_pattern(inside)
+      if rule.patterns.is_empty() {
+        alternatives.push(unique_literals(inside_literals))
+      } else {
+        for pattern in rule.patterns {
+          alternatives.push(
+            unique_literals(
+              concat_string_arrays(
+                inside_literals,
+                required_literals_from_compiled_pattern(pattern),
+              ),
+            ),
+          )
+        }
+      }
+    }
   }
   { alternatives, }
 }
