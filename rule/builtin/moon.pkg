@@ -2,3 +2,10 @@ import {
   "moonbit-community/moongrep/rule/internal/rules/moonbitlang" @moonbitlang_rules,
   "moonbit-community/moongrep/rule/model",
 }
+
+import {
+  "moonbit-community/moongrep/rule/apply",
+  "moonbit-community/moongrep/rule/compile",
+  "moonbit-community/moongrep/untyped_ast",
+  "moonbitlang/parser",
+} for "test"

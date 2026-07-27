@@ -8,9 +8,100 @@ let _embed_catch_all_yaml : String =
   #|  Prefer matching only the specific error cases that can be recovered from.
   #|
   #|inside-toplevel:
-  #|  # TODO: support matching params
   #|  - shape: |
-  #|      async fn $f(_) -> $T {
+  #|      async fn $_ {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_($$$_) {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_ -> $T {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_($$$_) -> $T {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_ noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_($$$_) noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_ -> $T noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      async fn $_($$$_) -> $T noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_ {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_($$$_) {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_ -> $T {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_($$$_) -> $T {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_ noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_($$$_) noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_ -> $T noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      pub async fn $_($$$_) -> $T noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_ {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_($$$_) {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_ -> $T {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_($$$_) -> $T {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_ noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_($$$_) noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_ -> $T noraise {
+  #|        __TARGET__
+  #|      }
+  #|  - shape: |
+  #|      priv async fn $_($$$_) -> $T noraise {
   #|        __TARGET__
   #|      }
   #|
