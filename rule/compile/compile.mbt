@@ -60,96 +60,44 @@ fn compile_structural_rule(
   path : String,
   spec : StructuralRuleSpec,
 ) -> CompiledStructuralRule raise {
-  if spec.inside_expr is Some(_) && spec.inside_toplevel is Some(_) {
+  if !spec.inside_expr.is_empty() && !spec.inside_toplevel.is_empty() {
     raise RuleLoadError::InvalidRule(
       path~,
       info="inside-expr and inside-toplevel are mutually exclusive",
     )
   }
-  let outer_pattern_names : Array[String] = []
-  let inside_expr = if spec.inside_expr is Some(pattern) {
-    Some(
-      compile_inside_context_pattern(
-        path, pattern, "inside-expr", false, outer_pattern_names,
-      ),
-    )
-  } else {
-    None
-  }
-  let inside_toplevel = if spec.inside_toplevel is Some(pattern) {
-    Some(
-      compile_inside_context_pattern(
-        path, pattern, "inside-toplevel", true, outer_pattern_names,
-      ),
-    )
-  } else {
-    None
-  }
+  let (inside_expr, inside_expr_shapes) = compile_inside_context_patterns(
+    path,
+    spec.inside_expr,
+    "inside-expr",
+    is_toplevel=false,
+  )
+  let (inside_toplevel, inside_toplevel_shapes) = compile_inside_context_patterns(
+    path,
+    spec.inside_toplevel,
+    "inside-toplevel",
+    is_toplevel=true,
+  )
   // Metavars from the outer context remain visible while matching each target
-  // expression. Inner patterns reuse them by repeating the same inline kind.
-  let outer_context = if inside_toplevel is Some(_) {
+  // expression. A metavar reused by an inner pattern must be declared with the
+  // same kind by every ordered outer alternative.
+  let outer_context = if !inside_toplevel.is_empty() {
     "inside-toplevel"
   } else {
     "inside-expr"
   }
-  let outer_pattern = if inside_toplevel is Some(pattern) {
-    Some(pattern)
+  let outer_shapes = if !inside_toplevel_shapes.is_empty() {
+    inside_toplevel_shapes
   } else {
-    inside_expr
-  }
-  let outer_expr = if outer_pattern is Some(pattern) {
-    pattern.compiled.expr_metavars
-  } else {
-    []
-  }
-  let outer_identifier = if outer_pattern is Some(pattern) {
-    pattern.compiled.identifier_metavars
-  } else {
-    []
-  }
-  let outer_constant = if outer_pattern is Some(pattern) {
-    pattern.compiled.constant_metavars
-  } else {
-    []
-  }
-  let outer_arg = if outer_pattern is Some(pattern) {
-    pattern.compiled.arg_metavars
-  } else {
-    []
-  }
-  let outer_type = if outer_pattern is Some(pattern) {
-    pattern.compiled.type_metavars
-  } else {
-    []
-  }
-  let outer_ellipsis = if outer_pattern is Some(pattern) {
-    pattern.compiled.ellipsis_metavars
-  } else {
-    []
+    inside_expr_shapes
   }
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
     let context = "patterns[\{index}]"
     let pattern = spec.patterns[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    ensure_inherited_inside_context_metavar_forms(
-      path,
-      context,
-      outer_context,
-      compiled_shape.expr_metavars,
-      compiled_shape.identifier_metavars,
-      compiled_shape.constant_metavars,
-      compiled_shape.arg_metavars,
-      compiled_shape.type_metavars,
-      compiled_shape.pattern_metavars,
-      compiled_shape.ellipsis_metavars,
-      outer_expr,
-      outer_identifier,
-      outer_constant,
-      outer_arg,
-      outer_type,
-      outer_pattern_names,
-      outer_ellipsis,
+    ensure_inherited_inside_context_metavar_forms_for_all(
+      path, context, outer_context, compiled_shape, outer_shapes,
     )
     let ast = compiled_shape.ast
     if count_supported_name_in_node(ast, "__TARGET__") != 0 {
@@ -181,24 +129,8 @@ fn compile_structural_rule(
     let context = "patterns-not[\{index}]"
     let pattern = spec.patterns_not[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    ensure_inherited_inside_context_metavar_forms(
-      path,
-      context,
-      outer_context,
-      compiled_shape.expr_metavars,
-      compiled_shape.identifier_metavars,
-      compiled_shape.constant_metavars,
-      compiled_shape.arg_metavars,
-      compiled_shape.type_metavars,
-      compiled_shape.pattern_metavars,
-      compiled_shape.ellipsis_metavars,
-      outer_expr,
-      outer_identifier,
-      outer_constant,
-      outer_arg,
-      outer_type,
-      outer_pattern_names,
-      outer_ellipsis,
+    ensure_inherited_inside_context_metavar_forms_for_all(
+      path, context, outer_context, compiled_shape, outer_shapes,
     )
     let ast = compiled_shape.ast
     if count_supported_name_in_node(ast, "__TARGET__") != 0 {
@@ -235,37 +167,43 @@ fn compile_structural_rule(
 }
 
 ///|
-fn compile_inside_context_pattern(
+fn compile_inside_context_patterns(
   path : String,
-  pattern : RulePatternSpec,
+  patterns : Array[RulePatternSpec],
   context : String,
-  is_toplevel : Bool,
-  outer_pattern_names : Array[String],
-) -> CompiledRulePattern raise {
-  let compiled_shape = if is_toplevel {
-    compile_toplevel_metavar_shape(path, context, pattern.shape)
-  } else {
-    compile_metavar_shape(path, context, pattern.shape)
-  }
-  let ast = compiled_shape.ast
-  let target_count = count_supported_name_in_node(ast, "__TARGET__")
-  if target_count != 1 {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context} must contain exactly one __TARGET__ placeholder in a supported expression position",
+  is_toplevel~ : Bool,
+) -> (Array[CompiledRulePattern], Array[MetavarShape]) raise {
+  let compiled_patterns : Array[CompiledRulePattern] = []
+  let compiled_shapes : Array[MetavarShape] = []
+  for index in 0..<patterns.length() {
+    let pattern = patterns[index]
+    let item_context = "\{context}[\{index}]"
+    let compiled_shape = if is_toplevel {
+      compile_toplevel_metavar_shape(path, item_context, pattern.shape)
+    } else {
+      compile_metavar_shape(path, item_context, pattern.shape)
+    }
+    let ast = compiled_shape.ast
+    let target_count = count_supported_name_in_node(ast, "__TARGET__")
+    if target_count != 1 {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{shape_context_name(item_context)} must contain exactly one __TARGET__ placeholder in a supported expression position",
+      )
+    }
+    compiled_patterns.push(
+      compile_pattern(
+        pattern,
+        compiled_shape,
+        path,
+        item_context,
+        target_metavar=Some("__TARGET__"),
+        source_metavar=None,
+      ),
     )
+    compiled_shapes.push(compiled_shape)
   }
-  for name in compiled_shape.pattern_metavars {
-    outer_pattern_names.push(name)
-  }
-  compile_pattern(
-    pattern,
-    compiled_shape,
-    path,
-    context,
-    target_metavar=Some("__TARGET__"),
-    source_metavar=None,
-  )
+  (compiled_patterns, compiled_shapes)
 }
 
 ///|
@@ -427,7 +365,7 @@ fn compile_guards(
 ) -> Array[CompiledRuleGuard] raise {
   let guards : Array[CompiledRuleGuard] = []
   for raw_name, regex_source in raw_guards {
-    let name = guard_metavar_name(path, raw_name)
+    let name = guard_metavar_name(path, context, raw_name)
     let capture_kind = guard_capture_kind(
       path, context, raw_name, name, expr_metavars, identifier_metavars, constant_metavars,
       arg_metavars, type_metavars, pattern_metavars, ellipsis_metavars,
@@ -445,11 +383,15 @@ fn compile_guards(
 }
 
 ///|
-fn guard_metavar_name(path : String, raw_name : String) -> String raise {
+fn guard_metavar_name(
+  path : String,
+  context : String,
+  raw_name : String,
+) -> String raise {
   if !raw_name.has_prefix("$") || raw_name.length() <= 1 {
     raise RuleLoadError::InvalidRule(
       path~,
-      info="guard key \{raw_name} must be a $-prefixed metavar name",
+      info="\{context}.guard.\{raw_name} must be a $-prefixed metavar name",
     )
   }
   raw_name[1:].to_owned()
@@ -543,6 +485,197 @@ fn validate_declared_metavar(
       info="\{context} cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
     )
   }
+}
+
+///|
+fn ensure_inherited_inside_context_metavar_forms_for_all(
+  path : String,
+  context : String,
+  outer_context : String,
+  inner : MetavarShape,
+  outers : Array[MetavarShape],
+) -> Unit raise {
+  for index in 0..<outers.length() {
+    let outer = outers[index]
+    ensure_inherited_inside_context_metavar_forms(
+      path,
+      context,
+      "\{outer_context}[\{index}]",
+      inner.expr_metavars,
+      inner.identifier_metavars,
+      inner.constant_metavars,
+      inner.arg_metavars,
+      inner.type_metavars,
+      inner.pattern_metavars,
+      inner.ellipsis_metavars,
+      outer.expr_metavars,
+      outer.identifier_metavars,
+      outer.constant_metavars,
+      outer.arg_metavars,
+      outer.type_metavars,
+      outer.pattern_metavars,
+      outer.ellipsis_metavars,
+    )
+  }
+  ensure_reused_single_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.expr_metavars,
+    "exp",
+    outers,
+  )
+  ensure_reused_single_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.identifier_metavars,
+    "id",
+    outers,
+  )
+  ensure_reused_single_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.constant_metavars,
+    "const",
+    outers,
+  )
+  ensure_reused_single_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.arg_metavars,
+    "arg",
+    outers,
+  )
+  ensure_reused_single_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.type_metavars,
+    "type",
+    outers,
+  )
+  ensure_reused_single_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.pattern_metavars,
+    "pat",
+    outers,
+  )
+  ensure_reused_ellipsis_metavars_declared_by_all(
+    path,
+    context,
+    outer_context,
+    inner.ellipsis_metavars,
+    outers,
+  )
+}
+
+///|
+fn ensure_reused_single_metavars_declared_by_all(
+  path : String,
+  context : String,
+  outer_context : String,
+  inner_names : Array[String],
+  kind : String,
+  outers : Array[MetavarShape],
+) -> Unit raise {
+  for name in inner_names {
+    let mut inherited = false
+    for outer in outers {
+      if metavar_shape_declares_name(outer, name) {
+        inherited = true
+        break
+      }
+    }
+    if inherited {
+      for index in 0..<outers.length() {
+        if !metavar_shape_declares_single_kind(outers[index], name, kind) {
+          raise RuleLoadError::InvalidRule(
+            path~,
+            info="\{context} cannot use inherited \{outer_context} metavar \{name} as \{kind} because \{outer_context}[\{index}] does not declare it",
+          )
+        }
+      }
+    }
+  }
+}
+
+///|
+fn ensure_reused_ellipsis_metavars_declared_by_all(
+  path : String,
+  context : String,
+  outer_context : String,
+  inner_metavars : Array[@matching.EllipsisMetavar],
+  outers : Array[MetavarShape],
+) -> Unit raise {
+  for metavar in inner_metavars {
+    let mut inherited = false
+    for outer in outers {
+      if metavar_shape_declares_name(outer, metavar.name) {
+        inherited = true
+        break
+      }
+    }
+    if inherited {
+      for index in 0..<outers.length() {
+        let outer_kind = ellipsis_metavar_kind(
+          outers[index].ellipsis_metavars,
+          metavar.name,
+        )
+        if outer_kind != Some(metavar.kind) {
+          raise RuleLoadError::InvalidRule(
+            path~,
+            info="\{context} cannot use inherited \{outer_context} ellipsis metavar \{metavar.name} because \{outer_context}[\{index}] does not declare it with kind \{ellipsis_kind_text(metavar.kind)}",
+          )
+        }
+      }
+    }
+  }
+}
+
+///|
+fn metavar_shape_declares_name(shape : MetavarShape, name : String) -> Bool {
+  array_contains(shape.expr_metavars, name) ||
+  array_contains(shape.identifier_metavars, name) ||
+  array_contains(shape.constant_metavars, name) ||
+  array_contains(shape.arg_metavars, name) ||
+  array_contains(shape.type_metavars, name) ||
+  array_contains(shape.pattern_metavars, name) ||
+  ellipsis_metavars_contain(shape.ellipsis_metavars, name)
+}
+
+///|
+fn metavar_shape_declares_single_kind(
+  shape : MetavarShape,
+  name : String,
+  kind : String,
+) -> Bool {
+  match kind {
+    "exp" => array_contains(shape.expr_metavars, name)
+    "id" => array_contains(shape.identifier_metavars, name)
+    "const" => array_contains(shape.constant_metavars, name)
+    "arg" => array_contains(shape.arg_metavars, name)
+    "type" => array_contains(shape.type_metavars, name)
+    "pat" => array_contains(shape.pattern_metavars, name)
+    _ => false
+  }
+}
+
+///|
+fn ellipsis_metavar_kind(
+  metavars : Array[@matching.EllipsisMetavar],
+  name : String,
+) -> @matching.EllipsisMetavarKind? {
+  for metavar in metavars {
+    if metavar.name == name {
+      return Some(metavar.kind)
+    }
+  }
+  None
 }
 
 ///|

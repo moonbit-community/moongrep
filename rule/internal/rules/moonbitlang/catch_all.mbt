@@ -9,7 +9,7 @@ let _embed_catch_all_yaml : String =
   #|
   #|inside-toplevel:
   #|  # TODO: support matching params
-  #|  shape: |
+  #|  - shape: |
   #|      async fn $f(_) -> $T {
   #|        __TARGET__
   #|      }

@@ -43,7 +43,7 @@ fn compile_bucket_structural_patterns(
 fn compile_bucket_inside_pattern(source : String) -> CompiledRulePattern raise {
   match compile_bucket_rule_source(source).definition {
     Structural(structural) =>
-      if structural.inside_expr is Some(pattern) {
+      if structural.inside_expr.get(0) is Some(pattern) {
         pattern
       } else {
         fail("expected inside-expr")
@@ -115,7 +115,7 @@ test "ast bucket treats broad root placeholders as wildcard" {
     #|id: example
     #|description: Target root.
     #|inside-expr:
-    #|  shape: __TARGET__
+    #|  - shape: __TARGET__
     #|patterns:
     #|  - shape: target()
     #|

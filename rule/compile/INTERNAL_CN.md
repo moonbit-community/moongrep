@@ -15,8 +15,8 @@
 编译职责有意保持收窄。这个包会：
 
 - 检查重复 rule id
-- 把普通规则 `shape` 解析成 MoonBit 表达式，并把 `inside-toplevel.shape`
-  解析成一个顶层项
+- 把普通规则 `shape` 解析成 MoonBit 表达式，并把每个
+  `inside-toplevel` 条目的 shape 解析成一个顶层项
 - 把 metavar 重写成 matcher 可读取的 AST 名称
 - 拒绝不支持的占位符位置和格式错误的 guard
 - 记录 taint sink 和 sanitizer 的 target 元数据
@@ -49,10 +49,12 @@ enable_metavar = true
 ```
 
 随后用 `parse_expr` 解析 token 流。因此普通 `patterns`、`patterns-not`、
-`inside-expr` 和 taint 子句的 shape 正好是一个 MoonBit 表达式，不是文件片段或顶层声明。
+每个 `inside-expr` 条目和 taint 子句的 shape 正好是一个 MoonBit 表达式，
+不是文件片段或顶层声明。
 
-`inside-toplevel.shape` 使用同样的 lexer 配置。它通过 `parse_toplevel_shape`
-解析，接受且只接受一个 MoonBit 顶层项，并通过 `@untyped_ast.from_impl` 转换。
+每个 `inside-toplevel` 条目的 shape 使用同样的 lexer 配置。它通过
+`parse_toplevel_shape` 解析，接受且只接受一个 MoonBit 顶层项，并通过
+`@untyped_ast.from_impl` 转换。
 
 词法错误会先于解析错误报告。`InvalidMetavarSyntax` 有专门诊断，因此
 `$exp:value` 这样的旧语法可以提示迁移到现代的 `$(value:exp)` 形式。
@@ -130,23 +132,26 @@ Inline 声明不能使用：
 
 ## Structural Rule
 
-`compile_structural_rule` 会在存在 inside context 时，先编译 `inside-expr`
-或 `inside-toplevel`，再编译内部 positive / negative pattern。
+`compile_structural_rule` 会在存在 inside context 时，先编译
+`inside-expr` 或 `inside-toplevel` 的所有有序备选项，再编译内部
+positive / negative pattern。
 
-inside-context shape 会被编译成普通 pattern，并使用：
+每个 inside-context shape 会被编译成普通 pattern，并使用：
 
 - 它的 pattern object 上声明的 guard
 - `target_metavar = Some("__TARGET__")`
 - `source_metavar = None`
 
-它必须包含恰好一个由 `count_supported_name_in_node` 统计到的 `__TARGET__` 名称。
+每个备选项都必须包含恰好一个由 `count_supported_name_in_node` 统计到的
+`__TARGET__` 名称。
 运行时 matcher 只会在完整表达式位置特殊处理 target/source metavar，因此修改 supported-name
 统计时必须同时检查 `matching` 行为。
 
-inside context 中声明的 metavar 在匹配目标表达式时可见。内部的 `patterns` 和
-`patterns-not` 必须重复相同 inline 形式才能复用该绑定。
-`ensure_inherited_inside_context_metavar_forms` 会拒绝内部 pattern 用不同 kind
-重新声明继承来的名称。
+选中的 inside 备选项中声明的 metavar 在匹配目标表达式时可见。内部的
+`patterns` 和 `patterns-not` 必须重复相同 inline 形式才能复用该绑定。
+被复用的捕获必须由每个外层备选项以相同 kind 声明，包括命名 ellipsis
+捕获。`ensure_inherited_inside_context_metavar_forms_for_all` 同时检查跨备选项
+可用性和 kind 一致性。内部未引用的捕获保持分支局部，不要求一致。
 
 普通 `patterns` 和 `patterns-not` 会在 inside context 之后独立编译。它们不能包含
 `__TARGET__`。
@@ -224,9 +229,10 @@ call argument，并用 label 确认选中的是同一个 labelled slot。
 
 1. 保持 `__TARGET__` 编译期检查与 matcher 支持一致
 2. 对 `patterns` 和 `patterns-not` 都保留继承 metavar 的 kind 检查
-3. 测试含 positive pattern、negative pattern 和 negative-only
+3. 保持有序首项选择语义：guard 失败可以继续，但外层条目一旦选中就不回退
+4. 测试含 positive pattern、negative pattern 和 negative-only
    `inside-expr` / `inside-toplevel` 的规则
-4. 检查 `rule/apply` 的遍历行为
+5. 检查 `rule/apply` root buckets，以及 `rule/prefilter` 的外层×内层备选项
 
 修改 taint target 行为时：
 

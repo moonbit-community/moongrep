@@ -1,0 +1,8 @@
+id: toplevel
+description: |
+  Multiple top-level contexts share one inner pattern.
+inside-toplevel:
+  - shape: fn $(name:id) { __TARGET__ }
+  - shape: let $(name:id) = box(__TARGET__)
+patterns:
+  - shape: consume($(name:id))

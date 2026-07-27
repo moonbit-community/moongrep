@@ -17,8 +17,8 @@ The package takes `RawRuleSpec` values from `rule/model` and produces
 Compilation is deliberately narrow. This package:
 
 - checks duplicate rule ids
-- parses ordinary rule `shape` values as MoonBit expressions and
-  `inside-toplevel.shape` as one top-level item
+- parses ordinary rule `shape` values as MoonBit expressions and each
+  `inside-toplevel` entry's shape as one top-level item
 - rewrites metavars into matcher-readable AST names
 - rejects unsupported placeholder positions and malformed guards
 - records taint sink and sanitizer target metadata
@@ -54,12 +54,12 @@ enable_metavar = true
 ```
 
 Then it parses the token stream with `parse_expr`. Ordinary `patterns`,
-`patterns-not`, `inside-expr`, and taint clause shapes are therefore exactly one
-MoonBit expression, not a file fragment or top-level declaration.
+`patterns-not`, every `inside-expr` entry, and taint clause shapes are therefore
+exactly one MoonBit expression, not a file fragment or top-level declaration.
 
-`inside-toplevel.shape` uses the same lexer settings. It is parsed with
-`parse_toplevel_shape`, which accepts exactly one MoonBit top-level item and
-converts it with `@untyped_ast.from_impl`.
+Each `inside-toplevel` entry's shape uses the same lexer settings. It is parsed
+with `parse_toplevel_shape`, which accepts exactly one MoonBit top-level item
+and converts it with `@untyped_ast.from_impl`.
 
 Lexing errors are reported before parse errors. `InvalidMetavarSyntax` gets a
 special diagnostic so legacy syntax such as `$exp:value` can point to the modern
@@ -147,25 +147,28 @@ reserved. The exact built-ins listed above are reserved.
 
 ## Structural Rules
 
-`compile_structural_rule` compiles `inside-expr` or `inside-toplevel` before
-inner positive and negative patterns when an inside context exists.
+`compile_structural_rule` compiles every ordered `inside-expr` or
+`inside-toplevel` alternative before inner positive and negative patterns when
+an inside context exists.
 
-An inside-context shape is compiled as a normal pattern with:
+Each inside-context shape is compiled as a normal pattern with:
 
 - the guards declared on its pattern object
 - `target_metavar = Some("__TARGET__")`
 - `source_metavar = None`
 
-It must contain exactly one `__TARGET__` name as counted by
+Every alternative must contain exactly one `__TARGET__` name as counted by
 `count_supported_name_in_node`. The runtime matcher only treats target/source
 metavars specially in whole expression positions, so changes to supported-name
 counting must be checked against `matching` behavior.
 
-Metavars declared in the inside context are visible during target-expression
-matching. Inner `patterns` and `patterns-not` must repeat the same inline form
-to reuse the binding. `ensure_inherited_inside_context_metavar_forms`
-rejects an inner pattern that redeclares an inherited name with a different
-kind.
+Metavars declared by the selected inside alternative are visible during
+target-expression matching. Inner `patterns` and `patterns-not` must repeat the
+same inline form to reuse the binding. Reused captures must be declared by
+every outer alternative with the same kind, including named ellipsis captures.
+`ensure_inherited_inside_context_metavar_forms_for_all` checks both
+cross-alternative availability and kind consistency. Captures not referenced
+by inner patterns remain branch-local and need not agree.
 
 Normal `patterns` and `patterns-not` are compiled independently after the
 inside context. They must not contain `__TARGET__`.
@@ -253,9 +256,12 @@ When changing inside-context behavior:
 1. keep the `__TARGET__` compile-time check in sync with matcher support
 2. preserve inherited metavar kind checks for both `patterns` and
    `patterns-not`
-3. test rules with positive patterns, negative patterns, and negative-only
+3. preserve ordered first-match selection, including guard fallthrough but no
+   fallback after an outer alternative is selected
+4. test rules with positive patterns, negative patterns, and negative-only
    `inside-expr` / `inside-toplevel`
-4. check `rule/apply` traversal behavior
+5. check `rule/apply` root buckets and `rule/prefilter` outer-by-inner
+   alternatives
 
 When changing taint target behavior:
 

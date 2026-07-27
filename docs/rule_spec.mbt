@@ -70,11 +70,12 @@ let _embed_rulespec_md : String =
   #|- `patterns` (optional for structural rules): non-empty YAML array
   #|- `patterns-not` (optional for structural rules): non-empty YAML array using
   #|  the same object schema as `patterns`
-  #|- `inside-expr` (optional for structural rules): YAML mapping using the same
-  #|  `shape` and optional `guard` schema as `patterns`, used as an outer context
-  #|- `inside-toplevel` (optional for structural rules): YAML mapping using the
-  #|  same `shape` and optional `guard` schema as `inside-expr`; its shape is parsed
-  #|  as one MoonBit top-level item
+  #|- `inside-expr` (optional for structural rules): non-empty YAML array using the
+  #|  same `shape` and optional `guard` object schema as `patterns`; entries are
+  #|  ordered alternative outer expression contexts
+  #|- `inside-toplevel` (optional for structural rules): non-empty YAML array using
+  #|  the same object schema as `inside-expr`; each shape is parsed as one MoonBit
+  #|  top-level item
   #|- `taint` (required for taint rules): YAML mapping
   #|
   #|Unknown top-level keys are rejected.
@@ -113,8 +114,8 @@ let _embed_rulespec_md : String =
   #|
   #|## Shapes
   #|
-  #|An ordinary `shape` must be a single MoonBit expression snippet.
-  #|`inside-toplevel.shape` must be exactly one MoonBit top-level item.
+  #|An ordinary `shape` must be a single MoonBit expression snippet. Each
+  #|`inside-toplevel` entry's `shape` must be exactly one MoonBit top-level item.
   #|
   #|Valid expression shapes include calls, method calls, field accesses,
   #|operators, blocks, conditionals, loops, matches, lambdas, collection literals,
@@ -122,9 +123,9 @@ let _embed_rulespec_md : String =
   #|`patterns`, `patterns-not`, and `inside-expr` shapes are not a whole file,
   #|top-level declaration, package fragment, or import list.
   #|
-  #|`inside-toplevel.shape` is parsed as one top-level item, such as a function,
-  #|top-level `let`, `test`, method `impl`, view, or top-level expression. It is
-  #|one item and cannot represent a whole file or import list.
+  #|Each `inside-toplevel` shape is parsed as one top-level item, such as a
+  #|function, top-level `let`, `test`, method `impl`, view, or top-level expression.
+  #|It is one item and cannot represent a whole file or import list.
   #|
   #|Shapes are structural:
   #|
@@ -718,47 +719,56 @@ let _embed_rulespec_md : String =
   #|```yaml
   #|id: wrapped-target
   #|description: |
-  #|  Match a target call only inside wrapper(...).
+  #|  Match a target call inside either supported context.
   #|inside-expr:
-  #|  shape: wrapper($(prefix:exp), __TARGET__)
+  #|  - shape: wrapper($(prefix:exp), __TARGET__)
+  #|  - shape: container($(prefix:exp), __TARGET__)
   #|patterns:
   #|  - shape: target.call($(prefix:exp))
   #|```
   #|
-  #|`inside-expr` is a YAML mapping. Its `shape` is parsed as one MoonBit
-  #|expression snippet, and its optional `guard` filters `id` and `const` captures
-  #|declared by that outer shape.
+  #|`inside-expr` is a non-empty YAML array of pattern objects. Each `shape` is
+  #|parsed as one MoonBit expression snippet, and its optional `guard` filters `id`
+  #|and `const` captures declared by that outer shape. Entries are ordered
+  #|alternatives.
   #|
   #|Additional rules:
   #|
-  #|- `inside-expr` must contain exactly one `__TARGET__` occurrence in a
-  #|  binding-capable position.
+  #|- Every `inside-expr` entry must contain exactly one `__TARGET__` occurrence in
+  #|  a binding-capable position.
   #|- `__TARGET__` must occupy a whole expression position, such as a whole call
   #|  argument, receiver, or block expression. If it appears only as a label or
   #|  other non-expression value, no target subtree can be searched.
   #|- `__TARGET__` is reserved and must not be used as an metavar name.
   #|- Entries in `patterns` and `patterns-not` must not contain `__TARGET__` in a
   #|  binding-capable position.
-  #|- Metavars declared by `inside-expr` remain visible when matching the
-  #|  inner pattern entries; inner shapes reference them by repeating the same
-  #|  metavar form.
-  #|- Inner `patterns` and `patterns-not` must not use a visible `inside-expr`
-  #|  metavar name with a different kind.
+  #|- Captures declared by the selected `inside-expr` entry remain visible when
+  #|  matching the inner pattern entries; inner shapes reference them by repeating
+  #|  the same metavar form.
+  #|- Any capture reused by an inner `patterns` or `patterns-not` entry must be
+  #|  declared by every `inside-expr` alternative with the same kind. This includes
+  #|  named ellipsis captures and their ellipsis kinds. Outer captures that are not
+  #|  referenced by an inner entry may differ between alternatives.
   #|
   #|Runtime behavior:
   #|
-  #|- the current expression is first matched against `inside-expr`
-  #|- if it matches, the subtree captured by `__TARGET__` is searched
+  #|- the current expression tries eligible `inside-expr` entries in YAML order
+  #|- an entry whose shape does not match, or whose guard fails, falls through to
+  #|  the next entry
+  #|- the first entry whose shape and guard both match selects the captured
+  #|  `__TARGET__` subtree and bindings
+  #|- once an entry is selected, later alternatives are not tried even if inner
+  #|  matching produces no finding
   #|- when `patterns` is present, each expression in the captured subtree first
   #|  tries the ordered positive patterns using the bindings established by
-  #|  `inside-expr`; a positive hit is recorded and its matched subtree covers any
-  #|  nested negative matches
+  #|  the selected outer entry; a positive hit is recorded and its matched subtree
+  #|  covers any nested negative matches
   #|- when `patterns` and `patterns-not` are both present, a candidate that fails
   #|  all positive patterns is then checked against `patterns-not` using the
-  #|  `inside-expr` bindings; a negative match outside a positive-hit subtree
+  #|  the selected outer bindings; a negative match outside a positive-hit subtree
   #|  rejects the whole outer match
   #|- when `patterns` is absent, every expression in the captured subtree is
-  #|  checked against `patterns-not` using the `inside-expr` bindings; if none of
+  #|  checked against `patterns-not` using the selected outer bindings; if none of
   #|  them match, the outer expression produces one hit
   #|- if an inner positive or negative pattern references an inherited `id` capture
   #|  with the same inline `$(name:id)` form, that candidate is skipped when the
@@ -773,20 +783,20 @@ let _embed_rulespec_md : String =
   #|
   #|### `inside-toplevel`
   #|
-  #|`inside-toplevel` restricts a structural rule to matches inside one MoonBit
-  #|top-level item. It uses the same object schema and target-subtree semantics as
-  #|`inside-expr`. Its `shape` is parsed as exactly one top-level item, not as an
-  #|expression.
+  #|`inside-toplevel` restricts a structural rule to matches inside selected
+  #|MoonBit top-level items. It is a non-empty ordered array using the same object
+  #|schema and target-subtree semantics as `inside-expr`. Each entry's `shape` is
+  #|parsed as exactly one top-level item, not as an expression.
   #|
   #|```yaml
   #|id: safe-function-target
   #|description: |
   #|  Match calls only in selected top-level functions.
   #|inside-toplevel:
-  #|  shape: |
-  #|    fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
-  #|  guard:
-  #|    $name: "^safe_"
+  #|  - shape: |
+  #|      fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }
+  #|    guard:
+  #|      $name: "^safe_"
   #|patterns:
   #|  - shape: call($(param:id))
   #|```
@@ -794,18 +804,21 @@ let _embed_rulespec_md : String =
   #|Additional rules:
   #|
   #|- `inside-toplevel` and `inside-expr` are mutually exclusive.
-  #|- `inside-toplevel` must contain exactly one `__TARGET__` occurrence in a
-  #|  binding-capable expression position within the top-level item.
+  #|- Every `inside-toplevel` entry must contain exactly one `__TARGET__`
+  #|  occurrence in a binding-capable expression position within the top-level
+  #|  item.
   #|- The top-level item itself may declare `id` and `const` captures, and its
   #|  optional `guard` may filter those captures.
-  #|- Metavars declared by `inside-toplevel` remain visible to inner `patterns` and
-  #|  `patterns-not`, using the same inherited binding and kind-consistency rules as
-  #|  `inside-expr`.
+  #|- Captures declared by the selected `inside-toplevel` entry remain visible to
+  #|  inner `patterns` and `patterns-not`, using the same all-alternatives
+  #|  declaration and kind-consistency rules as `inside-expr`.
   #|- `inside-toplevel` is not supported on taint rules.
   #|
-  #|The candidate top-level item is first matched against `inside-toplevel`; if it
-  #|matches, the expression subtree captured by `__TARGET__` is searched with the
-  #|same inherited-binding and negative-coverage behavior as `inside-expr`.
+  #|The candidate top-level item tries eligible `inside-toplevel` entries in YAML
+  #|order. The first entry whose shape and guard both match selects the target and
+  #|bindings; later alternatives are not tried after selection. The expression
+  #|subtree captured by `__TARGET__` is searched with the same inherited-binding
+  #|and negative-coverage behavior as `inside-expr`.
   #|Reporting differs: with `patterns`, every inner positive hit produces a
   #|finding whose `loc` is the inner match location. With only `patterns-not`, one
   #|finding is produced at the matched top-level item location.
@@ -937,8 +950,8 @@ let _embed_rulespec_md : String =
   #|- `inside-expr` appears on a taint rule
   #|- `inside-toplevel` appears on a taint rule
   #|- both `inside-expr` and `inside-toplevel` appear
-  #|- `inside-expr` has a non-mapping value
-  #|- `inside-toplevel` has a non-mapping value
+  #|- `inside-expr` or `inside-toplevel` is not an array or is empty
+  #|- an `inside-expr` or `inside-toplevel` entry is not a mapping
   #|- `inside-expr` is present without `patterns` or `patterns-not`
   #|- `inside-toplevel` is present without `patterns` or `patterns-not`
   #|- `patterns` is not an array or is empty
@@ -957,7 +970,8 @@ let _embed_rulespec_md : String =
   #|- `guard` appears in any taint clause
   #|- `metavars` appears in any pattern object
   #|- `shape` is not valid as one MoonBit expression
-  #|- `inside-toplevel.shape` is not exactly one valid MoonBit top-level item
+  #|- an `inside-toplevel` entry's `shape` is not exactly one valid MoonBit
+  #|  top-level item
   #|- a shape uses an unsupported metavar kind
   #|- a shape uses the same metavar name across multiple metavar kinds
   #|- a bare `$name` cannot be inferred to one compatible kind
@@ -974,12 +988,16 @@ let _embed_rulespec_md : String =
   #|- an ellipsis kind is incompatible with its list position, conflicts with
   #|  another typed occurrence, or shares a name with a normal metavar
   #|- a guard regex is invalid
-  #|- `inside-expr` does not contain exactly one binding-capable `__TARGET__`
-  #|- `inside-toplevel` does not contain exactly one binding-capable `__TARGET__`
+  #|- an `inside-expr` entry does not contain exactly one binding-capable
+  #|  `__TARGET__`
+  #|- an `inside-toplevel` entry does not contain exactly one binding-capable
+  #|  `__TARGET__`
   #|- a structural `patterns` or `patterns-not` entry contains binding-capable
   #|  `__TARGET__`
   #|- a structural `patterns` or `patterns-not` entry uses an inherited
   #|  `inside-expr` or `inside-toplevel` metavar name with a different kind
+  #|- a capture reused by `patterns` or `patterns-not` is missing from any outer
+  #|  alternative, or a named ellipsis is declared with a different ellipsis kind
   #|- a taint source contains binding-capable `__SOURCE__`
   #|- a taint sink or sanitizer does not contain exactly one binding-capable
   #|  `__SOURCE__`
@@ -1026,7 +1044,7 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  Match a sink only under an unsafe wrapper.
   #|inside-expr:
-  #|  shape: unsafe(__TARGET__)
+  #|  - shape: unsafe(__TARGET__)
   #|patterns:
   #|  - shape: sink($_)
   #|```
@@ -1060,7 +1078,7 @@ let _embed_rulespec_md : String =
   #|description: |
   #|  Match wrappers whose payload contains no danger call.
   #|inside-expr:
-  #|  shape: wrapper(__TARGET__)
+  #|  - shape: wrapper(__TARGET__)
   #|patterns-not:
   #|  - shape: danger()
   #|```

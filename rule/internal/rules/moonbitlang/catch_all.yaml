@@ -5,7 +5,7 @@ description: |
 
 inside-toplevel:
   # TODO: support matching params
-  shape: |
+  - shape: |
       async fn $f(_) -> $T {
         __TARGET__
       }
