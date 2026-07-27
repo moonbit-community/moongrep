@@ -9,6 +9,7 @@ using @model {
   type CompiledTaintSanitizer,
   type CompiledTaintSink,
   type CompiledTaintSource,
+  type InsideToplevelMatchMode,
   type RawRuleSpec,
   type RuleLoadError,
   type RuleGuardCaptureKind,
@@ -184,6 +185,16 @@ fn compile_inside_context_patterns(
       compile_metavar_shape(path, item_context, pattern.shape)
     }
     let ast = compiled_shape.ast
+    let ignored_fields = if is_toplevel {
+      inside_toplevel_ignored_fields(
+        path,
+        item_context,
+        pattern.match_mode,
+        ast,
+      )
+    } else {
+      []
+    }
     let target_count = count_supported_name_in_node(ast, "__TARGET__")
     if target_count != 1 {
       raise RuleLoadError::InvalidRule(
@@ -199,11 +210,170 @@ fn compile_inside_context_patterns(
         item_context,
         target_metavar=Some("__TARGET__"),
         source_metavar=None,
+        ignored_fields~,
       ),
     )
     compiled_shapes.push(compiled_shape)
   }
   (compiled_patterns, compiled_shapes)
+}
+
+///|
+fn inside_toplevel_ignored_fields(
+  path : String,
+  context : String,
+  match_mode : InsideToplevelMatchMode,
+  ast : @untyped_ast.Node,
+) -> Array[@matching.IgnoredPatternField] raise {
+  let is_partial = match match_mode {
+    Default => ast.kind == Impl_TopFuncDef
+    Exact => false
+    Partial =>
+      if ast.kind == Impl_TopFuncDef {
+        true
+      } else {
+        raise RuleLoadError::InvalidRule(
+          path~,
+          info="\{context}.match-mode partial is only supported for function definition shapes",
+        )
+      }
+  }
+  if !is_partial {
+    return []
+  }
+  partial_top_func_ignored_fields(ast)
+}
+
+///|
+fn partial_top_func_ignored_fields(
+  ast : @untyped_ast.Node,
+) -> Array[@matching.IgnoredPatternField] {
+  let ignored : Array[@matching.IgnoredPatternField] = []
+  guard ast_child(ast, "fun_decl") is Some(fun_decl) else { return ignored }
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "type_name",
+    ast_child_is_null(fun_decl, "type_name"),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "is_async",
+    ast_child_is_null(fun_decl, "is_async"),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "decl_params",
+    ast_child_is_null(fun_decl, "decl_params"),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "quantifiers",
+    ast_child_is_empty_list(fun_decl, "quantifiers", FunDecl_QuantifierList),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "return_type",
+    ast_child_is_null(fun_decl, "return_type"),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "error_type",
+    ast_child_has_kind(fun_decl, "error_type", ErrorType_NoErrorType),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "vis",
+    ast_child_has_kind(fun_decl, "vis", Visibility_Default),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "attrs",
+    ast_child_is_empty_list(fun_decl, "attrs", FunDecl_AttrList),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    FunDecl,
+    "doc",
+    ast_child_is_empty_string(fun_decl, "doc"),
+  )
+  add_ignored_field_if_default(
+    ignored,
+    Impl_TopFuncDef,
+    "where_clause",
+    ast_child_is_null(ast, "where_clause"),
+  )
+  ignored
+}
+
+///|
+fn add_ignored_field_if_default(
+  ignored : Array[@matching.IgnoredPatternField],
+  parent_kind : @untyped_ast.NodeKind,
+  child_name : String,
+  is_default : Bool,
+) -> Unit {
+  if is_default {
+    ignored.push({ parent_kind, child_name })
+  }
+}
+
+///|
+fn ast_child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
+  for entry in node.children {
+    let (child_name, child) = entry
+    if child_name == Some(name) {
+      return Some(child)
+    }
+  }
+  None
+}
+
+///|
+fn ast_child_is_null(node : @untyped_ast.Node, name : String) -> Bool {
+  match ast_child(node, name) {
+    Some({ kind: Leaf(PNull), .. }) => true
+    _ => false
+  }
+}
+
+///|
+fn ast_child_is_empty_list(
+  node : @untyped_ast.Node,
+  name : String,
+  kind : @untyped_ast.NodeKind,
+) -> Bool {
+  match ast_child(node, name) {
+    Some(child) => child.kind == kind && child.children.is_empty()
+    None => false
+  }
+}
+
+///|
+fn ast_child_has_kind(
+  node : @untyped_ast.Node,
+  name : String,
+  kind : @untyped_ast.NodeKind,
+) -> Bool {
+  match ast_child(node, name) {
+    Some(child) => child.kind == kind
+    None => false
+  }
+}
+
+///|
+fn ast_child_is_empty_string(node : @untyped_ast.Node, name : String) -> Bool {
+  match ast_child(node, name) {
+    Some({ kind: Leaf(PString("")), .. }) => true
+    _ => false
+  }
 }
 
 ///|
@@ -290,6 +460,7 @@ fn compile_pattern(
   context : String,
   target_metavar~ : String?,
   source_metavar~ : String?,
+  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
 ) -> CompiledRulePattern raise {
   compile_pattern_with_effective_metavars(
     pattern,
@@ -305,6 +476,7 @@ fn compile_pattern(
     compiled_shape.ellipsis_metavars,
     target_metavar~,
     source_metavar~,
+    ignored_fields~,
   )
 }
 
@@ -323,6 +495,7 @@ fn compile_pattern_with_effective_metavars(
   ellipsis_metavars : Array[@matching.EllipsisMetavar],
   target_metavar~ : String?,
   source_metavar~ : String?,
+  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
 ) -> CompiledRulePattern raise {
   let guards = compile_guards(
     pattern.guards,
@@ -346,6 +519,7 @@ fn compile_pattern_with_effective_metavars(
     ellipsis_metavars,
     target_metavar,
     source_metavar,
+    ignored_fields,
   }
   { source: pattern, compiled, guards }
 }

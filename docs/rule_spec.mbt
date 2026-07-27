@@ -74,8 +74,8 @@ let _embed_rulespec_md : String =
   #|  same `shape` and optional `guard` object schema as `patterns`; entries are
   #|  ordered alternative outer expression contexts
   #|- `inside-toplevel` (optional for structural rules): non-empty YAML array using
-  #|  the same object schema as `inside-expr`; each shape is parsed as one MoonBit
-  #|  top-level item
+  #|  the same `shape` and optional `guard` keys as `inside-expr`, plus optional
+  #|  `match-mode`; each shape is parsed as one MoonBit top-level item
   #|- `taint` (required for taint rules): YAML mapping
   #|
   #|Unknown top-level keys are rejected.
@@ -99,15 +99,19 @@ let _embed_rulespec_md : String =
   #|
   #|### Pattern Objects
   #|
-  #|Structural entries in `patterns`, `patterns-not`, `inside-expr`, and
-  #|`inside-toplevel` use this object schema.
+  #|Structural entries in `patterns`, `patterns-not`, and `inside-expr` use this
+  #|object schema. `inside-toplevel` adds the `match-mode` key described below.
   #|
   #|Only these keys are accepted:
   #|
-  #|- `shape` (required): YAML string containing one MoonBit expression snippet
+  #|- `shape` (required): YAML string containing one MoonBit expression snippet,
+  #|  or one top-level item for `inside-toplevel`
   #|- `guard` (optional): YAML mapping from `$`-prefixed capture name to regex string
+  #|- `match-mode` (optional, `inside-toplevel` only): `exact` or `partial`
   #|
   #|Unknown keys inside a pattern object are rejected.
+  #|`match-mode` is rejected in `patterns`, `patterns-not`, `inside-expr`, and
+  #|taint clauses.
   #|
   #|Taint `sources`, `sinks`, and `sanitizers` use the same `shape` key. A `guard`
   #|is invalid in these entries.
@@ -134,7 +138,9 @@ let _embed_rulespec_md : String =
   #|- operators match literally
   #|- call and method-call argument kinds, labels, order, and arity must match
   #|- type annotations and type names in matched syntax must match where present
-  #|- source locations, formatting, and comments do not participate in matching
+  #|- source locations and formatting do not participate in matching; top-level
+  #|  documentation is an AST field and follows the `inside-toplevel` matching
+  #|  mode
   #|
   #|The scanner does not type-check shapes and does not resolve names semantically.
   #|For example, two imported names that refer to the same definition compare as
@@ -801,6 +807,43 @@ let _embed_rulespec_md : String =
   #|  - shape: call($(param:id))
   #|```
   #|
+  #|`match-mode` is resolved independently for every ordered alternative:
+  #|
+  #|| `match-mode` | Shape item | Effective matching |
+  #|| --- | --- | --- |
+  #|| omitted | function definition | `partial` |
+  #|| omitted | any other top-level item | `exact` |
+  #|| `exact` | any top-level item | `exact` |
+  #|| `partial` | function definition | `partial` |
+  #|| `partial` | any other top-level item | compile error |
+  #|
+  #|Exact matching compares the complete parsed top-level AST, preserving the
+  #|behavior used before function shapes became partial by default:
+  #|
+  #|```yaml
+  #|inside-toplevel:
+  #|  - shape: |
+  #|      fn $(name:id) { __TARGET__ }
+  #|    match-mode: exact
+  #|```
+  #|
+  #|Partial matching is limited to function definitions. It always matches the
+  #|function name, body, and `__TARGET__` exactly. The following function-header
+  #|fields are ignored only when the shape leaves them in their default form:
+  #|
+  #|- type qualifier, `async`, parameter list, type parameters, return type, error
+  #|  type, visibility, attributes, and documentation
+  #|- the top-level `where` clause
+  #|
+  #|Writing any such field keeps it exact. For example, `fn f()` requires an
+  #|explicit empty parameter list, `pub fn` requires public visibility, and
+  #|`async fn`, a return type, `noraise`, type parameters, documentation,
+  #|attributes, or a `where` clause constrain the candidate exactly.
+  #|
+  #|Migration note: an older rule that depended on an omitted function-header
+  #|field being absent must add `match-mode: exact`. Broad function-context rules
+  #|can remain unmarked and use the new partial default.
+  #|
   #|Additional rules:
   #|
   #|- `inside-toplevel` and `inside-expr` are mutually exclusive.
@@ -952,6 +995,9 @@ let _embed_rulespec_md : String =
   #|- both `inside-expr` and `inside-toplevel` appear
   #|- `inside-expr` or `inside-toplevel` is not an array or is empty
   #|- an `inside-expr` or `inside-toplevel` entry is not a mapping
+  #|- `match-mode` appears outside an `inside-toplevel` entry
+  #|- `match-mode` is not `exact` or `partial`
+  #|- `match-mode: partial` is used with a non-function top-level shape
   #|- `inside-expr` is present without `patterns` or `patterns-not`
   #|- `inside-toplevel` is present without `patterns` or `patterns-not`
   #|- `patterns` is not an array or is empty

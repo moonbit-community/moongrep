@@ -11,6 +11,12 @@ pub async fn public_noraise(value : Int) noraise {
   try risky() catch { error => () }
 }
 ///|
+/// Qualified generic function.
+#custom.attribute
+priv async fn[T] Box::qualified(value : T) -> T {
+  try risky() catch { error => value }
+}
+///|
 fn synchronous_function(value : Int) -> Int {
   try risky() catch { _ => value }
 }

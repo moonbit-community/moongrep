@@ -17,6 +17,7 @@ pub fn expr_matches(
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   match_expr_pattern(compiled, candidate) is Some(_)
 }
@@ -267,22 +268,30 @@ fn structural_match(
     (Leaf(_), Leaf(_)) => pattern.kind == candidate.kind
     _ =>
       pattern.kind == candidate.kind &&
-      match_children(pattern.children, candidate.children, compiled, bindings)
+      match_children(
+        pattern.kind,
+        pattern.children,
+        candidate.children,
+        compiled,
+        bindings,
+      )
   }
 }
 
 ///|
 fn match_children(
+  parent_kind : @untyped_ast.NodeKind,
   pattern : Array[(String?, @untyped_ast.Node)],
   candidate : Array[(String?, @untyped_ast.Node)],
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match_children_from(pattern, candidate, 0, 0, compiled, bindings)
+  match_children_from(parent_kind, pattern, candidate, 0, 0, compiled, bindings)
 }
 
 ///|
 fn match_children_from(
+  parent_kind : @untyped_ast.NodeKind,
   pattern : Array[(String?, @untyped_ast.Node)],
   candidate : Array[(String?, @untyped_ast.Node)],
   pattern_index : Int,
@@ -294,6 +303,23 @@ fn match_children_from(
     return candidate_index == candidate.length()
   }
   let (pattern_name, pattern_value) = pattern[pattern_index]
+  if pattern_name is Some(child_name) &&
+    compiled_ignores_field(compiled, parent_kind, child_name) {
+    if candidate_index >= candidate.length() {
+      return false
+    }
+    let (candidate_name, _) = candidate[candidate_index]
+    return pattern_name == candidate_name &&
+      match_children_from(
+        parent_kind,
+        pattern,
+        candidate,
+        pattern_index + 1,
+        candidate_index + 1,
+        compiled,
+        bindings,
+      )
+  }
   if pattern_name is None &&
     ellipsis_marker(pattern_value, compiled) is Some(marker) {
     let fixed_remaining = minimum_fixed_children(
@@ -328,6 +354,7 @@ fn match_children_from(
           bind_multiple(branch, marker.name, captured)
         if bound &&
           match_children_from(
+            parent_kind,
             pattern,
             candidate,
             pattern_index + 1,
@@ -349,6 +376,7 @@ fn match_children_from(
     pattern_name == candidate_name &&
     match_node(pattern_value, candidate_value, compiled, bindings) &&
     match_children_from(
+      parent_kind,
       pattern,
       candidate,
       pattern_index + 1,
@@ -357,6 +385,20 @@ fn match_children_from(
       bindings,
     )
   }
+}
+
+///|
+fn compiled_ignores_field(
+  compiled : CompiledExprPattern,
+  parent_kind : @untyped_ast.NodeKind,
+  child_name : String,
+) -> Bool {
+  for field in compiled.ignored_fields {
+    if field.parent_kind == parent_kind && field.child_name == child_name {
+      return true
+    }
+  }
+  false
 }
 
 ///|

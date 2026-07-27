@@ -5,6 +5,7 @@ import {
   "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/lexer",
   "moonbitlang/lexer/basic",
+  "moonbitlang/lexer/tokens",
   "moonbitlang/parser/handrolled_parser",
   "moonbitlang/parser/syntax",
   "moonbitlang/core/list",

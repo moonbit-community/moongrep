@@ -478,6 +478,33 @@ let _embed_writingrules_md : String =
   #|inner match locations. With only `patterns-not`, `loc` is the top-level item
   #|location.
   #|
+  #|Function shapes use partial matching by default; every other top-level item
+  #|uses exact matching by default:
+  #|
+  #|| `match-mode` | Function shape | Other top-level shape |
+  #|| --- | --- | --- |
+  #|| omitted | partial | exact |
+  #|| `exact` | exact | exact |
+  #|| `partial` | partial | invalid |
+  #|
+  #|In partial mode, omitted function-header details are unconstrained: type
+  #|qualifier, `async`, parameters, type parameters, return and error types,
+  #|visibility, attributes, documentation, and `where`. Any detail written in the
+  #|shape remains exact. The function name, body, and `__TARGET__` are never
+  #|relaxed.
+  #|
+  #|Use explicit exact matching when the complete header matters:
+  #|
+  #|```yaml
+  #|inside-toplevel:
+  #|  - shape: |
+  #|      fn $(name:id) { __TARGET__ }
+  #|    match-mode: exact
+  #|```
+  #|
+  #|When migrating an older rule, add `match-mode: exact` if it relied on an
+  #|omitted function field being absent. Leave broad function contexts unmarked.
+  #|
   #|### 3.6 Use `patterns-not` to prune blocked branches
   #|
   #|Use `patterns-not` when a structural shape marks a branch that should be
@@ -657,6 +684,10 @@ let _embed_writingrules_md : String =
   #|ordinary `patterns`, `patterns-not`, and `inside-expr`, reduce it to one valid
   #|expression-sized shape, then build back up carefully. For `inside-toplevel`,
   #|reduce it to exactly one valid top-level item.
+  #|
+  #|If a function context now matches more declarations than expected, check
+  #|whether the rule relied on the old complete-header behavior. Add
+  #|`match-mode: exact`, or write only the header fields that should remain exact.
   #|
   #|### Rule compilation rejects an metavar
   #|

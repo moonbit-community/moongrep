@@ -79,7 +79,69 @@ fn parse_toplevel_shape(
     )
   }
   let items = impls.to_array()
+  attach_toplevel_shape_docstring(lex_result.docstrings, items[0])
   items[0]
+}
+
+///|
+fn attach_toplevel_shape_docstring(
+  docstrings : Array[@list.List[(@basic.Location, @tokens.Comment)]],
+  item : @syntax.Impl,
+) -> Unit {
+  let item_loc = item.loc()
+  let mut selected : @list.List[(@basic.Location, @tokens.Comment)]? = None
+  // Lexer docstring groups are stored in reverse source order. Iterating from
+  // the end toward the beginning leaves the nearest group before this single
+  // top-level shape selected.
+  let mut index = docstrings.length()
+  while index > 0 {
+    index -= 1
+    let comments = docstrings[index]
+    if comments.head() is Some((loc, _)) &&
+      loc.start.lnum <= item_loc.start.lnum {
+      selected = Some(comments)
+    }
+  }
+  let doc = match selected {
+    None => @syntax.DocString::empty()
+    Some(comments) => shape_docstring_from_comments(comments)
+  }
+  match item {
+    TopFuncDef(fun_decl~, ..) => fun_decl.doc = doc
+    TopLetDef(..) as let_def => let_def.doc = doc
+    TopImpl(..) as impl_def => impl_def.doc = doc
+    TopImplRelation(..) as relation => relation.doc = doc
+    TopTest(..) as test_def => test_def.doc = doc
+    TopTrait(trait_decl) => trait_decl.doc = doc
+    TopTypeDef(type_decl) => type_decl.doc = doc
+    TopUsing(..) as using_def => using_def.doc = doc
+    TopView(..) as view_def => view_def.doc = doc
+    TopExpr(..) => ()
+  }
+}
+
+///|
+fn shape_docstring_from_comments(
+  comments : @list.List[(@basic.Location, @tokens.Comment)],
+) -> @syntax.DocString {
+  let first_loc = comments.head().unwrap().0
+  let last_loc = comments.last().unwrap().0
+  {
+    content: comments.map(fn(entry) {
+      let content = entry.1.content
+      match content {
+        [.. "///|", .. remain] =>
+          if remain.is_blank() {
+            ""
+          } else {
+            remain.to_owned()
+          }
+        [.. "///", .. remain] => remain.to_owned()
+        _ => ""
+      }
+    }),
+    loc: { start: first_loc.start, end: last_loc.end },
+  }
 }
 
 ///|

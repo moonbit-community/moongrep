@@ -79,7 +79,7 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
     definition: Structural({
       inside_expr: [],
       inside_toplevel: [],
-      patterns: [{ shape: pattern, guards: Map([]) }],
+      patterns: [{ shape: pattern, guards: Map([]), match_mode: Default }],
       patterns_not: [],
       patterns_not_mode: PruneOnNegative,
     }),

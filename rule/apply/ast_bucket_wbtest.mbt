@@ -64,8 +64,13 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: Some("__SOURCE__"),
+    ignored_fields: [],
   }
-  { source: { shape, guards: Map([]) }, compiled, guards: [] }
+  {
+    source: { shape, guards: Map([]), match_mode: Default },
+    compiled,
+    guards: [],
+  }
 }
 
 ///|

@@ -191,14 +191,14 @@ fn collect_node_literals(
           push_literal(literals, name)
         }
       }
-    Type_Name =>
+    Type_Name => {
       if prefilter_type_placeholder_name(node) is Some(name) {
         if !is_filter_placeholder(name, compiled) {
-          collect_node_children_literals(node, compiled, literals)
+          push_literal(literals, name)
         }
-      } else {
-        collect_node_children_literals(node, compiled, literals)
       }
+      collect_node_children_literals(node, compiled, literals)
+    }
     Constant_BigInt
     | Constant_Byte
     | Constant_Bytes
@@ -243,18 +243,34 @@ fn collect_node_children_literals(
   literals : Array[String],
 ) -> Unit {
   for entry in node.children {
-    let (_, child) = entry
-    collect_node_literals(child, compiled, literals)
+    let (child_name, child) = entry
+    let ignored = match child_name {
+      Some(name) => prefilter_ignores_field(compiled, node.kind, name)
+      None => false
+    }
+    if !ignored {
+      collect_node_literals(child, compiled, literals)
+    }
   }
+}
+
+///|
+fn prefilter_ignores_field(
+  compiled : @matching.CompiledExprPattern,
+  parent_kind : @untyped_ast.NodeKind,
+  child_name : String,
+) -> Bool {
+  for field in compiled.ignored_fields {
+    if field.parent_kind == parent_kind && field.child_name == child_name {
+      return true
+    }
+  }
+  false
 }
 
 ///|
 fn prefilter_type_placeholder_name(node : @untyped_ast.Node) -> String? {
   if node.kind != Type_Name {
-    return None
-  }
-  guard prefilter_child(node, "tys") is Some(tys) else { return None }
-  if !tys.children.is_empty() {
     return None
   }
   guard prefilter_child(node, "constr_id") is Some(constr_id) else {
@@ -263,8 +279,7 @@ fn prefilter_type_placeholder_name(node : @untyped_ast.Node) -> String? {
   guard prefilter_child(constr_id, "id") is Some(long_ident) else {
     return None
   }
-  guard long_ident.kind == LongIdent_Ident else { return None }
-  prefilter_leaf_string_child(long_ident, "value")
+  long_ident.normalized_long_ident()
 }
 
 ///|

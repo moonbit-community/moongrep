@@ -322,9 +322,103 @@ test "model parses inside toplevel shape and guard map" {
         content="fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }\n",
       )
       inspect(inside_toplevel.guards["$name"], content="^safe_")
+      assert_true(inside_toplevel.match_mode is Default)
     }
     Taint(_) => fail("expected structural rule")
   }
+}
+
+///|
+test "model parses explicit inside toplevel match modes" {
+  let source =
+    #|id: example
+    #|description: Explicit matching modes.
+    #|inside-toplevel:
+    #|  - shape: fn exact_fn { __TARGET__ }
+    #|    match-mode: exact
+    #|  - shape: fn partial_fn { __TARGET__ }
+    #|    match-mode: partial
+    #|patterns:
+    #|  - shape: call()
+    #|
+  let rule = RawRuleSpec::from_str(
+    "/tmp/rules/example.yaml", "/tmp/rules", source,
+  )
+  match rule.definition {
+    Structural(spec) => {
+      assert_eq(spec.inside_toplevel.length(), 2)
+      assert_true(spec.inside_toplevel[0].match_mode is Exact)
+      assert_true(spec.inside_toplevel[1].match_mode is Partial)
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "model rejects invalid inside toplevel match modes" {
+  let invalid_value =
+    #|id: example
+    #|description: Invalid matching mode.
+    #|inside-toplevel:
+    #|  - shape: fn sample { __TARGET__ }
+    #|    match-mode: prefix
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_invalid_rule_info(
+    invalid_value, "inside-toplevel[0].match-mode must be exact or partial",
+  )
+  let invalid_type =
+    #|id: example
+    #|description: Invalid matching mode type.
+    #|inside-toplevel:
+    #|  - shape: fn sample { __TARGET__ }
+    #|    match-mode: true
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_invalid_rule_info(
+    invalid_type, "inside-toplevel[0].match-mode must be a string",
+  )
+}
+
+///|
+test "model rejects match mode outside inside toplevel" {
+  let patterns =
+    #|id: example
+    #|description: Invalid pattern matching mode.
+    #|patterns:
+    #|  - shape: call()
+    #|    match-mode: exact
+    #|
+  expect_invalid_rule_info(
+    patterns, "patterns[0] contains unsupported key match-mode",
+  )
+  let inside_expr =
+    #|id: example
+    #|description: Invalid expression matching mode.
+    #|inside-expr:
+    #|  - shape: wrapper(__TARGET__)
+    #|    match-mode: partial
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_invalid_rule_info(
+    inside_expr, "inside-expr[0] contains unsupported key match-mode",
+  )
+  let taint =
+    #|id: example
+    #|description: Invalid taint matching mode.
+    #|taint:
+    #|  sources:
+    #|    - shape: source()
+    #|      match-mode: exact
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|
+  expect_invalid_rule_info(
+    taint, "taint.sources[0] contains unsupported key match-mode",
+  )
 }
 
 ///|

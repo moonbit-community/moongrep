@@ -19,6 +19,19 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
 }
 
 ///|
+/// How an `inside-toplevel` shape matches its top-level item.
+///
+/// `Default` is resolved while compiling each alternative: function
+/// definitions use partial matching and all other top-level items use exact
+/// matching. `Exact` preserves full AST matching. `Partial` is supported only
+/// for function definitions.
+pub(all) enum InsideToplevelMatchMode {
+  Default
+  Exact
+  Partial
+}
+
+///|
 /// A single YAML pattern clause before it is parsed into a MoonBit AST.
 ///
 /// `shape` must be a valid MoonBit expression, except in an
@@ -27,10 +40,12 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
 /// `$(name:const)`, `$(name:arg)`, `$(name:pat)`, and `$(name:type)`
 /// placeholders plus `$$$name` / `$$$(name:kind)` ordered-list ellipses are
 /// discovered during compilation. `guard`, when present, maps `$`-prefixed id
-/// or const capture names to regex strings.
+/// or const capture names to regex strings. `match_mode` is configurable only
+/// on `inside-toplevel`; all other clauses store `Default`.
 pub(all) struct RulePatternSpec {
   shape : String
   guards : Map[String, String]
+  match_mode : InsideToplevelMatchMode
 }
 
 ///|

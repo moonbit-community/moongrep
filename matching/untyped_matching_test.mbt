@@ -47,6 +47,7 @@ fn untyped_compiled(
   ellipsis_metavars? : Array[EllipsisMetavar] = [],
   target_metavar? : String? = None,
   source_metavar? : String? = None,
+  ignored_fields? : Array[IgnoredPatternField] = [],
 ) -> CompiledExprPattern {
   {
     ast,
@@ -58,12 +59,31 @@ fn untyped_compiled(
     ellipsis_metavars,
     target_metavar,
     source_metavar,
+    ignored_fields,
   }
 }
 
 ///|
 fn untyped_test_loc() -> @basic.Location {
   @syntax.no_location
+}
+
+///|
+fn untyped_named_string_node(
+  kind : @untyped_ast.NodeKind,
+  fields : Array[(String, String)],
+) -> @untyped_ast.Node {
+  let children : Array[(String?, @untyped_ast.Node)] = []
+  for field in fields {
+    let (name, value) = field
+    children.push(
+      (
+        Some(name),
+        { kind: Leaf(PString(value)), loc: untyped_test_loc(), children: [] },
+      ),
+    )
+  }
+  { kind, loc: untyped_test_loc(), children }
 }
 
 ///|
@@ -130,6 +150,35 @@ test "default matcher compares untyped structural equality" {
       parse_untyped_test_node("f(2, x)"),
     ),
   )
+}
+
+///|
+test "matcher skips ignored fields only for the recorded parent and child" {
+  let pattern = untyped_named_string_node(FunDecl, [
+    ("name", "sample"),
+    ("vis", "default"),
+  ])
+  let candidate = untyped_named_string_node(FunDecl, [
+    ("name", "sample"),
+    ("vis", "public"),
+  ])
+  let ignored = untyped_compiled(pattern, ignored_fields=[
+    { parent_kind: FunDecl, child_name: "vis" },
+  ])
+  assert_true(match_expr_pattern(ignored, candidate) is Some(_))
+  let literal_name_differs = untyped_named_string_node(FunDecl, [
+    ("name", "other"),
+    ("vis", "public"),
+  ])
+  assert_false(match_expr_pattern(ignored, literal_name_differs) is Some(_))
+  let wrong_parent = untyped_compiled(pattern, ignored_fields=[
+    { parent_kind: Impl_TopFuncDef, child_name: "vis" },
+  ])
+  assert_false(match_expr_pattern(wrong_parent, candidate) is Some(_))
+  let wrong_child = untyped_compiled(pattern, ignored_fields=[
+    { parent_kind: FunDecl, child_name: "name" },
+  ])
+  assert_false(match_expr_pattern(wrong_child, candidate) is Some(_))
 }
 
 ///|
@@ -326,6 +375,7 @@ test "node matcher accepts nodes and captures constant nodes" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   if match_expr_pattern(
       compiled,

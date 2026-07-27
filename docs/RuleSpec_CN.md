@@ -56,7 +56,8 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 - `inside-expr`（结构规则可选）：非空 YAML 数组，使用与 `patterns`
   相同的 `shape` 和可选 `guard` 对象 schema；条目是有序的外层表达式备选项
 - `inside-toplevel`（结构规则可选）：非空 YAML 数组，使用与
-  `inside-expr` 相同的对象 schema；每个 shape 解析为一个 MoonBit 顶层项
+  `inside-expr` 相同的 `shape` 和可选 `guard`，并额外支持可选的
+  `match-mode`；每个 shape 解析为一个 MoonBit 顶层项
 - `taint`（污点规则必需）：YAML 映射
 
 未知顶层键会被拒绝。
@@ -78,15 +79,19 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ### Pattern Objects
 
-结构规则中的 `patterns`、`patterns-not` 条目以及 `inside-expr`、
-`inside-toplevel` 使用以下对象 schema。
+结构规则中的 `patterns`、`patterns-not` 和 `inside-expr` 使用以下对象
+schema。`inside-toplevel` 额外支持下文说明的 `match-mode`。
 
 只接受这些键：
 
-- `shape`（必需）：包含一个 MoonBit 表达式片段的 YAML 字符串
+- `shape`（必需）：包含一个 MoonBit 表达式片段的 YAML 字符串；
+  `inside-toplevel` 中则包含一个顶层项
 - `guard`（可选）：从 `$` 前缀捕获名到正则字符串的 YAML 映射
+- `match-mode`（可选，仅限 `inside-toplevel`）：`exact` 或 `partial`
 
 pattern object 中的未知键会被拒绝。
+`patterns`、`patterns-not`、`inside-expr` 和 taint 子句中出现
+`match-mode` 会被拒绝。
 
 Taint `sources`、`sinks` 和 `sanitizers` 同样使用 `shape` 键。这些字段不接受 `guard`。
 
@@ -104,7 +109,8 @@ shape 是结构性的：
 - 操作符按字面匹配
 - 调用和方法调用的参数种类、标签、顺序和数量必须匹配
 - 匹配语法中出现的类型注解和类型名必须匹配
-- 源码位置、格式和注释不参与匹配
+- 源码位置和格式不参与匹配；顶层文档是 AST 字段，遵循
+  `inside-toplevel` 的匹配模式
 
 扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个指向同一定义的导入名称只在解析后的源码拼写一致或被元变量捕获时视为相同。
 
@@ -632,6 +638,40 @@ patterns:
   - shape: call($(param:id))
 ```
 
+每个有序备选项会独立解析 `match-mode`：
+
+| `match-mode` | shape 顶层项 | 实际匹配模式 |
+| --- | --- | --- |
+| 省略 | 函数定义 | `partial` |
+| 省略 | 其他顶层项 | `exact` |
+| `exact` | 任意顶层项 | `exact` |
+| `partial` | 函数定义 | `partial` |
+| `partial` | 其他顶层项 | 编译错误 |
+
+Exact 会比较完整的顶层 AST，保留函数 shape 改为默认 partial 之前的行为：
+
+```yaml
+inside-toplevel:
+  - shape: |
+      fn $(name:id) { __TARGET__ }
+    match-mode: exact
+```
+
+Partial 第一版只支持函数定义。函数名、函数体和 `__TARGET__` 始终精确
+匹配。只有当 shape 将以下函数头字段保持为缺省形态时，才会忽略它们：
+
+- 类型限定、`async`、参数列表、类型参数、返回类型、错误类型、可见性、
+  attribute 和文档
+- 顶层 `where` 子句
+
+一旦写出字段，它仍然精确匹配。例如，`fn f()` 要求显式空参数列表，
+`pub fn` 要求 public 可见性；`async fn`、返回类型、`noraise`、类型参数、
+文档、attribute 或 `where` 子句也都会约束候选项。
+
+迁移提示：旧规则如果依赖“函数头中省略的字段必须不存在”，需要添加
+`match-mode: exact`。宽泛的函数上下文规则可以继续省略标注，使用新的
+partial 默认值。
+
 额外规则：
 
 - `inside-toplevel` 和 `inside-expr` 互斥。
@@ -763,6 +803,9 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - 同时出现 `inside-expr` 和 `inside-toplevel`
 - `inside-expr` 或 `inside-toplevel` 不是数组或为空
 - `inside-expr` 或 `inside-toplevel` 条目不是映射
+- `match-mode` 出现在 `inside-toplevel` 条目之外
+- `match-mode` 的值不是 `exact` 或 `partial`
+- 非函数顶层 shape 使用 `match-mode: partial`
 - `inside-expr` 出现时没有 `patterns` 或 `patterns-not`
 - `inside-toplevel` 出现时没有 `patterns` 或 `patterns-not`
 - `patterns` 不是数组或为空

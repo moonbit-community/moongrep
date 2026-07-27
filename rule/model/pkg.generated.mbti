@@ -70,6 +70,12 @@ pub(all) struct CompiledTaintSource {
   pattern : CompiledRulePattern
 }
 
+pub(all) enum InsideToplevelMatchMode {
+  Default
+  Exact
+  Partial
+}
+
 pub(all) struct RawRuleSpec {
   path : String
   rule_id : String
@@ -99,6 +105,7 @@ pub(all) enum RuleGuardCaptureKind {
 pub(all) struct RulePatternSpec {
   shape : String
   guards : Map[String, String]
+  match_mode : InsideToplevelMatchMode
 }
 
 pub(all) struct RulePrefilter {
