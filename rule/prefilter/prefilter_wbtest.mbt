@@ -250,6 +250,102 @@ test "prefilter requires inside toplevel and inner pattern literals together" {
 }
 
 ///|
+test "prefilter skips omitted partial function fields" {
+  let source =
+    #|id: example
+    #|description: Partial top-level function.
+    #|inside-toplevel:
+    #|  - shape: fn safe_entry { __TARGET__ }
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(
+      rule,
+      (
+        #|/// Documented entry.
+        #|#custom.attribute
+        #|pub async fn safe_entry(value : InputType) -> ResultType noraise {
+        #|  target()
+        #|}
+        #|
+      ),
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "pub async fn other(value : InputType) -> ResultType { target() }\n",
+    ),
+  )
+}
+
+///|
+test "prefilter skips compiled ignored fields by parent and child name" {
+  let source =
+    #|id: example
+    #|description: Partial top-level function.
+    #|inside-toplevel:
+    #|  - shape: fn safe_entry { __TARGET__ }
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  guard rule.definition is Structural(structural) else {
+    fail("expected structural rule")
+  }
+  let pattern = structural.inside_toplevel[0]
+  let compiled = pattern.compiled
+  guard prefilter_child(compiled.ast, "fun_decl") is Some(fun_decl) else {
+    fail("expected function declaration")
+  }
+  for index in 0..<fun_decl.children.length() {
+    let (name, old_child) = fun_decl.children[index]
+    if name == Some("doc") {
+      let literal : @untyped_ast.Node = {
+        kind: Leaf(PString("ignored_header_literal")),
+        loc: old_child.loc,
+        children: [],
+      }
+      fun_decl.children[index] = (
+        name,
+        {
+          kind: Binder,
+          loc: old_child.loc,
+          children: [(Some("name"), literal)],
+        },
+      )
+    }
+  }
+  let literals = required_literals_from_compiled_pattern(pattern)
+  assert_true(contains_string(literals, "safe_entry"))
+  assert_false(contains_string(literals, "ignored_header_literal"))
+}
+
+///|
+test "prefilter keeps explicit partial function fields required" {
+  let source =
+    #|id: example
+    #|description: Explicit partial function fields.
+    #|inside-toplevel:
+    #|  - shape: async fn safe_entry() -> RequiredType noraise { __TARGET__ }
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "async fn safe_entry() -> RequiredType noraise { target() }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "async fn safe_entry() -> OtherType noraise { target() }\n",
+    ),
+  )
+}
+
+///|
 test "prefilter ignores patterns-not literals for structural rules" {
   let source =
     #|id: example

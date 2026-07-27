@@ -291,13 +291,18 @@ fn parse_scan_pattern_specs(
           exit_code=2,
         )
       }
-      patterns.push({ shape: argv[index + 1], guards: Map([]) })
+      patterns.push({
+        shape: argv[index + 1],
+        guards: Map([]),
+        match_mode: Default,
+      })
       has_guard.push(false)
       index += 2
     } else if arg.has_prefix("--pattern=") {
       patterns.push({
         shape: arg["--pattern=".length():].to_owned(),
         guards: Map([]),
+        match_mode: Default,
       })
       has_guard.push(false)
       index += 1
@@ -336,7 +341,7 @@ fn attach_scan_guard(
     index -= 1
     if !has_guard[index] {
       let shape = patterns[index].shape
-      patterns[index] = { shape, guards }
+      patterns[index] = { shape, guards, match_mode: Default }
       has_guard[index] = true
       return
     }

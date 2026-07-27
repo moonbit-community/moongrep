@@ -1239,6 +1239,160 @@ test "inside toplevel matches functions and inherits bindings" {
 }
 
 ///|
+test "inside toplevel defaults function shapes to partial matching" {
+  let rule_source =
+    #|id: example
+    #|description: Broad function context.
+    #|inside-toplevel:
+    #|  - shape: fn $_ { __TARGET__ }
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|fn plain { marker() }
+    #|pub fn parameters(value : Int) -> String { marker() }
+    #|priv async fn[T] generic(value : T) -> T noraise { marker() }
+    #|/// Documented function.
+    #|#custom.attribute
+    #|fn documented { marker() }
+    #|fn[T] Box::map(value : T) -> T { marker() }
+    #|fn fallible(value : Int) -> Int raise { marker() }
+    #|fn constrained where { requirement: required() } { marker() }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 7)
+}
+
+///|
+test "inside toplevel partial matching keeps explicit function fields exact" {
+  let rule_source =
+    #|id: example
+    #|description: Explicit function header.
+    #|inside-toplevel:
+    #|  - shape: |
+    #|      /// Required documentation.
+    #|      #custom.attribute
+    #|      pub async fn[T] Box::run() -> Int noraise { __TARGET__ }
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub async fn[T] Box::run() -> Int noraise { marker() }
+    #|#custom.attribute
+    #|pub async fn[T] Box::run() -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|pub async fn[T] Box::run() -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|priv async fn[T] Box::run() -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub fn[T] Box::run() -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub async fn[U] Box::run() -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub async fn[T] Other::run() -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub async fn[T] Box::run -> Int noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub async fn[T] Box::run() -> String noraise { marker() }
+    #|/// Required documentation.
+    #|#custom.attribute
+    #|pub async fn[T] Box::run() -> Int { marker() }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+}
+
+///|
+test "inside toplevel partial matching keeps an explicit where clause exact" {
+  let rule_source =
+    #|id: example
+    #|description: Explicit function where clause.
+    #|inside-toplevel:
+    #|  - shape: |
+    #|      fn $_ where { requirement: required() } { __TARGET__ }
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|fn exact where { requirement: required() } { marker() }
+    #|fn missing { marker() }
+    #|fn different where { requirement: other() } { marker() }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 1)
+}
+
+///|
+test "inside toplevel explicit async excludes synchronous functions" {
+  let rule_source =
+    #|id: example
+    #|description: Async function context.
+    #|inside-toplevel:
+    #|  - shape: async fn $_ { __TARGET__ }
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|async fn asynchronous(value : Int) -> Int { marker() }
+    #|fn synchronous(value : Int) -> Int { marker() }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 1)
+}
+
+///|
+test "inside toplevel exact mode preserves complete function matching" {
+  let rule_source =
+    #|id: example
+    #|description: Exact function context.
+    #|inside-toplevel:
+    #|  - shape: fn $_ { __TARGET__ }
+    #|    match-mode: exact
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|fn exact { marker() }
+    #|pub fn public { marker() }
+    #|fn parameters() { marker() }
+    #|async fn asynchronous { marker() }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 1)
+}
+
+///|
+test "inside toplevel keeps non-function defaults exact" {
+  let rule_source =
+    #|id: example
+    #|description: Exact top-level let context.
+    #|inside-toplevel:
+    #|  - shape: let value = __TARGET__
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|let value = marker()
+    #|pub let value = marker()
+    #|let value : Int = marker()
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 1)
+}
+
+///|
 test "inside toplevel with only patterns-not reports clean top-level let" {
   let rule_source =
     #|id: example

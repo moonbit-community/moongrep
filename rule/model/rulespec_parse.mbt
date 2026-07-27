@@ -107,6 +107,7 @@ fn expect_structural_rule(
       path,
       "patterns",
       allow_guard=true,
+      allow_match_mode=false,
     )
   } else {
     []
@@ -120,6 +121,7 @@ fn expect_structural_rule(
       path,
       "patterns-not",
       allow_guard=true,
+      allow_match_mode=false,
     )
   } else {
     []
@@ -185,6 +187,7 @@ fn expect_inside_expr(
         path,
         "inside-expr",
         allow_guard=true,
+        allow_match_mode=false,
       )
       if patterns.is_empty() {
         raise invalid_rule(path~, info="inside-expr must not be empty")
@@ -207,6 +210,7 @@ fn expect_inside_toplevel(
         path,
         "inside-toplevel",
         allow_guard=true,
+        allow_match_mode=true,
       )
       if patterns.is_empty() {
         raise invalid_rule(path~, info="inside-toplevel must not be empty")
@@ -232,6 +236,7 @@ fn expect_taint_rule(
     path,
     "taint.sources",
     allow_guard=false,
+    allow_match_mode=false,
   )
   if sources.is_empty() {
     raise invalid_rule(path~, info="taint.sources must not be empty")
@@ -241,6 +246,7 @@ fn expect_taint_rule(
     path,
     "taint.sinks",
     allow_guard=false,
+    allow_match_mode=false,
   )
   if sinks.is_empty() {
     raise invalid_rule(path~, info="taint.sinks must not be empty")
@@ -253,6 +259,7 @@ fn expect_taint_rule(
         path,
         "taint.sanitizers",
         allow_guard=false,
+        allow_match_mode=false,
       )
     Some(_) => raise invalid_rule(path~, info="sanitizers must be an array")
   }
@@ -265,6 +272,7 @@ fn parse_rule_clause_array(
   path : String,
   context : String,
   allow_guard~ : Bool,
+  allow_match_mode~ : Bool,
 ) -> Array[RulePatternSpec] raise {
   let clauses : Array[RulePatternSpec] = []
   for index in 0..<clauses_yaml.length() {
@@ -272,8 +280,17 @@ fn parse_rule_clause_array(
     guard clauses_yaml[index] is Map(clause_map) else {
       raise invalid_rule(path~, info="\{clause_context} must be a mapping")
     }
+    // `match-mode` belongs only to `inside-toplevel` pattern objects. Keep
+    // this distinction at schema decoding time so later compilation can
+    // resolve `Default` independently for each alternative.
     clauses.push(
-      parse_rule_clause_map(clause_map, path, clause_context, allow_guard~),
+      parse_rule_clause_map(
+        clause_map,
+        path,
+        clause_context,
+        allow_guard~,
+        allow_match_mode~,
+      ),
     )
   }
   clauses
@@ -285,8 +302,14 @@ fn parse_rule_clause_map(
   path : String,
   clause_context : String,
   allow_guard~ : Bool,
+  allow_match_mode~ : Bool,
 ) -> RulePatternSpec raise {
-  ensure_allowed_keys(path, clause_context, clause_map, ["shape", "guard"])
+  let allowed_keys = if allow_match_mode {
+    ["shape", "guard", "match-mode"]
+  } else {
+    ["shape", "guard"]
+  }
+  ensure_allowed_keys(path, clause_context, clause_map, allowed_keys)
   if clause_map.contains("guard") && !allow_guard {
     raise invalid_rule(
       path~,
@@ -295,7 +318,33 @@ fn parse_rule_clause_map(
   }
   let shape = expect_rule_clause_shape(clause_map, path, clause_context)
   let guards = parse_guard_map(clause_map, path, clause_context)
-  { shape, guards }
+  let match_mode = parse_inside_toplevel_match_mode(
+    clause_map, path, clause_context,
+  )
+  { shape, guards, match_mode }
+}
+
+///|
+fn parse_inside_toplevel_match_mode(
+  clause_map : Map[String, @yaml.Yaml],
+  path : String,
+  clause_context : String,
+) -> InsideToplevelMatchMode raise {
+  match clause_map.get("match-mode") {
+    None => Default
+    Some(String("exact")) => Exact
+    Some(String("partial")) => Partial
+    Some(String(_)) =>
+      raise invalid_rule(
+        path~,
+        info="\{clause_context}.match-mode must be exact or partial",
+      )
+    Some(_) =>
+      raise invalid_rule(
+        path~,
+        info="\{clause_context}.match-mode must be a string",
+      )
+  }
 }
 
 ///|

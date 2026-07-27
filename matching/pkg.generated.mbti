@@ -31,6 +31,7 @@ pub(all) struct CompiledExprPattern {
   ellipsis_metavars : Array[EllipsisMetavar]
   target_metavar : String?
   source_metavar : String?
+  ignored_fields : Array[IgnoredPatternField]
 }
 
 pub(all) struct EllipsisMetavar {
@@ -51,6 +52,11 @@ pub(all) enum EllipsisMetavarKind {
 pub(all) struct ExprMatch {
   root : @untyped_ast.Node
   bindings : @hashmap.HashMap[String, BoundValue]
+}
+
+pub(all) struct IgnoredPatternField {
+  parent_kind : @untyped_ast.NodeKind
+  child_name : String
 }
 
 // Type aliases

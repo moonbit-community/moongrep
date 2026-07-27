@@ -186,6 +186,7 @@ test "declared expression metavar requires structural equality" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(match_expr_pattern(compiled, parse_expr("a + a")) is Some(_))
   assert_false(match_expr_pattern(compiled, parse_expr("a + b")) is Some(_))
@@ -206,6 +207,7 @@ test "identifier metavar compares binder and uses by normalized name" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(
@@ -238,6 +240,7 @@ test "identifier metavar matches loop counter" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(
@@ -268,6 +271,7 @@ test "expression metavar matches repeated call expression" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("make() + make()")) is Some(_),
@@ -290,6 +294,7 @@ test "expression metavar keeps structural equality" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_false(
     match_expr_pattern(compiled, parse_expr("item + make()")) is Some(_),
@@ -312,6 +317,7 @@ test "constant metavar requires repeated constant equality" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(match_expr_pattern(compiled, parse_expr("1 + 1")) is Some(_))
   assert_false(match_expr_pattern(compiled, parse_expr("1 + 2")) is Some(_))
@@ -331,6 +337,7 @@ test "constant metavar matches only constant patterns" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("match value { 1 => 1 }"))
@@ -358,6 +365,7 @@ test "argument metavar captures complete argument nodes" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   for
     source in [
@@ -390,6 +398,7 @@ test "argument metavar requires repeated argument equality" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("sink(value, value)")) is Some(_),
@@ -419,6 +428,7 @@ test "pattern metavar captures whole pattern AST" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   if match_expr_pattern(
       compiled,
@@ -456,6 +466,7 @@ test "pattern metavar requires repeated pattern equality" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(
@@ -486,6 +497,7 @@ test "identifier metavar matches pattern vars" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("match value { actual => actual }"))
@@ -510,6 +522,7 @@ test "identifier metavar matches labels" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("item.name + item.name")) is Some(_),
@@ -533,6 +546,7 @@ test "identifier metavar matches qualified function names" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("@int.abs(@int.abs)")) is Some(_),
@@ -555,6 +569,7 @@ test "qualified identifier metavar keeps literal package" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("@int.abs(@int.abs)")) is Some(_),
@@ -578,6 +593,7 @@ test "identifier metavar matches constructor identity with extra info" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(compiled, parse_expr("@pkg.Actual(@pkg.Actual)"))
@@ -605,6 +621,7 @@ test "identifier metavar matches constructor type extra info" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(
@@ -632,6 +649,7 @@ test "identifier metavar matches constructor patterns" {
     ellipsis_metavars: [],
     target_metavar: None,
     source_metavar: None,
+    ignored_fields: [],
   }
   assert_true(
     match_expr_pattern(

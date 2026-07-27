@@ -151,4 +151,5 @@ $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --e
 moonbitlang/catch_all 3:3
 moonbitlang/catch_all 7:3
 moonbitlang/catch_all 11:3
+moonbitlang/catch_all 17:3
 ```

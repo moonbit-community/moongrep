@@ -347,6 +347,31 @@ patterns:
 `inside-expr` 相同的选择和共享捕获规则。带正向 `patterns` 的命中报告内部
 匹配位置；只有 `patterns-not` 时，`loc` 是顶层项位置。
 
+函数 shape 默认使用 partial；其他顶层项默认使用 exact：
+
+| `match-mode` | 函数 shape | 其他顶层 shape |
+| --- | --- | --- |
+| 省略 | partial | exact |
+| `exact` | exact | exact |
+| `partial` | partial | 非法 |
+
+在 partial 模式中，函数头里省略的类型限定、`async`、参数、类型参数、
+返回类型、错误类型、可见性、attribute、文档和 `where` 都不约束候选项。
+shape 中一旦写出某个字段，该字段仍然精确匹配。函数名、函数体和
+`__TARGET__` 永远不会自动放宽。
+
+完整函数头确实重要时，显式使用 exact：
+
+```yaml
+inside-toplevel:
+  - shape: |
+      fn $(name:id) { __TARGET__ }
+    match-mode: exact
+```
+
+迁移旧规则时，如果规则依赖“省略的函数字段必须不存在”，请添加
+`match-mode: exact`。宽泛的函数上下文保持不标注即可。
+
 ### 3.6 使用 `patterns-not` 剪枝禁止的子树
 
 当某个结构形状应当在当前候选未命中任何正向 pattern 后剪枝时，使用
@@ -506,6 +531,9 @@ patterns:
 你的片段没有被对应规则子句的 MoonBit parser 接受。对普通 `patterns`、
 `patterns-not` 和 `inside-expr`，先缩减到一个有效的表达式大小 shape，然后小心地逐步补回结构。对
 `inside-toplevel`，先缩减到且仅有一个合法顶层项。
+
+如果函数上下文现在命中了更多声明，请检查旧规则是否依赖完整函数头匹配。
+可以添加 `match-mode: exact`，或只写出确实需要精确匹配的函数头字段。
 
 ### 规则编译提示元变量语法无效
 

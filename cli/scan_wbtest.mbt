@@ -93,6 +93,7 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
       {
         shape: "$(callee:id)($(value:const))",
         guards: { "$callee": "^@html\\.render$", "$value": "raw" },
+        match_mode: Default,
       },
     ],
     scan_root: "testdata/guard",

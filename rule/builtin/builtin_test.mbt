@@ -78,6 +78,12 @@ test "builtin catch_all matches async function signature variants" {
     #|  try risky() catch { error => () }
     #|}
     #|
+    #|/// Qualified generic function.
+    #|#custom.attribute
+    #|priv async fn[T] Box::qualified(value : T) -> T {
+    #|  try risky() catch { error => value }
+    #|}
+    #|
     #|fn synchronous_function(value : Int) -> Int {
     #|  try risky() catch { _ => value }
     #|}
@@ -92,7 +98,7 @@ test "builtin catch_all matches async function signature variants" {
     @untyped_ast.from_impls(impls),
     plan,
   )
-  assert_eq(findings.length(), 12)
+  assert_eq(findings.length(), 13)
   for finding in findings {
     assert_eq(finding.rule_id, "moonbitlang/catch_all")
   }

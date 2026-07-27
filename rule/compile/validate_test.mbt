@@ -21,6 +21,20 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 }
 
 ///|
+fn compiled_ignores_field(
+  compiled : @matching.CompiledExprPattern,
+  parent_kind : @untyped_ast.NodeKind,
+  child_name : String,
+) -> Bool {
+  for field in compiled.ignored_fields {
+    if field.parent_kind == parent_kind && field.child_name == child_name {
+      return true
+    }
+  }
+  false
+}
+
+///|
 test "validate compiles bare and typed ellipsis metavars" {
   let source =
     #|id: example
@@ -939,6 +953,63 @@ test "validate compiles inside toplevel function shape" {
     }
     Taint(_) => fail("expected structural rule")
   }
+}
+
+///|
+test "validate resolves inside toplevel match modes per alternative" {
+  let source =
+    #|id: example
+    #|description: Per-alternative top-level matching modes.
+    #|inside-toplevel:
+    #|  - shape: fn default_fn { __TARGET__ }
+    #|  - shape: fn exact_fn { __TARGET__ }
+    #|    match-mode: exact
+    #|  - shape: async fn partial_fn() -> Int noraise { __TARGET__ }
+    #|    match-mode: partial
+    #|  - shape: let value = __TARGET__
+    #|patterns:
+    #|  - shape: call()
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.inside_toplevel.length(), 4)
+      let default_fn = rule.inside_toplevel[0].compiled
+      assert_eq(default_fn.ignored_fields.length(), 10)
+      assert_true(compiled_ignores_field(default_fn, FunDecl, "is_async"))
+      assert_true(compiled_ignores_field(default_fn, FunDecl, "decl_params"))
+      assert_true(
+        compiled_ignores_field(default_fn, Impl_TopFuncDef, "where_clause"),
+      )
+      let exact_fn = rule.inside_toplevel[1].compiled
+      assert_true(exact_fn.ignored_fields.is_empty())
+      let partial_fn = rule.inside_toplevel[2].compiled
+      assert_false(compiled_ignores_field(partial_fn, FunDecl, "is_async"))
+      assert_false(compiled_ignores_field(partial_fn, FunDecl, "decl_params"))
+      assert_false(compiled_ignores_field(partial_fn, FunDecl, "return_type"))
+      assert_false(compiled_ignores_field(partial_fn, FunDecl, "error_type"))
+      assert_true(compiled_ignores_field(partial_fn, FunDecl, "type_name"))
+      assert_true(compiled_ignores_field(partial_fn, FunDecl, "quantifiers"))
+      assert_true(rule.inside_toplevel[3].compiled.ignored_fields.is_empty())
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate rejects partial mode for non-function top-level shapes" {
+  let source =
+    #|id: example
+    #|description: Invalid partial top-level shape.
+    #|inside-toplevel:
+    #|  - shape: let value = __TARGET__
+    #|    match-mode: partial
+    #|patterns:
+    #|  - shape: call()
+    #|
+  expect_compile_invalid(
+    source, "inside-toplevel[0].match-mode partial is only supported for function definition shapes",
+  )
 }
 
 ///|

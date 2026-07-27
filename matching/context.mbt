@@ -1,4 +1,15 @@
 ///|
+/// One named AST field that a compiled pattern deliberately omits from
+/// structural comparison.
+///
+/// Both the parent node kind and child name are recorded so skipping stays
+/// local to the intended AST field.
+pub(all) struct IgnoredPatternField {
+  parent_kind : @untyped_ast.NodeKind
+  child_name : String
+}
+
+///|
 /// A compiled structural pattern.
 ///
 /// `ast` is the untyped AST node for the parsed pattern expression or, for an
@@ -13,7 +24,8 @@
 /// sequence captures. Anonymous ellipses are represented only in `ast`.
 /// `target_metavar` and `source_metavar` are reserved bare-expression
 /// placeholders injected by the rules package for `__TARGET__` and
-/// `__SOURCE__`.
+/// `__SOURCE__`. `ignored_fields` names parent/child field pairs that are
+/// skipped by both structural matching and source prefilter extraction.
 pub(all) struct CompiledExprPattern {
   ast : @untyped_ast.Node
   expr_metavars : Array[String]
@@ -24,6 +36,7 @@ pub(all) struct CompiledExprPattern {
   ellipsis_metavars : Array[EllipsisMetavar]
   target_metavar : String?
   source_metavar : String?
+  ignored_fields : Array[IgnoredPatternField]
 }
 
 ///|
