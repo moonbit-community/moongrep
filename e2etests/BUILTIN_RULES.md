@@ -140,3 +140,15 @@ $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --e
 {"file":"testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_forward_array_iteration","description":"C-style forward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < items.length(); i = i + 1 {\n    consume(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < items.length(); i = i + 1 {","is_match":true},{"line":4,"text":"    consume(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
 {"file":"testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_backward_array_iteration","description":"C-style backward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = items.length() - 1; i >= 0; i = i - 1 {\n    consume_reverse(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = items.length() - 1; i >= 0; i = i - 1 {","is_match":true},{"line":4,"text":"    consume_reverse(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
 ```
+
+## Catch-all async function variants
+
+This focused fixture checks several async signatures and includes a synchronous
+function with the same catch expression to make sure it is not reported.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --enable-builtin-rules testdata/builtin-catch-all-variants | sed -n 's/.*"rule_id":"\([^"]*\)".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*/\1 \2:\3/p'
+moonbitlang/catch_all 3:3
+moonbitlang/catch_all 7:3
+moonbitlang/catch_all 11:3
+```

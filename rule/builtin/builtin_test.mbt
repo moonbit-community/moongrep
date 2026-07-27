@@ -22,3 +22,78 @@ test "builtin rules load moonbitlang rules" {
     ),
   )
 }
+
+///|
+test "builtin catch_all matches async function signature variants" {
+  let source =
+    #|async fn no_parameters {
+    #|  try risky() catch { _ => () }
+    #|}
+    #|
+    #|async fn varied_parameters(
+    #|  positional : Int,
+    #|  labelled~ : String,
+    #|  optional? : Bool = false,
+    #|) {
+    #|  try risky() catch { error => () }
+    #|}
+    #|
+    #|async fn no_parameters_with_return -> Array[Int] {
+    #|  try risky() catch { _ => [] }
+    #|}
+    #|
+    #|async fn parameters_with_return(_, value : Int) -> Int {
+    #|  try risky() catch { error => value }
+    #|}
+    #|
+    #|async fn no_parameters_noraise noraise {
+    #|  try risky() catch { _ => () }
+    #|}
+    #|
+    #|async fn parameters_with_return_noraise(value : Int) -> Int noraise {
+    #|  try risky() catch { error => value }
+    #|}
+    #|
+    #|pub async fn public_no_parameters {
+    #|  try risky() catch { _ => () }
+    #|}
+    #|
+    #|pub async fn public_parameters_with_return(value : Int) -> Int {
+    #|  try risky() catch { error => value }
+    #|}
+    #|
+    #|pub async fn public_noraise(value : Int) noraise {
+    #|  try risky() catch { _ => () }
+    #|}
+    #|
+    #|priv async fn private_no_parameters -> Unit {
+    #|  try risky() catch { error => () }
+    #|}
+    #|
+    #|priv async fn private_parameters(value : Int) {
+    #|  try risky() catch { _ => () }
+    #|}
+    #|
+    #|priv async fn private_noraise -> Unit noraise {
+    #|  try risky() catch { error => () }
+    #|}
+    #|
+    #|fn synchronous_function(value : Int) -> Int {
+    #|  try risky() catch { _ => value }
+    #|}
+    #|
+  let (impls, reports) = @parser.parse_string(source, name="catch_all test")
+  guard reports is [] else { fail("expected source to parse") }
+  let plan = @apply.ScanPlan::from_rules(
+    @compile.compile_rules(@builtin.load_rules()),
+  )
+  let findings = @apply.apply_structural_scan_plan_to_node(
+    "sample.mbt",
+    @untyped_ast.from_impls(impls),
+    plan,
+  )
+  assert_eq(findings.length(), 12)
+  for finding in findings {
+    assert_eq(finding.rule_id, "moonbitlang/catch_all")
+  }
+}
