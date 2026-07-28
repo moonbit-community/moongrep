@@ -247,6 +247,31 @@ test "apply structural rule supports bare expression metavars" {
 }
 
 ///|
+test "apply structural rule rewrites field access metavars recursively" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Repeated field mutation target.
+    #|patterns:
+    #|  - shape: $object.$field = $object.$field + $_
+    #|
+  let source =
+    #|fn sample {
+    #|  foo.bar.baz = foo.bar.baz + 1;
+    #|  foo.bar.baz = foo.bar.other + 1;
+    #|  foo.bar.baz = other.bar.baz + 1
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+  inspect(hits[0].rule_id, content="example")
+}
+
+///|
 test "apply structural rule treats $_ as independent ignore placeholder" {
   let rule_source =
     #|id: example

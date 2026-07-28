@@ -197,6 +197,12 @@ fn MetavarRewriteContext::rewrite_expr(
       Method(type_name~, method_name=ctx.rewrite_label(method_name), loc~)
     MultilineString(elems~, loc~) =>
       MultilineString(elems=ctx.rewrite_multiline_string_elems(elems), loc~)
+    Field(record~, accessor~, loc~) =>
+      Field(
+        record=ctx.rewrite_expr(record),
+        accessor=ctx.rewrite_accessor(accessor),
+        loc~,
+      )
     Mutate(record~, accessor~, field~, augmented_by~, loc~) =>
       Mutate(
         record=ctx.rewrite_expr(record),
