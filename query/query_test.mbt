@@ -225,7 +225,7 @@ test "query raises parse error when relevant source is invalid" {
     #|}
     #|
   try query.captures(source_name="bad.mbt", source) catch {
-    err => inspect("\{to_repr(err)}".contains("parse"), content="true")
+    err => inspect("\{Repr(err)}".contains("parse"), content="true")
   } noraise {
     _ => fail("expected parse error")
   }
@@ -234,7 +234,7 @@ test "query raises parse error when relevant source is invalid" {
 ///|
 test "query raises when pattern is invalid" {
   try ExprQuery::ExprQuery("target(") catch {
-    err => inspect("\{to_repr(err)}".contains("InvalidRule"), content="true")
+    err => inspect("\{Repr(err)}".contains("InvalidRule"), content="true")
   } noraise {
     _ => fail("expected invalid pattern")
   }
