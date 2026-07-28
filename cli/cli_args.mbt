@@ -359,7 +359,7 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
   let docs = @yaml.Yaml::load_from_string(source) catch {
     err =>
       raise CliError::Usage(
-        message="invalid --guard YAML: \{to_repr(err)}",
+        message="invalid --guard YAML: \{Repr(err)}",
         exit_code=2,
       )
   }

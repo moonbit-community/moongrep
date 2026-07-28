@@ -11,12 +11,12 @@ pub fn render_dump_command(
 
 ///|
 fn render_dump_impl_debug(source : String) -> String raise {
-  "\{to_repr(@untyped_ast.from_impl(parse_dump_impl(source)))}"
+  "\{Repr(@untyped_ast.from_impl(parse_dump_impl(source)))}"
 }
 
 ///|
 fn render_dump_expr_debug(source : String) -> String raise {
-  "\{to_repr(@untyped_ast.from_expr(parse_dump_expr(source)))}"
+  "\{Repr(@untyped_ast.from_expr(parse_dump_expr(source)))}"
 }
 
 ///|
