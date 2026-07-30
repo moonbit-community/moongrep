@@ -14,6 +14,7 @@ test "builtin rules load moonbitlang rules" {
       #|  "moonbitlang/inspect_number",
       #|  "moonbitlang/match_option",
       #|  "moonbitlang/unnessary_else",
+      #|  "moonbitlang/simplifiable_assignment",
       #|  "moonbitlang/cstyle_forward_simple_forloop",
       #|  "moonbitlang/cstyle_backward_simple_forloop",
       #|  "moonbitlang/cstyle_forward_array_iteration",
@@ -102,4 +103,47 @@ test "builtin catch_all matches async function signature variants" {
   for finding in findings {
     assert_eq(finding.rule_id, "moonbitlang/catch_all")
   }
+}
+
+///|
+test "builtin simplifiable_assignment matches supported augmented assignment operators" {
+  let source =
+    #|fn sample(step : Int) -> Unit {
+    #|  let mut add = 0
+    #|  add = add + step
+    #|  let mut subtract = 0
+    #|  subtract = subtract - step
+    #|  let mut multiply = 1
+    #|  multiply = multiply * step
+    #|  let mut divide = 1
+    #|  divide = divide / step
+    #|  let mut remainder = 1
+    #|  remainder = remainder % step
+    #|  let mut different = 0
+    #|  different = add + step
+    #|  let mut reversed = 0
+    #|  reversed = step - reversed
+    #|  add += step
+    #|}
+    #|
+  let (impls, reports) = @parser.parse_string(
+    source,
+    name="simplifiable_assignment test",
+  )
+  guard reports is [] else { fail("expected source to parse") }
+  let plan = @apply.ScanPlan::from_rules(
+    @compile.compile_rules(@builtin.load_rules()),
+  )
+  let findings = @apply.apply_structural_scan_plan_to_node(
+    "sample.mbt",
+    @untyped_ast.from_impls(impls),
+    plan,
+  )
+  let matches : Array[String] = []
+  for finding in findings {
+    if finding.rule_id == "moonbitlang/simplifiable_assignment" {
+      matches.push("\{finding.pattern_index}@\{finding.loc.start.lnum}")
+    }
+  }
+  inspect(matches.join(","), content="0@3,6@5,9@7,15@9")
 }

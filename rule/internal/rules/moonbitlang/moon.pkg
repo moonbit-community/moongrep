@@ -27,6 +27,12 @@ dev_build(
 
 dev_build(
   rule: "embed",
+  input: "simplifiable_assignment.yaml",
+  output: "simplifiable_assignment.mbt",
+)
+
+dev_build(
+  rule: "embed",
   input: "cstyle_forward_simple_forloop.yaml",
   output: "cstyle_forward_simple_forloop.mbt",
 )

@@ -46,6 +46,10 @@ fn builtin_rule_sources() -> Array[BuiltinRuleSource] {
       yaml: @moonbitlang_rules.unnessary_else_yaml,
     },
     {
+      path: "builtin/moonbitlang/simplifiable_assignment.yaml",
+      yaml: @moonbitlang_rules.simplifiable_assignment_yaml,
+    },
+    {
       path: "builtin/moonbitlang/cstyle_forward_simple_forloop.yaml",
       yaml: @moonbitlang_rules.cstyle_forward_simple_forloop_yaml,
     },
