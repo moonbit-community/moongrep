@@ -75,9 +75,10 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
 
 ///|
 fn root_key_signature(key : @untyped_ast.NodeKind?) -> String {
-  match key {
-    None => "*"
-    Some(kind) => kind.to_string()
+  if key is Some(kind) {
+    kind.to_string()
+  } else {
+    "*"
   }
 }
 

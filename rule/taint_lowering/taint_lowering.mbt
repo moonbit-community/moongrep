@@ -117,9 +117,10 @@ fn target_value_for_match(
     _ =>
       match pattern_match.bindings.get("__SOURCE__") {
         Some(Single(source)) =>
-          match target_value_at_expr(call, source) {
-            Some(value) => Some(value)
-            None => target_value(call, target)
+          if target_value_at_expr(call, source) is Some(value) {
+            Some(value)
+          } else {
+            target_value(call, target)
           }
         _ => None
       }

@@ -350,9 +350,10 @@ fn ast_child_is_empty_list(
   name : String,
   kind : @untyped_ast.NodeKind,
 ) -> Bool {
-  match ast_child(node, name) {
-    Some(child) => child.kind == kind && child.children.is_empty()
-    None => false
+  if ast_child(node, name) is Some(child) {
+    child.kind == kind && child.children.is_empty()
+  } else {
+    false
   }
 }
 
@@ -362,9 +363,10 @@ fn ast_child_has_kind(
   name : String,
   kind : @untyped_ast.NodeKind,
 ) -> Bool {
-  match ast_child(node, name) {
-    Some(child) => child.kind == kind
-    None => false
+  if ast_child(node, name) is Some(child) {
+    child.kind == kind
+  } else {
+    false
   }
 }
 
@@ -1131,16 +1133,16 @@ fn whole_source_target(ast : @untyped_ast.Node) -> TaintTarget? {
       if node_child(ast, "self") is Some(self) &&
         is_source_placeholder_node(self) {
         Some(Receiver)
+      } else if node_child(ast, "args") is Some(args) {
+        source_target_from_args(args)
       } else {
-        match node_child(ast, "args") {
-          Some(args) => source_target_from_args(args)
-          None => None
-        }
+        None
       }
     Expr_Apply =>
-      match node_child(ast, "args") {
-        Some(args) => source_target_from_args(args)
-        None => None
+      if node_child(ast, "args") is Some(args) {
+        source_target_from_args(args)
+      } else {
+        None
       }
     _ => None
   }

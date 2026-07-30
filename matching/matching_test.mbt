@@ -371,13 +371,13 @@ test "argument metavar captures complete argument nodes" {
     source in [
       "sink(value)", "sink(label=value)", "sink(label~)", "sink(label?=value)", "sink(label?)",
     ] {
-    match match_expr_pattern(compiled, parse_expr(source)) {
-      Some(result) =>
-        match result.bindings.get("arg") {
-          Some(Single(node)) => assert_true(node.kind == Argument)
-          _ => fail("expected argument binding")
-        }
-      None => fail("expected argument metavar to match \{source}")
+    if match_expr_pattern(compiled, parse_expr(source)) is Some(result) {
+      match result.bindings.get("arg") {
+        Some(Single(node)) => assert_true(node.kind == Argument)
+        _ => fail("expected argument binding")
+      }
+    } else {
+      fail("expected argument metavar to match \{source}")
     }
   }
   assert_false(match_expr_pattern(compiled, parse_expr("sink()")) is Some(_))

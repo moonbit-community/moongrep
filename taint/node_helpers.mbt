@@ -96,9 +96,10 @@ fn node_var_name(node : @untyped_ast.Node) -> String? {
 
 ///|
 fn node_first_label_name(node : @untyped_ast.Node) -> String? {
-  match node_first_child(node) {
-    Some(child) => node_label_name(child)
-    None => None
+  if node_first_child(node) is Some(child) {
+    node_label_name(child)
+  } else {
+    None
   }
 }
 

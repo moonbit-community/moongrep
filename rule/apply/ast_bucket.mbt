@@ -122,9 +122,10 @@ fn ExprPatternBuckets::from_patterns(
   for index in 0..<patterns.length() {
     let indexed = { pattern_index: index, pattern: patterns[index] }
     let key = compiled_pattern_root_key(patterns[index])
-    match key {
-      None => wildcard.push(indexed)
-      Some(key) => push_keyed_pattern(keyed, key, indexed)
+    if key is Some(key) {
+      push_keyed_pattern(keyed, key, indexed)
+    } else {
+      wildcard.push(indexed)
     }
   }
   { wildcard, keyed }

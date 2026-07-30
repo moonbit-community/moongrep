@@ -333,7 +333,7 @@ async test "scan excludes configured rule ids before planning" {
 async test "scan rejects unknown exclude rule ids" {
   try collect_directory_hits(unknown_exclude_rule_scan_options()) catch {
     CliError::Usage(message~, exit_code=found) => {
-      inspect(found, content="2")
+      assert_eq(found, 2)
       inspect(message, content="unknown rule id in --exclude-rule: missing")
     }
     err => fail("unexpected error \{err}")

@@ -148,7 +148,7 @@ test "query captures identifiers and constants by metavar name" {
     fail("expected second literal value")
   }
   inspect(first_value, content="danger")
-  inspect(second_value, content="42")
+  assert_eq(second_value, "42")
 }
 
 ///|
@@ -225,7 +225,7 @@ test "query raises parse error when relevant source is invalid" {
     #|}
     #|
   try query.captures(source_name="bad.mbt", source) catch {
-    err => inspect("\{Repr(err)}".contains("parse"), content="true")
+    err => assert_true("\{Repr(err)}".contains("parse"))
   } noraise {
     _ => fail("expected parse error")
   }
@@ -234,7 +234,7 @@ test "query raises parse error when relevant source is invalid" {
 ///|
 test "query raises when pattern is invalid" {
   try ExprQuery::ExprQuery("target(") catch {
-    err => inspect("\{Repr(err)}".contains("InvalidRule"), content="true")
+    err => assert_true("\{Repr(err)}".contains("InvalidRule"))
   } noraise {
     _ => fail("expected invalid pattern")
   }
@@ -267,7 +267,7 @@ test "query captures_from_ast matches a direct expression root" {
   guard query_constant_value(literal) is Some(value) else {
     fail("expected literal value")
   }
-  inspect(value, content="42")
+  assert_eq(value, "42")
 }
 
 ///|

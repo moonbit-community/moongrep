@@ -309,38 +309,38 @@ fn MetavarRewriteContext::rewrite_expr_var(
 ) -> @syntax.Var raise {
   match var_.name {
     Ident(name~) =>
-      match parse_metavar(name, ctx.path, ctx.context) {
-        None => var_
-        Some(syntax) =>
-          match ctx.collect_or_resolve_metavar(syntax, BareExpressionPosition) {
-            None => var_
-            Some((kind, meta_name)) => {
-              if kind == "arg" || kind == "type" {
-                ctx.reject_metavar_position(kind, meta_name)
-              }
-              ctx.register_metavar(kind, meta_name)
-              { name: Ident(name=meta_name), loc: var_.loc }
-            }
+      if parse_metavar(name, ctx.path, ctx.context) is Some(syntax) {
+        if ctx.collect_or_resolve_metavar(syntax, BareExpressionPosition)
+          is Some((kind, meta_name)) {
+          if kind == "arg" || kind == "type" {
+            ctx.reject_metavar_position(kind, meta_name)
           }
+          ctx.register_metavar(kind, meta_name)
+          { name: Ident(name=meta_name), loc: var_.loc }
+        } else {
+          var_
+        }
+      } else {
+        var_
       }
     Dot(pkg~, id~) =>
-      match parse_metavar(id, ctx.path, ctx.context) {
-        None => var_
-        Some(syntax) =>
-          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-            None => var_
-            Some((kind, meta_name)) => {
-              if kind == "arg" || kind == "type" {
-                ctx.reject_metavar_position(kind, meta_name)
-              } else if kind == "exp" {
-                ctx.reject_metavar_position(kind, meta_name)
-              } else if kind == "const" {
-                ctx.reject_qualified_metavar(kind, meta_name)
-              }
-              ctx.register_metavar(kind, meta_name)
-              { name: Dot(pkg~, id=meta_name), loc: var_.loc }
-            }
+      if parse_metavar(id, ctx.path, ctx.context) is Some(syntax) {
+        if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+          is Some((kind, meta_name)) {
+          if kind == "arg" || kind == "type" {
+            ctx.reject_metavar_position(kind, meta_name)
+          } else if kind == "exp" {
+            ctx.reject_metavar_position(kind, meta_name)
+          } else if kind == "const" {
+            ctx.reject_qualified_metavar(kind, meta_name)
           }
+          ctx.register_metavar(kind, meta_name)
+          { name: Dot(pkg~, id=meta_name), loc: var_.loc }
+        } else {
+          var_
+        }
+      } else {
+        var_
       }
   }
 }
@@ -352,40 +352,34 @@ fn MetavarRewriteContext::rewrite_var(
 ) -> @syntax.Var raise {
   match var_.name {
     Ident(name~) =>
-      match parse_metavar(name, ctx.path, ctx.context) {
-        None => var_
-        Some(syntax) =>
-          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-            None => var_
-            Some((kind, meta_name)) => {
-              if kind == "exp" ||
-                kind == "const" ||
-                kind == "arg" ||
-                kind == "type" {
-                ctx.reject_metavar_position(kind, meta_name)
-              }
-              ctx.register_metavar(kind, meta_name)
-              { name: Ident(name=meta_name), loc: var_.loc }
-            }
+      if parse_metavar(name, ctx.path, ctx.context) is Some(syntax) {
+        if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+          is Some((kind, meta_name)) {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+            ctx.reject_metavar_position(kind, meta_name)
           }
+          ctx.register_metavar(kind, meta_name)
+          { name: Ident(name=meta_name), loc: var_.loc }
+        } else {
+          var_
+        }
+      } else {
+        var_
       }
     Dot(pkg~, id~) =>
-      match parse_metavar(id, ctx.path, ctx.context) {
-        None => var_
-        Some(syntax) =>
-          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-            None => var_
-            Some((kind, meta_name)) => {
-              if kind == "exp" ||
-                kind == "const" ||
-                kind == "arg" ||
-                kind == "type" {
-                ctx.reject_metavar_position(kind, meta_name)
-              }
-              ctx.register_metavar(kind, meta_name)
-              { name: Dot(pkg~, id=meta_name), loc: var_.loc }
-            }
+      if parse_metavar(id, ctx.path, ctx.context) is Some(syntax) {
+        if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+          is Some((kind, meta_name)) {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+            ctx.reject_metavar_position(kind, meta_name)
           }
+          ctx.register_metavar(kind, meta_name)
+          { name: Dot(pkg~, id=meta_name), loc: var_.loc }
+        } else {
+          var_
+        }
+      } else {
+        var_
       }
   }
 }
@@ -395,19 +389,19 @@ fn MetavarRewriteContext::rewrite_binder(
   ctx : MetavarRewriteContext,
   binder : @syntax.Binder,
 ) -> @syntax.Binder raise {
-  match parse_metavar(binder.name, ctx.path, ctx.context) {
-    None => binder
-    Some(syntax) =>
-      match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-        None => binder
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
-            ctx.reject_metavar_position(kind, meta_name)
-          }
-          ctx.register_metavar(kind, meta_name)
-          { name: meta_name, loc: binder.loc }
-        }
+  if parse_metavar(binder.name, ctx.path, ctx.context) is Some(syntax) {
+    if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+      is Some((kind, meta_name)) {
+      if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+        ctx.reject_metavar_position(kind, meta_name)
       }
+      ctx.register_metavar(kind, meta_name)
+      { name: meta_name, loc: binder.loc }
+    } else {
+      binder
+    }
+  } else {
+    binder
   }
 }
 
@@ -416,19 +410,19 @@ fn MetavarRewriteContext::rewrite_label(
   ctx : MetavarRewriteContext,
   label : @syntax.Label,
 ) -> @syntax.Label raise {
-  match parse_metavar(label.name, ctx.path, ctx.context) {
-    None => label
-    Some(syntax) =>
-      match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-        None => label
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
-            ctx.reject_metavar_position(kind, meta_name)
-          }
-          ctx.register_metavar(kind, meta_name)
-          { name: meta_name, loc: label.loc }
-        }
+  if parse_metavar(label.name, ctx.path, ctx.context) is Some(syntax) {
+    if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+      is Some((kind, meta_name)) {
+      if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+        ctx.reject_metavar_position(kind, meta_name)
       }
+      ctx.register_metavar(kind, meta_name)
+      { name: meta_name, loc: label.loc }
+    } else {
+      label
+    }
+  } else {
+    label
   }
 }
 
@@ -447,19 +441,19 @@ fn MetavarRewriteContext::rewrite_constr_name(
   ctx : MetavarRewriteContext,
   name : @syntax.ConstrName,
 ) -> @syntax.ConstrName raise {
-  match parse_metavar(name.name, ctx.path, ctx.context) {
-    None => name
-    Some(syntax) =>
-      match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-        None => name
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
-            ctx.reject_metavar_position(kind, meta_name)
-          }
-          ctx.register_metavar(kind, meta_name)
-          { name: meta_name, loc: name.loc }
-        }
+  if parse_metavar(name.name, ctx.path, ctx.context) is Some(syntax) {
+    if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+      is Some((kind, meta_name)) {
+      if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+        ctx.reject_metavar_position(kind, meta_name)
       }
+      ctx.register_metavar(kind, meta_name)
+      { name: meta_name, loc: name.loc }
+    } else {
+      name
+    }
+  } else {
+    name
   }
 }
 
@@ -498,40 +492,34 @@ fn MetavarRewriteContext::rewrite_type_long_ident(
 ) -> @syntax.LongIdent raise {
   match long_ident {
     Ident(name~) =>
-      match parse_metavar(name, ctx.path, ctx.context) {
-        None => long_ident
-        Some(syntax) =>
-          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-            None => long_ident
-            Some((kind, meta_name)) => {
-              if kind == "exp" ||
-                kind == "const" ||
-                kind == "arg" ||
-                kind == "type" {
-                ctx.reject_metavar_position(kind, meta_name)
-              }
-              ctx.register_metavar(kind, meta_name)
-              Ident(name=meta_name)
-            }
+      if parse_metavar(name, ctx.path, ctx.context) is Some(syntax) {
+        if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+          is Some((kind, meta_name)) {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+            ctx.reject_metavar_position(kind, meta_name)
           }
+          ctx.register_metavar(kind, meta_name)
+          Ident(name=meta_name)
+        } else {
+          long_ident
+        }
+      } else {
+        long_ident
       }
     Dot(pkg~, id~) =>
-      match parse_metavar(id, ctx.path, ctx.context) {
-        None => long_ident
-        Some(syntax) =>
-          match ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition) {
-            None => long_ident
-            Some((kind, meta_name)) => {
-              if kind == "exp" ||
-                kind == "const" ||
-                kind == "arg" ||
-                kind == "type" {
-                ctx.reject_metavar_position(kind, meta_name)
-              }
-              ctx.register_metavar(kind, meta_name)
-              Dot(pkg~, id=meta_name)
-            }
+      if parse_metavar(id, ctx.path, ctx.context) is Some(syntax) {
+        if ctx.collect_or_resolve_metavar(syntax, BareIdentifierPosition)
+          is Some((kind, meta_name)) {
+          if kind == "exp" || kind == "const" || kind == "arg" || kind == "type" {
+            ctx.reject_metavar_position(kind, meta_name)
           }
+          ctx.register_metavar(kind, meta_name)
+          Dot(pkg~, id=meta_name)
+        } else {
+          long_ident
+        }
+      } else {
+        long_ident
       }
   }
 }

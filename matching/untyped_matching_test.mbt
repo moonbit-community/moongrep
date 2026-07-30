@@ -193,9 +193,10 @@ test "default matcher binds repeated expression metavars" {
 ///|
 test "default matcher treats only $_ as ignore placeholder" {
   let compiled = untyped_compiled(parse_untyped_test_metavar_node("foo($_)"))
-  match untyped_match(compiled, "foo(make())") {
-    Some(result) => inspect(result.bindings.length(), content="0")
-    None => fail("expected $_ ignore placeholder to match")
+  if untyped_match(compiled, "foo(make())") is Some(result) {
+    assert_eq(result.bindings.length(), 0)
+  } else {
+    fail("expected $_ ignore placeholder to match")
   }
   assert_true(untyped_match(compiled, "foo(other())") is Some(_))
   assert_true(
@@ -306,14 +307,14 @@ test "default matcher captures complex type nodes" {
       "let value : Array[Int] = input", "let value : Int? = input", "let value : (Int, String) = input",
       "let value : (Int) -> String = input",
     ] {
-    match untyped_match(compiled, source) {
-      Some(result) =>
-        match result.bindings.get("T") {
-          Some(Single(node)) =>
-            assert_true(node.kind.to_string().has_prefix("Type::"))
-          _ => fail("expected type binding for \{source}")
-        }
-      None => fail("expected type metavar to match \{source}")
+    if untyped_match(compiled, source) is Some(result) {
+      match result.bindings.get("T") {
+        Some(Single(node)) =>
+          assert_true(node.kind.to_string().has_prefix("Type::"))
+        _ => fail("expected type binding for \{source}")
+      }
+    } else {
+      fail("expected type metavar to match \{source}")
     }
   }
 }
