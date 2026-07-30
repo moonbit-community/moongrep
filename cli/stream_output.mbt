@@ -4,17 +4,46 @@ priv struct ScanOutputState {
 }
 
 ///|
+priv struct BufferedStdout {
+  mut contents : StringBuilder
+  mut length : Int
+}
+
+///|
 /// Scans source files and writes results as they are found.
 ///
 /// Match records are written to standard output. Verbose traversal messages
 /// and parse warnings are written to standard error.
 pub async fn run_scan_command(options : CliOptions) -> Unit {
-  run_scan_command_with_writers(options, write_scan_stdout, write_scan_stderr)
+  let stdout : BufferedStdout = { contents: StringBuilder(), length: 0 }
+  run_scan_command_with_writers(
+    options,
+    output => write_buffered_scan_stdout(stdout, output),
+    write_scan_stderr,
+  )
+  flush_buffered_scan_stdout(stdout)
 }
 
 ///|
-async fn write_scan_stdout(output : String) -> Unit {
-  @stdio.stdout.write(output)
+async fn write_buffered_scan_stdout(
+  stdout : BufferedStdout,
+  output : String,
+) -> Unit {
+  stdout.contents.write_string(output)
+  stdout.length += output.length()
+  if stdout.length >= 65536 {
+    flush_buffered_scan_stdout(stdout)
+  }
+}
+
+///|
+async fn flush_buffered_scan_stdout(stdout : BufferedStdout) -> Unit {
+  if stdout.length == 0 {
+    return
+  }
+  @stdio.stdout.write(stdout.contents.to_string())
+  stdout.contents = StringBuilder()
+  stdout.length = 0
 }
 
 ///|
