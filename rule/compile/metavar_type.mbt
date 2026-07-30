@@ -35,19 +35,19 @@ fn MetavarRewriteContext::rewrite_type_metavar(
     return None
   }
   guard constr_id.id is Ident(name~) else { return None }
-  match parse_metavar(name, ctx.path, ctx.context) {
-    None => None
-    Some(syntax) =>
-      match ctx.collect_or_resolve_metavar(syntax, BareTypePosition) {
-        None => None
-        Some((kind, meta_name)) => {
-          if kind != "type" {
-            ctx.reject_metavar_position(kind, meta_name)
-          }
-          ctx.register_metavar(kind, meta_name)
-          Some(type_metavar_marker(meta_name, loc))
-        }
+  if parse_metavar(name, ctx.path, ctx.context) is Some(syntax) {
+    if ctx.collect_or_resolve_metavar(syntax, BareTypePosition)
+      is Some((kind, meta_name)) {
+      if kind != "type" {
+        ctx.reject_metavar_position(kind, meta_name)
       }
+      ctx.register_metavar(kind, meta_name)
+      Some(type_metavar_marker(meta_name, loc))
+    } else {
+      None
+    }
+  } else {
+    None
   }
 }
 
@@ -61,9 +61,10 @@ fn MetavarRewriteContext::rewrite_optional_type(
   ctx : MetavarRewriteContext,
   ty : @syntax.Type?,
 ) -> @syntax.Type? raise {
-  match ty {
-    None => None
-    Some(ty) => Some(ctx.rewrite_type(ty))
+  if ty is Some(ty) {
+    Some(ctx.rewrite_type(ty))
+  } else {
+    None
   }
 }
 

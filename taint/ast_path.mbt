@@ -14,13 +14,13 @@ fn function_like_from_impl(node : @untyped_ast.Node) -> FunctionLike raise {
       let decl_body = node_child(node, "decl_body")
       match decl_body {
         Some(body) if body.kind == DeclBody_DeclBody => {
-          let body_expr = match node_child(body, "expr") {
-            Some(expr) => expr
-            None =>
-              raise TaintAnalysisError::UnsupportedFunctionLike(
-                kind="TopFuncDef.DeclBody",
-                loc=node.loc,
-              )
+          let body_expr = if node_child(body, "expr") is Some(expr) {
+            expr
+          } else {
+            raise TaintAnalysisError::UnsupportedFunctionLike(
+              kind="TopFuncDef.DeclBody",
+              loc=node.loc,
+            )
           }
           {
             name: function_decl_name(fun_decl),
@@ -50,13 +50,13 @@ fn function_like_from_impl(node : @untyped_ast.Node) -> FunctionLike raise {
       let decl_body = node_child(node, "body")
       match decl_body {
         Some(body) if body.kind == DeclBody_DeclBody => {
-          let body_expr = match node_child(body, "expr") {
-            Some(expr) => expr
-            None =>
-              raise TaintAnalysisError::UnsupportedFunctionLike(
-                kind="TopImpl.DeclBody",
-                loc=node.loc,
-              )
+          let body_expr = if node_child(body, "expr") is Some(expr) {
+            expr
+          } else {
+            raise TaintAnalysisError::UnsupportedFunctionLike(
+              kind="TopImpl.DeclBody",
+              loc=node.loc,
+            )
           }
           {
             name: impl_method_name(node),
@@ -92,29 +92,22 @@ fn function_like_from_impl(node : @untyped_ast.Node) -> FunctionLike raise {
 
 ///|
 fn function_decl_name(fun_decl : @untyped_ast.Node?) -> String {
-  match fun_decl {
-    Some(decl) =>
-      match node_child(decl, "name") {
-        Some(name) =>
-          match node_binder_name(name) {
-            Some(value) => value
-            None => ""
-          }
-        None => ""
-      }
-    None => ""
+  if fun_decl is Some(decl) &&
+    node_child(decl, "name") is Some(name) &&
+    node_binder_name(name) is Some(value) {
+    value
+  } else {
+    ""
   }
 }
 
 ///|
 fn impl_method_name(node : @untyped_ast.Node) -> String {
-  match node_child(node, "method_name") {
-    Some(name) =>
-      match node_binder_name(name) {
-        Some(value) => value
-        None => ""
-      }
-    None => ""
+  if node_child(node, "method_name") is Some(name) &&
+    node_binder_name(name) is Some(value) {
+    value
+  } else {
+    ""
   }
 }
 
@@ -140,9 +133,10 @@ fn paths_from_optional_parameters(
   parent : @untyped_ast.Node?,
   name : String,
 ) -> Array[StoragePath] {
-  match parent {
-    Some(node) => paths_from_parameter_list(node_optional_child(node, name))
-    None => []
+  if parent is Some(node) {
+    paths_from_parameter_list(node_optional_child(node, name))
+  } else {
+    []
   }
 }
 
@@ -185,9 +179,10 @@ fn storage_path_from_var(var_ : @untyped_ast.Node) -> StoragePath? {
 fn storage_path_from_expr(expr : @untyped_ast.Node) -> StoragePath? {
   match expr.kind {
     Expr_Ident =>
-      match node_child(expr, "id") {
-        Some(id) => storage_path_from_var(id)
-        None => None
+      if node_child(expr, "id") is Some(id) {
+        storage_path_from_var(id)
+      } else {
+        None
       }
     Expr_Field =>
       match (node_child(expr, "record"), node_child(expr, "accessor")) {
@@ -210,9 +205,10 @@ fn storage_path_from_expr(expr : @untyped_ast.Node) -> StoragePath? {
         _ => None
       }
     Expr_Group | Expr_Constraint =>
-      match node_child(expr, "expr") {
-        Some(inner) => storage_path_from_expr(inner)
-        None => None
+      if node_child(expr, "expr") is Some(inner) {
+        storage_path_from_expr(inner)
+      } else {
+        None
       }
     _ => None
   }
@@ -263,9 +259,10 @@ fn append_path_segment(
 
 ///|
 fn segment_from_index_expr(index : @untyped_ast.Node) -> PathSegment {
-  match constant_integer_text(index) {
-    Some(value) => ConstIndex(value)
-    None => AnyIndex
+  if constant_integer_text(index) is Some(value) {
+    ConstIndex(value)
+  } else {
+    AnyIndex
   }
 }
 
@@ -275,9 +272,10 @@ fn constant_integer_text(expr : @untyped_ast.Node) -> String? {
   guard node_child(expr, "constant") is Some(constant) else { return None }
   match constant.kind {
     Constant_Int | Constant_UInt =>
-      match node_first_child(constant) {
-        Some(value) => node_leaf_string(value)
-        None => None
+      if node_first_child(constant) is Some(value) {
+        node_leaf_string(value)
+      } else {
+        None
       }
     _ => None
   }
@@ -290,18 +288,17 @@ fn segment_from_argument_kind(
 ) -> PathSegment {
   match kind.kind {
     ArgumentKind_Labelled | ArgumentKind_LabelledPun =>
-      match node_first_label_name(kind) {
-        Some(label) => Field(label)
-        None => TupleIndex(positional_index)
+      if node_first_label_name(kind) is Some(label) {
+        Field(label)
+      } else {
+        TupleIndex(positional_index)
       }
     ArgumentKind_LabelledOption | ArgumentKind_LabelledOptionPun =>
-      match node_child(kind, "label") {
-        Some(label) =>
-          match node_label_name(label) {
-            Some(value) => Field(value)
-            None => TupleIndex(positional_index)
-          }
-        None => TupleIndex(positional_index)
+      if node_child(kind, "label") is Some(label) &&
+        node_label_name(label) is Some(value) {
+        Field(value)
+      } else {
+        TupleIndex(positional_index)
       }
     ArgumentKind_Positional => TupleIndex(positional_index)
     _ => TupleIndex(positional_index)
@@ -314,9 +311,10 @@ fn argument_label(kind : @untyped_ast.Node) -> String? {
     ArgumentKind_Labelled | ArgumentKind_LabelledPun =>
       node_first_label_name(kind)
     ArgumentKind_LabelledOption | ArgumentKind_LabelledOptionPun =>
-      match node_child(kind, "label") {
-        Some(label) => node_label_name(label)
-        None => None
+      if node_child(kind, "label") is Some(label) {
+        node_label_name(label)
+      } else {
+        None
       }
     ArgumentKind_Positional => None
     _ => None

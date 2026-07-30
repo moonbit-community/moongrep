@@ -305,9 +305,10 @@ fn ellipsis_direct_raw(node : @untyped_ast.Node) -> String? {
   let raw = match node.kind {
     Expr_Ident => node.normalized_expr_identifier_name()
     Pattern_Var =>
-      match ellipsis_child(node, "value") {
-        Some(binder) => ellipsis_leaf_string_child(binder, "name")
-        None => None
+      if ellipsis_child(node, "value") is Some(binder) {
+        ellipsis_leaf_string_child(binder, "name")
+      } else {
+        None
       }
     Binder => ellipsis_leaf_string_child(node, "name")
     Type_Name => ellipsis_type_placeholder_name(node)

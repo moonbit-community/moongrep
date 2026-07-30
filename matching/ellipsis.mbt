@@ -57,9 +57,10 @@ fn ellipsis_item_raw(item : @untyped_ast.Node) -> String? {
       matching_ellipsis_direct_raw(pattern)
     }
     ArrayPattern_Pattern | SpreadableElem_Regular =>
-      match child(item, "value") {
-        Some(value) => matching_ellipsis_direct_raw(value)
-        None => None
+      if child(item, "value") is Some(value) {
+        matching_ellipsis_direct_raw(value)
+      } else {
+        None
       }
     Parameter_Positional => {
       guard child(item, "binder") is Some(binder) else { return None }
@@ -77,9 +78,10 @@ fn matching_ellipsis_direct_raw(node : @untyped_ast.Node) -> String? {
   let raw = match node.kind {
     Expr_Ident => node.normalized_expr_identifier_name()
     Pattern_Var =>
-      match child(node, "value") {
-        Some(binder) => leaf_string_child(binder, "name")
-        None => None
+      if child(node, "value") is Some(binder) {
+        leaf_string_child(binder, "name")
+      } else {
+        None
       }
     Binder => leaf_string_child(node, "name")
     Type_Name => type_placeholder_name(node)

@@ -179,21 +179,20 @@ fn expect_inside_expr(
   doc : Map[String, @yaml.Yaml],
   path : String,
 ) -> Array[RulePatternSpec] raise {
-  match doc.get("inside-expr") {
-    None => []
-    Some(value) => {
-      let patterns = parse_rule_clause_array(
-        expect_yaml_array_value(value, path, "inside-expr"),
-        path,
-        "inside-expr",
-        allow_guard=true,
-        allow_match_mode=false,
-      )
-      if patterns.is_empty() {
-        raise invalid_rule(path~, info="inside-expr must not be empty")
-      }
-      patterns
+  if doc.get("inside-expr") is Some(value) {
+    let patterns = parse_rule_clause_array(
+      expect_yaml_array_value(value, path, "inside-expr"),
+      path,
+      "inside-expr",
+      allow_guard=true,
+      allow_match_mode=false,
+    )
+    if patterns.is_empty() {
+      raise invalid_rule(path~, info="inside-expr must not be empty")
     }
+    patterns
+  } else {
+    []
   }
 }
 
@@ -202,21 +201,20 @@ fn expect_inside_toplevel(
   doc : Map[String, @yaml.Yaml],
   path : String,
 ) -> Array[RulePatternSpec] raise {
-  match doc.get("inside-toplevel") {
-    None => []
-    Some(value) => {
-      let patterns = parse_rule_clause_array(
-        expect_yaml_array_value(value, path, "inside-toplevel"),
-        path,
-        "inside-toplevel",
-        allow_guard=true,
-        allow_match_mode=true,
-      )
-      if patterns.is_empty() {
-        raise invalid_rule(path~, info="inside-toplevel must not be empty")
-      }
-      patterns
+  if doc.get("inside-toplevel") is Some(value) {
+    let patterns = parse_rule_clause_array(
+      expect_yaml_array_value(value, path, "inside-toplevel"),
+      path,
+      "inside-toplevel",
+      allow_guard=true,
+      allow_match_mode=true,
+    )
+    if patterns.is_empty() {
+      raise invalid_rule(path~, info="inside-toplevel must not be empty")
     }
+    patterns
+  } else {
+    []
   }
 }
 

@@ -244,9 +244,10 @@ fn collect_node_children_literals(
 ) -> Unit {
   for entry in node.children {
     let (child_name, child) = entry
-    let ignored = match child_name {
-      Some(name) => prefilter_ignores_field(compiled, node.kind, name)
-      None => false
+    let ignored = if child_name is Some(name) {
+      prefilter_ignores_field(compiled, node.kind, name)
+    } else {
+      false
     }
     if !ignored {
       collect_node_literals(child, compiled, literals)

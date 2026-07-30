@@ -181,17 +181,18 @@ fn match_expr_placeholder(
     contains_name(compiled.expr_metavars, name) {
     Some(bind_value(bindings, name, candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
-    match candidate.normalized_expr_identifier_name() {
-      Some(candidate_name) =>
-        Some(
-          bind_value(bindings, name, string_binding(candidate_name, candidate)),
-        )
-      None => Some(false)
+    if candidate.normalized_expr_identifier_name() is Some(candidate_name) {
+      Some(
+        bind_value(bindings, name, string_binding(candidate_name, candidate)),
+      )
+    } else {
+      Some(false)
     }
   } else if contains_name(compiled.constant_metavars, name) {
-    match expr_constant(candidate) {
-      Some(constant) => Some(bind_value(bindings, name, constant))
-      None => Some(false)
+    if expr_constant(candidate) is Some(constant) {
+      Some(bind_value(bindings, name, constant))
+    } else {
+      Some(false)
     }
   } else {
     None
@@ -216,17 +217,18 @@ fn match_pattern_placeholder(
   } else if is_ignore_placeholder(name) {
     Some(true)
   } else if contains_name(compiled.identifier_metavars, name) {
-    match candidate.normalized_pattern_identifier_name() {
-      Some(candidate_name) =>
-        Some(
-          bind_value(bindings, name, string_binding(candidate_name, candidate)),
-        )
-      None => Some(false)
+    if candidate.normalized_pattern_identifier_name() is Some(candidate_name) {
+      Some(
+        bind_value(bindings, name, string_binding(candidate_name, candidate)),
+      )
+    } else {
+      Some(false)
     }
   } else if contains_name(compiled.constant_metavars, name) {
-    match pattern_constant(candidate) {
-      Some(constant) => Some(bind_value(bindings, name, constant))
-      None => Some(false)
+    if pattern_constant(candidate) is Some(constant) {
+      Some(bind_value(bindings, name, constant))
+    } else {
+      Some(false)
     }
   } else {
     None
@@ -783,35 +785,35 @@ fn constructor_name(node : @untyped_ast.Node) -> String? {
 ///|
 fn normalized_constructor(constr : @untyped_ast.Node) -> String {
   let name = constructor_name(constr).unwrap_or("")
-  match child(constr, "extra_info") {
-    Some(extra) =>
-      match extra.kind {
-        ConstructorExtraInfo_NoExtraInfo => name
-        ConstructorExtraInfo_Package =>
-          if leaf_string_child(extra, "value") is Some(pkg) {
-            "@\{pkg}.\{name}"
+  if child(constr, "extra_info") is Some(extra) {
+    match extra.kind {
+      ConstructorExtraInfo_NoExtraInfo => name
+      ConstructorExtraInfo_Package =>
+        if leaf_string_child(extra, "value") is Some(pkg) {
+          "@\{pkg}.\{name}"
+        } else {
+          name
+        }
+      ConstructorExtraInfo_TypeName =>
+        if child(extra, "value") is Some(type_name) {
+          "\{normalized_type_name(type_name)}::\{name}"
+        } else {
+          name
+        }
+      ConstructorExtraInfo_TypeNameWithConstrPackage =>
+        if child(extra, "type_name") is Some(type_name) {
+          if leaf_string_child(extra, "pkg") is Some(pkg) {
+            "\{normalized_type_name(type_name)}::@\{pkg}.\{name}"
           } else {
-            name
-          }
-        ConstructorExtraInfo_TypeName =>
-          if child(extra, "value") is Some(type_name) {
             "\{normalized_type_name(type_name)}::\{name}"
-          } else {
-            name
           }
-        ConstructorExtraInfo_TypeNameWithConstrPackage =>
-          if child(extra, "type_name") is Some(type_name) {
-            if leaf_string_child(extra, "pkg") is Some(pkg) {
-              "\{normalized_type_name(type_name)}::@\{pkg}.\{name}"
-            } else {
-              "\{normalized_type_name(type_name)}::\{name}"
-            }
-          } else {
-            name
-          }
-        _ => name
-      }
-    None => name
+        } else {
+          name
+        }
+      _ => name
+    }
+  } else {
+    name
   }
 }
 

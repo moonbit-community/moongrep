@@ -120,21 +120,22 @@ fn eval_expr(
     Expr_Record =>
       eval_record_expr(node_child_items(expr, "fields"), state, spec, findings)
     Expr_Group | Expr_Constraint =>
-      match node_child(expr, "expr") {
-        Some(inner) => eval_expr(inner, state, spec, findings)
-        None => normal_result(state, [])
+      if node_child(expr, "expr") is Some(inner) {
+        eval_expr(inner, state, spec, findings)
+      } else {
+        normal_result(state, [])
       }
     Expr_Sequence =>
-      match node_child(expr, "last_expr") {
-        Some(last_expr) =>
-          eval_sequence(
-            node_child_items(expr, "exprs"),
-            last_expr,
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "last_expr") is Some(last_expr) {
+        eval_sequence(
+          node_child_items(expr, "exprs"),
+          last_expr,
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_Let =>
       match
@@ -226,53 +227,53 @@ fn eval_expr(
         _ => normal_result(state, [])
       }
     Expr_Match =>
-      match node_child(expr, "expr") {
-        Some(scrutinee) =>
-          eval_match(
-            scrutinee,
-            node_child_items(expr, "cases"),
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "expr") is Some(scrutinee) {
+        eval_match(
+          scrutinee,
+          node_child_items(expr, "cases"),
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_Lexmatch =>
-      match node_child(expr, "expr") {
-        Some(scrutinee) =>
-          eval_lex_match(
-            scrutinee,
-            node_child_items(expr, "cases"),
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "expr") is Some(scrutinee) {
+        eval_lex_match(
+          scrutinee,
+          node_child_items(expr, "cases"),
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_Lexscan =>
-      match node_child(expr, "expr") {
-        Some(scrutinee) =>
-          eval_lex_scan(
-            scrutinee,
-            node_child_items(expr, "cases"),
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "expr") is Some(scrutinee) {
+        eval_lex_scan(
+          scrutinee,
+          node_child_items(expr, "cases"),
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_Try =>
-      match node_child(expr, "body") {
-        Some(body) =>
-          eval_try(
-            body,
-            node_child_items(expr, "catch"),
-            node_optional_child(expr, "try_else"),
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "body") is Some(body) {
+        eval_try(
+          body,
+          node_child_items(expr, "catch"),
+          node_optional_child(expr, "try_else"),
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_While =>
       match (node_child(expr, "loop_cond"), node_child(expr, "loop_body")) {
@@ -288,19 +289,19 @@ fn eval_expr(
         _ => normal_result(state, [])
       }
     Expr_For =>
-      match node_child(expr, "body") {
-        Some(body) =>
-          eval_for(
-            node_child_items(expr, "binders"),
-            node_optional_child(expr, "condition"),
-            node_child_items(expr, "continue_block"),
-            body,
-            node_optional_child(expr, "for_else"),
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "body") is Some(body) {
+        eval_for(
+          node_child_items(expr, "binders"),
+          node_optional_child(expr, "condition"),
+          node_child_items(expr, "continue_block"),
+          body,
+          node_optional_child(expr, "for_else"),
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_ForEach =>
       match (node_child(expr, "expr"), node_child(expr, "body")) {
@@ -328,41 +329,38 @@ fn eval_expr(
         _ => normal_result(state, [])
       }
     Expr_LetAnd =>
-      match node_child(expr, "body") {
-        Some(body) =>
-          eval_clean_root_scope(
-            body,
-            let_and_bound_roots(node_child_items(expr, "bindings")),
-            state,
-            spec,
-            findings,
-          )
-        None => normal_result(state, [])
+      if node_child(expr, "body") is Some(body) {
+        eval_clean_root_scope(
+          body,
+          let_and_bound_roots(node_child_items(expr, "bindings")),
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     Expr_Function => normal_result(state, [])
     Expr_Return =>
-      match node_optional_child(expr, "return_value") {
-        Some(value) => {
-          let result = eval_expr(value, state, spec, findings)
-          flow_result(FlowReturn, result.state, result.value)
-        }
-        None => flow_result(FlowReturn, state, [])
+      if node_optional_child(expr, "return_value") is Some(value) {
+        let result = eval_expr(value, state, spec, findings)
+        flow_result(FlowReturn, result.state, result.value)
+      } else {
+        flow_result(FlowReturn, state, [])
       }
     Expr_Break =>
-      match node_optional_child(expr, "arg") {
-        Some(value) => {
-          let result = eval_expr(value, state, spec, findings)
-          flow_result(FlowBreak, result.state, result.value)
-        }
-        None => flow_result(FlowBreak, state, [])
+      if node_optional_child(expr, "arg") is Some(value) {
+        let result = eval_expr(value, state, spec, findings)
+        flow_result(FlowBreak, result.state, result.value)
+      } else {
+        flow_result(FlowBreak, state, [])
       }
     Expr_Raise =>
-      match node_child(expr, "err_value") {
-        Some(value) => {
-          let result = eval_expr(value, state, spec, findings)
-          flow_result(FlowRaise, result.state, result.value)
-        }
-        None => flow_result(FlowRaise, state, [])
+      if node_child(expr, "err_value") is Some(value) {
+        let result = eval_expr(value, state, spec, findings)
+        flow_result(FlowRaise, result.state, result.value)
+      } else {
+        flow_result(FlowRaise, state, [])
       }
     Expr_Continue => {
       let result = eval_children(
@@ -1174,28 +1172,31 @@ fn site_for_expr(expr : @untyped_ast.Node, path : StoragePath?) -> ValueSite {
 fn callee_name_from_expr(expr : @untyped_ast.Node) -> String? {
   match expr.kind {
     Expr_Ident =>
-      match node_child(expr, "id") {
-        Some(id) => node_var_name(id)
-        None => None
+      if node_child(expr, "id") is Some(id) {
+        node_var_name(id)
+      } else {
+        None
       }
     Expr_Field =>
-      match node_child(expr, "accessor") {
-        Some(accessor) =>
-          match accessor.kind {
-            Accessor_Label => node_first_label_name(accessor)
-            _ => None
-          }
-        None => None
+      if node_child(expr, "accessor") is Some(accessor) {
+        match accessor.kind {
+          Accessor_Label => node_first_label_name(accessor)
+          _ => None
+        }
+      } else {
+        None
       }
     Expr_Method =>
-      match node_child(expr, "method_name") {
-        Some(method_name) => node_label_name(method_name)
-        None => None
+      if node_child(expr, "method_name") is Some(method_name) {
+        node_label_name(method_name)
+      } else {
+        None
       }
     Expr_Group | Expr_Constraint =>
-      match node_child(expr, "expr") {
-        Some(inner) => callee_name_from_expr(inner)
-        None => None
+      if node_child(expr, "expr") is Some(inner) {
+        callee_name_from_expr(inner)
+      } else {
+        None
       }
     _ => None
   }
@@ -1493,9 +1494,10 @@ fn bind_pattern(
 ) -> TaintState {
   match pattern.kind {
     Pattern_Var =>
-      match node_first_child(pattern) {
-        Some(binder) => bind_binder(binder, value, state)
-        None => state
+      if node_first_child(pattern) is Some(binder) {
+        bind_binder(binder, value, state)
+      } else {
+        state
       }
     Pattern_Alias => {
       let next = if node_child(pattern, "pat") is Some(pat) {
@@ -1510,9 +1512,10 @@ fn bind_pattern(
       }
     }
     Pattern_Constraint =>
-      match node_child(pattern, "pat") {
-        Some(pat) => bind_pattern(pat, value, state)
-        None => state
+      if node_child(pattern, "pat") is Some(pat) {
+        bind_pattern(pat, value, state)
+      } else {
+        state
       }
     Pattern_Tuple => {
       let mut next = state
@@ -1551,9 +1554,10 @@ fn bind_pattern(
       next
     }
     Pattern_Array =>
-      match node_child(pattern, "pats") {
-        Some(pats) => bind_array_pattern(pats, value, state)
-        None => state
+      if node_child(pattern, "pats") is Some(pats) {
+        bind_array_pattern(pats, value, state)
+      } else {
+        state
       }
     Pattern_Constr => {
       let mut next = state
@@ -1723,9 +1727,10 @@ fn eval_condition_scope(
 ) -> ConditionEval {
   match cond.kind {
     Expr_Group | Expr_Constraint =>
-      match node_child(cond, "expr") {
-        Some(expr) => eval_condition_scope(expr, state, spec, findings)
-        None => condition_from_eval_result(normal_result(state, []))
+      if node_child(cond, "expr") is Some(expr) {
+        eval_condition_scope(expr, state, spec, findings)
+      } else {
+        condition_from_eval_result(normal_result(state, []))
       }
     Expr_Is =>
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
@@ -1746,36 +1751,35 @@ fn eval_condition_scope(
         _ => condition_from_eval_result(normal_result(state, []))
       }
     Expr_IsLexmatch =>
-      match node_child(cond, "expr") {
-        Some(expr) => {
-          let matched = eval_expr(expr, state, spec, findings)
-          if matched.flow != FlowNormal {
-            return condition_from_eval_result(matched)
-          }
-          let patterns = node_child_items(cond, "pat")
-          let pattern_result = eval_lex_top_pattern_exprs(
-            patterns,
-            matched.state,
-            spec,
-            findings,
-          )
-          if pattern_result.flow != FlowNormal {
-            return condition_from_eval_result(pattern_result)
-          }
-          let roots = lex_top_patterns_bound_roots(patterns)
-          {
-            base_state: pattern_result.state,
-            true_state: bind_lex_top_patterns(
-              patterns,
-              matched.value,
-              pattern_result.state,
-            ),
-            bound_roots: roots,
-            flow: FlowNormal,
-            value: matched.value,
-          }
+      if node_child(cond, "expr") is Some(expr) {
+        let matched = eval_expr(expr, state, spec, findings)
+        if matched.flow != FlowNormal {
+          return condition_from_eval_result(matched)
         }
-        None => condition_from_eval_result(normal_result(state, []))
+        let patterns = node_child_items(cond, "pat")
+        let pattern_result = eval_lex_top_pattern_exprs(
+          patterns,
+          matched.state,
+          spec,
+          findings,
+        )
+        if pattern_result.flow != FlowNormal {
+          return condition_from_eval_result(pattern_result)
+        }
+        let roots = lex_top_patterns_bound_roots(patterns)
+        {
+          base_state: pattern_result.state,
+          true_state: bind_lex_top_patterns(
+            patterns,
+            matched.value,
+            pattern_result.state,
+          ),
+          bound_roots: roots,
+          flow: FlowNormal,
+          value: matched.value,
+        }
+      } else {
+        condition_from_eval_result(normal_result(state, []))
       }
     Expr_RegexMatch =>
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
@@ -1849,9 +1853,10 @@ fn eval_and_condition_scope(
 
 ///|
 fn is_logical_and_expr(expr : @untyped_ast.Node) -> Bool {
-  match node_child(expr, "op") {
-    Some(op) => node_var_name(op) == Some("&&")
-    None => false
+  if node_child(expr, "op") is Some(op) {
+    node_var_name(op) == Some("&&")
+  } else {
+    false
   }
 }
 
@@ -1867,9 +1872,10 @@ fn eval_lex_top_pattern_exprs(
   for pattern in patterns {
     let result = match pattern.kind {
       LexTopPattern_Pattern =>
-        match node_first_child(pattern) {
-          Some(pat) => eval_lex_pattern_exprs(pat, current, spec, findings)
-          None => normal_result(current, [])
+        if node_first_child(pattern) is Some(pat) {
+          eval_lex_pattern_exprs(pat, current, spec, findings)
+        } else {
+          normal_result(current, [])
         }
       LexTopPattern_Binder | LexTopPattern_Wildcard =>
         normal_result(current, [])
@@ -1893,9 +1899,10 @@ fn eval_lex_pattern_exprs(
 ) -> EvalResult {
   match pattern.kind {
     LexPattern_Alias =>
-      match node_child(pattern, "pat") {
-        Some(pat) => eval_lex_pattern_exprs(pat, state, spec, findings)
-        None => normal_result(state, [])
+      if node_child(pattern, "pat") is Some(pat) {
+        eval_lex_pattern_exprs(pat, state, spec, findings)
+      } else {
+        normal_result(state, [])
       }
     LexPattern_RegexInterp =>
       eval_interp_elems(
@@ -2349,13 +2356,15 @@ fn eval_pattern_case(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let pattern = match node_child(case, "pattern") {
-    Some(pattern) => pattern
-    None => return normal_result(base_state, [])
+  let pattern = if node_child(case, "pattern") is Some(pattern) {
+    pattern
+  } else {
+    return normal_result(base_state, [])
   }
-  let body = match node_child(case, "body") {
-    Some(body) => body
-    None => return normal_result(base_state, [])
+  let body = if node_child(case, "body") is Some(body) {
+    body
+  } else {
+    return normal_result(base_state, [])
   }
   let roots = pattern_bound_roots(pattern)
   let bound = bind_pattern(pattern, value, base_state)
@@ -2440,9 +2449,10 @@ fn eval_lex_case(
   if pattern_result.flow != FlowNormal {
     return pattern_result
   }
-  let body = match node_child(case, "body") {
-    Some(body) => body
-    None => return normal_result(pattern_result.state, [])
+  let body = if node_child(case, "body") is Some(body) {
+    body
+  } else {
+    return normal_result(pattern_result.state, [])
   }
   let roots = lex_top_patterns_bound_roots(patterns)
   let bound = bind_lex_top_patterns(patterns, value, pattern_result.state)
@@ -2520,13 +2530,15 @@ fn eval_lex_scan_case(
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let pattern = match node_child(case, "pat") {
-    Some(pattern) => pattern
-    None => return normal_result(base_state, [])
+  let pattern = if node_child(case, "pat") is Some(pattern) {
+    pattern
+  } else {
+    return normal_result(base_state, [])
   }
-  let body = match node_child(case, "body") {
-    Some(body) => body
-    None => return normal_result(base_state, [])
+  let body = if node_child(case, "body") is Some(body) {
+    body
+  } else {
+    return normal_result(base_state, [])
   }
   let roots = lex_scan_pattern_bound_roots(pattern)
   let bound = bind_lex_scan_pattern(pattern, value, base_state)
@@ -2676,7 +2688,7 @@ fn eval_while(
       break
     }
     current = joined
-    iteration = iteration + 1
+    iteration += 1
   }
   if while_else is Some(expr) {
     let else_result = eval_expr(expr, current, spec, findings)
@@ -2801,7 +2813,7 @@ fn eval_for(
       break
     }
     current = joined
-    iteration = iteration + 1
+    iteration += 1
   }
   let result = if for_else is Some(expr) {
     eval_expr(expr, current, spec, findings)
@@ -2895,7 +2907,7 @@ fn eval_for_each(
       break
     }
     current = joined
-    iteration = iteration + 1
+    iteration += 1
   }
   let result = if else_block is Some(expr) {
     eval_expr(expr, current, spec, findings)
@@ -2928,18 +2940,18 @@ fn eval_unknown_expr(
         findings,
       )
     Expr_Unary =>
-      match node_child(expr, "expr") {
-        Some(inner) => eval_expr(inner, state, spec, findings)
-        None => normal_result(state, [])
+      if node_child(expr, "expr") is Some(inner) {
+        eval_expr(inner, state, spec, findings)
+      } else {
+        normal_result(state, [])
       }
     Expr_As | Expr_TryOperator | Expr_ProofAssert | Expr_TemplateWriting =>
-      match node_child(expr, "expr") {
-        Some(inner) => eval_expr(inner, state, spec, findings)
-        None =>
-          match node_child(expr, "body") {
-            Some(body) => eval_expr(body, state, spec, findings)
-            None => normal_result(state, [])
-          }
+      if node_child(expr, "expr") is Some(inner) {
+        eval_expr(inner, state, spec, findings)
+      } else if node_child(expr, "body") is Some(body) {
+        eval_expr(body, state, spec, findings)
+      } else {
+        normal_result(state, [])
       }
     Expr_ArraySet | Expr_ArrayAugmentedSet =>
       eval_children(
@@ -2978,29 +2990,29 @@ fn eval_unknown_expr(
         _ => normal_result(state, [])
       }
     Expr_Is | Expr_RegexMatch =>
-      match node_child(expr, "expr") {
-        Some(inner) => eval_expr(inner, state, spec, findings)
-        None => normal_result(state, [])
+      if node_child(expr, "expr") is Some(inner) {
+        eval_expr(inner, state, spec, findings)
+      } else {
+        normal_result(state, [])
       }
     Expr_IsLexmatch =>
-      match node_child(expr, "expr") {
-        Some(inner) => {
-          let matched = eval_expr(inner, state, spec, findings)
-          if matched.flow != FlowNormal {
-            return matched
-          }
-          let pattern_result = eval_lex_top_pattern_exprs(
-            node_child_items(expr, "pat"),
-            matched.state,
-            spec,
-            findings,
-          )
-          if pattern_result.flow != FlowNormal {
-            return pattern_result
-          }
-          normal_result(pattern_result.state, matched.value)
+      if node_child(expr, "expr") is Some(inner) {
+        let matched = eval_expr(inner, state, spec, findings)
+        if matched.flow != FlowNormal {
+          return matched
         }
-        None => normal_result(state, [])
+        let pattern_result = eval_lex_top_pattern_exprs(
+          node_child_items(expr, "pat"),
+          matched.state,
+          spec,
+          findings,
+        )
+        if pattern_result.flow != FlowNormal {
+          return pattern_result
+        }
+        normal_result(pattern_result.state, matched.value)
+      } else {
+        normal_result(state, [])
       }
     Expr_Interp | Expr_BytesInterp =>
       eval_interp_elems(node_child_items(expr, "elems"), state, spec, findings)
@@ -3020,20 +3032,19 @@ fn eval_unknown_expr(
       normal_result(current, value)
     }
     Expr_RecordUpdate =>
-      match node_child(expr, "record") {
-        Some(record) => {
-          let base = eval_expr(record, state, spec, findings)
-          if base.flow != FlowNormal {
-            return base
-          }
-          eval_record_expr(
-            node_child_items(expr, "fields"),
-            base.state,
-            spec,
-            findings,
-          )
+      if node_child(expr, "record") is Some(record) {
+        let base = eval_expr(record, state, spec, findings)
+        if base.flow != FlowNormal {
+          return base
         }
-        None => normal_result(state, [])
+        eval_record_expr(
+          node_child_items(expr, "fields"),
+          base.state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
       }
     _ => normal_result(state, [])
   }

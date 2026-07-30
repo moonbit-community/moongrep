@@ -274,9 +274,10 @@ fn MetavarRewriteContext::rewrite_optional_constr_params(
   ctx : MetavarRewriteContext,
   params : @list.List[@syntax.ConstrParam]?,
 ) -> @list.List[@syntax.ConstrParam]? raise {
-  match params {
-    None => None
-    Some(params) => Some(ctx.rewrite_constr_params(params))
+  if params is Some(params) {
+    Some(ctx.rewrite_constr_params(params))
+  } else {
+    None
   }
 }
 
@@ -352,8 +353,9 @@ fn MetavarRewriteContext::rewrite_optional_parameters(
   ctx : MetavarRewriteContext,
   parameters : @list.List[@syntax.Parameter]?,
 ) -> @list.List[@syntax.Parameter]? raise {
-  match parameters {
-    None => None
-    Some(parameters) => Some(ctx.rewrite_parameters(parameters))
+  if parameters is Some(parameters) {
+    Some(ctx.rewrite_parameters(parameters))
+  } else {
+    None
   }
 }

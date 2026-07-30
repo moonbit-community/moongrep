@@ -102,9 +102,10 @@ fn attach_toplevel_shape_docstring(
       selected = Some(comments)
     }
   }
-  let doc = match selected {
-    None => @syntax.DocString::empty()
-    Some(comments) => shape_docstring_from_comments(comments)
+  let doc = if selected is Some(comments) {
+    shape_docstring_from_comments(comments)
+  } else {
+    @syntax.DocString::empty()
   }
   match item {
     TopFuncDef(fun_decl~, ..) => fun_decl.doc = doc

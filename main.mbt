@@ -9,9 +9,10 @@ extern "c" fn runtime_exit(code : Int) -> Unit = "exit"
 ///|
 async fn write_cli_output(output : String) -> Unit {
   if output != "" {
-    match output.strip_suffix("\n") {
-      Some(_) => @stdio.stdout.write(output)
-      None => @stdio.stdout.write(output + "\n")
+    if output.strip_suffix("\n") is Some(_) {
+      @stdio.stdout.write(output)
+    } else {
+      @stdio.stdout.write(output + "\n")
     }
   }
 }

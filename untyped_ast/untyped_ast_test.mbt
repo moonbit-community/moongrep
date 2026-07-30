@@ -235,9 +235,10 @@ fn test_pattern_var(name : String) -> Node {
 
 ///|
 fn require_test_child(node : Node, name : String) -> Node {
-  match node_test_child(node, name) {
-    Some(child) => child
-    None => abort("expected child \{name}")
+  if node_test_child(node, name) is Some(child) {
+    child
+  } else {
+    abort("expected child \{name}")
   }
 }
 
@@ -546,9 +547,8 @@ test "node scoped visitor prune skips children" {
   visit_node_scoped_exprs(from_expr(parse_test_expr("target + source")), fn(
     scoped,
   ) {
-    match node_test_expr_ident_name(scoped.expr) {
-      Some(name) => visited.push(name)
-      None => ()
+    if node_test_expr_ident_name(scoped.expr) is Some(name) {
+      visited.push(name)
     }
     NodeVisitPrune
   })
@@ -561,12 +561,11 @@ test "node scoped visitor return stops sibling traversal" {
   visit_node_scoped_exprs(from_expr(parse_test_expr("target + source")), fn(
     scoped,
   ) {
-    match node_test_expr_ident_name(scoped.expr) {
-      Some(name) => {
-        visited.push(name)
-        NodeVisitReturn
-      }
-      None => NodeVisitContinue
+    if node_test_expr_ident_name(scoped.expr) is Some(name) {
+      visited.push(name)
+      NodeVisitReturn
+    } else {
+      NodeVisitContinue
     }
   })
   assert_eq(visited.join("|"), "target")
@@ -579,12 +578,11 @@ test "node scoped root visitor return stops later roots" {
   let root = from_impls(List([first, second]))
   let visited : Array[String] = []
   visit_node_scoped_expr_roots(root, fn(scoped) {
-    match node_test_expr_ident_name(scoped.expr) {
-      Some(name) => {
-        visited.push(name)
-        NodeVisitReturn
-      }
-      None => NodeVisitContinue
+    if node_test_expr_ident_name(scoped.expr) is Some(name) {
+      visited.push(name)
+      NodeVisitReturn
+    } else {
+      NodeVisitContinue
     }
   })
   assert_eq(visited.join("|"), "target")

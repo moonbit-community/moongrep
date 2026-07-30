@@ -52,8 +52,8 @@ async test "matched source line prefix is not dimmed" {
     content="12 | let value = \u{1b}[93mtarget()\u{1b}[39m",
   )
   let arr = [5, 6, 7]
-  for i = 0; i < arr.length(); i = i + 1 {
-    if arr[i] == 0 {
+  for i, value in arr {
+    if value == 0 {
       @stdio.stdout.write("\{i}\n")
     }
   }

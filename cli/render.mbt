@@ -36,10 +36,10 @@ fn render_skipped_file_warnings(skipped_files : Array[SkippedFile]) -> String {
 
 ///|
 fn render_skipped_file_warning(skipped : SkippedFile) -> String {
-  match skipped.block_start_line {
-    Some(line) =>
-      "warning: skipping \{skipped.file} block starting at line \{line}: \{skipped.reason}"
-    None => "warning: skipping \{skipped.file}: \{skipped.reason}"
+  if skipped.block_start_line is Some(line) {
+    "warning: skipping \{skipped.file} block starting at line \{line}: \{skipped.reason}"
+  } else {
+    "warning: skipping \{skipped.file}: \{skipped.reason}"
   }
 }
 
@@ -226,7 +226,7 @@ fn format_location(file : String, loc : @basic.Location) -> String {
 fn trim_trailing_newlines(input : String) -> String {
   let mut end = input.length()
   while end > 0 && input[end - 1:end].to_owned() == "\n" {
-    end = end - 1
+    end -= 1
   }
   input[:end].to_owned()
 }

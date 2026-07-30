@@ -110,13 +110,12 @@ fn scan_plan_literal_matches(
   literal_cache : Map[String, Bool],
   literal : String,
 ) -> Bool {
-  match literal_cache.get(literal) {
-    Some(matched) => matched
-    None => {
-      let matched = source.contains(literal)
-      literal_cache[literal] = matched
-      matched
-    }
+  if literal_cache.get(literal) is Some(matched) {
+    matched
+  } else {
+    let matched = source.contains(literal)
+    literal_cache[literal] = matched
+    matched
   }
 }
 

@@ -50,42 +50,37 @@ fn MetavarRewriteContext::rewrite_pattern_var_binder(
   ctx : MetavarRewriteContext,
   binder : @syntax.Binder,
 ) -> @syntax.Binder raise {
-  match parse_metavar(binder.name, ctx.path, ctx.context) {
-    None => binder
-    Some(syntax) =>
-      match
-        ctx.collect_or_resolve_metavar(syntax, BarePatternVariablePosition) {
-        None => binder
-        Some((kind, meta_name)) => {
-          if kind == "exp" || kind == "arg" || kind == "type" {
-            ctx.reject_metavar_position(kind, meta_name)
-          } else if kind == "pat" {
-            validate_declared_metavar(ctx.path, ctx.context, meta_name, true)
-            let marker = temporary_pattern_metavar_marker(meta_name)
-            if !array_contains(ctx.identifier_metavars, marker) {
-              ctx.ensure_no_other_metavar_kind(
-                meta_name,
-                ctx.expr_metavars,
-                ctx.identifier_metavars,
-              )
-              ctx.ensure_no_other_metavar_kind(
-                meta_name,
-                ctx.constant_metavars,
-                [],
-              )
-              ctx.ensure_no_other_metavar_kind(meta_name, ctx.arg_metavars, [])
-              ctx.ensure_no_other_metavar_kind(meta_name, ctx.type_metavars, [])
-              ctx.expr_metavars.push(meta_name)
-              ctx.identifier_metavars.push(marker)
-              ctx.constant_metavars.push(meta_name)
-              ctx.pattern_metavars.push(meta_name)
-            }
-            return { name: metavar_text("pat", meta_name), loc: binder.loc }
-          }
-          ctx.register_metavar(kind, meta_name)
-          { name: meta_name, loc: binder.loc }
+  if parse_metavar(binder.name, ctx.path, ctx.context) is Some(syntax) {
+    if ctx.collect_or_resolve_metavar(syntax, BarePatternVariablePosition)
+      is Some((kind, meta_name)) {
+      if kind == "exp" || kind == "arg" || kind == "type" {
+        ctx.reject_metavar_position(kind, meta_name)
+      } else if kind == "pat" {
+        validate_declared_metavar(ctx.path, ctx.context, meta_name, true)
+        let marker = temporary_pattern_metavar_marker(meta_name)
+        if !array_contains(ctx.identifier_metavars, marker) {
+          ctx.ensure_no_other_metavar_kind(
+            meta_name,
+            ctx.expr_metavars,
+            ctx.identifier_metavars,
+          )
+          ctx.ensure_no_other_metavar_kind(meta_name, ctx.constant_metavars, [])
+          ctx.ensure_no_other_metavar_kind(meta_name, ctx.arg_metavars, [])
+          ctx.ensure_no_other_metavar_kind(meta_name, ctx.type_metavars, [])
+          ctx.expr_metavars.push(meta_name)
+          ctx.identifier_metavars.push(marker)
+          ctx.constant_metavars.push(meta_name)
+          ctx.pattern_metavars.push(meta_name)
         }
+        return { name: metavar_text("pat", meta_name), loc: binder.loc }
       }
+      ctx.register_metavar(kind, meta_name)
+      { name: meta_name, loc: binder.loc }
+    } else {
+      binder
+    }
+  } else {
+    binder
   }
 }
 

@@ -97,10 +97,10 @@ fn visit_node_root_named_expr(
   shadowed : Array[String],
   visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  match node_child(node, name) {
-    Some(child) =>
-      visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
-    None => NodeVisitContinue
+  if node_child(node, name) is Some(child) {
+    visit_node_scoped_expr_roots_with_shadow(child, shadowed, visitor)
+  } else {
+    NodeVisitContinue
   }
 }
 
@@ -508,9 +508,10 @@ fn visit_node_named_expr(
   shadowed : Array[String],
   visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  match node_child(node, name) {
-    Some(child) => visit_node_descendant_exprs(child, shadowed, visitor)
-    None => NodeVisitContinue
+  if node_child(node, name) is Some(child) {
+    visit_node_descendant_exprs(child, shadowed, visitor)
+  } else {
+    NodeVisitContinue
   }
 }
 
@@ -521,9 +522,10 @@ fn visit_node_named_container_exprs(
   shadowed : Array[String],
   visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  match node_child(node, name) {
-    Some(child) => visit_node_all_child_exprs(child, shadowed, visitor)
-    None => NodeVisitContinue
+  if node_child(node, name) is Some(child) {
+    visit_node_all_child_exprs(child, shadowed, visitor)
+  } else {
+    NodeVisitContinue
   }
 }
 
@@ -582,9 +584,10 @@ fn visit_node_case_list_exprs(
   shadowed : Array[String],
   visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  match node_child(node, name) {
-    Some(list) => visit_node_case_container_exprs(list, shadowed, visitor)
-    None => NodeVisitContinue
+  if node_child(node, name) is Some(list) {
+    visit_node_case_container_exprs(list, shadowed, visitor)
+  } else {
+    NodeVisitContinue
   }
 }
 
@@ -1054,9 +1057,10 @@ fn node_binder_name(node : Node) -> String? {
 
 ///|
 fn node_infix_op(node : Node, op : String) -> Bool {
-  match node_child(node, "op") {
-    Some(op_node) => node_var_name(op_node) == Some(op)
-    None => false
+  if node_child(node, "op") is Some(op_node) {
+    node_var_name(op_node) == Some(op)
+  } else {
+    false
   }
 }
 
