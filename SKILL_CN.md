@@ -15,6 +15,8 @@ description: 使用 moongrep 对 MoonBit 源码进行结构化搜索和污点分
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
+注:当前文档的示例均使用最直接的命令形式`moongrep`, 如果需要使用wasm cli, 请把`moongrep`替换为`moonx moonbit-community/moongrep --`.
+
 moongrep的工作模式是一边扫描一边直接输出扫描结果, 对于人类用户, 如果想获得较好的终端阅读体验, 请结合less等终端pager使用。
 
 ```bash
@@ -147,14 +149,14 @@ moongrep scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@htm
 MoonBit `untyped_ast` 调试 dump 可通过 `dump` 子命令使用：
 
 ```bash
-moon runwasm moonbit-community/moongrep -- dump --impl 'fn answer { 42 }'
-moon runwasm moonbit-community/moongrep -- dump --expr 'x + 1'
+moongrep -- dump --impl 'fn answer { 42 }'
+moongrep -- dump --expr 'x + 1'
 ```
 
 命令行参数概要：
 
 ```text
-moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
+moongrep -- dump (--impl <impl> | --expr <expr>)
 ```
 
 使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_ast`
@@ -169,6 +171,6 @@ moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
 内嵌文档可通过 `docs` 子命令查看：
 
 ```bash
-moon runwasm moonbit-community/moongrep -- docs --list
-moon runwasm moonbit-community/moongrep -- docs RuleSpec
+moongrep -- docs --list
+moongrep -- docs RuleSpec
 ```

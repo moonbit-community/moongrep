@@ -20,6 +20,10 @@ typical expression that uses `match` on an `Option` value:
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
+Note: All examples in this document use the direct `moongrep` command form. To
+use the WebAssembly CLI instead, replace `moongrep` with
+`moonx moonbit-community/moongrep --`.
+
 `moongrep` outputs scan results directly as it scans. For a better terminal
 reading experience, human users should use it with a terminal pager such as
 `less`:
@@ -196,14 +200,14 @@ conditions to one pattern, put them in the same YAML map.
 MoonBit `untyped_ast` debug dumps are available through the `dump` subcommand:
 
 ```bash
-moon runwasm moonbit-community/moongrep -- dump --impl 'fn answer { 42 }'
-moon runwasm moonbit-community/moongrep -- dump --expr 'x + 1'
+moongrep -- dump --impl 'fn answer { 42 }'
+moongrep -- dump --expr 'x + 1'
 ```
 
 Command-line synopsis:
 
 ```text
-moon runwasm moonbit-community/moongrep -- dump (--impl <impl> | --expr <expr>)
+moongrep -- dump (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse a MoonBit top-level implementation item and print
@@ -220,6 +224,6 @@ a message and exit with code 1.
 Embedded documentation is available through the `docs` subcommand:
 
 ```bash
-moon runwasm moonbit-community/moongrep -- docs --list
-moon runwasm moonbit-community/moongrep -- docs RuleSpec
+moongrep -- docs --list
+moongrep -- docs RuleSpec
 ```
