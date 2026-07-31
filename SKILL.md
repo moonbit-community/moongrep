@@ -200,22 +200,23 @@ conditions to one pattern, put them in the same YAML map.
 MoonBit `untyped_ast` debug dumps are available through the `dump` subcommand:
 
 ```bash
-moongrep -- dump --impl 'fn answer { 42 }'
-moongrep -- dump --expr 'x + 1'
+moongrep dump --impl 'fn answer { 42 }'
+moongrep dump --expr 'x + 1'
 ```
 
 Command-line synopsis:
 
 ```text
-moongrep -- dump (--impl <impl> | --expr <expr>)
+moongrep dump (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse a MoonBit top-level implementation item and print
 its `untyped_ast` debug output. Use `--expr <expr>` to parse a MoonBit
-expression and print its `untyped_ast` debug output. These options are mutually
-exclusive, and one of them is required.
+expression and print its `untyped_ast` debug output. To produce a dump, provide
+exactly one of these mutually exclusive options.
 
-Usage errors, including omitting both dump modes or combining `--impl` with
+Invoking `moongrep dump` without arguments prints the `dump` help and exits
+successfully with code 0. Usage errors, such as combining `--impl` with
 `--expr`, print a message and exit with code 2. Parse or lexical failures print
 a message and exit with code 1.
 
@@ -224,6 +225,6 @@ a message and exit with code 1.
 Embedded documentation is available through the `docs` subcommand:
 
 ```bash
-moongrep -- docs --list
-moongrep -- docs RuleSpec
+moongrep docs --list
+moongrep docs RuleSpec
 ```
