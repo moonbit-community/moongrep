@@ -149,28 +149,29 @@ moongrep scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@htm
 MoonBit `untyped_ast` 调试 dump 可通过 `dump` 子命令使用：
 
 ```bash
-moongrep -- dump --impl 'fn answer { 42 }'
-moongrep -- dump --expr 'x + 1'
+moongrep dump --impl 'fn answer { 42 }'
+moongrep dump --expr 'x + 1'
 ```
 
 命令行参数概要：
 
 ```text
-moongrep -- dump (--impl <impl> | --expr <expr>)
+moongrep dump (--impl <impl> | --expr <expr>)
 ```
 
 使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_ast`
 调试输出。使用 `--expr <expr>` 可以解析一个 MoonBit 表达式，并打印它的
-`untyped_ast` 调试输出。这两个选项互斥，且必须提供其中之一。
+`untyped_ast` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
 
-用法错误，包括同时缺少两种 dump 模式，或组合使用 `--impl` 和 `--expr`，会打印
-消息并以退出码 2 退出。解析或词法失败会打印消息并以退出码 1 退出。
+不带参数调用 `moongrep dump` 会打印 `dump` 帮助，并以退出码 0 成功退出。用法
+错误，例如组合使用 `--impl` 和 `--expr`，会打印消息并以退出码 2 退出。解析或
+词法失败会打印消息并以退出码 1 退出。
 
 ## 文档
 
 内嵌文档可通过 `docs` 子命令查看：
 
 ```bash
-moongrep -- docs --list
-moongrep -- docs RuleSpec
+moongrep docs --list
+moongrep docs RuleSpec
 ```
