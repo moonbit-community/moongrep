@@ -26,6 +26,24 @@ test "prefilter keeps structural rule when required literal exists" {
 }
 
 ///|
+test "prefilter splits qualified identifier literals" {
+  let source =
+    #|id: example
+    #|description: Qualified target call.
+    #|patterns:
+    #|  - shape: "@pkg.name()"
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  debug_inspect(rule.prefilter.alternatives, content="[[\"pkg\", \"name\"]]")
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { @pkg.name() }\n"))
+  assert_true(rule_is_relevant_to_source(rule, "fn sample { @pkg .name() }\n"))
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { @other.name() }\n"),
+  )
+  assert_false(rule_is_relevant_to_source(rule, "fn sample { @pkg.other() }\n"))
+}
+
+///|
 test "prefilter treats structural patterns as alternatives" {
   let source =
     #|id: example
@@ -166,6 +184,56 @@ test "prefilter treats inline type metavars as placeholders" {
   )
   assert_false(
     rule_is_relevant_to_source(rule, "fn sample { let other : Int = source }\n"),
+  )
+}
+
+///|
+test "prefilter keeps fixed package for qualified identifier metavars" {
+  let source =
+    #|id: example
+    #|description: Qualified callee capture.
+    #|patterns:
+    #|  - shape: "@pkg.$(callee:id)()"
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  debug_inspect(rule.prefilter.alternatives, content="[[\"pkg\"]]")
+  assert_true(
+    rule_is_relevant_to_source(rule, "fn sample { @pkg .actual() }\n"),
+  )
+  assert_false(
+    rule_is_relevant_to_source(rule, "fn sample { @other.actual() }\n"),
+  )
+}
+
+///|
+test "prefilter splits qualified type literals" {
+  let source =
+    #|id: example
+    #|description: Qualified type annotation.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : @pkg.Type = input
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { let value : @pkg.Type = input }\n",
+    ),
+  )
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { let value : @pkg .Type = input }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { let value : @other.Type = input }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { let value : @pkg.Other = input }\n",
+    ),
   )
 }
 

@@ -134,10 +134,18 @@ aligned with the AST that `matching` will use.
 
 The collector recognizes these name-bearing nodes:
 
-- `Var` through `normalized_var_name`, including normalized qualified names
-  such as `@pkg.name`
+- `Var` through its long identifier; an unqualified name contributes its
+  stored spelling, while a qualified name contributes its stored package and
+  identifier spellings as separate literals
 - `Binder`, `Label`, and `ConstrName` through their `name` child
-- `Type_Name` through its normalized long identifier
+- `Type_Name` through the same long-identifier component extraction
+
+Qualified names deliberately do not contribute a synthesized `@pkg.name`
+literal. MoonBit accepts whitespace before the dot, so a matching source may
+spell the same AST identity as `@pkg .name`. Requiring the stored `pkg` and
+`name` components separately remains conservative across both spellings. Each
+component is checked independently for matcher placeholders, so a pattern such
+as `@pkg.$(callee:id)` requires only the fixed `pkg` component.
 
 After recording a `Type_Name`, the collector still visits its children so
 literals in type arguments are not lost.

@@ -89,6 +89,21 @@ test "query matches simple expression and returns empty capture map" {
 }
 
 ///|
+test "query matches qualified identifiers across dot whitespace" {
+  let query = ExprQuery::ExprQuery("@pkg.name()")
+  let source =
+    #|fn sample {
+    #|  @pkg.name();
+    #|  @pkg .name();
+    #|  @pkg.other();
+    #|  @other.name()
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  inspect(matches.length(), content="2")
+}
+
+///|
 test "query captures one repeated expression and rejects non-repeated candidates" {
   let query = ExprQuery::ExprQuery("$(value:exp) + $(value:exp)")
   let source =
