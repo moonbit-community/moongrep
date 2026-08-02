@@ -151,6 +151,52 @@ test "scan plan filter source matches compiled rule prefilter" {
 }
 
 ///|
+test "scan plan keeps qualified names across dot whitespace" {
+  let call_rule =
+    #|id: qualified-call
+    #|description: Qualified target call.
+    #|patterns:
+    #|  - shape: "@pkg.name()"
+    #|
+  let type_rule =
+    #|id: qualified-type
+    #|description: Qualified type annotation.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : @types.Input = input
+    #|
+  let taint_rule =
+    #|id: qualified-taint
+    #|description: Qualified source reaches qualified sink.
+    #|taint:
+    #|  sources:
+    #|    - shape: "@source.read()"
+    #|  sinks:
+    #|    - shape: "@sink.write(__SOURCE__)"
+    #|
+  let rules = compile_scan_plan_rules([call_rule, type_rule, taint_rule])
+  let source =
+    #|fn typed {
+    #|  let value : @types .Input = input
+    #|}
+    #|///|
+    #|fn flow {
+    #|  let value = @source .read();
+    #|  @sink .write(value)
+    #|}
+    #|///|
+    #|fn called {
+    #|  @pkg .name()
+    #|}
+    #|
+  let plan = ScanPlan::from_rules(rules).filter_source(source)
+  debug_inspect(
+    scan_plan_rule_ids(plan),
+    content="[\"S:qualified-call\", \"S:qualified-type\", \"T:qualified-taint\"]",
+  )
+}
+
+///|
 test "scan plan structural apply returns expected findings" {
   let target_rule =
     #|id: structural-target

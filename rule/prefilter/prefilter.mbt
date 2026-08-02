@@ -174,10 +174,8 @@ fn collect_node_literals(
 ) -> Unit {
   match node.kind {
     Var =>
-      if node.normalized_var_name() is Some(name) {
-        if !is_filter_placeholder(name, compiled) {
-          push_literal(literals, name)
-        }
+      if prefilter_child(node, "name") is Some(name) {
+        collect_long_ident_literals(name, compiled, literals)
       }
     Binder | Label =>
       if prefilter_leaf_string_child(node, "name") is Some(name) {
@@ -192,10 +190,8 @@ fn collect_node_literals(
         }
       }
     Type_Name => {
-      if prefilter_type_placeholder_name(node) is Some(name) {
-        if !is_filter_placeholder(name, compiled) {
-          push_literal(literals, name)
-        }
+      if prefilter_type_long_ident(node) is Some(name) {
+        collect_long_ident_literals(name, compiled, literals)
       }
       collect_node_children_literals(node, compiled, literals)
     }
@@ -270,7 +266,36 @@ fn prefilter_ignores_field(
 }
 
 ///|
-fn prefilter_type_placeholder_name(node : @untyped_ast.Node) -> String? {
+fn collect_long_ident_literals(
+  node : @untyped_ast.Node,
+  compiled : @matching.CompiledExprPattern,
+  literals : Array[String],
+) -> Unit {
+  match node.kind {
+    LongIdent_Ident =>
+      if prefilter_leaf_string_child(node, "value") is Some(name) {
+        if !is_filter_placeholder(name, compiled) {
+          push_literal(literals, name)
+        }
+      }
+    LongIdent_Dot => {
+      if prefilter_leaf_string_child(node, "pkg") is Some(pkg) {
+        if !is_filter_placeholder(pkg, compiled) {
+          push_literal(literals, pkg)
+        }
+      }
+      if prefilter_leaf_string_child(node, "id") is Some(id) {
+        if !is_filter_placeholder(id, compiled) {
+          push_literal(literals, id)
+        }
+      }
+    }
+    _ => ()
+  }
+}
+
+///|
+fn prefilter_type_long_ident(node : @untyped_ast.Node) -> @untyped_ast.Node? {
   if node.kind != Type_Name {
     return None
   }
@@ -280,7 +305,7 @@ fn prefilter_type_placeholder_name(node : @untyped_ast.Node) -> String? {
   guard prefilter_child(constr_id, "id") is Some(long_ident) else {
     return None
   }
-  long_ident.normalized_long_ident()
+  Some(long_ident)
 }
 
 ///|

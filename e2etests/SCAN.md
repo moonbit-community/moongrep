@@ -147,6 +147,38 @@ source:
 3 | }
 ```
 
+Qualified call matching is independent of whitespace before the long
+identifier dot. The source still matches the compact anonymous pattern.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '@pkg.name()' testdata/qualified-whitespace
+testdata/qualified-whitespace/hit.mbt:2:3-2:15
+rule: @pkg.name()
+description:
+  Anonymous CLI pattern.
+source:
+1 | fn called {
+2 >   @pkg .name()
+3 | }
+4 | ///|
+```
+
+Qualified type matching follows the same rule, so source formatting cannot
+cause the prefilter to discard the anonymous pattern before parsing.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'let value : @pkg.Type = input' testdata/qualified-whitespace
+testdata/qualified-whitespace/hit.mbt:6:3-6:33
+rule: let value : @pkg.Type = input
+description:
+  Anonymous CLI pattern.
+source:
+4 | ///|
+5 | fn typed {
+6 >   let value : @pkg .Type = input
+7 | }
+```
+
 Guards further restrict captured metavariables. Both the fully qualified
 callee and the constant value must satisfy their regular expressions, so only
 the raw HTML render call is reported.

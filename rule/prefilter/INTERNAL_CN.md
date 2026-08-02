@@ -116,9 +116,15 @@ Sanitizer 会被有意排除。Taint finding 不要求 sanitizer 出现；若强
 
 收集器识别以下携带名称的节点：
 
-- `Var` 通过 `normalized_var_name` 取值，包括 `@pkg.name` 这样的规范化限定名
+- `Var` 通过 long identifier 取值；非限定名贡献保存的源码拼写，限定名则把保存的
+  package 和 identifier 拼写分别作为字面量
 - `Binder`、`Label` 和 `ConstrName` 通过其 `name` 子节点取值
-- `Type_Name` 通过规范化后的 long identifier 取值
+- `Type_Name` 使用同一套 long identifier 分量提取逻辑
+
+限定名不会贡献拼接出来的 `@pkg.name` 字面量。MoonBit 允许点号前出现空白，因此同一
+AST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含保存的 `pkg` 和 `name`
+分量，对两种拼写都保持保守。每个分量还会独立检查 matcher placeholder，所以
+`@pkg.$(callee:id)` 只要求固定的 `pkg` 分量。
 
 记录 `Type_Name` 后仍会继续访问其子节点，以免遗漏类型参数里的字面量。
 
