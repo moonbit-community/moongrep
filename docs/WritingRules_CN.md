@@ -459,10 +459,16 @@ patterns:
 
 ### 6. 运行扫描器
 
-在模块根目录下使用规则目录运行 `moongrep`：
+在要扫描的 MoonBit 模块根目录下运行扫描器。如果已安装 `moongrep`，请使用：
 
 ```bash
-moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
+moongrep scan [--verbose] --rules <rules-root> [scan-root]
+```
+
+如果不安装 `moongrep`，而是通过 Mooncakes 运行已发布的 WebAssembly CLI，请使用：
+
+```bash
+moonx moonbit-community/moongrep -- scan [--verbose] --rules <rules-root> [scan-root]
 ```
 
 `--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，
@@ -559,14 +565,3 @@ patterns:
 请检查 `guard` 是否位于结构规则的 `patterns`、`patterns-not`、`inside-expr`
 或 `inside-toplevel` pattern object 下，是否是映射，并且每个键都引用了该 pattern 可见的
 `id` 或 `const` 捕获。`exp`、`arg`、`pat`、`type` 和 ellipsis 捕获不能被 guard 过滤。taint 子句会拒绝 `guard`。
-
-## 测试工作流
-
-修改规则或规则行为后：
-
-1. 在聚焦 fixture 上运行扫描器：
-   `moon run . -- scan --rules <rules-root> <fixture-root>`
-2. 在 `rule/` 下新增或更新聚焦测试
-3. 覆盖一个正例，以及至少一个容易回归的相近反例
-
-保持测试范围窄。好的规则测试会证明预期匹配，以及至少一个容易回归的非匹配场景。
