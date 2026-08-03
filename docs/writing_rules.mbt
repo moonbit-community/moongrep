@@ -606,10 +606,18 @@ let _embed_writingrules_md : String =
   #|
   #|### 6. Run the scanner
   #|
-  #|Run `moongrep` from the module root with a rules directory:
+  #|Run the scanner from the root of the MoonBit module you want to scan. If
+  #|`moongrep` is installed, use:
   #|
   #|```bash
-  #|moon run . -- scan [--verbose] --rules <rules-root> [scan-root]
+  #|moongrep scan [--verbose] --rules <rules-root> [scan-root]
+  #|```
+  #|
+  #|To run the published WebAssembly CLI from Mooncakes without installing
+  #|`moongrep`, use:
+  #|
+  #|```bash
+  #|moonx moonbit-community/moongrep -- scan [--verbose] --rules <rules-root> [scan-root]
   #|```
   #|
   #|`--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
@@ -715,18 +723,6 @@ let _embed_writingrules_md : String =
   #|that every key names an `id` or `const` capture visible to that pattern. `exp`,
   #|`arg`, `pat`, and `type` captures cannot be guarded. Taint clauses reject
   #|`guard`.
-  #|
-  #|## Testing Workflow
-  #|
-  #|After changing a rule or rule behavior:
-  #|
-  #|1. run the scanner on a focused fixture with
-  #|   `moon run . -- scan --rules <rules-root> <fixture-root>`
-  #|2. add or update focused tests under `rule/`
-  #|3. cover both a positive case and at least one nearby negative case
-  #|
-  #|Keep tests narrow. A good rule test proves the intended match and at least one
-  #|non-match that would be easy to regress.
   #|
 
 ///|

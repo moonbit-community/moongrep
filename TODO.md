@@ -8,12 +8,6 @@
   an explicit kind for cross-position reuse, improving the diagnostic, or
   adding a storage-path metavariable kind.
 
-- Correct the commands in the embedded rule-writing guides. They currently
-  recommend `moon run . -- scan ...`, which only runs moongrep when invoked
-  from the moongrep module. Document the installed `moongrep scan ...` and
-  Mooncakes/Wasm `moonx moonbit-community/moongrep -- scan ...` forms, and
-  keep `moon run .` in a contributor-only section if it is still needed.
-
 - Define and document the contract for `#moongrep.skip`. It is currently
   recognized on functions, impls, top-level lets, tests, and views; ignores
   any payload, including `false`; and suppresses structural rules but not
