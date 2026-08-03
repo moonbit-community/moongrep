@@ -15,4 +15,3 @@ pub fn load_rules() -> Array[@model.RawRuleSpec] raise
 // Type aliases
 
 // Traits
-

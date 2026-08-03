@@ -143,4 +143,3 @@ pub(all) enum ValueSite {
 pub type TaintTree = Array[RelativeTaint]
 
 // Traits
-

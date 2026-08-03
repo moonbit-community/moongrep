@@ -24,4 +24,3 @@ pub fn ScanPlan::is_empty(Self) -> Bool
 // Type aliases
 
 // Traits
-

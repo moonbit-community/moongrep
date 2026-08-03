@@ -19,4 +19,3 @@ pub fn rule_is_relevant_to_source(@model.CompiledRule, String) -> Bool
 // Type aliases
 
 // Traits
-

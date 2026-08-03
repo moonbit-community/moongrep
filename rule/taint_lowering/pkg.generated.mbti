@@ -16,4 +16,3 @@ pub fn lower_compiled_taint_rule(@model.CompiledRule, @model.CompiledTaintRule) 
 // Type aliases
 
 // Traits
-

@@ -17,4 +17,3 @@ pub async fn load_rules(String) -> Array[@model.RawRuleSpec]
 // Type aliases
 
 // Traits
-

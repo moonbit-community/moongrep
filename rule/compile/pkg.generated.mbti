@@ -15,4 +15,3 @@ pub fn compile_rules(Array[@model.RawRuleSpec]) -> Array[@model.CompiledRule] ra
 // Type aliases
 
 // Traits
-

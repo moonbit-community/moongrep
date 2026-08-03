@@ -19,4 +19,3 @@ pub fn ExprQuery::captures_from_ast(Self, ast~ : @untyped_ast.Node) -> ArrayView
 // Type aliases
 
 // Traits
-
