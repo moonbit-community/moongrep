@@ -84,8 +84,12 @@ test "json directory output contains only one line per finding" {
     render_directory_scan_json({
       scan_trace: ["trace"],
       hits: [],
-      skipped_files: [
-        { file: "bad.mbt", block_start_line: None, reason: "parse failed" },
+      warnings: [
+        Parse({
+          file: "bad.mbt",
+          block_start_line: None,
+          reason: "parse failed",
+        }),
       ],
     }),
     content="",
@@ -93,8 +97,8 @@ test "json directory output contains only one line per finding" {
   let rendered = render_directory_scan_json({
     scan_trace: ["trace"],
     hits: [render_test_hit(3, 3), render_test_hit(8, 8)],
-    skipped_files: [
-      { file: "bad.mbt", block_start_line: None, reason: "parse failed" },
+    warnings: [
+      Parse({ file: "bad.mbt", block_start_line: None, reason: "parse failed" }),
     ],
   })
   let records = rendered.split("\n").to_array()

@@ -86,7 +86,7 @@ fn stream_options_with_format(
 fn scan_event_summary(event : ScanEvent) -> String {
   match event {
     Trace(message) => "trace:\{message}"
-    Warning(skipped) => "warning:\{skipped.file}"
+    Warning(warning) => "warning:\{warning.file()}"
     Hit(hit) =>
       "hit:\{hit.finding.file}:\{hit.finding.rule_id}:\{hit.finding.loc.start.lnum}"
   }
@@ -303,6 +303,44 @@ async test "stream diagnostics are written only to stderr" {
 }
 
 ///|
+async test "skip payload warnings keep streaming and JSON stdout clean" {
+  let human_stdout : Array[String] = []
+  let human_stderr : Array[String] = []
+  run_scan_command_with_writers(
+    stream_options_with_format(skip_scan_options(), false, false),
+    output => human_stdout.push(output),
+    output => human_stderr.push(output),
+  )
+  assert_eq(human_stdout.length(), 3)
+  assert_false(human_stdout.join("").contains("warning:"))
+  debug_inspect(
+    human_stderr,
+    content=(
+      #|[
+      #|  "warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip\n",
+      #|  "warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip\n",
+      #|]
+    ),
+  )
+  let json_stdout : Array[String] = []
+  let json_stderr : Array[String] = []
+  run_scan_command_with_writers(
+    stream_options_with_format(skip_scan_options(), false, true),
+    output => json_stdout.push(output),
+    output => json_stderr.push(output),
+  )
+  assert_eq(json_stdout.length(), 3)
+  for output in json_stdout {
+    guard output.strip_suffix("\n") is Some(record) else {
+      fail("expected newline-terminated JSON record")
+    }
+    assert_false(record.contains("warning:"))
+    ignore(@json.parse(record))
+  }
+  assert_true(json_stderr == human_stderr)
+}
+
+///|
 async test "buffered renderer keeps warnings before sorted hits" {
   let output = render_scan_command(
     stream_options_with_format(parse_warning_stream_options(), false, false),
@@ -319,6 +357,27 @@ async test "buffered renderer keeps warnings before sorted hits" {
   let hit = string_index_containing(
     output.split("\n").map(view => view.to_owned()).to_array(),
     "testdata/parse-warning/hit.mbt:1:13-1:21",
+  )
+  assert_true(warning >= 0 && warning < hit)
+}
+
+///|
+async test "buffered renderer sorts skip warnings before hits" {
+  let output = render_scan_command(
+    stream_options_with_format(skip_scan_options(), false, false),
+  )
+  assert_true(
+    output.has_prefix(
+      "warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip\nwarning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip",
+    ),
+  )
+  let warning = string_index_containing(
+    output.split("\n").map(view => view.to_owned()).to_array(),
+    "#moongrep.skip does not accept a payload",
+  )
+  let hit = string_index_containing(
+    output.split("\n").map(view => view.to_owned()).to_array(),
+    "testdata/skip-structural/src/hit.mbt:9:3-9:11",
   )
   assert_true(warning >= 0 && warning < hit)
 }

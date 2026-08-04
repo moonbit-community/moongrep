@@ -1,17 +1,23 @@
 ///|
 // Scanner-local result type. The rule model boundary is `rule_model.RuleFinding`;
-// parse failures stay here as warnings for the CLI renderer.
-priv struct SkippedFile {
+// scan diagnostics stay here as warnings for the CLI renderer.
+priv struct ParseWarning {
   file : String
   block_start_line : Int?
   reason : String
 }
 
 ///|
+priv enum ScanWarning {
+  Parse(ParseWarning)
+  InvalidMoongrepSkipPayload(String, @basic.Location)
+}
+
+///|
 priv struct DirectoryScanResult {
   scan_trace : Array[String]
   hits : Array[ScanHit]
-  skipped_files : Array[SkippedFile]
+  warnings : Array[ScanWarning]
 }
 
 ///|
@@ -42,7 +48,7 @@ priv struct SourceLines {
 ///|
 priv enum ScanEvent {
   Trace(String)
-  Warning(SkippedFile)
+  Warning(ScanWarning)
   Hit(ScanHit)
 }
 
@@ -53,8 +59,8 @@ priv struct BufferedScanHit {
 }
 
 ///|
-priv struct BufferedSkippedFile {
-  skipped_file : SkippedFile
+priv struct BufferedScanWarning {
+  warning : ScanWarning
   ordinal : Int
 }
 
@@ -67,7 +73,7 @@ priv struct BufferedSkippedFile {
 pub async fn render_scan_command(options : CliOptions) -> String {
   let result = collect_directory_hits(options)
   if options.output_json {
-    let warnings = render_skipped_file_warnings(result.skipped_files)
+    let warnings = render_scan_warnings(result.warnings)
     if warnings != "" {
       @stdio.stderr.write(warnings + "\n")
     }
@@ -112,29 +118,26 @@ async fn prepare_scan_rules(
 async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
   let scan_trace : Array[String] = []
   let buffered_hits : Array[BufferedScanHit] = []
-  let buffered_skipped_files : Array[BufferedSkippedFile] = []
+  let buffered_warnings : Array[BufferedScanWarning] = []
   scan_events(options, event => {
     match event {
       Trace(message) => scan_trace.push(message)
-      Warning(skipped_file) =>
-        buffered_skipped_files.push({
-          skipped_file,
-          ordinal: buffered_skipped_files.length(),
-        })
+      Warning(warning) =>
+        buffered_warnings.push({ warning, ordinal: buffered_warnings.length() })
       Hit(hit) => buffered_hits.push({ hit, ordinal: buffered_hits.length() })
     }
   })
   buffered_hits.sort_by(compare_buffered_scan_hits)
-  buffered_skipped_files.sort_by(compare_buffered_skipped_files)
+  buffered_warnings.sort_by(compare_buffered_scan_warnings)
   let hits : Array[ScanHit] = []
   for buffered in buffered_hits {
     hits.push(buffered.hit)
   }
-  let skipped_files : Array[SkippedFile] = []
-  for buffered in buffered_skipped_files {
-    skipped_files.push(buffered.skipped_file)
+  let warnings : Array[ScanWarning] = []
+  for buffered in buffered_warnings {
+    warnings.push(buffered.warning)
   }
-  { scan_trace, hits, skipped_files }
+  { scan_trace, hits, warnings }
 }
 
 ///|
@@ -151,11 +154,19 @@ fn compare_buffered_scan_hits(
 }
 
 ///|
-fn compare_buffered_skipped_files(
-  left : BufferedSkippedFile,
-  right : BufferedSkippedFile,
+fn ScanWarning::file(self : ScanWarning) -> String {
+  match self {
+    Parse(warning) => warning.file
+    InvalidMoongrepSkipPayload(file, _) => file
+  }
+}
+
+///|
+fn compare_buffered_scan_warnings(
+  left : BufferedScanWarning,
+  right : BufferedScanWarning,
 ) -> Int {
-  let file_order = left.skipped_file.file.compare(right.skipped_file.file)
+  let file_order = left.warning.file().compare(right.warning.file())
   if file_order == 0 {
     left.ordinal.compare(right.ordinal)
   } else {
@@ -346,36 +357,70 @@ fn anonymous_pattern_rule(
 }
 
 ///|
-fn impl_has_moongrep_skip(node : @syntax.Impl) -> Bool {
-  match node {
-    TopFuncDef(fun_decl~, ..) => attributes_have_moongrep_skip(fun_decl.attrs)
-    TopImpl(attrs~, ..) => attributes_have_moongrep_skip(attrs)
-    TopLetDef(attrs~, ..) => attributes_have_moongrep_skip(attrs)
-    TopTest(attrs~, ..) => attributes_have_moongrep_skip(attrs)
-    TopView(attrs~, ..) => attributes_have_moongrep_skip(attrs)
-    _ => false
-  }
+priv struct MoongrepSkipAttributes {
+  skip_structural : Bool
+  invalid_payload_locations : Array[@basic.Location]
 }
 
 ///|
-fn attributes_have_moongrep_skip(
+fn impl_moongrep_skip_attributes(node : @syntax.Impl) -> MoongrepSkipAttributes {
+  let attrs = match node {
+    TopFuncDef(fun_decl~, ..) => fun_decl.attrs
+    TopImpl(attrs~, ..) => attrs
+    TopLetDef(attrs~, ..) => attrs
+    TopTest(attrs~, ..) => attrs
+    TopView(attrs~, ..) => attrs
+    _ => return { skip_structural: false, invalid_payload_locations: [] }
+  }
+  analyze_moongrep_skip_attributes(attrs)
+}
+
+///|
+fn analyze_moongrep_skip_attributes(
   attrs : @list.List[@attribute.Attribute],
-) -> Bool {
+) -> MoongrepSkipAttributes {
+  let mut skip_structural = false
+  let invalid_payload_locations : Array[@basic.Location] = []
   for attr in attrs {
-    if attribute_is_moongrep_skip(attr) {
-      return true
+    match attr.parsed {
+      Some(Ident(id)) if attribute_id_is_moongrep_skip(id) =>
+        if raw_moongrep_skip_is_bare(attr.raw) {
+          skip_structural = true
+        } else {
+          invalid_payload_locations.push(attr.loc)
+        }
+      Some(Apply(id, _)) if attribute_id_is_moongrep_skip(id) =>
+        invalid_payload_locations.push(attr.loc)
+      None if unparsed_attribute_targets_moongrep_skip(attr.raw) =>
+        invalid_payload_locations.push(attr.loc)
+      _ => ()
     }
   }
-  false
+  { skip_structural, invalid_payload_locations }
 }
 
 ///|
-fn attribute_is_moongrep_skip(attr : @attribute.Attribute) -> Bool {
-  match attr.parsed {
-    Some(Ident(id)) | Some(Apply(id, _)) =>
-      id.qual == Some("moongrep") && id.name == "skip"
-    _ => false
+fn attribute_id_is_moongrep_skip(id : @attribute.Id) -> Bool {
+  id.qual == Some("moongrep") && id.name == "skip"
+}
+
+///|
+fn raw_moongrep_skip_is_bare(raw : String) -> Bool {
+  let prefix = "#moongrep.skip"
+  raw.has_prefix(prefix) && raw[prefix.length():].is_blank()
+}
+
+///|
+fn unparsed_attribute_targets_moongrep_skip(raw : String) -> Bool {
+  let prefix = "#moongrep.skip"
+  if !raw.has_prefix(prefix) {
+    return false
   }
+  if raw.length() == prefix.length() {
+    return true
+  }
+  let next = raw[prefix.length()]
+  !(next is ('a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
 }
 
 ///|
@@ -436,21 +481,29 @@ async fn scan_source_file(
       // A malformed matching block does not prevent other matching blocks in
       // the same file from being scanned.
       receive(
-        Warning({
-          file,
-          block_start_line: if has_multiple_blocks {
-            Some(block.start_line)
-          } else {
-            None
-          },
-          reason: "parse failed due to \{compact_scan_reports(reports)}",
-        }),
+        Warning(
+          Parse({
+            file,
+            block_start_line: if has_multiple_blocks {
+              Some(block.start_line)
+            } else {
+              None
+            },
+            reason: "parse failed due to \{compact_scan_reports(reports)}",
+          }),
+        ),
       )
       continue
     }
     for node in impls {
       let untyped_node = @untyped_ast.from_impl(node)
-      if !impl_has_moongrep_skip(node) {
+      let skip = impl_moongrep_skip_attributes(node)
+      for loc in skip.invalid_payload_locations {
+        receive(
+          Warning(InvalidMoongrepSkipPayload(file, block.rebase_location(loc))),
+        )
+      }
+      if !skip.skip_structural {
         let structural_hits = @rule_apply.apply_structural_scan_plan_to_node(
           file, untyped_node, block_plan,
         )
