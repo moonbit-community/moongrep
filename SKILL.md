@@ -143,7 +143,7 @@ moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
 
 JSON match records are written to standard output, one per line. Verbose
-traversal messages and parse warnings are written to standard error. When no
+traversal messages and scan warnings are written to standard error. When no
 match is found, JSON mode writes nothing to standard output.
 
 ## Pattern Guards

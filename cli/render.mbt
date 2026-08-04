@@ -1,5 +1,5 @@
 ///|
-// Renders warnings first and match hits second so parse failures never hide
+// Renders warnings first and match hits second so scan diagnostics never hide
 // successful findings from other files.
 fn render_directory_scan_result(
   result : DirectoryScanResult,
@@ -9,7 +9,7 @@ fn render_directory_scan_result(
   if result.scan_trace.length() > 0 {
     sections.push(result.scan_trace.join("\n"))
   }
-  let warnings = render_skipped_file_warnings(result.skipped_files)
+  let warnings = render_scan_warnings(result.warnings)
   if warnings != "" {
     sections.push(warnings)
   }
@@ -26,20 +26,25 @@ fn render_directory_scan_result(
 }
 
 ///|
-fn render_skipped_file_warnings(skipped_files : Array[SkippedFile]) -> String {
-  let warnings : Array[String] = []
-  for skipped in skipped_files {
-    warnings.push(render_skipped_file_warning(skipped))
+fn render_scan_warnings(scan_warnings : Array[ScanWarning]) -> String {
+  let rendered : Array[String] = []
+  for warning in scan_warnings {
+    rendered.push(render_scan_warning(warning))
   }
-  warnings.join("\n")
+  rendered.join("\n")
 }
 
 ///|
-fn render_skipped_file_warning(skipped : SkippedFile) -> String {
-  if skipped.block_start_line is Some(line) {
-    "warning: skipping \{skipped.file} block starting at line \{line}: \{skipped.reason}"
-  } else {
-    "warning: skipping \{skipped.file}: \{skipped.reason}"
+fn render_scan_warning(warning : ScanWarning) -> String {
+  match warning {
+    Parse(parse_warning) =>
+      if parse_warning.block_start_line is Some(line) {
+        "warning: skipping \{parse_warning.file} block starting at line \{line}: \{parse_warning.reason}"
+      } else {
+        "warning: skipping \{parse_warning.file}: \{parse_warning.reason}"
+      }
+    InvalidMoongrepSkipPayload(file, loc) =>
+      "warning: \{format_location(file, loc)}: #moongrep.skip does not accept a payload; use bare #moongrep.skip"
   }
 }
 

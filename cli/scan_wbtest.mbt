@@ -8,32 +8,110 @@ fn parse_single_scan_impl(source : String) -> @syntax.Impl raise {
 }
 
 ///|
-fn parsed_impl_has_moongrep_skip(source : String) -> Bool raise {
-  impl_has_moongrep_skip(parse_single_scan_impl(source))
+fn parsed_impl_moongrep_skip_attributes(
+  source : String,
+) -> MoongrepSkipAttributes raise {
+  impl_moongrep_skip_attributes(parse_single_scan_impl(source))
 }
 
 ///|
-test "scan recognizes only qualified moongrep skip attribute" {
-  let qualified =
-    #|#moongrep.skip
-    #|fn skipped { 1 }
-    #|
-  let qualified_with_payload =
-    #|#moongrep.skip(true)
-    #|fn skipped_with_payload { 1 }
-    #|
-  let unqualified =
-    #|#skip
-    #|fn unqualified { 1 }
-    #|
-  let other_qualified =
-    #|#other.skip
-    #|fn other_qualified { 1 }
-    #|
-  assert_true(parsed_impl_has_moongrep_skip(qualified))
-  assert_true(parsed_impl_has_moongrep_skip(qualified_with_payload))
-  assert_false(parsed_impl_has_moongrep_skip(unqualified))
-  assert_false(parsed_impl_has_moongrep_skip(other_qualified))
+test "bare moongrep skip supports five top-level item kinds" {
+  let sources = [
+    (
+      #|#moongrep.skip
+      #|fn skipped { 1 }
+    ),
+    (
+      #|#moongrep.skip
+      #|impl Show for Int with output(self, logger) { 1 }
+    ),
+    (
+      #|#moongrep.skip
+      #|let skipped = 1
+    ),
+    (
+      #|#moongrep.skip
+      #|test "skipped" { 1 }
+    ),
+    (
+      #|#moongrep.skip
+      #|enumview ValueView { Value(Int) } for Int with value_view(value) { Value(value) }
+    ),
+  ]
+  for source in sources {
+    let skip = parsed_impl_moongrep_skip_attributes(source)
+    assert_true(skip.skip_structural)
+    assert_true(skip.invalid_payload_locations.is_empty())
+  }
+}
+
+///|
+test "moongrep skip ignores unrelated qualifiers and names" {
+  let sources = [
+    (
+      #|#skip
+      #|fn unqualified { 1 }
+    ),
+    (
+      #|#other.skip
+      #|fn other_qualified { 1 }
+    ),
+    (
+      #|#moongrep.skipper(
+      #|fn adjacent_name { 1 }
+    ),
+  ]
+  for source in sources {
+    let skip = parsed_impl_moongrep_skip_attributes(source)
+    assert_false(skip.skip_structural)
+    assert_true(skip.invalid_payload_locations.is_empty())
+  }
+}
+
+///|
+test "moongrep skip rejects every payload form" {
+  let sources = [
+    (
+      #|#moongrep.skip()
+      #|fn empty_payload { 1 }
+    ),
+    (
+      #|#moongrep.skip(true)
+      #|fn true_payload { 1 }
+    ),
+    (
+      #|#moongrep.skip(false)
+      #|fn false_payload { 1 }
+    ),
+    (
+      #|#moongrep.skip(Debug)
+      #|fn arbitrary_payload { 1 }
+    ),
+    (
+      #|#moongrep.skip(
+      #|fn malformed_payload { 1 }
+    ),
+  ]
+  for source in sources {
+    let skip = parsed_impl_moongrep_skip_attributes(source)
+    assert_false(skip.skip_structural)
+    assert_eq(skip.invalid_payload_locations.length(), 1)
+  }
+}
+
+///|
+test "bare skip remains effective beside invalid payloads" {
+  let skip = parsed_impl_moongrep_skip_attributes(
+    (
+      #|#moongrep.skip(false)
+      #|#other.skip
+      #|#moongrep.skip
+      #|#moongrep.skip()
+      #|fn mixed_attributes { 1 }
+    ),
+  )
+  assert_true(skip.skip_structural)
+  assert_eq(skip.invalid_payload_locations.length(), 2)
 }
 
 ///|
@@ -218,13 +296,23 @@ fn string_array_contains(items : Array[String], expected : String) -> Bool {
 }
 
 ///|
-async test "scan skips structural rules only for moongrep skip attribute" {
+async test "scan enforces moongrep skip structural and taint contract" {
   let result = collect_directory_hits(skip_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"structural:7\", \"taint:13\"]")
+  debug_inspect(
+    summaries,
+    content="[\"structural:9\", \"structural:21\", \"taint:28\"]",
+  )
+  inspect(
+    render_scan_warnings(result.warnings),
+    content=(
+      #|warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+      #|warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+    ),
+  )
 }
 
 ///|
@@ -287,7 +375,7 @@ async test "scan does not parse unmatched source blocks" {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"target:6\"]")
-  assert_true(result.skipped_files.is_empty())
+  assert_true(result.warnings.is_empty())
 }
 
 ///|
@@ -298,12 +386,12 @@ async test "scan isolates matching source block parse failures" {
     summaries.push(scan_hit_line_summary(hit))
   }
   debug_inspect(summaries, content="[\"other:3\", \"target:10\"]")
-  guard result.skipped_files is [skipped] else {
+  guard result.warnings is [Parse(skipped)] else {
     fail("expected one skipped source block")
   }
   assert_true(skipped.block_start_line == Some(5))
   assert_true(
-    render_skipped_file_warning(skipped).has_prefix(
+    render_scan_warning(Parse(skipped)).has_prefix(
       "warning: skipping testdata/prefilter-block/matched-broken.mbt block starting at line 5: parse failed due to ",
     ),
   )

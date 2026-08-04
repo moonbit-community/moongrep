@@ -98,6 +98,35 @@ bodies, and applies structural rules to those expression subtrees.
   location. With only `patterns-not`, it reports the matched top-level item
   location instead.
 
+### Source-level structural suppression
+
+Attach a bare `#moongrep.skip` attribute to a function definition, impl method,
+top-level `let` definition, test, or view declaration to suppress all
+structural rules within that item:
+
+```moonbit
+#moongrep.skip
+fn generated_adapter {
+  legacy_call()
+}
+```
+
+This marker affects structural rules only. Taint analysis always continues on
+marked function definitions and impl methods.
+
+Payloads are not supported. `#moongrep.skip()`, Boolean payloads, other
+payloads, and malformed payloads do not suppress structural rules. Each
+invalid payload writes the following warning to standard error and scanning
+continues without changing the exit status:
+
+```text
+warning: <location>: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+```
+
+`#skip`, `#other.skip`, and other unrelated attributes are ignored. When an
+item has both a bare marker and invalid payload forms, the invalid forms still
+produce warnings and the bare marker still suppresses structural rules.
+
 For taint rules:
 
 - `taint` must be a mapping with non-empty `sources` and `sinks` arrays.
@@ -619,7 +648,7 @@ moonx moonbit-community/moongrep -- scan [--verbose] --rules <rules-root> [scan-
 `--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
 If `scan-root` is omitted, the scanner uses `.`. Match results are streamed to
 standard output. `--verbose` writes loaded rule ids and directory traversal
-progress to standard error as the scan proceeds; parse warnings also use
+progress to standard error as the scan proceeds; scan warnings also use
 standard error.
 
 The scanner uses the untyped AST matcher by default. Repeated `exp`, `arg`,

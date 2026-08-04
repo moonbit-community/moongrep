@@ -50,6 +50,31 @@ YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules
 - 每个成功匹配的 `inside-expr` 外层表达式最多报告一个命中，`loc` 是外层表达式位置；当内部正向 pattern 命中时，遍历顺序中的第一个命中决定 `pattern_index`。
 - `inside-toplevel` 会在内部正向匹配位置分别报告命中；只有 `patterns-not` 时，报告匹配到的顶层项位置。
 
+### 源码级结构规则抑制
+
+把裸 `#moongrep.skip` 属性附加到函数定义、impl 方法、顶层 `let` 定义、test
+或 view 声明上，可以抑制该顶层项内的全部结构规则：
+
+```moonbit
+#moongrep.skip
+fn generated_adapter {
+  legacy_call()
+}
+```
+
+该标记只影响结构规则。对于带标记的函数定义和 impl 方法，污点分析始终继续运行。
+
+该属性不支持 payload。`#moongrep.skip()`、布尔 payload、其他 payload 和畸形
+payload 都不会抑制结构规则。每个无效 payload 都会在标准错误输出以下 warning，
+扫描会继续，退出码不变：
+
+```text
+warning: <location>: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+```
+
+`#skip`、`#other.skip` 等无关属性会被忽略。如果同一顶层项同时带有裸标记和
+无效 payload，无效形式仍会产生 warning，裸标记仍会抑制结构规则。
+
 对于污点规则：
 
 - `taint` 必须是映射，且包含非空 `sources` 和 `sinks` 数组。`sanitizers` 是可选的，默认值为空；如果出现，它必须是数组。
@@ -473,7 +498,7 @@ moonx moonbit-community/moongrep -- scan [--verbose] --rules <rules-root> [scan-
 
 `--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，
 扫描器使用 `.`。匹配结果会流式写入标准输出；`--verbose` 会在扫描过程中把已加载的
-rule id 和目录遍历进度写入标准错误，解析 warning 也写入标准错误。
+rule id 和目录遍历进度写入标准错误，扫描 warning 也写入标准错误。
 
 扫描器默认使用 untyped AST matcher。重复的 `exp`、`arg`、`pat` 和 `type` 捕获会按忽略源码位置的 untyped AST 结构相等性进行比较。
 

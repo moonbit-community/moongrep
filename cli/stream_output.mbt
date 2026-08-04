@@ -7,7 +7,7 @@ priv struct ScanOutputState {
 /// Scans source files and writes results as they are found.
 ///
 /// Match records are written to standard output. Verbose traversal messages
-/// and parse warnings are written to standard error.
+/// and scan warnings are written to standard error.
 pub async fn run_scan_command(options : CliOptions) -> Unit {
   run_scan_command_with_writers(options, write_scan_stdout, write_scan_stderr)
 }
@@ -47,8 +47,7 @@ async fn write_stream_scan_event(
 ) -> Unit {
   match event {
     Trace(message) => stderr_writer(message + "\n")
-    Warning(skipped_file) =>
-      stderr_writer(render_skipped_file_warning(skipped_file) + "\n")
+    Warning(warning) => stderr_writer(render_scan_warning(warning) + "\n")
     Hit(hit) => {
       let rendered = if options.output_json {
         render_scan_hit_json(hit)

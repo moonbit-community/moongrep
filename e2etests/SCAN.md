@@ -54,6 +54,35 @@ source:
 3 | }
 ```
 
+## Source-level structural suppression
+
+A bare `#moongrep.skip` suppresses every structural rule in its function while
+taint analysis still runs. A payload form does not suppress structural rules.
+The fixture also combines `#moongrep.skip()` with a bare marker on one function;
+that function stays structurally suppressed because the bare marker remains
+effective. With warnings hidden, only the payload-only function, the unmarked
+function, and the taint flow under a bare marker are reported.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/skip-structural/rules testdata/skip-structural/src 2>/dev/null | grep -E '^(testdata/|rule:)'
+testdata/skip-structural/src/hit.mbt:9:3-9:11
+rule: structural
+testdata/skip-structural/src/hit.mbt:21:3-21:11
+rule: structural
+testdata/skip-structural/src/hit.mbt:28:8-28:9
+rule: taint
+```
+
+Every payload form writes a source-rebased warning to standard error. The
+command still exits successfully, and the empty-payload warning is emitted even
+though the same function also has a valid bare marker.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/skip-structural/rules testdata/skip-structural/src 2>&1 >/dev/null
+warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+```
+
 ## Parse warnings
 
 Parse warnings are written to standard error even without `--verbose`. An

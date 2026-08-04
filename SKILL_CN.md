@@ -112,7 +112,7 @@ user.name == other.name
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
 
-JSON 匹配记录会逐行写入标准输出。详细遍历信息和解析 warning 会写入标准错误；
+JSON 匹配记录会逐行写入标准输出。详细遍历信息和扫描 warning 会写入标准错误；
 JSON 模式下没有命中时，标准输出为空。
 
 ## 模式附加条件

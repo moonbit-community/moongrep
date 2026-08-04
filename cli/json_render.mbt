@@ -67,9 +67,9 @@ fn render_scan_hit_json(hit : ScanHit) -> String {
 }
 
 ///|
-// JSON stdout is finding-only: scan trace, parse warnings, and the human
+// JSON stdout is finding-only: scan trace, scan warnings, and the human
 // no-match summary are omitted so every non-empty line is a machine-readable
-// finding record. Parse warnings are written separately to stderr.
+// finding record. Scan warnings are written separately to stderr.
 fn render_directory_scan_json(result : DirectoryScanResult) -> String {
   let records : Array[String] = []
   for hit in result.hits {

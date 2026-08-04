@@ -8,12 +8,6 @@
   an explicit kind for cross-position reuse, improving the diagnostic, or
   adding a storage-path metavariable kind.
 
-- Define and document the contract for `#moongrep.skip`. It is currently
-  recognized on functions, impls, top-level lets, tests, and views; ignores
-  any payload, including `false`; and suppresses structural rules but not
-  taint analysis. If it remains public, cover those semantics in the user and
-  e2e documentation. Otherwise, make it internal or remove it.
-
 - Clarify constant matching in the RuleSpec overview. Constants are compared
   using the parser AST constant kind and preserved source spelling, so
   equivalent values such as `1000` and `1_000` do not necessarily match.
