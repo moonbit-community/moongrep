@@ -225,6 +225,26 @@ source:
 4 |   render("raw")
 ```
 
+## Constant source spelling
+
+Constant equality preserves the spelling stored in the parser AST instead of
+normalizing numeric values. A literal `1000` pattern therefore matches only the
+identically spelled call; the equivalent `1_000` call is omitted.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern 'literal(1000)' testdata/constant-spelling/sample.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
+literal(1000)
+```
+
+The same comparison applies when a named `const` metavariable is repeated.
+Pairs with consistent spelling match, while `repeated(1000, 1_000)` does not.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern 'repeated($(value:const), $(value:const))' testdata/constant-spelling/sample.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
+repeated(1000, 1000)
+repeated(1_000, 1_000)
+```
+
 ## Rule filtering
 
 Loading the prefilter rule directory runs both rules and reports their matches

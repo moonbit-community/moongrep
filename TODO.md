@@ -8,12 +8,6 @@
   an explicit kind for cross-position reuse, improving the diagnostic, or
   adding a storage-path metavariable kind.
 
-- Clarify constant matching in the RuleSpec overview. Constants are compared
-  using the parser AST constant kind and preserved source spelling, so
-  equivalent values such as `1000` and `1_000` do not necessarily match.
-  Update the English and Chinese summaries so they do not imply that all
-  formatting is ignored.
-
 - Make the Chinese rule documentation available through the `docs` command,
   or document that only English documents are embedded. `docs/export.mbt`
   currently registers only `RuleSpec` and `WritingRules`; consider adding
