@@ -19,8 +19,11 @@ let _embed_rulespec_md : String =
   #|
   #|Rules use YAML format. Every `shape` value is MoonBit surface syntax. The scanner
   #|matches parsed MoonBit expression structure and does not match raw text.
-  #|Formatting and comments are not significant. Expression form, operators,
-  #|literal values, labels, callee names, and argument structure are significant.
+  #|Whitespace formatting and comments are not significant. Literal source spelling
+  #|is an exception: constants are compared by their parser AST kind and preserved
+  #|source spelling, not by normalized semantic value. Equivalent values such as
+  #|`1000` and `1_000` therefore do not necessarily match. Expression form,
+  #|operators, labels, callee names, and argument structure are also significant.
   #|Wildcards and declared metavariables modify these matching requirements as
   #|documented below.
   #|
@@ -134,13 +137,14 @@ let _embed_rulespec_md : String =
   #|Shapes are structural:
   #|
   #|- undeclared identifiers and labels match literally
-  #|- constants match by value
+  #|- constants match by parser AST kind and preserved source spelling; equivalent
+  #|  values such as `1000` and `1_000` do not necessarily match
   #|- operators match literally
   #|- call and method-call argument kinds, labels, order, and arity must match
   #|- type annotations and type names in matched syntax must match where present
-  #|- source locations and formatting do not participate in matching; top-level
-  #|  documentation is an AST field and follows the `inside-toplevel` matching
-  #|  mode
+  #|- source locations, comments, and whitespace formatting do not participate in
+  #|  matching; top-level documentation is an AST field and follows the
+  #|  `inside-toplevel` matching mode
   #|
   #|The scanner does not type-check shapes and does not resolve names semantically.
   #|For example, two imported names that refer to the same definition compare as
@@ -491,8 +495,9 @@ let _embed_rulespec_md : String =
   #|
   #|A `const` metavar captures a parsed MoonBit constant. In expression position,
   #|it matches `Expr::Constant`; in pattern position, it matches `Pattern::Constant`.
-  #|It compares the parser AST constant kind and value only; it does not type-check
-  #|or normalize equivalent values.
+  #|It compares the parser AST constant kind and preserved source spelling; it does
+  #|not type-check or normalize equivalent values. For example, `1000` and `1_000`
+  #|do not necessarily compare as the same constant.
   #|
   #|Example:
   #|
