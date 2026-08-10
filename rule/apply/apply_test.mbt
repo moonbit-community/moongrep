@@ -1913,6 +1913,29 @@ test "apply structural rule matches let pattern header with omitted body" {
 }
 
 ///|
+test "apply structural rule matches guard header with omitted body" {
+  let rule_source =
+    #|id: example
+    #|description: |
+    #|  Guard header.
+    #|patterns:
+    #|  - shape: guard ready() else { fallback() }
+    #|
+  let source =
+    #|fn sample {
+    #|  guard ready() else { fallback() }
+    #|  { continue_work(); finish_work() }
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+}
+
+///|
 test "apply taint rule reports source reaching sink" {
   let rule_source =
     #|id: example

@@ -176,6 +176,23 @@ source:
 3 | }
 ```
 
+A guard pattern without an explicit body matches the guard header and ignores
+the candidate continuation. The reported range still covers the complete
+candidate guard expression, including the following call.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'guard ready() else { fallback() }' testdata/guard-omitted-body
+testdata/guard-omitted-body/hit.mbt:2:3-3:18
+rule: guard ready() else { fallback() }
+description:
+  Anonymous CLI pattern.
+source:
+1 | fn sample {
+2 >   guard ready() else { fallback() }
+3 >   continue_work()
+4 | }
+```
+
 Qualified call matching is independent of whitespace before the long
 identifier dot. The source still matches the compact anonymous pattern.
 

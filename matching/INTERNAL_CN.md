@@ -65,7 +65,7 @@ matcher 在比较重复的 expression、argument、pattern 和 type 捕获时会
 `node_equal_ignoring_loc` 要求节点 kind 相同，并按顺序递归比较子节点标签和子值。
 Leaf 值通过节点 kind 比较；整个遍历都会忽略 `loc` 字段。
 
-## Let 头部匹配
+## Let 和 Guard 头部匹配
 
 MoonBit 会把 `let ($_, $_) = $_` 这样的表达式解析为 `Expr::Let`，
 其 body 是 parser 合成的 `Unit(faked=true)`。
@@ -81,8 +81,18 @@ matcher 会把这个 faked unit 视为“pattern 中省略了 body”。这条�
 
 `LetMut`、`LetFn` 和 `LetAnd` 不使用 faked-unit 快捷路径。
 
-这个行为属于 matcher。它允许 `inside-expr` 使用嵌套 let 表达式，
-例如 `let println = $_; __TARGET__`，并正常遍历目标 body。
+guard 表达式使用相同的 parser 约定。`guard ready() else { fallback() }`
+这样的 shape 具有 parser 合成的 `Unit(faked=true)` body。对于
+`Expr::Guard`，matcher 仍然递归匹配 `cond` 和 `otherwise`；只有当 pattern
+body 是这个 faked unit 时，才不要求候选 body 匹配。
+
+显式 guard body 仍使用普通结构匹配，包括
+`guard ready() else { fallback() }; ()`。显式 unit 的 `faked=false`，不会被
+当成通配符。`$(body:exp)` 这样的 body 元变量也仍会正常绑定候选 body。
+
+这些行为属于 matcher。它们允许 `inside-expr` 使用嵌套 let 表达式，
+例如 `let println = $_; __TARGET__`，并正常遍历目标 body。它们不会改变
+作用域遍历、YAML `guard` 过滤器或 taint 匹配。
 
 ## 精确性和小例外
 

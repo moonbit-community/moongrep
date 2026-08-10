@@ -163,6 +163,50 @@ patterns:
 `let $(name:id) = $(value:exp)`；省略 body 的形式会有意忽略候选表达式的任意 body。当前结构 shape
 无法表达“只匹配语法上省略 body 的 let”。
 
+### 1.2. 判断 `guard` body 是否重要
+
+没有显式 body 的 `guard` shape 会匹配 condition 和 `else` 表达式，同时忽略
+候选表达式的 continuation：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }
+```
+
+这个 shape 既能匹配单独的 guard，也能匹配后面带任意 body 的 guard：
+
+```moonbit
+guard ready() else { fallback() }; continue_work()
+```
+
+```moonbit
+guard ready() else { fallback() }; { prepare(); finish() }
+```
+
+如果 continuation 重要，请显式写出：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }; continue_work()
+```
+
+如需捕获任意形式的 body，请显式添加 body 元变量：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }; $(body:exp)
+```
+
+显式 unit body 也仍然精确匹配：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }; ()
+```
+
+最后一种形式不是通配符。只有 pattern 省略 body 时由 parser 合成的 unit
+才会让候选 body 不受约束。
+
 ### 2. 在 `shape` 中内联标记元变量
 
 `shape` 中看起来像占位符的名称默认也是字面量。

@@ -79,7 +79,7 @@ argument, pattern, and type captures. Repeated binding comparison is handled by
 child labels and child values in order. Leaf values compare through their node
 kind. The `loc` field is ignored throughout the walk.
 
-## Let Head Matching
+## Let and Guard Header Matching
 
 MoonBit parses an expression such as `let ($_, $_) = $_` as an `Expr::Let`
 whose body is a parser-synthesized `Unit(faked=true)`.
@@ -97,9 +97,21 @@ their old meaning:
 
 `LetMut`, `LetFn`, and `LetAnd` do not use the faked-unit shortcut.
 
-This behavior belongs in the matcher. It lets `inside-expr` use nested let
+Guard expressions use the same parser convention. A shape such as
+`guard ready() else { fallback() }` has a parser-synthesized
+`Unit(faked=true)` body. For `Expr::Guard`, the matcher still recursively
+matches `cond` and `otherwise`, but places no requirement on the candidate body
+when the pattern body is that faked unit.
+
+Explicit guard bodies use normal structural matching, including
+`guard ready() else { fallback() }; ()`. An explicit unit has `faked=false`
+and is not a wildcard. A body metavar such as `$(body:exp)` continues to bind
+the candidate body normally.
+
+These behaviors belong in the matcher. They let `inside-expr` use nested let
 expressions such as `let println = $_; __TARGET__` and traverse the target body
-normally.
+normally. They do not change scoped traversal, YAML `guard` filters, or taint
+matching.
 
 ## Exactness and Small Exceptions
 

@@ -80,6 +80,7 @@ fn match_node(
     result
   } else {
     match pattern.kind {
+      Expr_Guard => match_guard_node(pattern, candidate, compiled, bindings)
       Expr_Let => match_let_node(pattern, candidate, compiled, bindings)
       InterpElem_Source => candidate.kind == InterpElem_Source
       Var => match_var(pattern, candidate, compiled, bindings)
@@ -233,6 +234,34 @@ fn match_pattern_placeholder(
   } else {
     None
   }
+}
+
+///|
+fn match_guard_node(
+  pattern : @untyped_ast.Node,
+  candidate : @untyped_ast.Node,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  if candidate.kind != Expr_Guard {
+    return false
+  }
+  guard child(pattern, "cond") is Some(pattern_cond) else { return false }
+  guard child(candidate, "cond") is Some(candidate_cond) else { return false }
+  guard child(pattern, "otherwise") is Some(pattern_otherwise) else {
+    return false
+  }
+  guard child(candidate, "otherwise") is Some(candidate_otherwise) else {
+    return false
+  }
+  guard child(pattern, "body") is Some(pattern_body) else { return false }
+  guard child(candidate, "body") is Some(candidate_body) else { return false }
+  match_node(pattern_cond, candidate_cond, compiled, bindings) &&
+  match_node(pattern_otherwise, candidate_otherwise, compiled, bindings) &&
+  (
+    is_faked_unit(pattern_body) ||
+    match_node(pattern_body, candidate_body, compiled, bindings)
+  )
 }
 
 ///|
