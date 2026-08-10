@@ -745,3 +745,67 @@ test "let pattern with omitted body matches let header only" {
     ),
   )
 }
+
+///|
+test "guard pattern with omitted body matches guard header only" {
+  let pattern = parse_expr("guard ready() else { fallback() }")
+  assert_true(
+    expr_matches(
+      pattern,
+      parse_expr("guard ready() else { fallback() }; continue_work()"),
+    ),
+  )
+  assert_true(
+    expr_matches(
+      pattern,
+      parse_expr("guard ready() else { fallback() }; { prepare(); finish() }"),
+    ),
+  )
+}
+
+///|
+test "guard pattern with omitted body still matches condition and otherwise" {
+  let pattern = parse_expr("guard ready() else { fallback() }")
+  assert_false(
+    expr_matches(
+      pattern,
+      parse_expr("guard waiting() else { fallback() }; continue_work()"),
+    ),
+  )
+  assert_false(
+    expr_matches(
+      pattern,
+      parse_expr("guard ready() else { recover() }; continue_work()"),
+    ),
+  )
+}
+
+///|
+test "guard pattern with explicit body matches body exactly" {
+  let pattern = parse_expr("guard ready() else { fallback() }; continue_work()")
+  assert_true(
+    expr_matches(
+      pattern,
+      parse_expr("guard ready() else { fallback() }; continue_work()"),
+    ),
+  )
+  assert_false(
+    expr_matches(
+      pattern,
+      parse_expr("guard ready() else { fallback() }; finish_work()"),
+    ),
+  )
+  let explicit_unit = parse_expr("guard ready() else { fallback() }; ()")
+  assert_true(
+    expr_matches(
+      explicit_unit,
+      parse_expr("guard ready() else { fallback() }; ()"),
+    ),
+  )
+  assert_false(
+    expr_matches(
+      explicit_unit,
+      parse_expr("guard ready() else { fallback() }; continue_work()"),
+    ),
+  )
+}

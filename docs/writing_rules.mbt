@@ -240,6 +240,50 @@ let _embed_writingrules_md : String =
   #|the candidate has. Matching only syntactically omitted let bodies is not
   #|currently expressible as a structural shape.
   #|
+  #|### 1.2. Decide whether a `guard` body matters
+  #|
+  #|A `guard` shape with no explicit body matches the condition and `else`
+  #|expression while ignoring the candidate continuation:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }
+  #|```
+  #|
+  #|That shape matches both an isolated guard and a guard followed by any body:
+  #|
+  #|```moonbit
+  #|guard ready() else { fallback() }; continue_work()
+  #|```
+  #|
+  #|```moonbit
+  #|guard ready() else { fallback() }; { prepare(); finish() }
+  #|```
+  #|
+  #|If the continuation matters, write it explicitly:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }; continue_work()
+  #|```
+  #|
+  #|To capture an unrestricted body, add an explicit body metavar:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }; $(body:exp)
+  #|```
+  #|
+  #|An explicit unit body also stays exact:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }; ()
+  #|```
+  #|
+  #|The final form is not a wildcard. Only the parser-synthesized unit from an
+  #|omitted pattern body makes the candidate body unrestricted.
+  #|
   #|### 2. Mark metavars inline in `shape`
   #|
   #|Names that look like placeholders are literal by default in `shape`.

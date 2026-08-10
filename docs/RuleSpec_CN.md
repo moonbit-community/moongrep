@@ -168,6 +168,58 @@ patterns:
 这个快捷匹配只适用于普通 `let` 表达式。`let mut`、局部函数定义和
 `letrec` shape 使用普通结构匹配。
 
+### 省略 body 的 guard shape
+
+没有显式 body 的 `guard` shape 是 guard-header pattern。它会匹配 condition
+和 `else` 表达式，但不约束候选表达式的 continuation：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }
+```
+
+它可以匹配下面这些候选形式：
+
+```moonbit
+guard ready() else { fallback() }
+```
+
+```moonbit
+guard ready() else { fallback() }; continue_work()
+```
+
+```moonbit
+guard ready() else { fallback() }; { prepare(); finish() }
+```
+
+MoonBit parser 会把省略的 body 表示为一个合成的 unit 表达式。当 pattern
+shape 中出现这个合成 unit 时，matcher 会忽略候选 body。condition 和
+`else` 表达式仍使用普通的递归结构匹配。
+
+如果 continuation 重要，请显式写出 body：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }; continue_work()
+```
+
+如需捕获任意形式的候选 body，请显式写 body 元变量：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }; $(body:exp)
+```
+
+如果期望 body 是 unit，请显式写 `()` body：
+
+```yaml
+patterns:
+  - shape: guard ready() else { fallback() }; ()
+```
+
+显式 unit 会按结构匹配，不是通配符。与省略 body 的 `let` 一样，当前结构
+shape 无法表达“只匹配语法上省略 body 的 guard”。
+
 ## 元变量
 
 shape 中的标识符和标签默认都是字面量。只有在 `shape` 内使用内联元变量语法时，一个名称才会成为元变量；下面描述的内置通配符除外。

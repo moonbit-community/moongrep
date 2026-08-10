@@ -209,6 +209,61 @@ let _embed_rulespec_md : String =
   #|This shortcut applies only to ordinary `let` expressions. `let mut`, local
   #|function definitions, and `letrec` shapes use normal structural matching.
   #|
+  #|### Guard Shapes With Omitted Bodies
+  #|
+  #|A `guard` shape without an explicit body is a guard-header pattern. It matches
+  #|the condition and `else` expression but places no constraint on the candidate
+  #|continuation:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }
+  #|```
+  #|
+  #|It can match candidates such as:
+  #|
+  #|```moonbit
+  #|guard ready() else { fallback() }
+  #|```
+  #|
+  #|```moonbit
+  #|guard ready() else { fallback() }; continue_work()
+  #|```
+  #|
+  #|```moonbit
+  #|guard ready() else { fallback() }; { prepare(); finish() }
+  #|```
+  #|
+  #|The MoonBit parser represents the omitted body as a synthesized unit
+  #|expression. When that synthesized unit appears in the pattern shape, the
+  #|matcher ignores the candidate body. The condition and `else` expression still
+  #|use normal recursive structural matching.
+  #|
+  #|Write an explicit body when the continuation matters:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }; continue_work()
+  #|```
+  #|
+  #|To capture whichever body the candidate has, write a body metavar explicitly:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }; $(body:exp)
+  #|```
+  #|
+  #|To require a unit body, write an explicit `()` body:
+  #|
+  #|```yaml
+  #|patterns:
+  #|  - shape: guard ready() else { fallback() }; ()
+  #|```
+  #|
+  #|The explicit unit is matched structurally and is not a wildcard. As with an
+  #|omitted `let` body, matching only syntactically omitted guard bodies is not
+  #|currently expressible as a structural shape.
+  #|
   #|## Metavariables
   #|
   #|Identifiers and labels in a shape are literal by default. Metavar syntax inside
