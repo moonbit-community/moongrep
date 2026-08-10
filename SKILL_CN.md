@@ -9,7 +9,19 @@ description: 使用 moongrep 对 MoonBit 源码进行结构化搜索和污点分
 
 ## 快速入门
 
-`moongrep`的最简单使用方法是在一个MoonBit项目根目录运行scan命令(默认递归扫描，同时绕过Git和MoonBit工具链生成的目录), 并使用`--pattern`选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对Option类型的值进行`match`的表达式。
+要使用内置规则检查当前 MoonBit 项目，运行：
+
+```bash
+moongrep lint
+```
+
+`lint` 等价于 `scan --enable-builtin-rules`。它默认扫描当前目录，并接受
+`scan` 的其他选项，用于添加自定义规则、过滤结果或调整输出格式。
+
+要进行结构化搜索，可以在 MoonBit 项目根目录运行 `scan` 命令。默认情况下，
+它会递归扫描，并跳过 Git 和 MoonBit 工具链生成的目录。使用 `--pattern`
+选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对 Option
+类型的值进行 `match` 的表达式。
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'

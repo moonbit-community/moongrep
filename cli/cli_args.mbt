@@ -29,57 +29,81 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 }
 
 ///|
-let scan_command : @argparse.Command = Command(
-  "scan",
-  about="Scan MoonBit source files.",
-  arg_required_else_help=true,
-  flags=[
+fn scan_like_command(
+  name : StringView,
+  about : StringView,
+  include_enable_builtin_rules : Bool,
+  arg_required_else_help : Bool,
+) -> @argparse.Command {
+  let flags : Array[@argparse.FlagArg] = [
     FlagArg(
       "verbose",
       long="verbose",
       about="Write loaded rule ids and traversal progress to stderr.",
     ),
-    FlagArg(
-      "enable-builtin-rules",
-      long="enable-builtin-rules",
-      about="Enable embedded builtin rules.",
-    ),
+  ]
+  if include_enable_builtin_rules {
+    flags.push(
+      FlagArg(
+        "enable-builtin-rules",
+        long="enable-builtin-rules",
+        about="Enable embedded builtin rules.",
+      ),
+    )
+  }
+  flags.push(
     FlagArg(
       "output-json",
       long="output-json",
       about="Write each match as one JSON record to stdout.",
     ),
-  ],
-  options=[
-    OptionArg(
-      "rules",
-      short='r',
-      action=Append,
-      about="Directory containing YAML rules.",
-    ),
-    OptionArg("rule", action=Append, about="Single YAML rule file."),
-    OptionArg(
-      "pattern",
-      action=Append,
-      about="Anonymous structural pattern to match.",
-    ),
-    OptionArg(
-      "guard",
-      action=Append,
-      about="YAML guard map for the preceding anonymous pattern.",
-    ),
-    OptionArg(
-      "exclude-dir",
-      action=Append,
-      about="Directory name or path to skip while recursively scanning. May be repeated.",
-    ),
-    OptionArg(
-      "exclude-rule",
-      action=Append,
-      about="Rule id to disable after loading rules. May be repeated.",
-    ),
-  ],
-  positionals=[PositionArg("scan-root", about="Directory to scan.")],
+  )
+  Command(
+    name,
+    about~,
+    arg_required_else_help~,
+    flags~,
+    options=[
+      OptionArg(
+        "rules",
+        short='r',
+        action=Append,
+        about="Directory containing YAML rules.",
+      ),
+      OptionArg("rule", action=Append, about="Single YAML rule file."),
+      OptionArg(
+        "pattern",
+        action=Append,
+        about="Anonymous structural pattern to match.",
+      ),
+      OptionArg(
+        "guard",
+        action=Append,
+        about="YAML guard map for the preceding anonymous pattern.",
+      ),
+      OptionArg(
+        "exclude-dir",
+        action=Append,
+        about="Directory name or path to skip while recursively scanning. May be repeated.",
+      ),
+      OptionArg(
+        "exclude-rule",
+        action=Append,
+        about="Rule id to disable after loading rules. May be repeated.",
+      ),
+    ],
+    positionals=[PositionArg("scan-root", about="Directory to scan.")],
+  )
+}
+
+///|
+let scan_command : @argparse.Command = scan_like_command(
+  "scan", "Scan MoonBit source files.", true, true,
+)
+
+///|
+let lint_command : @argparse.Command = scan_like_command(
+  "lint", "Scan MoonBit source files with embedded builtin rules.", false, false,
 )
 
 ///|
@@ -118,7 +142,7 @@ let dump_command : @argparse.Command = Command(
 let moongrep_command : @argparse.Command = Command(
   "moongrep",
   about="Scan MoonBit source files with structural and taint rules.",
-  subcommands=[scan_command, docs_command, dump_command],
+  subcommands=[scan_command, lint_command, docs_command, dump_command],
   subcommand_required=true,
 )
 
@@ -231,12 +255,11 @@ fn scan_cli_options(
   scan_matches : @argparse.Matches,
   env : Map[String, String],
   argv : Array[String],
+  enable_builtin_rules_by_default~ : Bool,
 ) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
-  let enable_builtin_rules = cli_flag_enabled(
-    scan_matches.flags,
-    "enable-builtin-rules",
-  )
+  let enable_builtin_rules = enable_builtin_rules_by_default ||
+    cli_flag_enabled(scan_matches.flags, "enable-builtin-rules")
   let output_json = cli_flag_enabled(scan_matches.flags, "output-json")
   let no_color = no_color_enabled(env)
   let rules_root = last_cli_value(scan_matches.values, "rules")
@@ -400,6 +423,8 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// `--rule <rule-file>`, at least one `--pattern <pattern>`, or
 /// `--enable-builtin-rules` is required. `--verbose` and `--output-json` are
 /// optional.
+/// `lint` accepts the other scan options, enables builtin rules automatically,
+/// and defaults to scanning the current directory when no arguments are given.
 /// Each `--exclude-dir <dir>` skips one matching child directory name or path
 /// during recursive source scanning. Each `--exclude-rule <rule-id>` disables
 /// one loaded rule by exact rule id before matching. Both options may be
@@ -424,7 +449,31 @@ pub fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches, env, argv)), None)
+      (
+        "scan",
+        Some(
+          scan_cli_options(
+            scan_matches,
+            env,
+            argv,
+            enable_builtin_rules_by_default=false,
+          ),
+        ),
+        None,
+      )
+    Some(("lint", lint_matches)) =>
+      (
+        "scan",
+        Some(
+          scan_cli_options(
+            lint_matches,
+            env,
+            argv,
+            enable_builtin_rules_by_default=true,
+          ),
+        ),
+        None,
+      )
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)
