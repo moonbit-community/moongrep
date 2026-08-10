@@ -11,6 +11,7 @@ Scan MoonBit source files with structural and taint rules.
 
 Commands:
   scan  Scan MoonBit source files.
+  lint  Scan MoonBit source files with embedded builtin rules.
   docs  Print embedded moongrep documentation.
   dump  Parse a MoonBit impl or expression and print untyped_ast debug output.
   help  Print help for the subcommand(s).
@@ -21,8 +22,9 @@ Options:
 
 ## moongrep subcommands without arguments
 
-Each check verifies that invoking a subcommand without arguments succeeds and
-prints exactly the same help text as invoking it with `--help`.
+The `scan`, `docs`, and `dump` subcommands print their help when invoked
+without arguments. `lint` instead treats an omitted scan root as the current
+directory because builtin rules are enabled automatically.
 
 The scan subcommand falls back to its help when no scan root or rule input is
 provided.
@@ -42,6 +44,39 @@ input.
 
 ```mooncram
 $ moonrun "$TESTDIR"/moongrep.wasm -- dump > /dev/null && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- dump --help) <(moonrun "$TESTDIR"/moongrep.wasm -- dump)
+```
+
+Running bare `lint` from a fixture directory produces the same output as
+enabling builtin rules explicitly through `scan`.
+
+```mooncram
+$ cd "$TESTDIR"/../testdata/builtin-rules && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- scan --enable-builtin-rules) <(moonrun "$TESTDIR"/moongrep.wasm -- lint)
+```
+
+## moongrep lint --help
+
+The lint help exposes all scan options except the redundant
+`--enable-builtin-rules` flag.
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- lint --help
+Usage: moongrep lint [options] [scan-root]
+
+Scan MoonBit source files with embedded builtin rules.
+
+Arguments:
+  scan-root  Directory to scan.
+
+Options:
+  -h, --help                     Show help information.
+  --verbose                      Write loaded rule ids and traversal progress to stderr.
+  --output-json                  Write each match as one JSON record to stdout.
+  -r, --rules <rules>            Directory containing YAML rules.
+  --rule <rule>                  Single YAML rule file.
+  --pattern <pattern>            Anonymous structural pattern to match.
+  --guard <guard>                YAML guard map for the preceding anonymous pattern.
+  --exclude-dir <exclude-dir>    Directory name or path to skip while recursively scanning. May be repeated.
+  --exclude-rule <exclude-rule>  Rule id to disable after loading rules. May be repeated.
 ```
 
 ## moongrep scan --help

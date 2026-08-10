@@ -433,11 +433,72 @@ test "cli args parse builtin rules flag without rules root" {
 }
 
 ///|
+test "cli args parse lint with builtin rules and default scan root" {
+  match parse_cli_command(["lint"]) {
+    ("scan", Some(options), None) => {
+      assert_true(options.rules_root is None)
+      assert_true(options.rule_file is None)
+      expect_no_patterns(options)
+      inspect(options.scan_root, content=".")
+      assert_true(options.exclude_dirs.is_empty())
+      assert_true(options.exclude_rules.is_empty())
+      assert_false(options.verbose)
+      assert_true(options.enable_builtin_rules)
+      assert_false(options.no_color)
+      assert_false(options.output_json)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse lint scan options in addition to builtin rules" {
+  match
+    parse_cli_command(
+      [
+        "lint", "--rules", "custom-rules", "--rule", "custom-rules/example.yaml",
+        "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}", "--exclude-dir",
+        "./vendor/", "--exclude-rule", "moonbitlang/match_option", "--verbose", "--output-json",
+        "src",
+      ],
+      env={ "NO_COLOR": "1" },
+    ) {
+    ("scan", Some(options), None) => {
+      expect_rules_root(options, "custom-rules")
+      expect_rule_file(options, "custom-rules/example.yaml")
+      assert_eq(options.patterns.length(), 1)
+      expect_pattern_shape(options, 0, "$(callee:id)()")
+      expect_pattern_guard(options, 0, "$callee", "^safe_")
+      inspect(options.scan_root, content="src")
+      debug_inspect(options.exclude_dirs, content="[\"vendor\"]")
+      debug_inspect(
+        options.exclude_rules,
+        content="[\"moonbitlang/match_option\"]",
+      )
+      assert_true(options.verbose)
+      assert_true(options.enable_builtin_rules)
+      assert_true(options.no_color)
+      assert_true(options.output_json)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args reject redundant lint builtin rules flag" {
+  expect_cli_usage(["lint", "--enable-builtin-rules"], 2)
+}
+
+///|
 test "cli args render argparse help" {
   let help = moongrep_command.render_help()
   assert_true(help.has_prefix("Usage: moongrep <command>"))
   assert_true(help.contains("scan"))
+  assert_true(help.contains("lint"))
   assert_true(help.contains("docs"))
+  let lint_help = lint_command.render_help()
+  assert_true(lint_help.contains("embedded builtin rules"))
+  assert_false(lint_help.contains("--enable-builtin-rules"))
 }
 
 ///|
