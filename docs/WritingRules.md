@@ -13,10 +13,11 @@ See also:
 ## Introduction
 
 YAML rule files are scanner input. A rules root can be any directory supplied to
-the `moongrep scan` CLI with `--rules` or `-r`. Files ending in `.yaml` or
-`.yml` are discovered recursively below that root; other files are ignored. The
-discovered files are loaded in sorted order for deterministic output. An empty
-rules root is an error.
+the `moongrep scan` CLI with `--rules` or `-r`. When no rule source option is
+given, the rules root defaults to `./.moongrep/rules`. Files ending in `.yaml`
+or `.yml` are discovered recursively below that root; other files are ignored.
+The discovered files are loaded in sorted order for deterministic output. An
+empty rules root is an error.
 
 Rule ids come from the rule file directory plus the YAML `id`. For example,
 `rules/security/raw.yaml` with `id: raw-html` becomes `security/raw-html` when
@@ -679,21 +680,23 @@ Run the scanner from the root of the MoonBit module you want to scan. If
 `moongrep` is installed, use:
 
 ```bash
-moongrep scan [--verbose] --rules <rules-root> [scan-root]
+moongrep scan [--verbose] [--rules <rules-root>] [scan-root]
 ```
 
 To run the published WebAssembly CLI from Mooncakes without installing
 `moongrep`, use:
 
 ```bash
-moonx moonbit-community/moongrep -- scan [--verbose] --rules <rules-root> [scan-root]
+moonx moonbit-community/moongrep -- scan [--verbose] [--rules <rules-root>] [scan-root]
 ```
 
 `--rules=<rules-root>` and `-r <rules-root>` are accepted as equivalent forms.
-If `scan-root` is omitted, the scanner uses `.`. Match results are streamed to
-standard output. `--verbose` writes loaded rule ids and directory traversal
-progress to standard error as the scan proceeds; scan warnings also use
-standard error.
+If no rule source option is given, `--rules` uses `./.moongrep/rules`. An
+explicit `--rule`, `--pattern`, or `--enable-builtin-rules` suppresses this
+default. If `scan-root` is omitted, the scanner uses `.`. Match results are
+streamed to standard output. `--verbose` writes loaded rule ids and directory
+traversal progress to standard error as the scan proceeds; scan warnings also
+use standard error.
 
 The scanner uses the untyped AST matcher by default. Repeated `exp`, `arg`,
 `pat`, and `type` captures are compared by structural untyped AST equality

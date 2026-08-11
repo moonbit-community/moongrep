@@ -1,5 +1,18 @@
 ## Directory scanning
 
+When no rule source option is present, `scan` loads rules from
+`./.moongrep/rules`. The path is resolved from the current directory.
+
+```mooncram
+$ cd "$TESTDIR"/../testdata/default-rules && moonrun "$TESTDIR"/moongrep.wasm -- scan
+./src/hit.mbt:1:13-1:21
+rule: example
+description:
+  Target call.
+source:
+1 > fn sample { target() }
+```
+
 The scanner ignores common repository and build directories by default. The
 fixture creates matching files under `.git`, `_build`, `.mooncakes`, and
 `target`, but only the source file at the scan root is reported.
