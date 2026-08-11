@@ -22,16 +22,10 @@ Options:
 
 ## moongrep subcommands without arguments
 
-The `scan`, `docs`, and `dump` subcommands print their help when invoked
-without arguments. `lint` instead treats an omitted scan root as the current
-directory because builtin rules are enabled automatically.
-
-The scan subcommand falls back to its help when no scan root or rule input is
-provided.
-
-```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- scan > /dev/null && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- scan --help) <(moonrun "$TESTDIR"/moongrep.wasm -- scan)
-```
+The `docs` and `dump` subcommands print their help when invoked without
+arguments. `scan` and `lint` instead treat an omitted scan root as the current
+directory. `scan` uses its default rules directory, while `lint` enables
+builtin rules automatically.
 
 The docs subcommand uses the same no-argument help behavior.
 
@@ -98,7 +92,7 @@ Options:
   --verbose                      Write loaded rule ids and traversal progress to stderr.
   --enable-builtin-rules         Enable embedded builtin rules.
   --output-json                  Write each match as one JSON record to stdout.
-  -r, --rules <rules>            Directory containing YAML rules.
+  -r, --rules <rules>            Directory containing YAML rules. [default: ./.moongrep/rules]
   --rule <rule>                  Single YAML rule file.
   --pattern <pattern>            Anonymous structural pattern to match.
   --guard <guard>                YAML guard map for the preceding anonymous pattern.

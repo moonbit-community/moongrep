@@ -52,11 +52,24 @@ fn expect_pattern_guard(
 }
 
 ///|
-test "cli args require rules or pattern option" {
+test "cli args require command" {
   expect_cli_usage([], 2)
   expect_cli_usage(["src"], 2)
-  expect_cli_usage(["scan", "src"], 2)
   expect_cli_usage(["--rules", "custom-rules"], 2)
+}
+
+///|
+test "cli args use default rules root" {
+  match parse_cli_command(["scan"]) {
+    ("scan", Some(options), None) => {
+      expect_rules_root(options, "./.moongrep/rules")
+      assert_true(options.rule_file is None)
+      expect_no_patterns(options)
+      inspect(options.scan_root, content=".")
+      assert_false(options.enable_builtin_rules)
+    }
+    _ => fail("unexpected command")
+  }
 }
 
 ///|
@@ -499,6 +512,9 @@ test "cli args render argparse help" {
   let lint_help = lint_command.render_help()
   assert_true(lint_help.contains("embedded builtin rules"))
   assert_false(lint_help.contains("--enable-builtin-rules"))
+  assert_false(lint_help.contains("[default: ./.moongrep/rules]"))
+  let scan_help = scan_command.render_help()
+  assert_true(scan_help.contains("[default: ./.moongrep/rules]"))
 }
 
 ///|

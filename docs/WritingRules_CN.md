@@ -10,7 +10,7 @@
 
 ## 介绍
 
-YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules` 或 `-r` 传给 `moongrep scan` CLI 的任意目录。以 `.yaml` 或 `.yml` 结尾的文件会在该根目录下递归发现；其他文件会被忽略。发现的文件会按排序后的顺序加载，以得到确定性的输出。空规则根目录是错误。
+YAML 规则文件是扫描器的输入。规则根目录可以是通过 `--rules` 或 `-r` 传给 `moongrep scan` CLI 的任意目录。未指定规则来源选项时，规则根目录默认为 `./.moongrep/rules`。以 `.yaml` 或 `.yml` 结尾的文件会在该根目录下递归发现；其他文件会被忽略。发现的文件会按排序后的顺序加载，以得到确定性的输出。空规则根目录是错误。
 
 规则 id 来自规则文件目录加 YAML `id`。例如，当 `rules` 是规则根目录时，`rules/security/raw.yaml` 中的 `id: raw-html` 会变成 `security/raw-html`。直接位于规则根目录下的文件只使用其 `id`。文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属由文件位置编码。
 
@@ -531,18 +531,20 @@ patterns:
 在要扫描的 MoonBit 模块根目录下运行扫描器。如果已安装 `moongrep`，请使用：
 
 ```bash
-moongrep scan [--verbose] --rules <rules-root> [scan-root]
+moongrep scan [--verbose] [--rules <rules-root>] [scan-root]
 ```
 
 如果不安装 `moongrep`，而是通过 Mooncakes 运行已发布的 WebAssembly CLI，请使用：
 
 ```bash
-moonx moonbit-community/moongrep -- scan [--verbose] --rules <rules-root> [scan-root]
+moonx moonbit-community/moongrep -- scan [--verbose] [--rules <rules-root>] [scan-root]
 ```
 
-`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。如果省略 `scan-root`，
-扫描器使用 `.`。匹配结果会流式写入标准输出；`--verbose` 会在扫描过程中把已加载的
-rule id 和目录遍历进度写入标准错误，扫描 warning 也写入标准错误。
+`--rules=<rules-root>` 和 `-r <rules-root>` 是等价形式。未指定规则来源选项时，
+`--rules` 使用 `./.moongrep/rules`；显式指定 `--rule`、`--pattern` 或
+`--enable-builtin-rules` 会停用该默认值。如果省略 `scan-root`，扫描器使用 `.`。
+匹配结果会流式写入标准输出；`--verbose` 会在扫描过程中把已加载的 rule id 和
+目录遍历进度写入标准错误，扫描 warning 也写入标准错误。
 
 扫描器默认使用 untyped AST matcher。重复的 `exp`、`arg`、`pat` 和 `type` 捕获会按忽略源码位置的 untyped AST 结构相等性进行比较。
 

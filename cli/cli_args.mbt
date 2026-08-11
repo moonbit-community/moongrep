@@ -29,10 +29,14 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 }
 
 ///|
+let default_rules_root : String = "./.moongrep/rules"
+
+///|
 fn scan_like_command(
   name : StringView,
   about : StringView,
   include_enable_builtin_rules : Bool,
+  default_rules_root_enabled : Bool,
   arg_required_else_help : Bool,
 ) -> @argparse.Command {
   let flags : Array[@argparse.FlagArg] = [
@@ -68,6 +72,11 @@ fn scan_like_command(
         "rules",
         short='r',
         action=Append,
+        default_values=if default_rules_root_enabled {
+          [default_rules_root]
+        } else {
+          []
+        },
         about="Directory containing YAML rules.",
       ),
       OptionArg("rule", action=Append, about="Single YAML rule file."),
@@ -98,12 +107,13 @@ fn scan_like_command(
 
 ///|
 let scan_command : @argparse.Command = scan_like_command(
-  "scan", "Scan MoonBit source files.", true, true,
+  "scan", "Scan MoonBit source files.", true, true, false,
 )
 
 ///|
 let lint_command : @argparse.Command = scan_like_command(
   "lint", "Scan MoonBit source files with embedded builtin rules.", false, false,
+  false,
 )
 
 ///|
@@ -262,9 +272,15 @@ fn scan_cli_options(
     cli_flag_enabled(scan_matches.flags, "enable-builtin-rules")
   let output_json = cli_flag_enabled(scan_matches.flags, "output-json")
   let no_color = no_color_enabled(env)
-  let rules_root = last_cli_value(scan_matches.values, "rules")
+  let parsed_rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
   let patterns = parse_scan_pattern_specs(argv)
+  let rules_root = if scan_matches.sources.get("rules") is Some(Default) &&
+    (rule_file is Some(_) || !patterns.is_empty() || enable_builtin_rules) {
+    None
+  } else {
+    parsed_rules_root
+  }
   let exclude_dirs = normalize_scan_exclude_dirs(
     all_cli_values(scan_matches.values, "exclude-dir"),
   )
@@ -419,10 +435,11 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// Parses command-line arguments after the executable name has been removed.
 ///
 /// A supported subcommand is required after the executable name. Within `scan`,
-/// `--rules <rules-root>`, `--rules=<rules-root>`, `-r <rules-root>`,
-/// `--rule <rule-file>`, at least one `--pattern <pattern>`, or
-/// `--enable-builtin-rules` is required. `--verbose` and `--output-json` are
-/// optional.
+/// `--rules <rules-root>`, `--rules=<rules-root>`, and `-r <rules-root>` select
+/// a rules directory. When no rule source is given, the rules directory
+/// defaults to `./.moongrep/rules`. An explicit `--rule <rule-file>`, at least
+/// one `--pattern <pattern>`, or `--enable-builtin-rules` suppresses that
+/// default. `--verbose` and `--output-json` are optional.
 /// `lint` accepts the other scan options, enables builtin rules automatically,
 /// and defaults to scanning the current directory when no arguments are given.
 /// Each `--exclude-dir <dir>` skips one matching child directory name or path
@@ -433,9 +450,9 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// rules option or single rule option appears multiple times, the last value
 /// wins. Repeated patterns, exclude directories, and excluded rules are
 /// appended in order.
-/// Invoking `scan`, `docs`, or `dump` without any arguments prints that
-/// subcommand's help and exits successfully. Missing subcommands, other missing
-/// required arguments, unknown options, or more than one scan root raise
+/// Invoking `docs` or `dump` without any arguments prints that subcommand's
+/// help and exits successfully. Missing subcommands, other missing required
+/// arguments, unknown options, or more than one scan root raise
 /// `CliError::Usage` with exit code 2.
 pub fn parse_cli_command(
   argv : Array[String],
