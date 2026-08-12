@@ -100,7 +100,7 @@ test "query matches qualified identifiers across dot whitespace" {
     #|}
     #|
   let matches = query.captures(source_name="sample.mbt", source)
-  inspect(matches.length(), content="2")
+  assert_eq(matches.length(), 2)
 }
 
 ///|
