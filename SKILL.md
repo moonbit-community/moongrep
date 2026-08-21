@@ -45,7 +45,7 @@ moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:ex
 ## Expression Patterns and Metavariables
 
 `moongrep` parses both the expression pattern and the MoonBit code being
-scanned into abstract syntax trees (ASTs), then compares the structures of the
+scanned into untyped concrete syntax trees (CSTs), then compares the structures of the
 two trees. Ordinary MoonBit syntax in a pattern represents fixed structure.
 Metavariables represent syntax nodes to match and capture. Formatting
 differences such as line breaks and indentation generally do not affect
@@ -116,7 +116,7 @@ position.
 
 The same named metavariable may appear multiple times in a pattern. Repeated
 captures must agree according to their kind: `id` compares normalized names,
-`const` compares parsed constants, and AST-valued kinds such as `exp`, `arg`,
+`const` compares parsed constants, and CST-valued kinds such as `exp`, `arg`,
 `pat`, and `type` compare syntax-tree structure while ignoring source
 locations. For example:
 
@@ -205,9 +205,9 @@ Each `--pattern` accepts at most one `--guard`. To scan multiple guarded
 patterns, provide `--pattern` and `--guard` in pairs. To apply multiple
 conditions to one pattern, put them in the same YAML map.
 
-## Dump AST
+## Dump CST
 
-MoonBit `untyped_ast` debug dumps are available through the `dump` subcommand:
+MoonBit `untyped_cst` debug dumps are available through the `dump` subcommand:
 
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
@@ -221,8 +221,8 @@ moongrep dump (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse a MoonBit top-level implementation item and print
-its `untyped_ast` debug output. Use `--expr <expr>` to parse a MoonBit
-expression and print its `untyped_ast` debug output. To produce a dump, provide
+its `untyped_cst` debug output. Use `--expr <expr>` to parse a MoonBit
+expression and print its `untyped_cst` debug output. To produce a dump, provide
 exactly one of these mutually exclusive options.
 
 Invoking `moongrep dump` without arguments prints the `dump` help and exits
