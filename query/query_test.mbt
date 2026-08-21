@@ -210,13 +210,27 @@ test "query matches keyword non-type metavariables and bare forms" {
 test "query preserves uppercase identifier classes for id and bare metavars" {
   let explicit = ExprQuery::ExprQuery("$(Ctor:id)($(Ctor:id))")
   let bare = ExprQuery::ExprQuery("$Ctor($Ctor)")
-  let source = "fn sample { @pkg.Actual(@pkg.Actual) }"
-  assert_eq(explicit.captures(source_name="sample.mbt", source).length(), 1)
-  assert_eq(bare.captures(source_name="sample.mbt", source).length(), 1)
+  let source =
+    #|fn sample {
+    #|  Actual(Actual);
+    #|  @pkg.Actual(@pkg.Actual);
+    #|  Type::Actual(Type::Actual);
+    #|  @pkg.Type::Actual(@pkg.Type::Actual);
+    #|  @pkg.Type::@other.Actual(@pkg.Type::@other.Actual);
+    #|  @pkg.Type::Actual(@other.Type::Actual)
+    #|}
+    #|
+  let explicit_matches = explicit.captures(source_name="sample.mbt", source)
+  assert_eq(explicit_matches.length(), 5)
+  assert_eq(bare.captures(source_name="sample.mbt", source).length(), 5)
+  guard explicit_matches[4].get("Ctor") is Some(Single(captured)) else {
+    fail("expected qualified constructor capture")
+  }
+  assert_eq(@cst.source_text(captured, source), "@pkg.Type::@other.Actual")
 }
 
 ///|
-test "query matches bare foreach parameter and let mut binders" {
+test "query matches bare foreach parameters and function parameters" {
   let cases = [
     (
       "for $item in $items { $body }", "fn sample { for actual in values { consume(actual) } }",
@@ -224,14 +238,65 @@ test "query matches bare foreach parameter and let mut binders" {
     (
       "fn($param) { $body }", "fn sample { let callback = fn(actual) { consume(actual) } }",
     ),
-    (
-      "let mut $value = $initial", "fn sample { let mut actual = source(); sink(actual) }",
-    ),
   ]
   for case in cases {
     let query = ExprQuery::ExprQuery(case.0)
     assert_eq(query.captures(source_name="sample.mbt", case.1).length(), 1)
   }
+}
+
+///|
+test "query requires a complete let mut continuation when one exists" {
+  let header = ExprQuery::ExprQuery("let mut $value = $initial")
+  assert_eq(
+    header
+    .captures(
+      source_name="sample.mbt",
+      "fn sample { let mut actual = source() }",
+    )
+    .length(),
+    1,
+  )
+  assert_eq(
+    header
+    .captures(
+      source_name="sample.mbt",
+      "fn sample { let mut actual = source(); sink(actual) }",
+    )
+    .length(),
+    0,
+  )
+  let complete = ExprQuery::ExprQuery("let mut $value = $initial; sink($value)")
+  assert_eq(
+    complete
+    .captures(
+      source_name="sample.mbt",
+      "fn sample { let mut actual = source(); sink(actual) }",
+    )
+    .length(),
+    1,
+  )
+}
+
+///|
+test "query distinguishes function body sequences from explicit blocks" {
+  let wildcard = ExprQuery::ExprQuery("$(root:exp)")
+  let source = "fn sample { f <| value }"
+  let captures = wildcard.captures(source_name="sample.mbt", source)
+  assert_eq(captures.length(), 1)
+  guard captures[0].get("root") is Some(Single(root)) else {
+    fail("expected root expression capture")
+  }
+  assert_eq(@cst.source_text(root, source), "f <| value")
+  let block = ExprQuery::ExprQuery("{ a; b }")
+  assert_eq(
+    block.captures(source_name="sample.mbt", "fn sample { a; b }").length(),
+    0,
+  )
+  assert_eq(
+    block.captures(source_name="sample.mbt", "fn sample { { a; b } }").length(),
+    1,
+  )
 }
 
 ///|
