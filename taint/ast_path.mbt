@@ -3,83 +3,48 @@ priv struct FunctionLike {
   name : String
   loc : @basic.Location
   params : Array[StoragePath]
-  body : @untyped_ast.Node
+  body : @untyped_cst.CstNode
 }
 
 ///|
-fn function_like_from_impl(node : @untyped_ast.Node) -> FunctionLike raise {
+fn function_like_from_impl(node : @untyped_cst.CstNode) -> FunctionLike raise {
   match node.kind {
-    Impl_TopFuncDef => {
-      let fun_decl = node_child(node, "fun_decl")
-      let decl_body = node_child(node, "decl_body")
-      match decl_body {
-        Some(body) if body.kind == DeclBody_DeclBody => {
-          let body_expr = if node_child(body, "expr") is Some(expr) {
-            expr
-          } else {
-            raise TaintAnalysisError::UnsupportedFunctionLike(
-              kind="TopFuncDef.DeclBody",
-              loc=node.loc,
-            )
-          }
-          {
-            name: function_decl_name(fun_decl),
-            loc: node.loc,
-            params: paths_from_optional_parameters(fun_decl, "decl_params"),
-            body: body_expr,
-          }
-        }
-        Some(body) if body.kind == DeclBody_DeclNone =>
-          raise TaintAnalysisError::UnsupportedFunctionLike(
-            kind="TopFuncDef.DeclNone",
-            loc=node.loc,
-          )
-        Some(body) if body.kind == DeclBody_DeclStubs =>
-          raise TaintAnalysisError::UnsupportedFunctionLike(
-            kind="TopFuncDef.DeclStubs",
-            loc=node.loc,
-          )
-        _ =>
-          raise TaintAnalysisError::UnsupportedFunctionLike(
-            kind="TopFuncDef",
-            loc=node.loc,
-          )
+    @untyped_cst.Impl_Function | @untyped_cst.Impl_ImplMethod => {
+      let declaration = if node.kind is @untyped_cst.Impl_ImplMethod {
+        @cst.raw_child(node, "method").unwrap_or(node)
+      } else {
+        node
       }
-    }
-    Impl_TopImpl => {
-      let decl_body = node_child(node, "body")
-      match decl_body {
-        Some(body) if body.kind == DeclBody_DeclBody => {
-          let body_expr = if node_child(body, "expr") is Some(expr) {
-            expr
-          } else {
-            raise TaintAnalysisError::UnsupportedFunctionLike(
-              kind="TopImpl.DeclBody",
-              loc=node.loc,
-            )
-          }
-          {
-            name: impl_method_name(node),
-            loc: node.loc,
-            params: paths_from_parameter_list(node_child(node, "params")),
-            body: body_expr,
-          }
+      guard @cst.raw_child(declaration, "body") is Some(body) else {
+        let decl_body_kind = @cst.raw_child(declaration, "decl_body_kind")
+        let unsupported_kind = match decl_body_kind.map(item => item.kind) {
+          Some(@untyped_cst.DeclBody_EmbeddedString)
+          | Some(@untyped_cst.DeclBody_EmbeddedMultilineString)
+          | Some(@untyped_cst.DeclBody_Import) =>
+            if node.kind is @untyped_cst.Impl_Function {
+              "TopFuncDef.DeclStubs"
+            } else {
+              "TopImpl.DeclStubs"
+            }
+          _ =>
+            if node.kind is @untyped_cst.Impl_Function {
+              "TopFuncDef.DeclNone"
+            } else {
+              "TopImpl.DeclNone"
+            }
         }
-        Some(body) if body.kind == DeclBody_DeclNone =>
-          raise TaintAnalysisError::UnsupportedFunctionLike(
-            kind="TopImpl.DeclNone",
-            loc=node.loc,
-          )
-        Some(body) if body.kind == DeclBody_DeclStubs =>
-          raise TaintAnalysisError::UnsupportedFunctionLike(
-            kind="TopImpl.DeclStubs",
-            loc=node.loc,
-          )
-        _ =>
-          raise TaintAnalysisError::UnsupportedFunctionLike(
-            kind="TopImpl",
-            loc=node.loc,
-          )
+        raise TaintAnalysisError::UnsupportedFunctionLike(
+          kind=unsupported_kind,
+          loc=node.loc,
+        )
+      }
+      {
+        name: @cst.name_node(declaration)
+        .bind(@cst.normalized_name)
+        .unwrap_or(""),
+        loc: node.loc,
+        params: paths_from_parameter_list(@cst.raw_child(declaration, "params")),
+        body,
       }
     }
     _ =>
@@ -91,121 +56,110 @@ fn function_like_from_impl(node : @untyped_ast.Node) -> FunctionLike raise {
 }
 
 ///|
-fn function_decl_name(fun_decl : @untyped_ast.Node?) -> String {
-  if fun_decl is Some(decl) &&
-    node_child(decl, "name") is Some(name) &&
-    node_binder_name(name) is Some(value) {
-    value
-  } else {
-    ""
-  }
-}
-
-///|
-fn impl_method_name(node : @untyped_ast.Node) -> String {
-  if node_child(node, "method_name") is Some(name) &&
-    node_binder_name(name) is Some(value) {
-    value
-  } else {
-    ""
-  }
-}
-
-///|
-fn impl_kind_name(node : @untyped_ast.Node) -> String {
+fn impl_kind_name(node : @untyped_cst.CstNode) -> String {
   match node.kind {
-    Impl_TopExpr => "TopExpr"
-    Impl_TopFuncDef => "TopFuncDef"
-    Impl_TopImpl => "TopImpl"
-    Impl_TopImplRelation => "TopImplRelation"
-    Impl_TopLetDef => "TopLetDef"
-    Impl_TopTest => "TopTest"
-    Impl_TopTrait => "TopTrait"
-    Impl_TopTypeDef => "TopTypeDef"
-    Impl_TopUsing => "TopUsing"
-    Impl_TopView => "TopView"
-    _ => node.kind.to_string()
+    @untyped_cst.Impl_Import => "TopImport"
+    @untyped_cst.Impl_Extend => "TopExtend"
+    @untyped_cst.Impl_Using => "TopUsing"
+    @untyped_cst.Impl_Function => "TopFuncDef"
+    @untyped_cst.Impl_Let => "TopLetDef"
+    @untyped_cst.Impl_Const => "TopLetDef"
+    @untyped_cst.Impl_TypeAbstract
+    | @untyped_cst.Impl_TypeAlias
+    | @untyped_cst.Impl_RecordStruct
+    | @untyped_cst.Impl_TupleStruct
+    | @untyped_cst.Impl_EnumVariant
+    | @untyped_cst.Impl_ExtensibleEnum
+    | @untyped_cst.Impl_ExtendEnum
+    | @untyped_cst.Impl_Suberror
+    | @untyped_cst.Impl_SuberrorEnum
+    | @untyped_cst.Impl_EnumView => "TopTypeDef"
+    @untyped_cst.Impl_Trait => "TopTrait"
+    @untyped_cst.Impl_ImplMethod => "TopImpl"
+    @untyped_cst.Impl_ImplRelation => "TopImplRelation"
+    @untyped_cst.Impl_Test => "TopTest"
+    _ => "CstNode"
   }
 }
 
 ///|
-fn paths_from_optional_parameters(
-  parent : @untyped_ast.Node?,
-  name : String,
+fn paths_from_parameter_list(
+  params : @untyped_cst.CstNode?,
 ) -> Array[StoragePath] {
-  if parent is Some(node) {
-    paths_from_parameter_list(node_optional_child(node, name))
-  } else {
-    []
-  }
-}
-
-///|
-fn paths_from_parameter_list(params : @untyped_ast.Node?) -> Array[StoragePath] {
   let paths : Array[StoragePath] = []
-  if params is Some(list) {
-    for parameter in node_items(list) {
-      if binder_from_parameter(parameter) is Some(binder) &&
-        node_binder_name(binder) is Some(name) {
-        paths.push({ root: name, segments: [] })
-      }
+  guard params is Some(list) else { return paths }
+  for parameter in @cst.raw_children(list, "item") {
+    match parameter.kind {
+      @untyped_cst.Parameter_DiscardPositional => ()
+      _ =>
+        if @cst.raw_child(parameter, "pattern") is Some(pattern) {
+          let roots = pattern_bound_roots(pattern)
+          for root in roots {
+            paths.push({ root, segments: [] })
+          }
+        } else if @cst.name_node(parameter).bind(@cst.normalized_name)
+          is Some(name) {
+          paths.push({ root: name, segments: [] })
+        }
     }
   }
   paths
 }
 
 ///|
-fn binder_from_parameter(parameter : @untyped_ast.Node) -> @untyped_ast.Node? {
-  match parameter.kind {
-    Parameter_Positional
-    | Parameter_Labelled
-    | Parameter_Optional
-    | Parameter_QuestionOptional => node_child(parameter, "binder")
-    Parameter_DiscardPositional => None
+fn storage_path_from_assignment(
+  assignment : @untyped_cst.CstNode,
+) -> StoragePath? {
+  match assignment.kind {
+    @untyped_cst.Expr_Assign =>
+      @cst.raw_child(assignment, "semantic_name")
+      .bind(@cst.normalized_name)
+      .map(root => { root, segments: [] })
+    @untyped_cst.Expr_Mutate =>
+      match
+        (
+          @cst.raw_child(assignment, "self"),
+          @cst.raw_child(assignment, "field"),
+        ) {
+        (Some(record), Some(accessor)) =>
+          storage_path_from_expr(record).bind(path => {
+            path_with_segment(path, segment_from_accessor(accessor))
+          })
+        _ => None
+      }
     _ => None
   }
 }
 
 ///|
-fn storage_path_from_var(var_ : @untyped_ast.Node) -> StoragePath? {
-  if node_var_name(var_) is Some(name) {
-    Some({ root: name, segments: [] })
-  } else {
-    None
-  }
-}
-
-///|
-fn storage_path_from_expr(expr : @untyped_ast.Node) -> StoragePath? {
+fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
   match expr.kind {
-    Expr_Ident =>
-      if node_child(expr, "id") is Some(id) {
-        storage_path_from_var(id)
+    @untyped_cst.Expr_Ident =>
+      if @cst.normalized_expr_identifier_name(expr) is Some(name) {
+        Some({ root: name, segments: [] })
       } else {
         None
       }
-    Expr_Field =>
-      match (node_child(expr, "record"), node_child(expr, "accessor")) {
+    @untyped_cst.Expr_Field =>
+      match (@cst.raw_child(expr, "self"), @cst.raw_child(expr, "field")) {
         (Some(record), Some(accessor)) =>
-          if storage_path_from_expr(record) is Some(path) {
+          storage_path_from_expr(record).bind(path => {
             path_with_segment(path, segment_from_accessor(accessor))
-          } else {
-            None
-          }
+          })
         _ => None
       }
-    Expr_ArrayGet =>
+    @untyped_cst.Expr_ArrayGet =>
       match (node_child(expr, "array"), node_child(expr, "index")) {
         (Some(array), Some(index)) =>
-          if storage_path_from_expr(array) is Some(path) {
-            Some(append_path_segment(path, segment_from_index_expr(index)))
-          } else {
-            None
-          }
+          storage_path_from_expr(array).map(path => {
+            append_path_segment(path, segment_from_index_expr(index))
+          })
         _ => None
       }
-    Expr_Group | Expr_Constraint =>
-      if node_child(expr, "expr") is Some(inner) {
+    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
+      if @cst.raw_child(expr, "expr") is Some(inner) {
+        storage_path_from_expr(inner)
+      } else if @cst.raw_child(expr, "body") is Some(inner) {
         storage_path_from_expr(inner)
       } else {
         None
@@ -215,22 +169,13 @@ fn storage_path_from_expr(expr : @untyped_ast.Node) -> StoragePath? {
 }
 
 ///|
-fn segment_from_accessor(accessor : @untyped_ast.Node) -> PathSegment? {
+fn segment_from_accessor(accessor : @untyped_cst.CstNode) -> PathSegment? {
   match accessor.kind {
-    Accessor_Label =>
-      if node_first_label_name(accessor) is Some(label) {
-        Some(Field(label))
-      } else {
-        None
-      }
-    Accessor_Index =>
-      if node_child(accessor, "tuple_index") is Some(index) &&
-        node_leaf_number_int(index) is Some(tuple_index) {
-        Some(TupleIndex(tuple_index))
-      } else {
-        None
-      }
-    Accessor_Newtype => None
+    @untyped_cst.Accessor_Label =>
+      @cst.normalized_name(accessor).map(label => Field(label))
+    @untyped_cst.Accessor_Index =>
+      @cst.int_payload(accessor).map(index => TupleIndex(index))
+    @untyped_cst.Accessor_Newtype => None
     _ => None
   }
 }
@@ -240,11 +185,7 @@ fn path_with_segment(
   path : StoragePath,
   segment : PathSegment?,
 ) -> StoragePath? {
-  if segment is Some(segment) {
-    Some(append_path_segment(path, segment))
-  } else {
-    None
-  }
+  segment.map(value => append_path_segment(path, value))
 }
 
 ///|
@@ -258,7 +199,7 @@ fn append_path_segment(
 }
 
 ///|
-fn segment_from_index_expr(index : @untyped_ast.Node) -> PathSegment {
+fn segment_from_index_expr(index : @untyped_cst.CstNode) -> PathSegment {
   if constant_integer_text(index) is Some(value) {
     ConstIndex(value)
   } else {
@@ -267,56 +208,29 @@ fn segment_from_index_expr(index : @untyped_ast.Node) -> PathSegment {
 }
 
 ///|
-fn constant_integer_text(expr : @untyped_ast.Node) -> String? {
-  guard expr.kind == Expr_Constant else { return None }
-  guard node_child(expr, "constant") is Some(constant) else { return None }
+fn constant_integer_text(expr : @untyped_cst.CstNode) -> String? {
+  guard expr.kind is @untyped_cst.Expr_Constant else { return None }
+  guard @cst.constant(expr) is Some(constant) else { return None }
   match constant.kind {
-    Constant_Int | Constant_UInt =>
-      if node_first_child(constant) is Some(value) {
-        node_leaf_string(value)
-      } else {
-        None
-      }
+    @untyped_cst.Constant_Int | @untyped_cst.Constant_UInt =>
+      @cst.string_payload(constant)
     _ => None
   }
 }
 
 ///|
 fn segment_from_argument_kind(
-  kind : @untyped_ast.Node,
+  argument : @untyped_cst.CstNode,
   positional_index : Int,
 ) -> PathSegment {
-  match kind.kind {
-    ArgumentKind_Labelled | ArgumentKind_LabelledPun =>
-      if node_first_label_name(kind) is Some(label) {
-        Field(label)
-      } else {
-        TupleIndex(positional_index)
-      }
-    ArgumentKind_LabelledOption | ArgumentKind_LabelledOptionPun =>
-      if node_child(kind, "label") is Some(label) &&
-        node_label_name(label) is Some(value) {
-        Field(value)
-      } else {
-        TupleIndex(positional_index)
-      }
-    ArgumentKind_Positional => TupleIndex(positional_index)
-    _ => TupleIndex(positional_index)
+  if @cst.argument_label_name(argument) is Some(label) {
+    Field(label)
+  } else {
+    TupleIndex(positional_index)
   }
 }
 
 ///|
-fn argument_label(kind : @untyped_ast.Node) -> String? {
-  match kind.kind {
-    ArgumentKind_Labelled | ArgumentKind_LabelledPun =>
-      node_first_label_name(kind)
-    ArgumentKind_LabelledOption | ArgumentKind_LabelledOptionPun =>
-      if node_child(kind, "label") is Some(label) {
-        node_label_name(label)
-      } else {
-        None
-      }
-    ArgumentKind_Positional => None
-    _ => None
-  }
+fn argument_label(argument : @untyped_cst.CstNode) -> String? {
+  @cst.argument_label_name(argument)
 }

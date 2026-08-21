@@ -1,9 +1,6 @@
 import {
-  "moonbit-community/moongrep/untyped_ast",
+  "moonbit-community/moongrep/cst",
   "moonbitlang/lexer/basic",
   "moonbitlang/core/debug",
+  "moonbitlang/parser/untyped_cst",
 }
-
-import {
-  "moonbitlang/parser",
-} for "test"

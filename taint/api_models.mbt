@@ -7,7 +7,7 @@ pub suberror TaintAnalysisError {
 } derive(Debug)
 
 ///|
-/// Result of analyzing one function-like AST node for one rule.
+/// Result of analyzing one function-like CST node for one rule.
 pub(all) struct AnalysisResult {
   rule_id : String
   function_name : String

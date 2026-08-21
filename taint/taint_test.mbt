@@ -9,12 +9,14 @@ test "taint package exposes public path and site models" {
 }
 
 ///|
-fn parse_single_impl(source : String) -> @untyped_ast.Node raise {
-  let (impls, reports) = @parser.parse_string(source, name="taint test")
-  guard reports is [] else { fail("expected source to parse") }
-  let nodes = impls.to_array()
+fn parse_single_impl(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="taint test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
+  let nodes = @cst.toplevel_nodes(parsed.root())
   guard nodes is [node] else { fail("expected exactly one impl") }
-  @untyped_ast.from_impl(node)
+  node
 }
 
 ///|
@@ -41,9 +43,9 @@ fn simple_spec(
 ///|
 fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
   let findings : Array[SinkFinding] = []
-  if call.ast.kind == Expr_Apply &&
+  if call.cst.kind is @untyped_cst.Expr_Apply &&
     call.arguments is [arg] &&
-    arg.expr.kind == Expr_Ident {
+    arg.expr.kind is @untyped_cst.Expr_Ident {
     findings.push({
       rule_id: "test/node-transfer",
       sink_id: "node-kinds",
@@ -63,7 +65,7 @@ fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
 }
 
 ///|
-test "taint engine passes untyped nodes to custom transfer" {
+test "taint engine passes CST nodes to custom transfer" {
   let source =
     #|fn sample(input) {
     #|  sink(input)
@@ -96,6 +98,217 @@ fn analyze_single_entry_sink(
       { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
     ]),
   )
+}
+
+///|
+fn analyze_call_source_sink(source : String) -> AnalysisResult raise {
+  let node = parse_single_impl(source)
+  analyze_function_like(
+    node,
+    simple_spec(
+      sources=[
+        CallReturn(CalleeName("get_user_input"), "source:single", None, []),
+        CallReturn(CalleeName("get_user_inputs"), "source:many", None, []),
+      ],
+      call_models=[
+        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      ],
+    ),
+  )
+}
+
+///|
+test "taint engine propagates foreach collection taint to its binder" {
+  let source =
+    #|fn sample {
+    #|  for item in get_user_inputs() { sink(item) }
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
+}
+
+///|
+test "taint engine propagates try result taint into noraise cases" {
+  let source =
+    #|fn sample {
+    #|  try get_user_input() catch {
+    #|    _ => ()
+    #|  } noraise {
+    #|    result => sink(result)
+    #|  }
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
+}
+
+///|
+test "taint engine reads taint through an array index" {
+  let source =
+    #|fn sample {
+    #|  let values = [get_user_input()];
+    #|  sink(values[0])
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
+}
+
+///|
+test "taint engine evaluates an array assignment target and value" {
+  let source =
+    #|fn sample {
+    #|  values[0] = sink(get_user_input())
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
+}
+
+///|
+test "taint engine evaluates a field assignment receiver before its value" {
+  let sink_source =
+    #|fn sample {
+    #|  holder(sink(get_user_input())).field = clean()
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(sink_source).findings.length(), 1)
+  let state_source =
+    #|fn sample(input, clean) {
+    #|  let mut value = clean;
+    #|  { value = input; holder() }.field = sink(value)
+    #|}
+    #|
+  assert_eq(
+    analyze_single_entry_sink(state_source, "input").findings.length(),
+    1,
+  )
+}
+
+///|
+test "taint engine overwrites variable assignments" {
+  let clean_to_tainted =
+    #|fn sample(input, clean) {
+    #|  let mut value = clean;
+    #|  value = input;
+    #|  sink(value)
+    #|}
+    #|
+  assert_eq(
+    analyze_single_entry_sink(clean_to_tainted, "input").findings.length(),
+    1,
+  )
+  let tainted_to_clean =
+    #|fn sample(input, clean) {
+    #|  let mut value = input;
+    #|  value = clean;
+    #|  sink(value)
+    #|}
+    #|
+  assert_eq(
+    analyze_single_entry_sink(tainted_to_clean, "input").findings.length(),
+    0,
+  )
+}
+
+///|
+test "taint engine writes and clears fields without changing siblings" {
+  let write_source =
+    #|fn sample(record, input) {
+    #|  record.target = input;
+    #|  sink(record.target);
+    #|  sink(record.sibling)
+    #|}
+    #|
+  assert_eq(
+    analyze_single_entry_sink(write_source, "input").findings.length(),
+    1,
+  )
+  let clear_source =
+    #|fn sample(record, clean) {
+    #|  record.target = clean;
+    #|  sink(record.target);
+    #|  sink(record.sibling)
+    #|}
+    #|
+  let target_path : StoragePath = {
+    root: "record",
+    segments: [Field("target")],
+  }
+  let sibling_path : StoragePath = {
+    root: "record",
+    segments: [Field("sibling")],
+  }
+  let clear_result = analyze_function_like(
+    parse_single_impl(clear_source),
+    simple_spec(
+      sources=[
+        EntryPath(target_path, "entry:target", None),
+        EntryPath(sibling_path, "entry:sibling", None),
+      ],
+      call_models=[
+        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      ],
+    ),
+  )
+  assert_eq(clear_result.findings.length(), 1)
+  inspect(
+    clear_result.findings[0].origins[0].origin_id,
+    content="entry:sibling",
+  )
+}
+
+///|
+test "taint engine evaluates a sink that occurs only in an if else branch" {
+  let source =
+    #|fn sample {
+    #|  if clean() { () } else { sink(get_user_input()) }
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
+}
+
+///|
+test "taint engine adapts array slices and record fields" {
+  let source =
+    #|fn sample {
+    #|  let values = [get_user_input()];
+    #|  sink(values[0:1]);
+    #|  let record = { field: get_user_input() };
+    #|  sink(record.field);
+    #|  let updated = { ..record, field: get_user_input() };
+    #|  sink(updated.field)
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 3)
+}
+
+///|
+test "taint engine adapts foreach init continue and nobreak fields" {
+  let init_source =
+    #|fn sample {
+    #|  for item in clean_items(); acc = get_user_input(); acc = acc {
+    #|    sink(acc);
+    #|    break
+    #|  }
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(init_source).findings.length(), 1)
+  let continue_source =
+    #|fn sample {
+    #|  for item in clean_items(); acc = (); acc = get_user_input() {
+    #|    ()
+    #|  } nobreak {
+    #|    sink(acc)
+    #|  }
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(continue_source).findings.length(), 1)
+  let nobreak_source =
+    #|fn sample {
+    #|  for item in clean_items() { () } nobreak {
+    #|    sink(get_user_input())
+    #|  }
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(nobreak_source).findings.length(), 1)
 }
 
 ///|
