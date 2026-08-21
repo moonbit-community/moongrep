@@ -9,6 +9,11 @@
 `match_expr_pattern_with_bindings` 会在匹配前复制调用方传入的 map。失败的匹配可能在这个本地副本里留下部分捕获。
 调用方的 map 保持不变。
 
+`match_expr_pattern_candidate` 和
+`match_expr_pattern_candidate_with_bindings` 对 `Direct(CstNode)` 与
+`Sequence(Array[CstNode])` 候选使用相同的状态规则。每个成功的 `ExprMatch` 都携带
+候选的精确 `loc`；sequence location 合并首尾语句，因此不包含容器花括号。
+
 普通节点从左到右完成绑定。包含 ellipsis 的有序 child 列表使用局部回溯：
 每个候选长度都在 bindings 副本上运行，只有首个完整成功分支会被提交。
 
@@ -58,6 +63,12 @@ identifier metavar 会跨 expression、binder、label、constructor、accessor�
 type-name 和 qualified-name 节点规范化源码名称。即使两次出现使用不同 CST 名称 kind，
 重复绑定也按规范化后的拼写比较。
 
+在 constructor 位置，一个 identifier metavar 会绑定完整 constructor identity。
+expression constructor 保留真实的 `Expr_Constr` 节点；constructor pattern 保留真实、
+覆盖完整 identity span 的语义名称节点。两者都会规范化 `@pkg.Ctor`、
+`Type::Ctor`、`@pkg.Type::Ctor` 和 `@pkg.Type::@other.Ctor` 等形式。
+显式写成 `$(Type:id)::$(Ctor:id)` 时，两部分仍分别绑定。
+
 constant 占位符只接受常量表达式或常量 pattern 节点。pattern metavar 绑定完整
 pattern 节点。type metavar 绑定完整类型节点。重复的 constant、pattern 和 type
 捕获使用与所有其他绑定相同的语义 CST 相等性。
@@ -68,8 +79,9 @@ matcher 在比较重复的 expression、argument、pattern 和 type 捕获时会
 `bound_value_equal` 处理：`Single` 只和 `Single` 比较，`Multiple` 只和
 `Multiple` 比较，混合 variant 不相等。
 
-`node_equal_ignoring_loc` 会先比较规范化名称。其他节点要求 kind 相同，并按顺序递归
-比较语义子节点视图。Leaf payload 仍有意义；位置从不进入这个视图。
+`node_equal_ignoring_loc` 会先比较规范化 identity 节点。由 `pat` 捕获的完整
+constructor pattern 不是 identity 节点，仍要求 kind 相同并递归比较包含 constructor
+参数在内的语义子节点视图。Leaf payload 仍有意义；位置从不进入这个视图。
 
 ## 语义 CST 视图
 
@@ -86,8 +98,16 @@ identity。
 占位符，可以把候选 block 整体绑定给它。这保留了 loop 和 function-context 规则的
 多语句 body 捕获行为。
 
-表达式容器还保留了省略 let/guard body 与尾部 unit 之间的旧拼写兼容。显式 body
-仍按结构匹配。
+expression matching 之前先执行 `cst/scoped.mbt` 中的候选遍历。函数、方法、测试、
+lambda、局部函数和 letrec body block 会生成不带花括号的 `Sequence` 候选，而不是
+直接 block 候选。显式嵌套 block 仍是 `Direct(Expr_Block)`，其匹配 location 包含
+花括号。
+
+sequence 只接受完整的多语句 `Expression` shape，或普通 `let` / `guard` 的
+omitted-continuation shortcut。`let mut`、局部函数、`letrec` 和 `defer` 拥有
+continuation，但不使用该 shortcut。这些 header 后存在语句时，遍历会生成 sequence
+suffix，而不会暴露 header-only direct 候选。`proof_let` 不是 continuation owner，
+仍可独立匹配。
 
 ## 精确性
 

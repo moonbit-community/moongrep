@@ -151,6 +151,27 @@ let _embed_rulespec_md : String =
   #|equal only when their parsed source spelling matches or a metavariable captures
   #|them.
   #|
+  #|### Function Bodies and Explicit Blocks
+  #|
+  #|The braces around a function, method, test, lambda, or local-function body are
+  #|matching containers. They are not themselves an explicit block expression
+  #|candidate. The statements inside the body form a sequence candidate, and each
+  #|contained expression remains independently searchable.
+  #|
+  #|Consequently, `$_` and `$(root:exp)` search the expressions inside a function
+  #|body instead of capturing the body's braces. A complete multi-statement shape
+  #|can match the body sequence. Its finding range starts at the first matched
+  #|statement and ends at the last matched statement, without the body braces.
+  #|
+  #|A block written as an expression inside another body remains an explicit block
+  #|candidate. For example, `{ a; b }` does not match the container around
+  #|`fn sample { a; b }`, but it does match the nested block in
+  #|`fn sample { { a; b } }`. The finding range for that explicit block includes
+  #|its braces.
+  #|
+  #|The same candidates and ranges are used by ordinary positive patterns,
+  #|`patterns-not`, `inside-expr` target traversal, and expression queries.
+  #|
   #|### Let Shapes With Omitted Bodies
   #|
   #|An ordinary `let` shape without an explicit body is a let-header pattern. For
@@ -176,10 +197,10 @@ let _embed_rulespec_md : String =
   #|let item = load(); { trace(item); item }
   #|```
   #|
-  #|The MoonBit parser represents `let item = load()` as an `Expr::Let` whose body
-  #|is a synthesized unit expression. When that synthesized unit appears in the
-  #|pattern shape, the matcher interprets it as "body omitted in the pattern". It
-  #|does not require the candidate body to be the same unit node.
+  #|The scanner recognizes this single-statement `let` shape as a let-header
+  #|pattern. When the candidate has following statements, the candidate is the
+  #|sequence suffix beginning at that `let`; the matcher compares the header and
+  #|does not constrain the rest of the suffix.
   #|
   #|Write an explicit body when the body matters:
   #|
@@ -207,7 +228,12 @@ let _embed_rulespec_md : String =
   #|matching is not currently expressible as a structural shape.
   #|
   #|This shortcut applies only to ordinary `let` expressions. `let mut`, local
-  #|function definitions, and `letrec` shapes use normal structural matching.
+  #|function definitions, `letrec`, and `defer` shapes use normal structural
+  #|matching. A header-only shape for one of those forms does not match a candidate
+  #|with a continuation; write the complete statement sequence when the
+  #|continuation matters. `proof_let` is an independent expression candidate, so a
+  #|header match covers only the `proof_let` while later expressions remain
+  #|searchable.
   #|
   #|### Guard Shapes With Omitted Bodies
   #|
@@ -234,10 +260,11 @@ let _embed_rulespec_md : String =
   #|guard ready() else { fallback() }; { prepare(); finish() }
   #|```
   #|
-  #|The MoonBit parser represents the omitted body as a synthesized unit
-  #|expression. When that synthesized unit appears in the pattern shape, the
-  #|matcher ignores the candidate body. The condition and `else` expression still
-  #|use normal recursive structural matching.
+  #|The scanner recognizes this single-statement shape as a guard-header pattern.
+  #|When the candidate has following statements, it compares the header with the
+  #|sequence suffix beginning at the `guard` and ignores the rest of that suffix.
+  #|The condition and `else` expression still use normal recursive structural
+  #|matching.
   #|
   #|Write an explicit body when the continuation matters:
   #|
