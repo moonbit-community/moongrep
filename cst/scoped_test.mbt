@@ -32,6 +32,32 @@ fn require_scoped_names(
 }
 
 ///|
+fn parse_scoped_structure(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(
+    source,
+    name="scoped-candidate-test",
+  )
+  if !parsed.diagnostics_view().is_empty() {
+    fail("unexpected parse diagnostics for `\{source}`")
+  }
+  parsed.root()
+}
+
+///|
+fn direct_candidate_count(
+  candidates : Array[ScopedExprMatchCandidate],
+  expected : (@untyped_cst.NodeKind) -> Bool,
+) -> Int {
+  let mut count = 0
+  for item in candidates {
+    if item.candidate is Direct(node) && expected(node.kind) {
+      count += 1
+    }
+  }
+  count
+}
+
+///|
 test "condition bindings follow groups and conjunctions only" {
   let source = "if (value is Some(bound)) && ready(bound) { target(bound) }"
   let rhs_names = require_scoped_names(source, "ready")
@@ -110,4 +136,94 @@ test "try, lex, regex, and quantifier binders shadow nested expressions" {
     "∀ item : Int, target(item)", "target",
   )
   assert_true(quantified_names.contains("item"))
+}
+
+///|
+test "function bodies are sequences while nested blocks stay direct" {
+  let plain : Array[ScopedExprMatchCandidate] = []
+  collect_scoped_expr_match_candidate_roots(
+    parse_scoped_structure("fn sample { first(); second() }"),
+    plain,
+  )
+  guard plain is [{ candidate: Sequence(body), .. }, ..] else {
+    fail("expected function body sequence")
+  }
+  assert_eq(body.length(), 2)
+  assert_eq(
+    direct_candidate_count(plain, kind => kind is @untyped_cst.Expr_Block),
+    0,
+  )
+  let nested : Array[ScopedExprMatchCandidate] = []
+  collect_scoped_expr_match_candidate_roots(
+    parse_scoped_structure("fn sample { { first(); second() } }"),
+    nested,
+  )
+  assert_eq(
+    direct_candidate_count(nested, kind => kind is @untyped_cst.Expr_Block),
+    1,
+  )
+  let mut nested_sequence_count = 0
+  for item in nested {
+    if item.candidate is Sequence(items) && items.length() == 2 {
+      nested_sequence_count += 1
+    }
+  }
+  assert_eq(nested_sequence_count, 1)
+}
+
+///|
+test "continuation owners expose suffixes instead of header-only candidates" {
+  let source = "fn sample { before(); let mut value = source(); body(value); defer cleanup(); after(); proof_let witness = fact(); finish(witness) }"
+  let candidates : Array[ScopedExprMatchCandidate] = []
+  collect_scoped_expr_match_candidate_roots(
+    parse_scoped_structure(source),
+    candidates,
+  )
+  assert_eq(
+    direct_candidate_count(candidates, kind => kind is @untyped_cst.Expr_LetMut),
+    0,
+  )
+  assert_eq(
+    direct_candidate_count(candidates, kind => kind is @untyped_cst.Expr_Defer),
+    0,
+  )
+  assert_eq(
+    direct_candidate_count(candidates, kind => {
+      kind is @untyped_cst.Expr_ProofLet
+    }),
+    1,
+  )
+  let mut let_suffix = false
+  let mut defer_suffix = false
+  for item in candidates {
+    match item.candidate {
+      Sequence([first, ..]) if first.kind is @untyped_cst.Expr_LetMut =>
+        let_suffix = true
+      Sequence([first, ..]) if first.kind is @untyped_cst.Expr_Defer =>
+        defer_suffix = true
+      _ => ()
+    }
+  }
+  assert_true(let_suffix)
+  assert_true(defer_suffix)
+}
+
+///|
+test "sequence continuations apply bindings to later candidates" {
+  let candidates : Array[ScopedExprMatchCandidate] = []
+  collect_scoped_expr_match_candidate_roots(
+    parse_scoped_structure("fn sample { let value = source(); target(value) }"),
+    candidates,
+  )
+  let mut found = false
+  for item in candidates {
+    if item.candidate is Direct(expr) &&
+      expr.kind is @untyped_cst.Expr_Apply &&
+      raw_child(expr, "func").bind(normalized_expr_identifier_name) ==
+      Some("target") {
+      assert_true(item.shadowed_names.contains("value"))
+      found = true
+    }
+  }
+  assert_true(found)
 }

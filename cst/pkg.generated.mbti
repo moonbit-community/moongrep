@@ -22,6 +22,10 @@ pub fn child(@untyped_cst.CstNode, String) -> @untyped_cst.CstNode?
 
 pub fn children(@untyped_cst.CstNode, String) -> Array[@untyped_cst.CstNode]
 
+pub fn collect_scoped_expr_match_candidate_roots(@untyped_cst.CstNode, Array[ScopedExprMatchCandidate]) -> Unit
+
+pub fn collect_scoped_expr_match_candidates(@untyped_cst.CstNode, Array[ScopedExprMatchCandidate]) -> Unit
+
 pub fn collect_scoped_expr_roots(@untyped_cst.CstNode, Array[ScopedExprNode]) -> Unit
 
 pub fn collect_scoped_exprs(@untyped_cst.CstNode, Array[ScopedExprNode]) -> Unit
@@ -78,6 +82,14 @@ pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
 
 pub fn visit_scoped_expr_children(@untyped_cst.CstNode, Array[String], (ScopedExprNode) -> Unit) -> Unit
 
+pub fn visit_scoped_expr_match_candidate(ExprMatchCandidate, Array[String], (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
+
+pub fn visit_scoped_expr_match_candidate_children(ExprMatchCandidate, Array[String], (ScopedExprMatchCandidate) -> Unit) -> Unit
+
+pub fn visit_scoped_expr_match_candidate_roots(@untyped_cst.CstNode, (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
+
+pub fn visit_scoped_expr_match_candidates(@untyped_cst.CstNode, (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
+
 pub fn visit_scoped_expr_roots(@untyped_cst.CstNode, (ScopedExprNode) -> NodeVisitAction) -> Unit
 
 pub fn visit_scoped_exprs(@untyped_cst.CstNode, (ScopedExprNode) -> NodeVisitAction) -> Unit
@@ -92,10 +104,20 @@ pub(all) struct AttributeInfo {
   node : @untyped_cst.CstNode
 }
 
+pub(all) enum ExprMatchCandidate {
+  Direct(@untyped_cst.CstNode)
+  Sequence(Array[@untyped_cst.CstNode])
+}
+
 pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
   NodeVisitReturn
+}
+
+pub(all) struct ScopedExprMatchCandidate {
+  candidate : ExprMatchCandidate
+  shadowed_names : Array[String]
 }
 
 pub(all) struct ScopedExprNode {

@@ -7,6 +7,23 @@ pub(all) struct ScopedExprNode {
 }
 
 ///|
+/// One semantic expression-matching candidate. A direct candidate retains its
+/// source CST node. A sequence candidate represents statements without the
+/// braces of the block that contains them.
+pub(all) enum ExprMatchCandidate {
+  Direct(@untyped_cst.CstNode)
+  Sequence(Array[@untyped_cst.CstNode])
+}
+
+///|
+/// An expression-matching candidate together with names introduced between an
+/// outer context and that candidate.
+pub(all) struct ScopedExprMatchCandidate {
+  candidate : ExprMatchCandidate
+  shadowed_names : Array[String]
+}
+
+///|
 pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
@@ -63,6 +80,291 @@ pub fn visit_scoped_expr_children(
       NodeVisitPrune
     }),
   )
+}
+
+///|
+pub fn collect_scoped_expr_match_candidates(
+  expr : @untyped_cst.CstNode,
+  output : Array[ScopedExprMatchCandidate],
+) -> Unit {
+  visit_scoped_expr_match_candidates(expr, fn(item) {
+    output.push(item)
+    NodeVisitContinue
+  })
+}
+
+///|
+pub fn collect_scoped_expr_match_candidate_roots(
+  root : @untyped_cst.CstNode,
+  output : Array[ScopedExprMatchCandidate],
+) -> Unit {
+  visit_scoped_expr_match_candidate_roots(root, fn(item) {
+    output.push(item)
+    NodeVisitContinue
+  })
+}
+
+///|
+pub fn visit_scoped_expr_match_candidates(
+  expr : @untyped_cst.CstNode,
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> Unit {
+  ignore(visit_match_candidate_from_node(expr, [], visitor))
+}
+
+///|
+pub fn visit_scoped_expr_match_candidate(
+  candidate : ExprMatchCandidate,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> Unit {
+  ignore(visit_match_candidate_with_shadow(candidate, shadowed, visitor))
+}
+
+///|
+pub fn visit_scoped_expr_match_candidate_roots(
+  root : @untyped_cst.CstNode,
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> Unit {
+  ignore(visit_match_candidate_roots_with_shadow(root, [], visitor))
+}
+
+///|
+pub fn visit_scoped_expr_match_candidate_children(
+  candidate : ExprMatchCandidate,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> Unit,
+) -> Unit {
+  ignore(
+    visit_match_candidate_children(candidate, shadowed, fn(item) {
+      visitor(item)
+      NodeVisitPrune
+    }),
+  )
+}
+
+///|
+fn visit_match_candidate_roots_with_shadow(
+  node : @untyped_cst.CstNode,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  if node.kind.is_expr() || node.kind is @untyped_cst.Expression {
+    return visit_match_candidate_from_node(node, shadowed, visitor)
+  }
+  match node.kind {
+    @untyped_cst.Impl_Function => {
+      let body_shadowed = shadowed_with_parameters(
+        shadowed,
+        raw_child(node, "params"),
+      )
+      visit_function_body_match_candidate(node, body_shadowed, visitor)
+    }
+    @untyped_cst.Impl_ImplMethod =>
+      if raw_child(node, "method") is Some(method_node) {
+        let body_shadowed = shadowed_with_parameters(
+          shadowed,
+          raw_child(method_node, "params"),
+        )
+        visit_function_body_match_candidate(method_node, body_shadowed, visitor)
+      } else {
+        NodeVisitContinue
+      }
+    @untyped_cst.Impl_Test =>
+      visit_function_body_match_candidate(node, shadowed, visitor)
+    @untyped_cst.Impl_Let | @untyped_cst.Impl_Const =>
+      visit_raw_named_match_candidate(node, "expr", shadowed, visitor)
+    _ => {
+      for entry in node.children {
+        match
+          visit_match_candidate_roots_with_shadow(entry.1, shadowed, visitor) {
+          NodeVisitReturn => return NodeVisitReturn
+          _ => ()
+        }
+      }
+      NodeVisitContinue
+    }
+  }
+}
+
+///|
+fn visit_raw_named_match_candidate(
+  node : @untyped_cst.CstNode,
+  label : String,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  if raw_child(node, label) is Some(child) {
+    visit_match_candidate_roots_with_shadow(child, shadowed, visitor)
+  } else {
+    NodeVisitContinue
+  }
+}
+
+///|
+fn visit_function_body_match_candidate(
+  node : @untyped_cst.CstNode,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  guard raw_child(node, "body") is Some(body) else { return NodeVisitContinue }
+  if body.kind is @untyped_cst.Expr_Block {
+    visit_match_candidate_with_shadow(
+      Sequence(sequence_items(body)),
+      shadowed,
+      visitor,
+    )
+  } else {
+    visit_match_candidate_from_node(body, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_match_candidate_from_node(
+  node : @untyped_cst.CstNode,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  if node.kind is @untyped_cst.Expression {
+    visit_match_candidate_with_shadow(
+      Sequence(expression_nodes(node)),
+      shadowed,
+      visitor,
+    )
+  } else if node.kind.is_expr() {
+    visit_match_candidate_with_shadow(Direct(node), shadowed, visitor)
+  } else {
+    visit_match_candidate_roots_with_shadow(node, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_match_candidate_with_shadow(
+  candidate : ExprMatchCandidate,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match visitor({ candidate, shadowed_names: copy_names(shadowed) }) {
+    NodeVisitPrune => NodeVisitPrune
+    NodeVisitReturn => NodeVisitReturn
+    NodeVisitContinue =>
+      visit_match_candidate_children(candidate, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_match_candidate_children(
+  candidate : ExprMatchCandidate,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match candidate {
+    Sequence(expressions) =>
+      visit_match_sequence_children(expressions, shadowed, visitor)
+    Direct(expr) =>
+      visit_direct_match_candidate_children(expr, shadowed, visitor)
+  }
+}
+
+///|
+fn visit_direct_match_candidate_children(
+  expr : @untyped_cst.CstNode,
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  match expr.kind {
+    @untyped_cst.Expr_Block | @untyped_cst.Expr_Sequence =>
+      visit_match_candidate_with_shadow(
+        Sequence(sequence_items(expr)),
+        shadowed,
+        visitor,
+      )
+    @untyped_cst.Expr_Function => {
+      let body_shadowed = shadowed_with_parameters(
+        shadowed,
+        raw_child(expr, "params"),
+      )
+      visit_function_body_match_candidate(expr, body_shadowed, visitor)
+    }
+    @untyped_cst.Expr_LetFn => {
+      let named_shadowed = shadowed_with_name_node(shadowed, expr)
+      let body_shadowed = shadowed_with_parameters(
+        named_shadowed,
+        raw_child(expr, "params"),
+      )
+      visit_function_body_match_candidate(expr, body_shadowed, visitor)
+    }
+    @untyped_cst.Expr_LetAnd => {
+      let names = copy_names(shadowed)
+      for binding in raw_children(expr, "binding") {
+        add_normalized_name(names, binding)
+      }
+      for binding in raw_children(expr, "binding") {
+        let body_shadowed = shadowed_with_parameters(
+          names,
+          raw_child(binding, "params"),
+        )
+        if visit_function_body_match_candidate(binding, body_shadowed, visitor)
+          is NodeVisitReturn {
+          return NodeVisitReturn
+        }
+        if visit_raw_named_match_candidate(binding, "expr", names, visitor)
+          is NodeVisitReturn {
+          return NodeVisitReturn
+        }
+      }
+      NodeVisitContinue
+    }
+    _ =>
+      visit_expr_children(expr, shadowed, fn(item) {
+        visit_match_candidate_from_node(item.expr, item.shadowed_names, visitor)
+      })
+  }
+}
+
+///|
+fn visit_match_sequence_children(
+  expressions : Array[@untyped_cst.CstNode],
+  shadowed : Array[String],
+  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
+) -> NodeVisitAction {
+  let current = copy_names(shadowed)
+  for index in 0..<expressions.length() {
+    let expr = expressions[index]
+    let has_continuation = continuation_owner(expr.kind) &&
+      index + 1 < expressions.length()
+    if index == 0 && has_continuation {
+      if visit_direct_match_candidate_children(expr, current, visitor)
+        is NodeVisitReturn {
+        return NodeVisitReturn
+      }
+    } else if has_continuation {
+      let suffix = expressions[index:].to_owned()
+      if visit_match_candidate_with_shadow(Sequence(suffix), current, visitor)
+        is NodeVisitReturn {
+        return NodeVisitReturn
+      }
+      return NodeVisitContinue
+    } else if visit_match_candidate_with_shadow(Direct(expr), current, visitor)
+      is NodeVisitReturn {
+      return NodeVisitReturn
+    }
+    add_statement_bindings(current, expr)
+  }
+  NodeVisitContinue
+}
+
+///|
+fn continuation_owner(kind : @untyped_cst.NodeKind) -> Bool {
+  match kind {
+    @untyped_cst.Expr_Let
+    | @untyped_cst.Expr_LetMut
+    | @untyped_cst.Expr_LetFn
+    | @untyped_cst.Expr_LetAnd
+    | @untyped_cst.Expr_Guard
+    | @untyped_cst.Expr_Defer => true
+    _ => false
+  }
 }
 
 ///|
