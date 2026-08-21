@@ -13,7 +13,7 @@ Commands:
   scan  Scan MoonBit source files.
   lint  Scan MoonBit source files with embedded builtin rules.
   docs  Print embedded moongrep documentation.
-  dump  Parse a MoonBit impl or expression and print untyped_ast debug output.
+  dump  Parse a MoonBit impl or expression and print untyped CST debug output.
   help  Print help for the subcommand(s).
 
 Options:
@@ -145,7 +145,7 @@ item and a single expression.
 $ moonrun "$TESTDIR"/moongrep.wasm -- dump --help
 Usage: moongrep dump [options]
 
-Parse a MoonBit impl or expression and print untyped_ast debug output.
+Parse a MoonBit impl or expression and print untyped CST debug output.
 
 Options:
   -h, --help     Show help information.
@@ -155,7 +155,7 @@ Options:
 
 ## moongrep dump --expr
 
-Dumping an infix expression produces an untyped AST whose root contains the
+Dumping an infix expression produces an untyped CST whose root contains the
 expected `Expr_Infix` node kind.
 
 ```mooncram
