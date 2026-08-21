@@ -33,10 +33,9 @@ Placeholder priority in expression positions is:
 5. declared constant metavars bind only `Expr_Constant`
 6. undeclared names are literal CST names
 
-For type nodes, a simple `Type_Name` marker whose name is in
-`CompiledExprPattern.type_metavars` binds the whole candidate type node.
-Repeated type captures use the same location-insensitive structural equality as
-other CST-node captures.
+For type nodes, a simple `Type_Name` containing a declared type-metavar payload
+binds the whole candidate type node. Repeated type captures use the same
+location-insensitive structural equality as other CST-node captures.
 
 For vars, binders, and labels, only ignore placeholders and declared identifier
 metavars are special; everything else is literal. For pattern variables,
@@ -45,6 +44,12 @@ metavars match only `Pattern_Constant`, and declared identifier metavars
 capture normalized pattern names. `__TARGET__` and `__SOURCE__` are special only
 in whole expression positions. For example, undeclared `__x` is literal: only
 exact `$_` is an ignore placeholder by spelling alone.
+
+The parser forwards metavar mode when it re-lexes string and bytes
+interpolation sources. `InterpSegment_Source` therefore contains the correct
+parsed `expr` subtree, and the matcher handles it through normal recursive CST
+matching. The same binding map flows through every segment, so repeated
+captures across interpolation segments retain their normal equality semantics.
 
 ## Binding Kinds
 
@@ -87,7 +92,8 @@ removes `_loc` fields, `Aggregate_Span`, EOF, `doc` fields, `Syntax_Comment`,
 delimiters, separators, and other pure punctuation. This makes docstrings
 non-semantic at every nesting level and in every matching mode. The view expands
 semantic names, constants, operators, attributes, interpolation segments, and
-flags from parser wrappers. Redundant constructor qualification metadata is
+flags from parser wrappers. An interpolation source's raw payload is omitted in
+favor of its parsed expression. Redundant constructor qualification metadata is
 ignored because the normalized name already preserves that identity.
 
 `Pattern_Group` and `Type_Group` wrappers that the previous representation

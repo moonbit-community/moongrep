@@ -3,7 +3,7 @@ fn test_expr(
   source : String,
   name? : String = "matching test",
 ) -> @untyped_cst.CstNode raise {
-  let parsed = @untyped_cst.parse_expression(source, name~)
+  let parsed = @untyped_cst.parse_expression(source, name~, enable_metavar=true)
   guard parsed.diagnostics_view().is_empty() else {
     fail("expected expression to parse: \{source}")
   }
@@ -15,7 +15,7 @@ fn test_impl(
   source : String,
   name? : String = "matching test",
 ) -> @untyped_cst.CstNode raise {
-  let parsed = @untyped_cst.parse_structure(source, name~)
+  let parsed = @untyped_cst.parse_structure(source, name~, enable_metavar=true)
   guard parsed.diagnostics_view().is_empty() else {
     fail("expected implementation to parse: \{source}")
   }
@@ -86,7 +86,7 @@ test "semantic equality preserves constant spelling and operators" {
 
 ///|
 test "expression metavars capture any expression and repeat structurally" {
-  let compiled = test_compiled(test_expr("pair(value, value)"), expr_metavars=[
+  let compiled = test_compiled(test_expr("pair($(value:exp), $(value:exp))"), expr_metavars=[
     "value",
   ])
   assert_true(
@@ -103,26 +103,25 @@ test "expression metavars capture any expression and repeat structurally" {
 }
 
 ///|
-test "internal uppercase expression and constant markers use logical names" {
-  let exp = test_compiled(test_expr("__moongrep_exp_Value"), expr_metavars=[
-    "Value",
-  ])
+test "raw expression and constant metavars use logical names" {
+  let exp = test_compiled(test_expr("$(value:exp)"), expr_metavars=["value"])
   assert_true(match_expr_pattern(exp, test_expr("some_call()")) is Some(_))
-  let constant = test_compiled(test_expr("__moongrep_const_Value"), constant_metavars=[
-    "Value",
+  let constant = test_compiled(test_expr("$(value:const)"), constant_metavars=[
+    "value",
   ])
   let value = test_single_binding(
     match_expr_pattern(constant, test_expr("42")),
-    "Value",
+    "value",
   )
   assert_true(value.kind.is_constant())
 }
 
 ///|
 test "identifier metavars normalize binder and expression names" {
-  let compiled = test_compiled(test_expr("match subject { name => name }"), identifier_metavars=[
-    "name",
-  ])
+  let compiled = test_compiled(
+    test_expr("match subject { $(name:id) => $(name:id) }"),
+    identifier_metavars=["name"],
+  )
   let captured = test_single_binding(
     match_expr_pattern(compiled, test_expr("match subject { item => item }")),
     "name",
@@ -136,7 +135,7 @@ test "identifier metavars normalize binder and expression names" {
 
 ///|
 test "constant metavars work in expressions and patterns" {
-  let expression = test_compiled(test_expr("check(value)"), constant_metavars=[
+  let expression = test_compiled(test_expr("check($(value:const))"), constant_metavars=[
     "value",
   ])
   assert_true(
@@ -145,9 +144,10 @@ test "constant metavars work in expressions and patterns" {
   assert_false(
     match_expr_pattern(expression, test_expr("check(name)")) is Some(_),
   )
-  let pattern = test_compiled(test_expr("match input { value => body }"), constant_metavars=[
-    "value",
-  ])
+  let pattern = test_compiled(
+    test_expr("match input { $(value:const) => body }"),
+    constant_metavars=["value"],
+  )
   assert_true(
     match_expr_pattern(pattern, test_expr("match input { 7 => body }"))
     is Some(_),
@@ -156,7 +156,7 @@ test "constant metavars work in expressions and patterns" {
 
 ///|
 test "argument metavars capture the complete argument kind" {
-  let compiled = test_compiled(test_expr("sink(__moongrep_arg_item)"), arg_metavars=[
+  let compiled = test_compiled(test_expr("sink($(item:arg))"), arg_metavars=[
     "item",
   ])
   let labelled = test_single_binding(
@@ -173,9 +173,7 @@ test "argument metavars capture the complete argument kind" {
 
 ///|
 test "pattern metavars capture whole normalized patterns" {
-  let compiled = test_compiled(
-    test_expr("match input { __moongrep_pat_item => body }"),
-  )
+  let compiled = test_compiled(test_expr("match input { $(item:pat) => body }"))
   let captured = test_single_binding(
     match_expr_pattern(
       compiled,
@@ -194,12 +192,10 @@ test "pattern metavars capture whole normalized patterns" {
 }
 
 ///|
-test "type metavars decode internal markers and compare repeated captures" {
+test "type metavars compare repeated captures" {
   let compiled = test_compiled(
-    test_expr(
-      "match input { (left : MoongrepType_ty, right : MoongrepType_ty) => body }",
-    ),
-    type_metavars=["ty"],
+    test_expr("match input { (left : $(T:type), right : $(T:type)) => body }"),
+    type_metavars=["T"],
   )
   assert_true(
     match_expr_pattern(
@@ -223,7 +219,7 @@ test "type metavars decode internal markers and compare repeated captures" {
 
 ///|
 test "ignore placeholder does not create a binding" {
-  let compiled = test_compiled(test_expr("wrap(__moongrep_ignore)"))
+  let compiled = test_compiled(test_expr("wrap($_)"))
   guard match_expr_pattern(compiled, test_expr("wrap(complex(1))"))
     is Some(result) else {
     fail("expected match")
@@ -233,10 +229,9 @@ test "ignore placeholder does not create a binding" {
 
 ///|
 test "ellipsis captures ordered argument spans including empty spans" {
-  let compiled = test_compiled(
-    test_expr("call(__moongrep_ellipsis_any_items, tail)"),
-    ellipsis_metavars=[{ name: "items", kind: AnyItem }],
-  )
+  let compiled = test_compiled(test_expr("call($$$items, tail)"), ellipsis_metavars=[
+    { name: "items", kind: AnyItem },
+  ])
   guard match_expr_pattern(compiled, test_expr("call(1, label=x, tail)"))
     is Some(result) else {
     fail("expected match")
@@ -250,10 +245,9 @@ test "ellipsis captures ordered argument spans including empty spans" {
 
 ///|
 test "typed ellipsis constrains every captured item" {
-  let compiled = test_compiled(
-    test_expr("call(__moongrep_ellipsis_const_values)"),
-    ellipsis_metavars=[{ name: "values", kind: ConstItem }],
-  )
+  let compiled = test_compiled(test_expr("call($$$(values:const))"), ellipsis_metavars=[
+    { name: "values", kind: ConstItem },
+  ])
   assert_true(
     match_expr_pattern(compiled, test_expr("call(1, \"two\")")) is Some(_),
   )
@@ -278,9 +272,7 @@ test "block matching handles parser sequence wrappers and lexical statements" {
 
 ///|
 test "an expression placeholder in an if body captures the complete block" {
-  let compiled = test_compiled(
-    test_expr("if __moongrep_ignore { __moongrep_ignore } else {}"),
-  )
+  let compiled = test_compiled(test_expr("if $_ { $_ } else {}"))
   assert_true(
     match_expr_pattern(
       compiled,
@@ -302,9 +294,7 @@ test "guard and let headers match their lexical CST continuation" {
     )
     is Some(_),
   )
-  let let_pattern = test_compiled(
-    test_expr("let (__moongrep_ignore, __moongrep_ignore) = __moongrep_ignore"),
-  )
+  let let_pattern = test_compiled(test_expr("let ($_, $_) = $_"))
   assert_true(
     match_expr_pattern(
       let_pattern,
@@ -438,7 +428,7 @@ test "ignored top-level fields implement partial matching" {
 
 ///|
 test "caller bindings are copied and repeated values ignore locations" {
-  let compiled = test_compiled(test_expr("pair(value, value)"), expr_metavars=[
+  let compiled = test_compiled(test_expr("pair($(value:exp), $(value:exp))"), expr_metavars=[
     "value",
   ])
   let initial : @hashmap.HashMap[String, BoundValue] = HashMap([])

@@ -17,7 +17,7 @@
 - 检查重复 rule id
 - 把普通规则 `shape` 解析成 MoonBit 表达式，并把每个
   `inside-toplevel` 条目的 shape 解析成一个顶层项
-- 把 metavar 重写成 matcher 可读取的 CST 名称
+- 记录 metavar，并校验它在 CST 中的位置
 - 拒绝不支持的占位符位置和格式错误的 guard
 - 记录 taint sink 和 sanitizer 的 target 元数据
 - 为编译后的定义构造源码文本 prefilter
@@ -36,22 +36,35 @@
 2. taint rule 走 `compile_taint_rule`
 3. `compile_rule_prefilter(definition)` 从编译后的 CST 推导必需源码字面量
 
-prefilter 必须基于编译后的 definition。此时 metavar
-已经被规范化，可以从字面量收集中排除。原始 YAML 不具备这个条件。
+prefilter 必须基于编译后的 definition。此时 metavar 已经完成分类，可以从字面量
+收集中排除。原始 YAML 不具备这个条件。
 
 ## Shape 解析
 
-`prepare_shape` 先使用以下 lexer 配置：
+`collect_shape_metavars` 先使用以下 lexer 配置：
 
 ```text
 comment = true
 enable_metavar = true
 ```
 
-lexer 会在解析前识别 metavar token。每个出现位置都会在源码文本中替换成合法的
-保留 marker，同时记录 marker span 和逻辑语法。随后 `parse_shape` 调用
-`@untyped_cst.parse_expression`；`parse_toplevel_shape` 调用
-`@untyped_cst.parse_structure`，并要求 `@cst.toplevel_nodes` 只返回一个节点。
+lexer 会识别 metavar token，并记录每个出现位置的原始 span 和逻辑语法。随后
+`parse_shape` 直接调用
+`@untyped_cst.parse_expression(..., enable_metavar=true)`；
+`parse_toplevel_shape` 调用
+`@untyped_cst.parse_structure(..., enable_metavar=true)`，并要求
+`@cst.toplevel_nodes` 只返回一个节点。metavar 语法会继续保留在 CST 中，
+不再替换成保留标识符。
+
+外层 lexer 会把每个 string / bytes 插值保留为一个聚合 token。为记录其中的
+metavar，收集器会遍历 parser CST，并使用全局起点、`is_interpolation=true` 和
+`enable_metavar=true` 对每个 `InterpSegment_Source` 做子词法分析。parser 在构建每个
+片段的 `expr` 子树时也会透传同一 metavar 模式，包括嵌套插值。因此校验和上下文识别
+可以直接使用原始 CST。
+
+和 CST 迁移前一样，`Type_Name` 必须从大写 identifier token 开始。因此显式
+`type` metavar 和带 `type` kind 的 ellipsis metavar 都必须使用大写名称；小写名称
+和关键字名称仍会被 parser 拒绝。
 
 普通 `patterns`、`patterns-not`、每个 `inside-expr` 条目和 taint 子句的 shape
 都必须正好是一个 MoonBit 表达式。每个 `inside-toplevel` shape 必须正好是一个
@@ -64,14 +77,14 @@ lexer 会在解析前识别 metavar token。每个出现位置都会在源码文
 "not a valid MoonBit expression" 或 "not a valid MoonBit top-level item"。
 
 即使 parser 没有生成诊断，编译器也会拒绝 recovery 节点（`Missing` 和 `Error`）。
-向规则作者显示 parse diagnostic 前，会把内部 marker 恢复成原始 metavar 拼写。
 
-## Metavar 上下文与 Marker
+## Metavar 上下文
 
-Metavar 编译会按记录的 marker span 在 CST 中定位每个出现位置，并从节点路径推导
+Metavar 编译会按记录的源码 span 在 CST 中定位每个出现位置，并从节点路径推导
 上下文。上下文记录 expression、identifier、pattern、type、whole-argument、
 binder-only、qualified-name 和 ordered-list 信息。kind 校验只使用这些上下文，
-不会修改或重建只读 CST。
+不会修改或重建只读 CST。插值表达式节点及其 metavar span 已使用全局源码偏移，
+因此所有 occurrence 都使用同一个 CST 根节点。
 
 Bare kind 推断有意保守：
 
@@ -99,10 +112,8 @@ pattern，因为该位置在 `id`、`const` 和 `pat` 之间有歧义。
 - `pat`：简单 pattern-variable 位置，捕获完整候选 pattern CST
 - `type`：完整的 CST type 节点
 
-大多数 marker 直接保留 metavar 的逻辑名称。`pat`、ellipsis 和 `$_` 使用保留的
-内部名称，使 parser 能接受它们，也使 matcher 能识别 whole-node 语义。大写
-metavar 会按所在语法位置使用合法 marker。编译后的 kind 数组和 ellipsis 元数据
-保存逻辑名称，不保存 marker 拼写。
+matcher 会直接识别 `$name`、`$(name:kind)`、`$$$name` 和 `$_` 拼写，并结合
+编译后的 kind 数组或 ellipsis 元数据决定语义。
 
 Metavar 数组保持首次出现顺序。若干测试会断言这个顺序，不要把这些数组排序当作清理。
 

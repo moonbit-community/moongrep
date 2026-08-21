@@ -29,14 +29,19 @@
 5. 声明过的 constant metavar 只绑定 `Expr_Constant`
 6. 未声明的名字是字面 CST 名称
 
-对于类型节点，一个简单 `Type_Name` 标记如果名称出现在
-`CompiledExprPattern.type_metavars` 中，就会绑定整个候选 type 节点。
+对于类型节点，一个包含已声明 type metavar payload 的简单 `Type_Name` 会绑定整个候选
+type 节点。
 重复的 type 捕获使用与其他 CST 节点捕获相同的忽略位置结构相等性。
 
 对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$(name:pat)` 会绑定整个候选 `Pattern` CST，声明过的 constant metavar 只匹配
 `Pattern_Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
 `__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
 `__x` 是字面量：只有精确拼写 `$_` 本身才是忽略占位符。
+
+parser 会在重新词法分析 string / bytes 插值源码时透传 metavar 模式。因此
+`InterpSegment_Source` 已包含正确解析的 `expr` 子树，matcher 通过普通的 CST 递归
+匹配处理它。所有片段共享同一个 bindings，因此跨插值片段的重复捕获仍遵循正常的
+相等性语义。
 
 ## 绑定种类
 
@@ -72,8 +77,9 @@ matcher 不直接比较原始 `CstNode.children`。`@cst.semantic_children` 会�
 `_loc` 字段、`Aggregate_Span`、EOF、`doc` 字段、`Syntax_Comment`、delimiter、
 separator 和其他纯标点。因此，任何嵌套层级、任何匹配模式都把 docstring 视为
 无语义注释。该视图还会从 parser wrapper 中展开语义名称、常量、操作符、
-attribute、插值片段和 flag。冗余的 constructor qualification 元数据会被忽略，
-因为规范化名称已经保留该 identity。
+attribute、插值片段和 flag。插值源码的原始 payload 会被忽略，改用解析后的表达式。
+冗余的 constructor qualification 元数据会被忽略，因为规范化名称已经保留该
+identity。
 
 之前树表示会消除的 `Pattern_Group` 和 `Type_Group` wrapper 会被展开。普通表达式块
 仍保留结构；但作为带标签 `body` 容器的 block 如果只包含一个 whole-body 表达式

@@ -159,19 +159,18 @@ magnitude check. Empty strings are also omitted.
 
 Unrecognized non-leaf nodes are traversed recursively. Bare leaf nodes do not
 become literals by themselves, so CST kind names and structural punctuation
-are not source requirements. Literal interpolation expressions are reached
-through normal recursion, while parser-only source metadata is not used as an
-anchor.
+are not source requirements. Interpolation expressions, including ones that
+contain metavars, are reached through normal recursion over the parser-provided
+`expr` subtree. Fixed literals around a metavar therefore remain usable without
+any separate parse.
 
 ## Placeholders and Ignored Fields
 
 A name must not be collected when the matcher can replace it with arbitrary
 source. `is_filter_placeholder` excludes:
 
-- reserved internal ellipsis, expression, argument, constant, pattern, and type
-  marker prefixes
+- raw metavar names containing `$`, including single and ellipsis forms
 - the exact ignore placeholder `$_`
-- the internal ignore marker
 - the compiled pattern's `target_metavar` and `source_metavar`
 - declared expression, identifier, constant, argument, and type metavars
 

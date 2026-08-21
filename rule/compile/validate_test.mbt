@@ -254,7 +254,7 @@ test "validate accepts bare inline expression metavars" {
 }
 
 ///|
-test "validate accepts keyword names for every single-node metavar form" {
+test "validate accepts keyword names for non-type single-node metavars" {
   let source =
     #|id: example
     #|description: Keyword metavar names.
@@ -264,14 +264,12 @@ test "validate accepts keyword names for every single-node metavar form" {
     #|  - shape: $(for:id)()
     #|  - shape: sink($(match:arg))
     #|  - shape: match input { $(if:pat) => body }
-    #|  - shape: |
-    #|      let value : $(for:type) = input
     #|  - shape: $if + $if
     #|
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns.length(), 7)
+      assert_eq(rule.patterns.length(), 6)
       debug_inspect(
         rule.patterns[0].compiled.expr_metavars,
         content="[\"else\"]",
@@ -288,11 +286,7 @@ test "validate accepts keyword names for every single-node metavar form" {
         rule.patterns[3].compiled.arg_metavars,
         content="[\"match\"]",
       )
-      debug_inspect(
-        rule.patterns[5].compiled.type_metavars,
-        content="[\"for\"]",
-      )
-      debug_inspect(rule.patterns[6].compiled.expr_metavars, content="[\"if\"]")
+      debug_inspect(rule.patterns[5].compiled.expr_metavars, content="[\"if\"]")
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -600,6 +594,40 @@ test "validate accepts explicit type metavars in annotations" {
       debug_inspect(rule.patterns[0].compiled.type_metavars, content="[\"T\"]")
     Taint(_) => fail("expected structural rule")
   }
+}
+
+///|
+test "validate keeps the uppercase requirement for type metavar names" {
+  let lowercase =
+    #|id: lowercase
+    #|description: Lowercase type metavar.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(foo:type) = input
+    #|
+  expect_compile_invalid(
+    lowercase, "patterns[0].shape is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
+  )
+  let keyword =
+    #|id: keyword
+    #|description: Keyword type metavar.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : $(for:type) = input
+    #|
+  expect_compile_invalid(
+    keyword, "patterns[0].shape is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
+  )
+  let ellipsis =
+    #|id: ellipsis
+    #|description: Lowercase type ellipsis metavar.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : ($$$(types:type), Bool) = input
+    #|
+  expect_compile_invalid(
+    ellipsis, "patterns[0].shape is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
+  )
 }
 
 ///|

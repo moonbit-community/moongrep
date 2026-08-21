@@ -65,7 +65,7 @@ fn cst_bucket_contains_name(values : Array[String], value : String) -> Bool {
 
 ///|
 fn cst_bucket_is_ignore_placeholder(name : String) -> Bool {
-  name == "$_" || name == "__moongrep_ignore"
+  name == "$_"
 }
 
 ///|
@@ -85,27 +85,20 @@ fn compiled_root_ident_key(
   compiled : @matching.CompiledExprPattern,
   name : String,
 ) -> ExprRootKey?? {
-  let logical = cst_bucket_marker_name(name)
+  let logical = cst_bucket_metavar_name(name)
   if cst_bucket_is_ignore_placeholder(name) ||
     compiled.target_metavar == Some(name) ||
     compiled.source_metavar == Some(name) ||
-    cst_bucket_contains_name(compiled.expr_metavars, name) ||
     (
       logical is Some(value) &&
       cst_bucket_contains_name(compiled.expr_metavars, value)
     ) {
     Some(None)
-  } else if cst_bucket_contains_name(compiled.identifier_metavars, name) ||
-    (
-      logical is Some(value) &&
-      cst_bucket_contains_name(compiled.identifier_metavars, value)
-    ) {
+  } else if logical is Some(value) &&
+    cst_bucket_contains_name(compiled.identifier_metavars, value) {
     Some(Some(IdentRoot))
-  } else if cst_bucket_contains_name(compiled.constant_metavars, name) ||
-    (
-      logical is Some(value) &&
-      cst_bucket_contains_name(compiled.constant_metavars, value)
-    ) {
+  } else if logical is Some(value) &&
+    cst_bucket_contains_name(compiled.constant_metavars, value) {
     Some(Some(ConstantRoot))
   } else {
     None
@@ -113,16 +106,37 @@ fn compiled_root_ident_key(
 }
 
 ///|
-fn cst_bucket_marker_name(name : String) -> String? {
-  for
-    prefix in [
-      "__moongrep_exp_", "__moongrep_const_", "__moongrep_id_", "__moongrep_bare_",
-    ] {
-    if name.has_prefix(prefix) && name.length() > prefix.length() {
-      return Some(name[prefix.length():].to_owned())
+fn cst_bucket_metavar_name(raw : String) -> String? {
+  let mut start = -1
+  for index in 0..<raw.length() {
+    if raw[index] == '$' {
+      start = index
     }
   }
-  None
+  if start < 0 {
+    return None
+  }
+  let component = raw[start:]
+  if component.has_prefix("$$$") || component == "$_" {
+    return None
+  }
+  if component.has_prefix("$(") && component.has_suffix(")") {
+    let end = component.length() - 1
+    for index in 2..<end {
+      if component[index] == ':' {
+        let name = component[2:index].trim()
+        if !name.is_empty() {
+          return Some(name.to_owned())
+        }
+        return None
+      }
+    }
+    None
+  } else if component.has_prefix("$") && component.length() > 1 {
+    Some(component[1:].to_owned())
+  } else {
+    None
+  }
 }
 
 ///|

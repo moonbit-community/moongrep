@@ -148,7 +148,7 @@ fn subtree_contains_normalized_name(
   expected : String,
 ) -> Bool {
   if @cst.normalized_name(node) is Some(found) {
-    if found == expected || single_metavar_marker_name(found) == Some(expected) {
+    if found == expected || single_metavar_source_name(found) == Some(expected) {
       return true
     }
   }
@@ -161,17 +161,37 @@ fn subtree_contains_normalized_name(
 }
 
 ///|
-fn single_metavar_marker_name(name : String) -> String? {
-  for
-    prefix in [
-      "__moongrep_exp_", "__moongrep_const_", "__moongrep_arg_", "__moongrep_pat_",
-      "__moongrep_id_", "__moongrep_bare_", "MoongrepId_", "MoongrepType_", "MoongrepBare_",
-    ] {
-    if name.has_prefix(prefix) && name.length() > prefix.length() {
-      return Some(name[prefix.length():].to_owned())
+fn single_metavar_source_name(raw : String) -> String? {
+  let mut start = -1
+  for index in 0..<raw.length() {
+    if raw[index] == '$' {
+      start = index
     }
   }
-  None
+  if start < 0 {
+    return None
+  }
+  let component = raw[start:]
+  if component.has_prefix("$$$") || component is "$_" {
+    return None
+  }
+  if component.has_prefix("$(") && component.has_suffix(")") {
+    let end = component.length() - 1
+    for index in 2..<end {
+      if component[index] == ':' {
+        let name = component[2:index].trim()
+        if !name.is_empty() {
+          return Some(name.to_owned())
+        }
+        return None
+      }
+    }
+    None
+  } else if component.has_prefix("$") && component.length() > 1 {
+    Some(component[1:].to_owned())
+  } else {
+    None
+  }
 }
 
 ///|
@@ -375,8 +395,8 @@ fn metavar_node_matches_occurrence(
   node : @untyped_cst.CstNode,
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
-  let marker_end = occurrence.start + occurrence.marker.length()
-  if node.source_span.0 > occurrence.start || node.source_span.1 < marker_end {
+  if node.source_span.0 > occurrence.start ||
+    node.source_span.1 < occurrence.end {
     return false
   }
   let name = match node.kind {
@@ -387,9 +407,9 @@ fn metavar_node_matches_occurrence(
     _ => @cst.normalized_name(node)
   }
   if name is Some(name) {
-    name == occurrence.marker ||
-    name.has_suffix(".\{occurrence.marker}") ||
-    name.has_suffix("::\{occurrence.marker}")
+    name == occurrence.raw ||
+    name.has_suffix(".\{occurrence.raw}") ||
+    name.has_suffix("::\{occurrence.raw}")
   } else {
     false
   }
@@ -400,8 +420,7 @@ fn metavar_node_is_whole(
   node : @untyped_cst.CstNode,
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
-  node.source_span.0 == occurrence.start &&
-  node.source_span.1 == occurrence.start + occurrence.marker.length()
+  node.source_span.0 == occurrence.start && node.source_span.1 == occurrence.end
 }
 
 ///|
@@ -430,7 +449,7 @@ fn ellipsis_slot_from_path(
     let slot = ellipsis_slot_for_container(container.kind)
     if slot is Some(slot) && index + 1 < path.length() {
       let item = path[index + 1]
-      if ellipsis_item_is_whole_marker(item, occurrence) &&
+      if ellipsis_item_is_whole_occurrence(item, occurrence) &&
         ellipsis_container_item_is_replaceable(container, item) {
         return Some(slot)
       }
@@ -438,7 +457,7 @@ fn ellipsis_slot_from_path(
   }
   if path is [root, item] &&
     root.kind is @untyped_cst.Expression &&
-    ellipsis_item_is_whole_marker(item, occurrence) {
+    ellipsis_item_is_whole_occurrence(item, occurrence) {
     return Some(EllipsisExprSlot)
   }
   None
@@ -499,7 +518,7 @@ fn block_statement_has_separator_after(
 }
 
 ///|
-fn ellipsis_item_is_whole_marker(
+fn ellipsis_item_is_whole_occurrence(
   item : @untyped_cst.CstNode,
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
