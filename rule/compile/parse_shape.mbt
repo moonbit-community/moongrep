@@ -1,40 +1,51 @@
 ///|
+priv enum ShapeMetavarSyntax {
+  Explicit(String, String)
+  Bare(String)
+  Ellipsis(String, @matching.EllipsisMetavarKind?)
+  Ignore
+}
+
+///|
+priv struct ShapeMetavarOccurrence {
+  raw : String
+  syntax : ShapeMetavarSyntax
+  marker : String
+  start : Int
+  uppercase_identifier : Bool
+}
+
+///|
+priv struct PreparedShape {
+  source : String
+  occurrences : Array[ShapeMetavarOccurrence]
+}
+
+///|
 fn parse_shape(
   path : String,
   context : String,
   source : String,
-) -> @syntax.Expr raise {
-  let lex_result = @lexer.tokens_from_string(
-    source,
-    comment=true,
-    name="rule shape",
-    enable_metavar=true,
-  )
-  if lex_result.errors.length() != 0 {
-    for error_entry in lex_result.errors {
-      match error_entry {
-        (_, _, InvalidMetavarSyntax(raw)) =>
-          raise RuleLoadError::InvalidRule(
-            path~,
-            info=invalid_metavar_syntax_message(context, raw),
-          )
-        _ => ()
-      }
-    }
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} has lexical errors",
+) -> (@untyped_cst.CstNode, Array[ShapeMetavarOccurrence]) raise {
+  let prepared = prepare_shape(path, context, source)
+  let parsed = @untyped_cst.parse_expression(prepared.source, name="rule shape")
+  if parsed.diagnostics_view() is [first, ..] {
+    let message = restore_metavars_in_diagnostic(
+      first.msg.replace_all(old=" in .", new="."),
+      prepared.occurrences,
     )
-  }
-  let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
-  if reports.length() != 0 {
-    let message = reports[0].msg.replace_all(old=" in .", new=".")
     raise RuleLoadError::InvalidRule(
       path~,
       info="\{shape_context_name(context)} is not a valid MoonBit expression: \{message}",
     )
   }
-  expr
+  if @cst.first_recovery_node(parsed.root()) is Some(_) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} is not a valid MoonBit expression: incomplete recovered CST node",
+    )
+  }
+  (@cst.expression_root(parsed.root()), prepared.occurrences)
 }
 
 ///|
@@ -42,8 +53,33 @@ fn parse_toplevel_shape(
   path : String,
   context : String,
   source : String,
-) -> @syntax.Impl raise {
-  let lex_result = @lexer.tokens_from_string(
+) -> (@untyped_cst.CstNode, Array[ShapeMetavarOccurrence]) raise {
+  let prepared = prepare_shape(path, context, source)
+  let parsed = @untyped_cst.parse_structure(prepared.source, name="rule shape")
+  if !parsed.diagnostics_view().is_empty() ||
+    @cst.first_recovery_node(parsed.root()) is Some(_) {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} is not a valid MoonBit top-level item",
+    )
+  }
+  match @cst.toplevel_nodes(parsed.root()) {
+    [item] => (item, prepared.occurrences)
+    _ =>
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{shape_context_name(context)} must contain exactly one MoonBit top-level item",
+      )
+  }
+}
+
+///|
+fn prepare_shape(
+  path : String,
+  context : String,
+  source : String,
+) -> PreparedShape raise {
+  let lex_result = @lexer.tokens_from_string_with_utf16_location(
     source,
     comment=true,
     name="rule shape",
@@ -51,8 +87,8 @@ fn parse_toplevel_shape(
   )
   if lex_result.errors.length() != 0 {
     for error_entry in lex_result.errors {
-      match error_entry {
-        (_, _, InvalidMetavarSyntax(raw)) =>
+      match error_entry.2 {
+        InvalidMetavarSyntax(raw) =>
           raise RuleLoadError::InvalidRule(
             path~,
             info=invalid_metavar_syntax_message(context, raw),
@@ -65,83 +101,175 @@ fn parse_toplevel_shape(
       info="\{shape_context_name(context)} has lexical errors",
     )
   }
-  let (impls, reports) = @handrolled_parser.parse(lex_result.tokens)
-  if reports.length() != 0 {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} is not a valid MoonBit top-level item",
-    )
-  }
-  if impls.length() != 1 {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} must contain exactly one MoonBit top-level item",
-    )
-  }
-  let items = impls.to_array()
-  attach_toplevel_shape_docstring(lex_result.docstrings, items[0])
-  items[0]
-}
-
-///|
-fn attach_toplevel_shape_docstring(
-  docstrings : Array[@list.List[(@basic.Location, @tokens.Comment)]],
-  item : @syntax.Impl,
-) -> Unit {
-  let item_loc = item.loc()
-  let mut selected : @list.List[(@basic.Location, @tokens.Comment)]? = None
-  // Lexer docstring groups are stored in reverse source order. Iterating from
-  // the end toward the beginning leaves the nearest group before this single
-  // top-level shape selected.
-  let mut index = docstrings.length()
-  while index > 0 {
-    index -= 1
-    let comments = docstrings[index]
-    if comments.head() is Some((loc, _)) &&
-      loc.start.lnum <= item_loc.start.lnum {
-      selected = Some(comments)
+  let replacements : Array[
+    (@basic.Position, @basic.Position, String, ShapeMetavarSyntax, String),
+  ] = []
+  for entry in lex_result.tokens {
+    let (token, start, end) = entry
+    if metavar_token_payload(token) is Some(raw) {
+      let syntax = parse_shape_metavar_syntax(path, context, raw)
+      let marker = shape_metavar_marker(syntax, raw, token)
+      let replacement = match token {
+        @tokens.POST_LABEL(_) => marker + "~"
+        @tokens.POST_LABEL_TRANSPARENT(_) => marker + "~~"
+        _ => marker
+      }
+      replacements.push((start, end, raw, syntax, replacement))
     }
   }
-  let doc = if selected is Some(comments) {
-    shape_docstring_from_comments(comments)
-  } else {
-    @syntax.DocString::empty()
+  let output = StringBuilder::new()
+  let occurrences : Array[ShapeMetavarOccurrence] = []
+  let mut source_offset = 0
+  let mut output_offset = 0
+  for replacement in replacements {
+    let start = replacement.0.cnum
+    let end = replacement.1.cnum
+    if start > source_offset {
+      let unchanged = source[source_offset:start]
+      output.write_string(unchanged.to_owned())
+      output_offset += unchanged.length()
+    }
+    let new_start = output_offset
+    output.write_string(replacement.4)
+    output_offset += replacement.4.length()
+    occurrences.push({
+      raw: replacement.2,
+      syntax: replacement.3,
+      marker: shape_marker_without_label_suffix(replacement.4),
+      start: new_start,
+      uppercase_identifier: metavar_name_starts_uppercase(replacement.2),
+    })
+    source_offset = end
   }
-  match item {
-    TopFuncDef(fun_decl~, ..) => fun_decl.doc = doc
-    TopLetDef(..) as let_def => let_def.doc = doc
-    TopImpl(..) as impl_def => impl_def.doc = doc
-    TopImplRelation(..) as relation => relation.doc = doc
-    TopTest(..) as test_def => test_def.doc = doc
-    TopTrait(trait_decl) => trait_decl.doc = doc
-    TopTypeDef(type_decl) => type_decl.doc = doc
-    TopUsing(..) as using_def => using_def.doc = doc
-    TopView(..) as view_def => view_def.doc = doc
-    TopExpr(..) => ()
+  if source_offset < source.length() {
+    output.write_string(source[source_offset:].to_owned())
+  }
+  { source: output.to_string(), occurrences }
+}
+
+///|
+fn metavar_name_starts_uppercase(raw : String) -> Bool {
+  let offset = if raw.has_prefix("$(") { 2 } else { 1 }
+  if offset >= raw.length() {
+    false
+  } else {
+    raw[offset] >= 'A' && raw[offset] <= 'Z'
   }
 }
 
 ///|
-fn shape_docstring_from_comments(
-  comments : @list.List[(@basic.Location, @tokens.Comment)],
-) -> @syntax.DocString {
-  let first_loc = comments.head().unwrap().0
-  let last_loc = comments.last().unwrap().0
-  {
-    content: comments.map(fn(entry) {
-      let content = entry.1.content
-      match content {
-        [.. "///|", .. remain] =>
-          if remain.is_blank() {
-            ""
-          } else {
-            remain.to_owned()
-          }
-        [.. "///", .. remain] => remain.to_owned()
-        _ => ""
+fn restore_metavars_in_diagnostic(
+  message : String,
+  occurrences : Array[ShapeMetavarOccurrence],
+) -> String {
+  let mut result = message
+  for occurrence in occurrences {
+    result = result.replace_all(old=occurrence.marker, new=occurrence.raw)
+  }
+  result
+}
+
+///|
+fn shape_marker_without_label_suffix(marker : String) -> String {
+  if marker.has_suffix("~~") {
+    marker[:marker.length() - 2].to_owned()
+  } else if marker.has_suffix("~") {
+    marker[:marker.length() - 1].to_owned()
+  } else {
+    marker
+  }
+}
+
+///|
+fn metavar_token_payload(token : @tokens.Token) -> String? {
+  match token {
+    @tokens.LIDENT(raw)
+    | @tokens.UIDENT(raw)
+    | @tokens.DOT_LIDENT(raw)
+    | @tokens.DOT_UIDENT(raw)
+    | @tokens.POST_LABEL(raw)
+    | @tokens.POST_LABEL_TRANSPARENT(raw) =>
+      if raw.has_prefix("$") {
+        Some(raw)
+      } else {
+        None
       }
-    }),
-    loc: { start: first_loc.start, end: last_loc.end },
+    _ => None
+  }
+}
+
+///|
+fn parse_shape_metavar_syntax(
+  path : String,
+  context : String,
+  raw : String,
+) -> ShapeMetavarSyntax raise {
+  if raw == "$_" {
+    return Ignore
+  }
+  if raw.has_prefix("$$$") {
+    guard parse_ellipsis_syntax(path, context, raw) is Some(parsed) else {
+      raise RuleLoadError::InvalidRule(
+        path~,
+        info="\{shape_context_name(context)} contains invalid ellipsis metavar \{raw}",
+      )
+    }
+    return Ellipsis(parsed.0, parsed.1)
+  }
+  guard parse_metavar(raw, path, context) is Some(syntax) else {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info=invalid_metavar_syntax_message(context, raw),
+    )
+  }
+  match syntax {
+    Explicit(kind, name) => Explicit(kind, name)
+    Bare(name) => Bare(name)
+  }
+}
+
+///|
+fn shape_metavar_marker(
+  syntax : ShapeMetavarSyntax,
+  raw : String,
+  _token : @tokens.Token,
+) -> String {
+  match syntax {
+    Ignore => "__moongrep_ignore"
+    Bare(name) =>
+      if metavar_name_starts_uppercase(raw) {
+        "MoongrepBare_\{name}"
+      } else {
+        "__moongrep_bare_\{name}"
+      }
+    Explicit("pat", name) => "__moongrep_pat_\{name}"
+    Explicit("exp", name) => "__moongrep_exp_\{name}"
+    Explicit("const", name) => "__moongrep_const_\{name}"
+    Explicit("arg", name) => "__moongrep_arg_\{name}"
+    Explicit("type", name) => "MoongrepType_\{name}"
+    Explicit("id", name) =>
+      if metavar_name_starts_uppercase(raw) {
+        "MoongrepId_\{name}"
+      } else {
+        "__moongrep_id_\{name}"
+      }
+    Explicit(_, name) => "__moongrep_id_\{name}"
+    Ellipsis(name, Some(TypeItem)) => "MoongrepEllipsis_type_\{name}"
+    Ellipsis(name, kind) =>
+      "__moongrep_ellipsis_\{ellipsis_marker_kind(kind)}_\{name}"
+  }
+}
+
+///|
+fn ellipsis_marker_kind(kind : @matching.EllipsisMetavarKind?) -> String {
+  match kind {
+    None | Some(AnyItem) => "any"
+    Some(ExpItem) => "exp"
+    Some(IdItem) => "id"
+    Some(ConstItem) => "const"
+    Some(ArgItem) => "arg"
+    Some(PatItem) => "pat"
+    Some(TypeItem) => "type"
   }
 }
 
@@ -185,10 +313,10 @@ fn legacy_metavar_replacement(raw : String) -> (String, String)? {
       if kind.length() == 0 || name.length() == 0 {
         return None
       }
-      let kind_text = kind.to_owned()
-      let name_text = name.to_owned()
       let suffix = if has_post_label { "~" } else { "" }
-      return Some((raw, "\{prefix}$(\{name_text}:\{kind_text})\{suffix}"))
+      return Some(
+        (raw, "\{prefix}$(\{name.to_owned()}:\{kind.to_owned()})\{suffix}"),
+      )
     }
   }
   None

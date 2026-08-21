@@ -1,6 +1,6 @@
 ///|
 priv struct MetavarShape {
-  ast : @untyped_ast.Node
+  cst : @untyped_cst.CstNode
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
@@ -17,11 +17,30 @@ priv enum MetavarSyntax {
 }
 
 ///|
-priv enum BareMetavarPosition {
-  BareExpressionPosition
-  BareIdentifierPosition
-  BarePatternVariablePosition
-  BareTypePosition
+priv enum MetavarPosition {
+  ExpressionPosition
+  IdentifierPosition
+  PatternPosition
+  TypePosition
+} derive(Eq)
+
+///|
+priv struct MetavarOccurrenceContext {
+  position : MetavarPosition
+  whole_argument : Bool
+  ellipsis_slot : EllipsisItemSlot?
+  qualified_identifier : Bool
+  binder_only_pattern : Bool
+}
+
+///|
+priv struct MetavarCollections {
+  expr : Array[String]
+  identifier : Array[String]
+  constant : Array[String]
+  arg : Array[String]
+  type_ : Array[String]
+  pattern : Array[String]
 }
 
 ///|
@@ -30,75 +49,8 @@ fn compile_metavar_shape(
   context : String,
   source : String,
 ) -> MetavarShape raise {
-  let parsed = parse_shape(path, context, source)
-  let collect_ctx : MetavarRewriteContext = {
-    path,
-    context,
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    pattern_metavars: [],
-    collecting: true,
-    bare_expression_metavars: [],
-    bare_identifier_metavars: [],
-    bare_pattern_metavars: [],
-    bare_type_metavars: [],
-    resolved_metavars: Map([]),
-  }
-  ignore(collect_ctx.rewrite_expr(parsed))
-  let resolved_metavars = collect_ctx.resolve_metavar_kinds()
-  let ctx : MetavarRewriteContext = {
-    path,
-    context,
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    pattern_metavars: [],
-    collecting: false,
-    bare_expression_metavars: [],
-    bare_identifier_metavars: [],
-    bare_pattern_metavars: [],
-    bare_type_metavars: [],
-    resolved_metavars,
-  }
-  let ast = @untyped_ast.from_expr(ctx.rewrite_expr(parsed))
-  let (
-    cleaned_expr_metavars,
-    cleaned_identifier_metavars,
-    cleaned_constant_metavars,
-    cleaned_arg_metavars,
-    pattern_metavars,
-  ) = cleanup_temporary_pattern_metavars(
-    ctx.expr_metavars,
-    ctx.identifier_metavars,
-    ctx.constant_metavars,
-    ctx.arg_metavars,
-  )
-  let ellipsis_metavars = compile_ellipsis_metavars(
-    path,
-    context,
-    ast,
-    cleaned_expr_metavars,
-    cleaned_identifier_metavars,
-    cleaned_constant_metavars,
-    cleaned_arg_metavars,
-    ctx.type_metavars,
-    pattern_metavars,
-  )
-  {
-    ast,
-    expr_metavars: cleaned_expr_metavars,
-    identifier_metavars: cleaned_identifier_metavars,
-    constant_metavars: cleaned_constant_metavars,
-    arg_metavars: cleaned_arg_metavars,
-    type_metavars: ctx.type_metavars,
-    pattern_metavars,
-    ellipsis_metavars,
-  }
+  let (cst, occurrences) = parse_shape(path, context, source)
+  compile_prepared_metavar_shape(path, context, cst, occurrences)
 }
 
 ///|
@@ -107,75 +59,119 @@ fn compile_toplevel_metavar_shape(
   context : String,
   source : String,
 ) -> MetavarShape raise {
-  let parsed = parse_toplevel_shape(path, context, source)
-  let collect_ctx : MetavarRewriteContext = {
-    path,
-    context,
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    pattern_metavars: [],
-    collecting: true,
-    bare_expression_metavars: [],
-    bare_identifier_metavars: [],
-    bare_pattern_metavars: [],
-    bare_type_metavars: [],
-    resolved_metavars: Map([]),
+  let (cst, occurrences) = parse_toplevel_shape(path, context, source)
+  compile_prepared_metavar_shape(path, context, cst, occurrences)
+}
+
+///|
+fn compile_prepared_metavar_shape(
+  path : String,
+  context : String,
+  cst : @untyped_cst.CstNode,
+  occurrences : Array[ShapeMetavarOccurrence],
+) -> MetavarShape raise {
+  let collections : MetavarCollections = {
+    expr: [],
+    identifier: [],
+    constant: [],
+    arg: [],
+    type_: [],
+    pattern: [],
   }
-  ignore(collect_ctx.rewrite_impl(parsed))
-  let resolved_metavars = collect_ctx.resolve_metavar_kinds()
-  let ctx : MetavarRewriteContext = {
-    path,
-    context,
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    pattern_metavars: [],
-    collecting: false,
-    bare_expression_metavars: [],
-    bare_identifier_metavars: [],
-    bare_pattern_metavars: [],
-    bare_type_metavars: [],
-    resolved_metavars,
+  let contexts : Array[MetavarOccurrenceContext] = []
+  for occurrence in occurrences {
+    contexts.push(
+      find_metavar_occurrence_context(path, context, cst, occurrence),
+    )
   }
-  let ast = @untyped_ast.from_impl(ctx.rewrite_impl(parsed))
-  let (
-    cleaned_expr_metavars,
-    cleaned_identifier_metavars,
-    cleaned_constant_metavars,
-    cleaned_arg_metavars,
-    pattern_metavars,
-  ) = cleanup_temporary_pattern_metavars(
-    ctx.expr_metavars,
-    ctx.identifier_metavars,
-    ctx.constant_metavars,
-    ctx.arg_metavars,
+  for index in 0..<occurrences.length() {
+    match occurrences[index].syntax {
+      Explicit(kind, name) => {
+        validate_single_metavar_kind(path, context, kind)
+        validate_declared_metavar(path, context, name, true)
+        if occurrence_rejected_by_original_identifier_case(
+            kind,
+            occurrences[index],
+          ) {
+          reject_metavar_position(path, context, kind, name, contexts[index])
+        }
+        validate_metavar_position(path, context, kind, name, contexts[index])
+        register_metavar_kind(path, context, collections, kind, name)
+      }
+      _ => ()
+    }
+  }
+  infer_bare_metavar_kinds(path, context, occurrences, contexts, collections)
+  let ellipsis_metavars = compile_ellipsis_occurrences(
+    path, context, occurrences, contexts, collections,
   )
-  let ellipsis_metavars = compile_ellipsis_metavars(
-    path,
-    context,
-    ast,
-    cleaned_expr_metavars,
-    cleaned_identifier_metavars,
-    cleaned_constant_metavars,
-    cleaned_arg_metavars,
-    ctx.type_metavars,
-    pattern_metavars,
-  )
+  preserve_toplevel_identifier_order(cst, collections.identifier)
   {
-    ast,
-    expr_metavars: cleaned_expr_metavars,
-    identifier_metavars: cleaned_identifier_metavars,
-    constant_metavars: cleaned_constant_metavars,
-    arg_metavars: cleaned_arg_metavars,
-    type_metavars: ctx.type_metavars,
-    pattern_metavars,
+    cst,
+    expr_metavars: collections.expr,
+    identifier_metavars: collections.identifier,
+    constant_metavars: collections.constant,
+    arg_metavars: collections.arg,
+    type_metavars: collections.type_,
+    pattern_metavars: collections.pattern,
     ellipsis_metavars,
   }
+}
+
+///|
+fn preserve_toplevel_identifier_order(
+  cst : @untyped_cst.CstNode,
+  names : Array[String],
+) -> Unit {
+  guard cst.kind is @untyped_cst.Impl_Function else { return }
+  guard @cst.raw_child(cst, "params") is Some(params) else { return }
+  let reordered : Array[String] = []
+  for name in names {
+    if subtree_contains_normalized_name(params, name) {
+      reordered.push(name)
+    }
+  }
+  for name in names {
+    if !array_contains(reordered, name) {
+      reordered.push(name)
+    }
+  }
+  names.clear()
+  for name in reordered {
+    names.push(name)
+  }
+}
+
+///|
+fn subtree_contains_normalized_name(
+  node : @untyped_cst.CstNode,
+  expected : String,
+) -> Bool {
+  if @cst.normalized_name(node) is Some(found) {
+    if found == expected || single_metavar_marker_name(found) == Some(expected) {
+      return true
+    }
+  }
+  for entry in @cst.semantic_children(node) {
+    if subtree_contains_normalized_name(entry.1, expected) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn single_metavar_marker_name(name : String) -> String? {
+  for
+    prefix in [
+      "__moongrep_exp_", "__moongrep_const_", "__moongrep_arg_", "__moongrep_pat_",
+      "__moongrep_id_", "__moongrep_bare_", "MoongrepId_", "MoongrepType_", "MoongrepBare_",
+    ] {
+    if name.has_prefix(prefix) && name.length() > prefix.length() {
+      return Some(name[prefix.length():].to_owned())
+    }
+  }
+  None
 }
 
 ///|
@@ -184,13 +180,7 @@ fn parse_metavar(
   path : String,
   context : String,
 ) -> MetavarSyntax? raise {
-  if raw.has_prefix("$$$") {
-    return None
-  }
-  if raw == "$_" {
-    return None
-  }
-  if !raw.has_prefix("$") {
+  if raw.has_prefix("$$$") || raw == "$_" || !raw.has_prefix("$") {
     return None
   }
   if !raw.has_prefix("$(") || !raw.has_suffix(")") {
@@ -220,61 +210,518 @@ fn parse_metavar(
 }
 
 ///|
-fn metavar_text(kind : String, name : String) -> String {
-  "$(" + name + ":" + kind + ")"
+fn find_metavar_occurrence_context(
+  path : String,
+  context : String,
+  root : @untyped_cst.CstNode,
+  occurrence : ShapeMetavarOccurrence,
+) -> MetavarOccurrenceContext raise {
+  let path_nodes : Array[@untyped_cst.CstNode] = []
+  let mut best : MetavarOccurrenceContext? = None
+  let mut best_priority = -1
+  find_metavar_occurrence_context_in(root, occurrence, path_nodes, fn(
+    found,
+    priority,
+  ) {
+    if priority > best_priority {
+      best = Some(found)
+      best_priority = priority
+    }
+  })
+  if best is Some(found) {
+    if !found.qualified_identifier &&
+      cst_contains_qualified_metavar(root, occurrence) {
+      {
+        position: found.position,
+        whole_argument: found.whole_argument,
+        ellipsis_slot: found.ellipsis_slot,
+        qualified_identifier: true,
+        binder_only_pattern: found.binder_only_pattern,
+      }
+    } else {
+      found
+    }
+  } else {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} cannot locate metavar \{occurrence.raw} in parsed CST",
+    )
+  }
 }
 
 ///|
-fn temporary_pattern_metavar_marker(name : String) -> String {
-  metavar_text("pat", name)
+fn cst_contains_qualified_metavar(
+  node : @untyped_cst.CstNode,
+  occurrence : ShapeMetavarOccurrence,
+) -> Bool {
+  if node.kind is @untyped_cst.LongIdent_Dot &&
+    metavar_node_matches_occurrence(node, occurrence) {
+    return true
+  }
+  for entry in node.children {
+    if cst_contains_qualified_metavar(entry.1, occurrence) {
+      return true
+    }
+  }
+  false
 }
 
 ///|
-fn parse_temporary_pattern_metavar_marker(raw : String) -> String? {
-  if raw.has_prefix("$(") && raw.has_suffix(":pat)") {
-    Some(raw[2:raw.length() - ":pat)".length()].to_owned())
+fn find_metavar_occurrence_context_in(
+  node : @untyped_cst.CstNode,
+  occurrence : ShapeMetavarOccurrence,
+  path : Array[@untyped_cst.CstNode],
+  report : (MetavarOccurrenceContext, Int) -> Unit,
+) -> Unit {
+  path.push(node)
+  if metavar_node_matches_occurrence(node, occurrence) {
+    let whole = metavar_node_is_whole(node, occurrence)
+    let (position, priority) = match node.kind {
+      @untyped_cst.Expr_Ident if whole => (ExpressionPosition, 4)
+      @untyped_cst.Pattern_Var if whole => (PatternPosition, 4)
+      @untyped_cst.Type_Name if whole => (TypePosition, 4)
+      @untyped_cst.Name_Identifier
+      | @untyped_cst.Name_Package
+      | @untyped_cst.LongIdent_Ident
+      | @untyped_cst.LongIdent_Dot
+      | @untyped_cst.Name_Binder
+      | @untyped_cst.Name_Label
+      | @untyped_cst.Name_Type
+      | @untyped_cst.Name_Constr
+      | @untyped_cst.Name_ConstrId
+      | @untyped_cst.Name_Var
+      | @untyped_cst.Name_Constructor
+      | @untyped_cst.Name_Field
+      | @untyped_cst.Name_AliasTarget
+      | @untyped_cst.Name_Test => (IdentifierPosition, 2)
+      _ => (IdentifierPosition, 0)
+    }
+    report(
+      {
+        position,
+        whole_argument: path_has_whole_argument(path, occurrence),
+        ellipsis_slot: ellipsis_slot_from_path(path, occurrence),
+        qualified_identifier: normalized_name_is_qualified(node) ||
+        path_has_kind(path, fn(kind) { kind is @untyped_cst.LongIdent_Dot }),
+        binder_only_pattern: path_has_binder_only_pattern_context(path),
+      },
+      priority,
+    )
+  }
+  for entry in node.children {
+    find_metavar_occurrence_context_in(entry.1, occurrence, path, report)
+  }
+  ignore(path.pop())
+}
+
+///|
+fn normalized_name_is_qualified(node : @untyped_cst.CstNode) -> Bool {
+  if @cst.normalized_name(node) is Some(name) {
+    name.contains(".") || name.contains("::")
+  } else {
+    false
+  }
+}
+
+///|
+fn path_has_kind(
+  path : Array[@untyped_cst.CstNode],
+  predicate : (@untyped_cst.NodeKind) -> Bool,
+) -> Bool {
+  for node in path {
+    if predicate(node.kind) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn path_has_binder_only_pattern_context(
+  path : Array[@untyped_cst.CstNode],
+) -> Bool {
+  for index in 0..<path.length() {
+    match path[index].kind {
+      @untyped_cst.Expr_LetMut
+      | @untyped_cst.Expr_LetFn
+      | @untyped_cst.Expr_ForEach
+      | @untyped_cst.Expr_ListComprehension
+      | @untyped_cst.Impl_Let
+      | @untyped_cst.Impl_Const
+      | @untyped_cst.Parameter_Positional
+      | @untyped_cst.Parameter_Labelled
+      | @untyped_cst.Parameter_Optional
+      | @untyped_cst.Parameter_DiscardPositional =>
+        if index + 1 < path.length() && path[index + 1].kind.is_pattern() {
+          return true
+        }
+      _ => ()
+    }
+  }
+  false
+}
+
+///|
+fn occurrence_rejected_by_original_identifier_case(
+  kind : String,
+  occurrence : ShapeMetavarOccurrence,
+) -> Bool {
+  occurrence.uppercase_identifier &&
+  (kind == "exp" || kind == "const" || kind == "arg" || kind == "pat")
+}
+
+///|
+fn metavar_node_matches_occurrence(
+  node : @untyped_cst.CstNode,
+  occurrence : ShapeMetavarOccurrence,
+) -> Bool {
+  let marker_end = occurrence.start + occurrence.marker.length()
+  if node.source_span.0 > occurrence.start || node.source_span.1 < marker_end {
+    return false
+  }
+  let name = match node.kind {
+    @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(node)
+    @untyped_cst.Expr_Constr => @cst.name_node(node).bind(@cst.normalized_name)
+    @untyped_cst.Pattern_Var => @cst.normalized_pattern_identifier_name(node)
+    @untyped_cst.Type_Name => @cst.name_node(node).bind(@cst.normalized_name)
+    _ => @cst.normalized_name(node)
+  }
+  if name is Some(name) {
+    name == occurrence.marker ||
+    name.has_suffix(".\{occurrence.marker}") ||
+    name.has_suffix("::\{occurrence.marker}")
+  } else {
+    false
+  }
+}
+
+///|
+fn metavar_node_is_whole(
+  node : @untyped_cst.CstNode,
+  occurrence : ShapeMetavarOccurrence,
+) -> Bool {
+  node.source_span.0 == occurrence.start &&
+  node.source_span.1 == occurrence.start + occurrence.marker.length()
+}
+
+///|
+fn path_has_whole_argument(
+  path : Array[@untyped_cst.CstNode],
+  occurrence : ShapeMetavarOccurrence,
+) -> Bool {
+  for node in path {
+    if node.kind is @untyped_cst.Argument_Positional &&
+      @cst.argument_value(node) is Some(value) &&
+      metavar_node_matches_occurrence(value, occurrence) &&
+      metavar_node_is_whole(value, occurrence) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn ellipsis_slot_from_path(
+  path : Array[@untyped_cst.CstNode],
+  occurrence : ShapeMetavarOccurrence,
+) -> EllipsisItemSlot? {
+  for index in 0..<path.length() {
+    let container = path[index]
+    let slot = ellipsis_slot_for_container(container.kind)
+    if slot is Some(slot) && index + 1 < path.length() {
+      let item = path[index + 1]
+      if ellipsis_item_is_whole_marker(item, occurrence) &&
+        ellipsis_container_item_is_replaceable(container, item) {
+        return Some(slot)
+      }
+    }
+  }
+  if path is [root, item] &&
+    root.kind is @untyped_cst.Expression &&
+    ellipsis_item_is_whole_marker(item, occurrence) {
+    return Some(EllipsisExprSlot)
+  }
+  None
+}
+
+///|
+fn ellipsis_slot_for_container(
+  kind : @untyped_cst.NodeKind,
+) -> EllipsisItemSlot? {
+  match kind {
+    @untyped_cst.Expression | @untyped_cst.List_BlockStatementList =>
+      Some(EllipsisExprSlot)
+    @untyped_cst.List_ArgumentList => Some(EllipsisArgumentSlot)
+    @untyped_cst.List_TuplePatternList => Some(EllipsisPatternSlot)
+    @untyped_cst.List_ConstructorPatternArgumentList =>
+      Some(EllipsisConstrPatternArgumentSlot)
+    @untyped_cst.List_ArrayPatternList => Some(EllipsisArrayPatternSlot)
+    @untyped_cst.List_TupleElementList => Some(EllipsisExprSlot)
+    @untyped_cst.List_TupleTypeList | @untyped_cst.List_TypeArgumentList =>
+      Some(EllipsisTypeSlot)
+    @untyped_cst.List_ParameterList
+    | @untyped_cst.List_TraitMethodParameterList => Some(EllipsisParameterSlot)
+    @untyped_cst.List_ArrayElementList => Some(EllipsisSpreadableExprSlot)
+    _ => None
+  }
+}
+
+///|
+fn ellipsis_container_item_is_replaceable(
+  container : @untyped_cst.CstNode,
+  item : @untyped_cst.CstNode,
+) -> Bool {
+  match container.kind {
+    @untyped_cst.List_BlockStatementList =>
+      block_statement_has_separator_after(container, item)
+    _ => true
+  }
+}
+
+///|
+/// A block's final item is its value, not a replaceable statement slot. The
+/// CST records a separator only for statements that precede another item or
+/// have an explicit trailing semicolon.
+fn block_statement_has_separator_after(
+  container : @untyped_cst.CstNode,
+  item : @untyped_cst.CstNode,
+) -> Bool {
+  let mut found = false
+  for entry in container.children {
+    if found {
+      return entry.1.kind is @untyped_cst.Syntax_Separator
+    }
+    if entry.1.source_span == item.source_span && entry.1.kind == item.kind {
+      found = true
+    }
+  }
+  false
+}
+
+///|
+fn ellipsis_item_is_whole_marker(
+  item : @untyped_cst.CstNode,
+  occurrence : ShapeMetavarOccurrence,
+) -> Bool {
+  let value = match item.kind {
+    @untyped_cst.Argument_Positional => @cst.argument_value(item)
+    @untyped_cst.ArrayPattern_Pattern => first_cst_pattern_child(item)
+    @untyped_cst.ArrayElement_Regular => @cst.raw_child(item, "expr")
+    @untyped_cst.Parameter_Positional => @cst.raw_child(item, "pattern")
+    _ => Some(@cst.unwrap_groups(item))
+  }
+  if value is Some(value) {
+    metavar_node_matches_occurrence(value, occurrence) &&
+    metavar_node_is_whole(value, occurrence)
+  } else {
+    false
+  }
+}
+
+///|
+fn first_cst_pattern_child(
+  node : @untyped_cst.CstNode,
+) -> @untyped_cst.CstNode? {
+  for entry in node.children {
+    if entry.1.kind.is_pattern() {
+      return Some(@cst.unwrap_groups(entry.1))
+    }
+  }
+  None
+}
+
+///|
+fn validate_single_metavar_kind(
+  path : String,
+  context : String,
+  kind : String,
+) -> Unit raise {
+  if kind != "exp" &&
+    kind != "id" &&
+    kind != "const" &&
+    kind != "arg" &&
+    kind != "type" &&
+    kind != "pat" {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} contains unsupported metavar kind \{kind}",
+    )
+  }
+}
+
+///|
+fn validate_metavar_position(
+  path : String,
+  context : String,
+  kind : String,
+  name : String,
+  occurrence : MetavarOccurrenceContext,
+) -> Unit raise {
+  let valid = match kind {
+    "exp" => occurrence.position == ExpressionPosition
+    "id" => true
+    "const" =>
+      occurrence.position == ExpressionPosition ||
+      (
+        occurrence.position == PatternPosition &&
+        !occurrence.binder_only_pattern
+      )
+    "arg" => occurrence.whole_argument
+    "type" => occurrence.position == TypePosition
+    "pat" => occurrence.position == PatternPosition
+    _ => false
+  }
+  if !valid {
+    reject_metavar_position(path, context, kind, name, occurrence)
+  }
+}
+
+///|
+fn reject_metavar_position(
+  path : String,
+  context : String,
+  kind : String,
+  name : String,
+  occurrence : MetavarOccurrenceContext,
+) -> Unit raise {
+  let text = metavar_text(kind, name)
+  let info = if kind == "exp" {
+    "\{shape_context_name(context)} uses \{text} outside a bare expression position"
+  } else if kind == "pat" {
+    "\{shape_context_name(context)} uses \{text} outside a bare pattern position"
+  } else if kind == "arg" {
+    "\{shape_context_name(context)} uses \{text} outside a bare argument position"
+  } else if kind == "type" {
+    "\{shape_context_name(context)} uses \{text} outside a whole type position"
+  } else if kind == "id" {
+    "\{shape_context_name(context)} uses \{text} outside an identifier position"
+  } else if occurrence.qualified_identifier {
+    "\{shape_context_name(context)} uses \{text} in an unsupported qualified identifier position"
+  } else {
+    "\{shape_context_name(context)} uses \{text} outside a constant expression or pattern position"
+  }
+  raise RuleLoadError::InvalidRule(path~, info~)
+}
+
+///|
+fn register_metavar_kind(
+  path : String,
+  context : String,
+  collections : MetavarCollections,
+  kind : String,
+  name : String,
+) -> Unit raise {
+  let existing = collection_kind(collections, name)
+  if existing is Some(previous) && previous != kind {
+    raise RuleLoadError::InvalidRule(
+      path~,
+      info="\{shape_context_name(context)} declares metavar \{name} as multiple metavar kinds",
+    )
+  }
+  let target = match kind {
+    "exp" => collections.expr
+    "id" => collections.identifier
+    "const" => collections.constant
+    "arg" => collections.arg
+    "type" => collections.type_
+    "pat" => collections.pattern
+    _ => return
+  }
+  push_unique_string(target, name)
+}
+
+///|
+fn collection_kind(collections : MetavarCollections, name : String) -> String? {
+  if array_contains(collections.expr, name) {
+    Some("exp")
+  } else if array_contains(collections.identifier, name) {
+    Some("id")
+  } else if array_contains(collections.constant, name) {
+    Some("const")
+  } else if array_contains(collections.arg, name) {
+    Some("arg")
+  } else if array_contains(collections.type_, name) {
+    Some("type")
+  } else if array_contains(collections.pattern, name) {
+    Some("pat")
   } else {
     None
   }
 }
 
 ///|
-fn cleanup_temporary_pattern_metavars(
-  expr_metavars : Array[String],
-  identifier_metavars : Array[String],
-  constant_metavars : Array[String],
-  arg_metavars : Array[String],
-) -> (Array[String], Array[String], Array[String], Array[String], Array[String]) {
-  let pattern_metavars : Array[String] = []
-  let cleaned_identifier_metavars : Array[String] = []
-  for name in identifier_metavars {
-    if parse_temporary_pattern_metavar_marker(name) is Some(pattern_name) {
-      if !array_contains(pattern_metavars, pattern_name) {
-        pattern_metavars.push(pattern_name)
-      }
-    } else {
-      cleaned_identifier_metavars.push(name)
+fn infer_bare_metavar_kinds(
+  path : String,
+  context : String,
+  occurrences : Array[ShapeMetavarOccurrence],
+  contexts : Array[MetavarOccurrenceContext],
+  collections : MetavarCollections,
+) -> Unit raise {
+  for index in 0..<occurrences.length() {
+    match occurrences[index].syntax {
+      Bare(name) if contexts[index].position == PatternPosition &&
+        collection_kind(collections, name) is None =>
+        if contexts[index].binder_only_pattern {
+          validate_declared_metavar(path, context, name, true)
+          register_metavar_kind(path, context, collections, "id", name)
+        } else {
+          raise RuleLoadError::InvalidRule(
+            path~,
+            info="\{shape_context_name(context)} cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
+          )
+        }
+      _ => ()
     }
   }
-  (
-    filter_out_temporary_pattern_metavars(expr_metavars, pattern_metavars),
-    cleaned_identifier_metavars,
-    filter_out_temporary_pattern_metavars(constant_metavars, pattern_metavars),
-    filter_out_temporary_pattern_metavars(arg_metavars, pattern_metavars),
-    pattern_metavars,
-  )
+  for position in [IdentifierPosition, TypePosition, ExpressionPosition] {
+    for index in 0..<occurrences.length() {
+      match occurrences[index].syntax {
+        Bare(name) if contexts[index].position == position => {
+          validate_declared_metavar(path, context, name, true)
+          let inferred = match position {
+            IdentifierPosition => "id"
+            TypePosition => "type"
+            ExpressionPosition => "exp"
+            PatternPosition => abort("unreachable")
+          }
+          if collection_kind(collections, name) is None {
+            register_metavar_kind(path, context, collections, inferred, name)
+          } else if position == TypePosition &&
+            collection_kind(collections, name) != Some("type") {
+            raise RuleLoadError::InvalidRule(
+              path~,
+              info="\{shape_context_name(context)} declares metavar \{name} as multiple metavar kinds",
+            )
+          }
+        }
+        _ => ()
+      }
+    }
+  }
+  for index in 0..<occurrences.length() {
+    match occurrences[index].syntax {
+      Bare(name) => {
+        guard collection_kind(collections, name) is Some(kind) else {
+          raise RuleLoadError::InvalidRule(
+            path~,
+            info="\{shape_context_name(context)} cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
+          )
+        }
+        validate_metavar_position(path, context, kind, name, contexts[index])
+      }
+      _ => ()
+    }
+  }
 }
 
 ///|
-fn filter_out_temporary_pattern_metavars(
-  items : Array[String],
-  pattern_metavars : Array[String],
-) -> Array[String] {
-  let result : Array[String] = []
-  for item in items {
-    if !array_contains(pattern_metavars, item) {
-      result.push(item)
-    }
+fn push_unique_string(items : Array[String], item : String) -> Unit {
+  if !array_contains(items, item) {
+    items.push(item)
   }
-  result
+}
+
+///|
+fn metavar_text(kind : String, name : String) -> String {
+  "$(" + name + ":" + kind + ")"
 }

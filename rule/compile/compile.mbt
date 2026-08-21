@@ -27,7 +27,7 @@ using @prefilter {compile_rule_prefilter}
 ///
 /// This step parses each `shape`, discovers metavars, rejects reserved
 /// names, and records taint `__SOURCE__` targets. It raises `RuleLoadError`
-/// when a rule cannot be represented by the runtime AST matcher.
+/// when a rule cannot be represented by the runtime CST matcher.
 pub fn compile_rules(
   raw_rules : Array[RawRuleSpec],
 ) -> Array[CompiledRule] raise {
@@ -100,8 +100,8 @@ fn compile_structural_rule(
     ensure_inherited_inside_context_metavar_forms_for_all(
       path, context, outer_context, compiled_shape, outer_shapes,
     )
-    let ast = compiled_shape.ast
-    if count_supported_name_in_node(ast, "__TARGET__") != 0 {
+    let cst = compiled_shape.cst
+    if count_supported_name_in_node(cst, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context}.shape must not contain __TARGET__",
@@ -112,7 +112,7 @@ fn compile_structural_rule(
         pattern,
         path,
         context,
-        ast,
+        cst,
         compiled_shape.expr_metavars,
         compiled_shape.identifier_metavars,
         compiled_shape.constant_metavars,
@@ -133,8 +133,8 @@ fn compile_structural_rule(
     ensure_inherited_inside_context_metavar_forms_for_all(
       path, context, outer_context, compiled_shape, outer_shapes,
     )
-    let ast = compiled_shape.ast
-    if count_supported_name_in_node(ast, "__TARGET__") != 0 {
+    let cst = compiled_shape.cst
+    if count_supported_name_in_node(cst, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context}.shape must not contain __TARGET__",
@@ -145,7 +145,7 @@ fn compile_structural_rule(
         pattern,
         path,
         context,
-        ast,
+        cst,
         compiled_shape.expr_metavars,
         compiled_shape.identifier_metavars,
         compiled_shape.constant_metavars,
@@ -184,18 +184,18 @@ fn compile_inside_context_patterns(
     } else {
       compile_metavar_shape(path, item_context, pattern.shape)
     }
-    let ast = compiled_shape.ast
+    let cst = compiled_shape.cst
     let ignored_fields = if is_toplevel {
       inside_toplevel_ignored_fields(
         path,
         item_context,
         pattern.match_mode,
-        ast,
+        cst,
       )
     } else {
       []
     }
-    let target_count = count_supported_name_in_node(ast, "__TARGET__")
+    let target_count = count_supported_name_in_node(cst, "__TARGET__")
     if target_count != 1 {
       raise RuleLoadError::InvalidRule(
         path~,
@@ -223,13 +223,13 @@ fn inside_toplevel_ignored_fields(
   path : String,
   context : String,
   match_mode : InsideToplevelMatchMode,
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
 ) -> Array[@matching.IgnoredPatternField] raise {
   let is_partial = match match_mode {
-    Default => ast.kind == Impl_TopFuncDef
+    Default => cst.kind is @untyped_cst.Impl_Function
     Exact => false
     Partial =>
-      if ast.kind == Impl_TopFuncDef {
+      if cst.kind is @untyped_cst.Impl_Function {
         true
       } else {
         raise RuleLoadError::InvalidRule(
@@ -241,140 +241,62 @@ fn inside_toplevel_ignored_fields(
   if !is_partial {
     return []
   }
-  partial_top_func_ignored_fields(ast)
+  partial_top_func_ignored_fields(cst)
 }
 
 ///|
 fn partial_top_func_ignored_fields(
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
 ) -> Array[@matching.IgnoredPatternField] {
   let ignored : Array[@matching.IgnoredPatternField] = []
-  guard ast_child(ast, "fun_decl") is Some(fun_decl) else { return ignored }
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "type_name",
-    ast_child_is_null(fun_decl, "type_name"),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "is_async",
-    ast_child_is_null(fun_decl, "is_async"),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "decl_params",
-    ast_child_is_null(fun_decl, "decl_params"),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "quantifiers",
-    ast_child_is_empty_list(fun_decl, "quantifiers", FunDecl_QuantifierList),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "return_type",
-    ast_child_is_null(fun_decl, "return_type"),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "error_type",
-    ast_child_has_kind(fun_decl, "error_type", ErrorType_NoErrorType),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "vis",
-    ast_child_has_kind(fun_decl, "vis", Visibility_Default),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "attrs",
-    ast_child_is_empty_list(fun_decl, "attrs", FunDecl_AttrList),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    FunDecl,
-    "doc",
-    ast_child_is_empty_string(fun_decl, "doc"),
-  )
-  add_ignored_field_if_default(
-    ignored,
-    Impl_TopFuncDef,
-    "where_clause",
-    ast_child_is_null(ast, "where_clause"),
-  )
+  let kind = cst.kind
+  add_ignored_field_if_absent(ignored, cst, kind, "semantic_type_name")
+  add_ignored_field_if_default_bool(ignored, cst, kind, "async")
+  add_ignored_field_if_absent(ignored, cst, kind, "params")
+  add_ignored_field_if_absent(ignored, cst, kind, "quantifier")
+  add_ignored_field_if_absent(ignored, cst, kind, "clause")
+  add_ignored_visibility_if_default(ignored, cst, kind)
+  add_ignored_field_if_absent(ignored, cst, kind, "attrs")
+  add_ignored_field_if_absent(ignored, cst, kind, "where")
   ignored
 }
 
 ///|
-fn add_ignored_field_if_default(
+fn add_ignored_field_if_absent(
   ignored : Array[@matching.IgnoredPatternField],
-  parent_kind : @untyped_ast.NodeKind,
+  node : @untyped_cst.CstNode,
+  parent_kind : @untyped_cst.NodeKind,
   child_name : String,
-  is_default : Bool,
 ) -> Unit {
-  if is_default {
+  if @cst.child(node, child_name) is None {
     ignored.push({ parent_kind, child_name })
   }
 }
 
 ///|
-fn ast_child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, child) = entry
-    if child_name == Some(name) {
-      return Some(child)
-    }
-  }
-  None
-}
-
-///|
-fn ast_child_is_null(node : @untyped_ast.Node, name : String) -> Bool {
-  match ast_child(node, name) {
-    Some({ kind: Leaf(PNull), .. }) => true
-    _ => false
+fn add_ignored_field_if_default_bool(
+  ignored : Array[@matching.IgnoredPatternField],
+  node : @untyped_cst.CstNode,
+  parent_kind : @untyped_cst.NodeKind,
+  child_name : String,
+) -> Unit {
+  match @cst.raw_child(node, child_name) {
+    Some(value) if @cst.bool_payload(value) == Some(false) =>
+      ignored.push({ parent_kind, child_name })
+    _ => ()
   }
 }
 
 ///|
-fn ast_child_is_empty_list(
-  node : @untyped_ast.Node,
-  name : String,
-  kind : @untyped_ast.NodeKind,
-) -> Bool {
-  if ast_child(node, name) is Some(child) {
-    child.kind == kind && child.children.is_empty()
-  } else {
-    false
-  }
-}
-
-///|
-fn ast_child_has_kind(
-  node : @untyped_ast.Node,
-  name : String,
-  kind : @untyped_ast.NodeKind,
-) -> Bool {
-  if ast_child(node, name) is Some(child) {
-    child.kind == kind
-  } else {
-    false
-  }
-}
-
-///|
-fn ast_child_is_empty_string(node : @untyped_ast.Node, name : String) -> Bool {
-  match ast_child(node, name) {
-    Some({ kind: Leaf(PString("")), .. }) => true
-    _ => false
+fn add_ignored_visibility_if_default(
+  ignored : Array[@matching.IgnoredPatternField],
+  node : @untyped_cst.CstNode,
+  parent_kind : @untyped_cst.NodeKind,
+) -> Unit {
+  match @cst.raw_child(node, "vis") {
+    Some(value) if value.kind is @untyped_cst.Visibility_Default =>
+      ignored.push({ parent_kind, child_name: "vis" })
+    _ => ()
   }
 }
 
@@ -388,9 +310,9 @@ fn compile_taint_rule(
     let context = "taint.sources[\{index}]"
     let pattern = spec.sources[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    let ast = compiled_shape.ast
-    ensure_taint_call_shape(path, context, ast)
-    if count_supported_name_in_node(ast, "__SOURCE__") != 0 {
+    let cst = compiled_shape.cst
+    ensure_taint_call_shape(path, context, cst)
+    if count_supported_name_in_node(cst, "__SOURCE__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context} must not contain __SOURCE__",
@@ -412,11 +334,11 @@ fn compile_taint_rule(
     let context = "taint.sinks[\{index}]"
     let pattern = spec.sinks[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    let ast = compiled_shape.ast
-    ensure_taint_call_shape(path, context, ast)
+    let cst = compiled_shape.cst
+    ensure_taint_call_shape(path, context, cst)
     // `__SOURCE__` must be captured as a whole argument or receiver so the
     // lowering layer can read or kill a concrete taint path.
-    let target = require_source_target(path, context, ast)
+    let target = require_source_target(path, context, cst)
     sinks.push({
       pattern: compile_pattern(
         pattern,
@@ -434,11 +356,11 @@ fn compile_taint_rule(
     let context = "taint.sanitizers[\{index}]"
     let pattern = spec.sanitizers[index]
     let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
-    let ast = compiled_shape.ast
-    ensure_taint_call_shape(path, context, ast)
+    let cst = compiled_shape.cst
+    ensure_taint_call_shape(path, context, cst)
     // Sanitizers share the same target restrictions as sinks because both
     // operate on one concrete call value.
-    let target = require_source_target(path, context, ast)
+    let target = require_source_target(path, context, cst)
     sanitizers.push({
       pattern: compile_pattern(
         pattern,
@@ -468,7 +390,7 @@ fn compile_pattern(
     pattern,
     path,
     context,
-    compiled_shape.ast,
+    compiled_shape.cst,
     compiled_shape.expr_metavars,
     compiled_shape.identifier_metavars,
     compiled_shape.constant_metavars,
@@ -487,7 +409,7 @@ fn compile_pattern_with_effective_metavars(
   pattern : RulePatternSpec,
   path : String,
   context : String,
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
@@ -512,7 +434,7 @@ fn compile_pattern_with_effective_metavars(
     ellipsis_metavars,
   )
   let compiled : @matching.CompiledExprPattern = {
-    ast,
+    cst,
     expr_metavars,
     identifier_metavars,
     constant_metavars,
@@ -1091,10 +1013,10 @@ fn ensure_not_inherited_as_other_kind(
 fn ensure_taint_call_shape(
   path : String,
   context : String,
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
 ) -> Unit raise {
-  match ast.kind {
-    Expr_Apply | Expr_DotApply => ()
+  match cst.kind {
+    @untyped_cst.Expr_Apply | @untyped_cst.Expr_DotApply => ()
     _ =>
       raise RuleLoadError::InvalidRule(
         path~,
@@ -1107,16 +1029,16 @@ fn ensure_taint_call_shape(
 fn require_source_target(
   path : String,
   context : String,
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
 ) -> TaintTarget raise {
-  let count = count_supported_name_in_node(ast, "__SOURCE__")
+  let count = count_supported_name_in_node(cst, "__SOURCE__")
   if count != 1 {
     raise RuleLoadError::InvalidRule(
       path~,
       info="\{context}.shape must contain exactly one __SOURCE__ placeholder",
     )
   }
-  if whole_source_target(ast) is Some(target) {
+  if whole_source_target(cst) is Some(target) {
     target
   } else {
     raise RuleLoadError::InvalidRule(
@@ -1127,19 +1049,19 @@ fn require_source_target(
 }
 
 ///|
-fn whole_source_target(ast : @untyped_ast.Node) -> TaintTarget? {
-  match ast.kind {
-    Expr_DotApply =>
-      if node_child(ast, "self") is Some(self) &&
+fn whole_source_target(cst : @untyped_cst.CstNode) -> TaintTarget? {
+  match cst.kind {
+    @untyped_cst.Expr_DotApply =>
+      if @cst.raw_child(cst, "self") is Some(self) &&
         is_source_placeholder_node(self) {
         Some(Receiver)
-      } else if node_child(ast, "args") is Some(args) {
+      } else if @cst.raw_child(cst, "arg") is Some(args) {
         source_target_from_args(args)
       } else {
         None
       }
-    Expr_Apply =>
-      if node_child(ast, "args") is Some(args) {
+    @untyped_cst.Expr_Apply =>
+      if @cst.raw_child(cst, "arg") is Some(args) {
         source_target_from_args(args)
       } else {
         None
@@ -1149,19 +1071,19 @@ fn whole_source_target(ast : @untyped_ast.Node) -> TaintTarget? {
 }
 
 ///|
-fn source_target_from_args(args : @untyped_ast.Node) -> TaintTarget? {
-  for index in 0..<args.children.length() {
-    let (_, argument) = args.children[index]
-    if node_child(argument, "value") is Some(value) &&
+fn source_target_from_args(args : @untyped_cst.CstNode) -> TaintTarget? {
+  let arguments = @cst.raw_children(args, "item")
+  for index in 0..<arguments.length() {
+    let argument = arguments[index]
+    if @cst.argument_value(argument) is Some(value) &&
       is_source_placeholder_node(value) {
-      guard node_child(argument, "kind") is Some(kind) else { return None }
-      return match kind.kind {
-        ArgumentKind_Positional => Some(PositionalArg(index))
-        ArgumentKind_Labelled
-        | ArgumentKind_LabelledPun
-        | ArgumentKind_LabelledOption
-        | ArgumentKind_LabelledOptionPun =>
-          if argument_kind_label_name(kind) is Some(label) {
+      return match argument.kind {
+        @untyped_cst.Argument_Positional => Some(PositionalArg(index))
+        @untyped_cst.Argument_Labelled
+        | @untyped_cst.Argument_LabelledPun
+        | @untyped_cst.Argument_LabelledOption
+        | @untyped_cst.Argument_LabelledOptionPun =>
+          if @cst.argument_label_name(argument) is Some(label) {
             Some(LabelledArg(label~, index~))
           } else {
             None
@@ -1174,42 +1096,12 @@ fn source_target_from_args(args : @untyped_ast.Node) -> TaintTarget? {
 }
 
 ///|
-fn argument_kind_label_name(kind : @untyped_ast.Node) -> String? {
-  match kind.kind {
-    ArgumentKind_Labelled | ArgumentKind_LabelledPun =>
-      if node_child(kind, "value") is Some(label) {
-        label.normalized_label_name()
-      } else {
-        None
-      }
-    ArgumentKind_LabelledOption | ArgumentKind_LabelledOptionPun =>
-      if node_child(kind, "label") is Some(label) {
-        label.normalized_label_name()
-      } else {
-        None
-      }
-    _ => None
-  }
-}
-
-///|
-fn is_source_placeholder_node(node : @untyped_ast.Node) -> Bool {
-  if node.kind == Expr_Ident {
-    node.normalized_expr_identifier_name() == Some("__SOURCE__")
+fn is_source_placeholder_node(node : @untyped_cst.CstNode) -> Bool {
+  if node.kind is @untyped_cst.Expr_Ident {
+    @cst.normalized_expr_identifier_name(node) == Some("__SOURCE__")
   } else {
     false
   }
-}
-
-///|
-fn node_child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, value) = entry
-    if child_name == Some(name) {
-      return Some(value)
-    }
-  }
-  None
 }
 
 ///|
