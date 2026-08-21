@@ -140,6 +140,23 @@ test "prefilter treats metavars as placeholders" {
 }
 
 ///|
+test "prefilter ignores keyword metavar markers" {
+  let source =
+    #|id: example
+    #|description: Keyword metavars.
+    #|patterns:
+    #|  - shape: sink($(else:exp), $(for:id), $(if:const), $(match:arg))
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  debug_inspect(rule.prefilter.alternatives, content="[[\"sink\"]]")
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { sink(actual(), name, 42, label=value) }\n",
+    ),
+  )
+}
+
+///|
 test "prefilter treats inline constant metavars as placeholders" {
   let source =
     #|id: example
@@ -364,30 +381,40 @@ test "prefilter skips compiled ignored fields by parent and child name" {
   }
   let pattern = structural.inside_toplevel[0]
   let compiled = pattern.compiled
-  guard prefilter_child(compiled.ast, "fun_decl") is Some(fun_decl) else {
-    fail("expected function declaration")
-  }
-  for index in 0..<fun_decl.children.length() {
-    let (name, old_child) = fun_decl.children[index]
-    if name == Some("doc") {
-      let literal : @untyped_ast.Node = {
-        kind: Leaf(PString("ignored_header_literal")),
-        loc: old_child.loc,
-        children: [],
-      }
-      fun_decl.children[index] = (
-        name,
-        {
-          kind: Binder,
-          loc: old_child.loc,
-          children: [(Some("name"), literal)],
-        },
-      )
-    }
-  }
+  assert_true(compiled.ignored_fields.length() > 0)
+  assert_true(
+    prefilter_ignores_field(compiled, compiled.cst.kind, "semantic_type_name"),
+  )
+  assert_false(prefilter_ignores_field(compiled, compiled.cst.kind, "doc"))
+  assert_true(prefilter_ignores_field(compiled, compiled.cst.kind, "attrs"))
   let literals = required_literals_from_compiled_pattern(pattern)
   assert_true(contains_string(literals, "safe_entry"))
-  assert_false(contains_string(literals, "ignored_header_literal"))
+  debug_inspect(literals, content="[\"safe_entry\"]")
+}
+
+///|
+test "prefilter never requires docstring text" {
+  let source =
+    #|id: example
+    #|description: Documented exact top-level function.
+    #|inside-toplevel:
+    #|  - shape: |
+    #|      /// PrefilterDocstringSentinel
+    #|      fn safe_entry { __TARGET__ }
+    #|    match-mode: exact
+    #|patterns:
+    #|  - shape: target()
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  guard rule.definition is Structural(structural) else {
+    fail("expected structural rule")
+  }
+  let literals = required_literals_from_compiled_pattern(
+    structural.inside_toplevel[0],
+  )
+  assert_false(contains_string(literals, "PrefilterDocstringSentinel"))
+  assert_true(contains_string(literals, "safe_entry"))
+  assert_true(rule_is_relevant_to_source(rule, "fn safe_entry { target() }\n"))
 }
 
 ///|

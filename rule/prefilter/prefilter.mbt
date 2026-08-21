@@ -162,83 +162,51 @@ fn required_literals_from_compiled_pattern(
   pattern : CompiledRulePattern,
 ) -> Array[String] {
   let literals : Array[String] = []
-  collect_node_literals(pattern.compiled.ast, pattern.compiled, literals)
+  collect_node_literals(pattern.compiled.cst, pattern.compiled, literals)
   unique_literals(literals)
 }
 
 ///|
 fn collect_node_literals(
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match node.kind {
-    Var =>
-      if prefilter_child(node, "name") is Some(name) {
-        collect_long_ident_literals(name, compiled, literals)
-      }
-    Binder | Label =>
-      if prefilter_leaf_string_child(node, "name") is Some(name) {
-        if !is_filter_placeholder(name, compiled) {
-          push_literal(literals, name)
-        }
-      }
-    ConstrName =>
-      if prefilter_leaf_string_child(node, "name") is Some(name) {
-        if !is_filter_placeholder(name, compiled) {
-          push_literal(literals, name)
-        }
-      }
-    Type_Name => {
-      if prefilter_type_long_ident(node) is Some(name) {
-        collect_long_ident_literals(name, compiled, literals)
-      }
-      collect_node_children_literals(node, compiled, literals)
-    }
-    Constant_BigInt
-    | Constant_Byte
-    | Constant_Bytes
-    | Constant_Char
-    | Constant_Double
-    | Constant_Float
-    | Constant_Int64
-    | Constant_Regex
-    | Constant_String
-    | Constant_UInt
-    | Constant_UInt64 =>
-      if prefilter_first_leaf_string(node) is Some(value) {
-        push_literal(literals, value)
-      }
-    Constant_Int =>
-      if prefilter_first_leaf_string(node) is Some(value) {
+  if node.kind.is_constant() {
+    if @cst.string_payload(node) is Some(value) {
+      if node.kind is @untyped_cst.Constant_Int {
         if value.length() >= 2 {
           push_literal(literals, value)
         }
-      }
-    Constant_Bool =>
-      if prefilter_first_leaf_bool(node) is Some(value) {
-        push_literal(literals, "\{value}")
-      }
-    InterpElem_Literal =>
-      if prefilter_leaf_string_child(node, "repr") is Some(value) {
+      } else {
         push_literal(literals, value)
       }
-    MultilineString_String =>
-      if prefilter_leaf_string_child(node, "value") is Some(value) {
+    } else if @cst.bool_payload(node) is Some(value) {
+      push_literal(literals, "\{value}")
+    }
+    return
+  }
+  if @cst.normalized_name(node) is Some(name) {
+    collect_name_literals(name, compiled, literals)
+    return
+  }
+  match node.kind {
+    @untyped_cst.InterpSegment_Literal
+    | @untyped_cst.MultilineStringElement_String =>
+      if @cst.string_payload(node) is Some(value) {
         push_literal(literals, value)
       }
-    Leaf(_) => ()
     _ => collect_node_children_literals(node, compiled, literals)
   }
 }
 
 ///|
 fn collect_node_children_literals(
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  for entry in node.children {
+  for entry in @cst.semantic_children(node) {
     let (child_name, child) = entry
     let ignored = if child_name is Some(name) {
       prefilter_ignores_field(compiled, node.kind, name)
@@ -254,7 +222,7 @@ fn collect_node_children_literals(
 ///|
 fn prefilter_ignores_field(
   compiled : @matching.CompiledExprPattern,
-  parent_kind : @untyped_ast.NodeKind,
+  parent_kind : @untyped_cst.NodeKind,
   child_name : String,
 ) -> Bool {
   for field in compiled.ignored_fields {
@@ -266,107 +234,31 @@ fn prefilter_ignores_field(
 }
 
 ///|
-fn collect_long_ident_literals(
-  node : @untyped_ast.Node,
+fn collect_name_literals(
+  name : String,
   compiled : @matching.CompiledExprPattern,
   literals : Array[String],
 ) -> Unit {
-  match node.kind {
-    LongIdent_Ident =>
-      if prefilter_leaf_string_child(node, "value") is Some(name) {
-        if !is_filter_placeholder(name, compiled) {
-          push_literal(literals, name)
+  if is_filter_placeholder(name, compiled) {
+    return
+  }
+  let mut component_start = if name.has_prefix("@") { 1 } else { 0 }
+  for index in 0..<name.length() {
+    if name[index] == '.' || name[index] == ':' {
+      if index > component_start {
+        let component = name[component_start:index].to_owned()
+        if !is_filter_placeholder(component, compiled) {
+          push_literal(literals, component)
         }
       }
-    LongIdent_Dot => {
-      if prefilter_leaf_string_child(node, "pkg") is Some(pkg) {
-        if !is_filter_placeholder(pkg, compiled) {
-          push_literal(literals, pkg)
-        }
-      }
-      if prefilter_leaf_string_child(node, "id") is Some(id) {
-        if !is_filter_placeholder(id, compiled) {
-          push_literal(literals, id)
-        }
-      }
-    }
-    _ => ()
-  }
-}
-
-///|
-fn prefilter_type_long_ident(node : @untyped_ast.Node) -> @untyped_ast.Node? {
-  if node.kind != Type_Name {
-    return None
-  }
-  guard prefilter_child(node, "constr_id") is Some(constr_id) else {
-    return None
-  }
-  guard prefilter_child(constr_id, "id") is Some(long_ident) else {
-    return None
-  }
-  Some(long_ident)
-}
-
-///|
-fn prefilter_child(
-  node : @untyped_ast.Node,
-  name : String,
-) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, value) = entry
-    if child_name == Some(name) {
-      return Some(value)
+      component_start = index + 1
     }
   }
-  None
-}
-
-///|
-fn prefilter_leaf_string(node : @untyped_ast.Node) -> String? {
-  match node.kind {
-    Leaf(PString(value)) => Some(value)
-    _ => None
-  }
-}
-
-///|
-fn prefilter_leaf_bool(node : @untyped_ast.Node) -> Bool? {
-  match node.kind {
-    Leaf(PBool(value)) => Some(value)
-    _ => None
-  }
-}
-
-///|
-fn prefilter_leaf_string_child(
-  node : @untyped_ast.Node,
-  name : String,
-) -> String? {
-  if prefilter_child(node, name) is Some(value) {
-    prefilter_leaf_string(value)
-  } else {
-    None
-  }
-}
-
-///|
-fn prefilter_first_leaf_string(node : @untyped_ast.Node) -> String? {
-  if node.children.length() == 0 {
-    None
-  } else {
-    let (_, value) = node.children[0]
-    prefilter_leaf_string(value)
-  }
-}
-
-///|
-fn prefilter_first_leaf_bool(node : @untyped_ast.Node) -> Bool? {
-  if node.children.length() == 0 {
-    None
-  } else {
-    let (_, value) = node.children[0]
-    prefilter_leaf_bool(value)
+  if component_start < name.length() {
+    let component = name[component_start:].to_owned()
+    if !is_filter_placeholder(component, compiled) {
+      push_literal(literals, component)
+    }
   }
 }
 
@@ -376,6 +268,18 @@ fn is_filter_placeholder(
   compiled : @matching.CompiledExprPattern,
 ) -> Bool {
   name.has_prefix("$$$") ||
+  name.has_prefix("__moongrep_ellipsis_") ||
+  name.has_prefix("MoongrepEllipsis_") ||
+  name.has_prefix("__moongrep_exp_") ||
+  name.has_prefix("__moongrep_const_") ||
+  name.has_prefix("__moongrep_arg_") ||
+  name.has_prefix("__moongrep_pat_") ||
+  name.has_prefix("__moongrep_id_") ||
+  name.has_prefix("__moongrep_bare_") ||
+  name.has_prefix("MoongrepId_") ||
+  name.has_prefix("MoongrepType_") ||
+  name.has_prefix("MoongrepBare_") ||
+  name == "__moongrep_ignore" ||
   is_underscore_placeholder(name) ||
   is_pattern_placeholder(name) ||
   compiled.target_metavar == Some(name) ||
