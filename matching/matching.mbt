@@ -113,12 +113,9 @@ fn match_type_placeholder(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
-  guard type_placeholder_name(pattern) is Some(name) else { return None }
-  if contains_name(compiled.type_metavars, name) {
-    Some(candidate.kind.is_type() && bind_value(bindings, name, candidate))
-  } else {
-    None
-  }
+  guard type_placeholder_name(pattern) is Some(parsed_name) else { return None }
+  guard contains_name(compiled.type_metavars, parsed_name) else { return None }
+  Some(candidate.kind.is_type() && bind_value(bindings, parsed_name, candidate))
 }
 
 ///|
@@ -129,17 +126,7 @@ fn type_placeholder_name(node : @untyped_cst.CstNode) -> String? {
       return None
     }
   }
-  @cst.name_node(node)
-  .bind(@cst.normalized_name)
-  .map(name => {
-    if marker_name(name, "MoongrepType_") is Some(logical) {
-      logical
-    } else if marker_name(name, "MoongrepBare_") is Some(logical) {
-      logical
-    } else {
-      name
-    }
-  })
+  @cst.name_node(node).bind(@cst.normalized_name).bind(single_metavar_name)
 }
 
 ///|
@@ -168,7 +155,7 @@ fn argument_placeholder_name(node : @untyped_cst.CstNode) -> String? {
   guard node.kind is @untyped_cst.Argument_Positional else { return None }
   @cst.argument_value(node)
   .bind(@cst.normalized_expr_identifier_name)
-  .map(name => strip_internal_marker(name, "__moongrep_arg_"))
+  .bind(single_metavar_name)
 }
 
 ///|
@@ -182,7 +169,7 @@ fn match_expr_placeholder(
   guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
     return None
   }
-  let logical = single_marker_name(name)
+  let logical = single_metavar_name(name)
   if is_ignore_placeholder(name) {
     Some(true)
   } else if logical is Some(logical) {
@@ -207,25 +194,8 @@ fn match_expr_placeholder(
     } else {
       None
     }
-  } else if is_special_expr_metavar(compiled, name) ||
-    contains_name(compiled.expr_metavars, name) {
+  } else if is_special_expr_metavar(compiled, name) {
     Some(bind_value(bindings, name, candidate))
-  } else if contains_name(compiled.identifier_metavars, name) {
-    match
-      (
-        @cst.normalized_expr_identifier_name(candidate),
-        @cst.name_node(candidate),
-      ) {
-      (Some(_), Some(candidate_name)) =>
-        Some(bind_value(bindings, name, candidate_name))
-      _ => Some(false)
-    }
-  } else if contains_name(compiled.constant_metavars, name) {
-    if expr_constant(candidate) is Some(constant) {
-      Some(bind_value(bindings, name, constant))
-    } else {
-      Some(false)
-    }
   } else {
     None
   }
@@ -246,7 +216,7 @@ fn match_pattern_placeholder(
     Some(bind_value(bindings, meta_name, candidate))
   } else if is_ignore_placeholder(name) {
     Some(true)
-  } else if single_marker_name(name) is Some(logical) &&
+  } else if single_metavar_name(name) is Some(logical) &&
     contains_name(compiled.identifier_metavars, logical) {
     match
       (
@@ -257,26 +227,10 @@ fn match_pattern_placeholder(
         Some(bind_value(bindings, logical, candidate_name))
       _ => Some(false)
     }
-  } else if single_marker_name(name) is Some(logical) &&
+  } else if single_metavar_name(name) is Some(logical) &&
     contains_name(compiled.constant_metavars, logical) {
     if pattern_constant(candidate) is Some(constant) {
       Some(bind_value(bindings, logical, constant))
-    } else {
-      Some(false)
-    }
-  } else if contains_name(compiled.identifier_metavars, name) {
-    match
-      (
-        @cst.normalized_pattern_identifier_name(candidate),
-        @cst.name_node(candidate),
-      ) {
-      (Some(_), Some(candidate_name)) =>
-        Some(bind_value(bindings, name, candidate_name))
-      _ => Some(false)
-    }
-  } else if contains_name(compiled.constant_metavars, name) {
-    if pattern_constant(candidate) is Some(constant) {
-      Some(bind_value(bindings, name, constant))
     } else {
       Some(false)
     }
@@ -434,7 +388,7 @@ fn match_children_from(
   }
   let (pattern_name, pattern_value) = pattern[pattern_index]
   if pattern_name is None &&
-    ellipsis_marker(pattern_value, compiled) is Some(marker) {
+    ellipsis_placeholder(pattern_value, compiled) is Some(placeholder) {
     let fixed_remaining = minimum_fixed_children(
       pattern,
       pattern_index + 1,
@@ -454,7 +408,7 @@ fn match_children_from(
           !ellipsis_candidate_matches(
             pattern_value,
             candidate_value,
-            marker.kind,
+            placeholder.kind,
           ) {
           compatible = false
           break
@@ -463,8 +417,8 @@ fn match_children_from(
       }
       if compatible {
         let branch = bindings.copy()
-        let bound = marker.name == "_" ||
-          bind_multiple(branch, marker.name, captured)
+        let bound = placeholder.name == "_" ||
+          bind_multiple(branch, placeholder.name, captured)
         if bound &&
           match_children_from(
             parent_kind,
@@ -544,7 +498,7 @@ fn minimum_fixed_children(
   let mut count = 0
   for index in start..<pattern.length() {
     let (name, value) = pattern[index]
-    if !(name is None && ellipsis_marker(value, compiled) is Some(_)) {
+    if !(name is None && ellipsis_placeholder(value, compiled) is Some(_)) {
       count += 1
     }
   }
@@ -589,46 +543,29 @@ fn match_name_node(
   if is_ignore_placeholder(pattern_name) {
     return true
   }
-  if single_marker_name(pattern_name) is Some(logical) &&
+  if single_metavar_name(pattern_name) is Some(logical) &&
     contains_name(compiled.identifier_metavars, logical) {
-    if last_separator(pattern_name) is Some(_) &&
-      !same_qualified_prefix(pattern_name, candidate_name) {
+    if metavariable_qualified_prefix(pattern_name) is Some(_) &&
+      !same_metavariable_qualified_prefix(pattern_name, candidate_name) {
       return false
     }
     return bind_value(bindings, logical, candidate)
-  }
-  if contains_name(compiled.identifier_metavars, pattern_name) {
-    return bind_value(bindings, pattern_name, candidate)
-  }
-  if qualified_metavar_tail(pattern_name, compiled) is Some(name) {
-    guard same_qualified_prefix(pattern_name, candidate_name) else {
-      return false
-    }
-    return bind_value(bindings, name, candidate)
   }
   pattern_name == candidate_name
 }
 
 ///|
-fn qualified_metavar_tail(
-  name : String,
-  compiled : CompiledExprPattern,
-) -> String? {
-  for candidate in compiled.identifier_metavars {
-    if name.has_suffix(".\{candidate}") || name.has_suffix("::\{candidate}") {
-      return Some(candidate)
-    }
+fn same_metavariable_qualified_prefix(
+  pattern : String,
+  candidate : String,
+) -> Bool {
+  guard metavariable_qualified_prefix(pattern) is Some(pattern_prefix) else {
+    return false
   }
-  None
-}
-
-///|
-fn same_qualified_prefix(pattern : String, candidate : String) -> Bool {
-  let pattern_dot = last_separator(pattern)
   let candidate_dot = last_separator(candidate)
-  match (pattern_dot, candidate_dot) {
-    (Some(left), Some(right)) => pattern[:left] == candidate[:right]
-    _ => false
+  match candidate_dot {
+    Some(right) => candidate[:right + 1] == pattern_prefix
+    None => false
   }
 }
 
@@ -763,54 +700,72 @@ fn is_special_expr_metavar(
 
 ///|
 fn parse_pattern_metavar_name(raw : String) -> String? {
-  let prefix = "__moongrep_pat_"
-  if raw.has_prefix(prefix) && raw.length() > prefix.length() {
-    Some(raw[prefix.length():].to_owned())
-  } else if raw.has_prefix("$(") && raw.has_suffix(":pat)") {
-    Some(raw[2:raw.length() - ":pat)".length()].to_owned())
-  } else {
-    None
+  match parse_single_metavar(raw) {
+    Some((name, Some("pat"))) => Some(name)
+    _ => None
   }
 }
 
 ///|
 fn is_ignore_placeholder(name : String) -> Bool {
-  name == "$_" || name == "__moongrep_ignore"
+  name == "$_"
 }
 
 ///|
-fn strip_internal_marker(name : String, prefix : String) -> String {
-  if marker_name(name, prefix) is Some(logical) {
-    logical
-  } else {
-    name
+fn single_metavar_name(raw : String) -> String? {
+  parse_single_metavar(raw).map(parsed => parsed.0)
+}
+
+///|
+fn parse_single_metavar(raw : String) -> (String, String?)? {
+  guard metavar_component(raw) is Some(component) else { return None }
+  if component.has_prefix("$$$") || component == "$_" {
+    return None
   }
-}
-
-///|
-fn single_marker_name(name : String) -> String? {
-  for
-    prefix in [
-      "__moongrep_exp_", "__moongrep_const_", "__moongrep_arg_", "__moongrep_pat_",
-      "__moongrep_id_", "__moongrep_bare_", "MoongrepId_", "MoongrepType_", "MoongrepBare_",
-    ] {
-    if marker_name(name, prefix) is Some(logical) {
-      return Some(logical)
+  if component.has_prefix("$(") && component.has_suffix(")") {
+    let end = component.length() - 1
+    for index in 2..<end {
+      if component[index] == ':' {
+        let name = component[2:index].trim()
+        let kind = component[index + 1:end].trim()
+        if !name.is_empty() && !kind.is_empty() {
+          return Some((name.to_owned(), Some(kind.to_owned())))
+        }
+        return None
+      }
     }
-  }
-  None
-}
-
-///|
-fn marker_name(name : String, prefix : String) -> String? {
-  let component_start = match last_separator(name) {
-    Some(index) => index + 1
-    None => 0
-  }
-  let component = name[component_start:]
-  if component.has_prefix(prefix) && component.length() > prefix.length() {
-    Some(component[prefix.length():].to_owned())
+    None
+  } else if component.has_prefix("$") && component.length() > 1 {
+    Some((component[1:].to_owned(), None))
   } else {
     None
   }
+}
+
+///|
+fn metavar_component(raw : String) -> String? {
+  let mut start = -1
+  for index in 0..<raw.length() {
+    if raw[index] == '$' {
+      start = index
+    }
+  }
+  if start >= 0 {
+    Some(raw[start:].to_owned())
+  } else {
+    None
+  }
+}
+
+///|
+fn metavariable_qualified_prefix(raw : String) -> String? {
+  for index = raw.length() - 1; index >= 0; index = index - 1 {
+    if raw[index] == '$' {
+      if index > 0 {
+        return Some(raw[:index].to_owned())
+      }
+      return None
+    }
+  }
+  None
 }

@@ -19,7 +19,7 @@ Compilation is deliberately narrow. This package:
 - checks duplicate rule ids
 - parses ordinary rule `shape` values as MoonBit expressions and each
   `inside-toplevel` entry's shape as one top-level item
-- rewrites metavars into matcher-readable CST names
+- records metavars and validates their positions in the parsed CST
 - rejects unsupported placeholder positions and malformed guards
 - records taint sink and sanitizer target metadata
 - builds the source-text prefilter for the compiled definition
@@ -41,24 +41,37 @@ with `compile_rule`.
    the compiled CST
 
 The prefilter must be built from the compiled definition, not from raw YAML,
-because metavars have already been normalized and can be excluded from
-literal collection.
+because metavars have already been classified and can be excluded from literal
+collection.
 
 ## Shape Parsing
 
-`prepare_shape` first lexes with:
+`collect_shape_metavars` first lexes with:
 
 ```text
 comment = true
 enable_metavar = true
 ```
 
-The lexer identifies metavariable tokens before parsing. Each occurrence is
-replaced in the source text by a legal reserved marker, and its marker span and
-logical syntax are recorded. `parse_shape` then calls
-`@untyped_cst.parse_expression`; `parse_toplevel_shape` calls
-`@untyped_cst.parse_structure` and requires exactly one node returned by
-`@cst.toplevel_nodes`.
+The lexer identifies metavariable tokens and records each occurrence's original
+span and logical syntax. `parse_shape` then calls
+`@untyped_cst.parse_expression(..., enable_metavar=true)` on the shape itself;
+`parse_toplevel_shape` calls
+`@untyped_cst.parse_structure(..., enable_metavar=true)` and requires exactly
+one node returned by `@cst.toplevel_nodes`. Metavariable syntax therefore
+remains visible in the CST instead of being replaced with reserved identifiers.
+
+The outer lexer keeps each string or bytes interpolation as one aggregate
+token. To record metavars inside it, the collector walks the parser CST and
+sublexes each `InterpSegment_Source` with its global start position,
+`is_interpolation=true`, and `enable_metavar=true`. The parser forwards the same
+metavar mode while building each segment's `expr` subtree, including nested
+interpolations, so validation and context discovery use the original CST
+directly.
+
+As before the CST migration, a `Type_Name` starts with an uppercase identifier
+token. Explicit `type` metavars and typed type ellipsis metavars therefore need
+an uppercase name. Lowercase and keyword names remain rejected by the parser.
 
 Ordinary `patterns`, `patterns-not`, every `inside-expr` entry, and taint clause
 shape are exactly one MoonBit expression. Each `inside-toplevel` shape is
@@ -72,16 +85,17 @@ reports become "not a valid MoonBit expression" or "not a valid MoonBit
 top-level item" depending on the clause.
 
 Recovery nodes (`Missing` and `Error`) are rejected even when the parser does
-not emit a diagnostic. Parse diagnostics replace internal markers with the
-original metavariable spelling before they are shown to rule authors.
+not emit a diagnostic.
 
-## Metavar Context and Markers
+## Metavar Context
 
-Metavar compilation locates every recorded marker span in the parsed CST and
+Metavar compilation locates every recorded source span in the parsed CST and
 derives its context from the path to that node. The context records expression,
 identifier, pattern, type, whole-argument, binder-only, qualified-name, and
 ordered-list information. Kind validation uses this context; it never mutates
-or reconstructs the read-only CST.
+or reconstructs the read-only CST. Interpolation expression nodes and their
+metavar spans already use global source offsets, so the same root is used for
+every occurrence.
 
 Bare kind inference is intentionally conservative:
 
@@ -113,11 +127,9 @@ Only these inline kinds are supported:
   pattern CST
 - `type`: a whole CST type node
 
-Most markers keep the logical metavariable name. `pat`, ellipsis, and `$_` use
-reserved internal names so the parser can accept them and the matcher can
-recognize their whole-node semantics. Uppercase metavariables use legal marker
-spellings for the relevant grammar position. The compiled kind arrays and
-ellipsis metadata retain the logical names, not the marker spellings.
+The matcher recognizes `$name`, `$(name:kind)`, `$$$name`, and `$_` spellings
+directly and consults the compiled kind arrays or ellipsis metadata for their
+semantics.
 
 Metavar arrays preserve first-seen order. Several tests assert that order, so do
 not sort these arrays as a cleanup.

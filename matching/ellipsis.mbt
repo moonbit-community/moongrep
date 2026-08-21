@@ -1,16 +1,16 @@
 ///|
-priv struct EllipsisMarker {
+priv struct EllipsisPlaceholder {
   name : String
   kind : EllipsisMetavarKind
 }
 
 ///|
-fn ellipsis_marker(
+fn ellipsis_placeholder(
   item : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-) -> EllipsisMarker? {
+) -> EllipsisPlaceholder? {
   guard ellipsis_item_raw(item) is Some(raw) else { return None }
-  guard matching_parse_ellipsis_marker(raw) is Some(parsed) else { return None }
+  guard matching_parse_ellipsis_syntax(raw) is Some(parsed) else { return None }
   let (name, raw_kind) = parsed
   if name == "_" {
     Some({ name, kind: raw_kind.unwrap_or(AnyItem) })
@@ -58,49 +58,53 @@ fn matching_ellipsis_direct_raw(node : @untyped_cst.CstNode) -> String? {
     @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(node)
     @untyped_cst.Pattern_Var => @cst.normalized_pattern_identifier_name(node)
     @untyped_cst.Name_Binder => @cst.normalized_name(node)
-    @untyped_cst.Type_Name => type_placeholder_name(node)
+    @untyped_cst.Type_Name => @cst.name_node(node).bind(@cst.normalized_name)
     _ => None
   }
   match raw {
-    Some(raw) if raw.has_prefix("__moongrep_ellipsis_") ||
-      raw.has_prefix("MoongrepEllipsis_") => Some(raw)
+    Some(raw) if raw.has_prefix("$$$") => Some(raw)
     _ => None
   }
 }
 
 ///|
-fn matching_parse_ellipsis_marker(
+fn matching_parse_ellipsis_syntax(
   raw : String,
 ) -> (String, EllipsisMetavarKind?)? {
-  let prefix = if raw.has_prefix("__moongrep_ellipsis_") {
-    "__moongrep_ellipsis_"
-  } else if raw.has_prefix("MoongrepEllipsis_") {
-    "MoongrepEllipsis_"
-  } else {
+  if !raw.has_prefix("$$$") {
     return None
   }
-  let payload = raw[prefix.length():].to_owned()
-  let kinds : Array[(String, EllipsisMetavarKind)] = [
-    ("any_", AnyItem),
-    ("exp_", ExpItem),
-    ("id_", IdItem),
-    ("const_", ConstItem),
-    ("arg_", ArgItem),
-    ("pat_", PatItem),
-    ("type_", TypeItem),
-  ]
-  for entry in kinds {
-    if payload.has_prefix(entry.0) {
-      let name = payload[entry.0.length():].to_owned()
-      if name.length() > 0 {
-        return Some((name, Some(entry.1)))
+  if raw.has_prefix("$$$(") && raw.has_suffix(")") {
+    let end = raw.length() - 1
+    for index in 4..<end {
+      if raw[index] == ':' {
+        let name = raw[4:index].trim()
+        let kind = matching_parse_ellipsis_kind(raw[index + 1:end].trim())
+        if !name.is_empty() && kind is Some(kind) {
+          return Some((name.to_owned(), Some(kind)))
+        }
+        return None
       }
     }
-  }
-  if payload.length() > 0 {
-    Some((payload, None))
+    None
+  } else if raw.length() > 3 {
+    Some((raw[3:].to_owned(), None))
   } else {
     None
+  }
+}
+
+///|
+fn matching_parse_ellipsis_kind(raw : StringView) -> EllipsisMetavarKind? {
+  match raw {
+    "any" => Some(AnyItem)
+    "exp" => Some(ExpItem)
+    "id" => Some(IdItem)
+    "const" => Some(ConstItem)
+    "arg" => Some(ArgItem)
+    "pat" => Some(PatItem)
+    "type" => Some(TypeItem)
+    _ => None
   }
 }
 

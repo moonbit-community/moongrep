@@ -243,8 +243,14 @@ fn collect_name_literals(
     return
   }
   let mut component_start = if name.has_prefix("@") { 1 } else { 0 }
+  let mut metavar_paren_depth = 0
   for index in 0..<name.length() {
-    if name[index] == '.' || name[index] == ':' {
+    if name[index] == '(' && index > 0 && name[index - 1] == '$' {
+      metavar_paren_depth += 1
+    } else if name[index] == ')' && metavar_paren_depth > 0 {
+      metavar_paren_depth -= 1
+    } else if metavar_paren_depth == 0 &&
+      (name[index] == '.' || name[index] == ':') {
       if index > component_start {
         let component = name[component_start:index].to_owned()
         if !is_filter_placeholder(component, compiled) {
@@ -268,20 +274,8 @@ fn is_filter_placeholder(
   compiled : @matching.CompiledExprPattern,
 ) -> Bool {
   name.has_prefix("$$$") ||
-  name.has_prefix("__moongrep_ellipsis_") ||
-  name.has_prefix("MoongrepEllipsis_") ||
-  name.has_prefix("__moongrep_exp_") ||
-  name.has_prefix("__moongrep_const_") ||
-  name.has_prefix("__moongrep_arg_") ||
-  name.has_prefix("__moongrep_pat_") ||
-  name.has_prefix("__moongrep_id_") ||
-  name.has_prefix("__moongrep_bare_") ||
-  name.has_prefix("MoongrepId_") ||
-  name.has_prefix("MoongrepType_") ||
-  name.has_prefix("MoongrepBare_") ||
-  name == "__moongrep_ignore" ||
+  name.has_prefix("$") ||
   is_underscore_placeholder(name) ||
-  is_pattern_placeholder(name) ||
   compiled.target_metavar == Some(name) ||
   compiled.source_metavar == Some(name) ||
   contains_string(compiled.expr_metavars, name) ||
@@ -289,19 +283,6 @@ fn is_filter_placeholder(
   contains_string(compiled.constant_metavars, name) ||
   contains_string(compiled.arg_metavars, name) ||
   contains_string(compiled.type_metavars, name)
-}
-
-///|
-fn is_pattern_placeholder(name : String) -> Bool {
-  if name.has_prefix("$(") && name.has_suffix(")") {
-    let end = name.length() - 1
-    for index in 2..<end {
-      if name[index] == ':' && name[index + 1:end].to_owned() == "pat" {
-        return index > 2
-      }
-    }
-  }
-  false
 }
 
 ///|

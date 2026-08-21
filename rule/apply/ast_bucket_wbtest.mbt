@@ -166,7 +166,7 @@ test "CST bucket keeps id and const root metavars precise" {
 }
 
 ///|
-test "CST bucket decodes keyword metavar markers" {
+test "CST bucket classifies keyword metavars" {
   let rule_source =
     #|id: example
     #|description: Keyword root kinds.

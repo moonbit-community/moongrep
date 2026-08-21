@@ -136,17 +136,17 @@ CST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含
 大小。空字符串也会忽略。
 
 未单独识别的非 leaf 节点会递归遍历。裸 leaf 节点本身不会成为字面量，因此 CST kind
-名称和结构标点不会变成源码要求。字符串插值里的表达式会通过普通递归访问，而仅供 parser
-使用的 source 元数据不会成为锚点。
+名称和结构标点不会变成源码要求。字符串插值表达式（包括包含 metavar 的表达式）会
+通过 parser 提供的 `expr` 子树正常递归访问，因此不需要单独解析也能保留 metavar
+周围的固定字面量。
 
 ## 占位符与忽略字段
 
 当 matcher 可以用任意源码替换某个名称时，就不能收集这个名称。
 `is_filter_placeholder` 会排除：
 
-- ellipsis、expression、argument、constant、pattern 和 type 的保留内部 marker 前缀
+- 包含 `$` 的原始 metavar 名称，包括单节点和 ellipsis 形式
 - 精确拼写为 `$_` 的忽略占位符
-- 内部 ignore marker
 - 编译后 pattern 的 `target_metavar` 和 `source_metavar`
 - 已声明的 expression、identifier、constant、argument 和 type metavar
 

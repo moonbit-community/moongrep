@@ -121,6 +121,33 @@ test "prefilter treats inline expression metavars as placeholders" {
 }
 
 ///|
+test "prefilter reads parsed interpolation expressions" {
+  let source =
+    #|id: example
+    #|description: Interpolated render call.
+    #|patterns:
+    #|  - shape: |
+    #|      "hello \{render($(value:exp))}"
+    #|
+  let rule = compile_prefilter_rule_source(source)
+  assert_true(
+    rule_is_relevant_to_source(
+      rule, "fn sample { \"hello \\{render(actual)}\" }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { \"hello \\{other(actual)}\" }\n",
+    ),
+  )
+  assert_false(
+    rule_is_relevant_to_source(
+      rule, "fn sample { \"goodbye \\{render(actual)}\" }\n",
+    ),
+  )
+}
+
+///|
 test "prefilter treats metavars as placeholders" {
   let source =
     #|id: example
@@ -140,7 +167,7 @@ test "prefilter treats metavars as placeholders" {
 }
 
 ///|
-test "prefilter ignores keyword metavar markers" {
+test "prefilter ignores keyword metavars" {
   let source =
     #|id: example
     #|description: Keyword metavars.
