@@ -1,16 +1,16 @@
 ///|
-test "dump impl renders untyped ast debug output" {
+test "dump impl renders untyped CST debug output" {
   let output = render_dump_command(
     ("dump-impl", None, Some("fn answer { 42 }")),
   )
-  assert_true(output.contains("Impl_TopFuncDef"))
-  assert_true(output.contains("PString(\"answer\")"))
-  assert_true(output.contains("Constant_Int"))
+  assert_true(output.contains("Impl_Function"))
+  assert_true(output.contains("String(\"answer\")"))
+  assert_true(output.contains("Expr_Constant"))
   assert_true(!output.contains("\"kind\""))
 }
 
 ///|
-test "dump expr renders untyped ast debug output" {
+test "dump expr renders untyped CST debug output" {
   let output = render_dump_command(("dump-expr", None, Some("x + 1")))
   assert_true(output.contains("Expr_Infix"))
   assert_true(output.contains("Expr_Ident"))

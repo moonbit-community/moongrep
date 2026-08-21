@@ -363,64 +363,21 @@ priv struct MoongrepSkipAttributes {
 }
 
 ///|
-fn impl_moongrep_skip_attributes(node : @syntax.Impl) -> MoongrepSkipAttributes {
-  let attrs = match node {
-    TopFuncDef(fun_decl~, ..) => fun_decl.attrs
-    TopImpl(attrs~, ..) => attrs
-    TopLetDef(attrs~, ..) => attrs
-    TopTest(attrs~, ..) => attrs
-    TopView(attrs~, ..) => attrs
-    _ => return { skip_structural: false, invalid_payload_locations: [] }
-  }
-  analyze_moongrep_skip_attributes(attrs)
-}
-
-///|
-fn analyze_moongrep_skip_attributes(
-  attrs : @list.List[@attribute.Attribute],
+fn impl_moongrep_skip_attributes(
+  node : @untyped_cst.CstNode,
 ) -> MoongrepSkipAttributes {
   let mut skip_structural = false
   let invalid_payload_locations : Array[@basic.Location] = []
-  for attr in attrs {
-    match attr.parsed {
-      Some(Ident(id)) if attribute_id_is_moongrep_skip(id) =>
-        if raw_moongrep_skip_is_bare(attr.raw) {
-          skip_structural = true
-        } else {
-          invalid_payload_locations.push(attr.loc)
-        }
-      Some(Apply(id, _)) if attribute_id_is_moongrep_skip(id) =>
-        invalid_payload_locations.push(attr.loc)
-      None if unparsed_attribute_targets_moongrep_skip(attr.raw) =>
-        invalid_payload_locations.push(attr.loc)
-      _ => ()
+  for attr in @cst.attributes(node) {
+    if attr.qualifier == Some("moongrep") && attr.name == "skip" {
+      if attr.raw_payload == "" {
+        skip_structural = true
+      } else {
+        invalid_payload_locations.push(attr.node.loc)
+      }
     }
   }
   { skip_structural, invalid_payload_locations }
-}
-
-///|
-fn attribute_id_is_moongrep_skip(id : @attribute.Id) -> Bool {
-  id.qual == Some("moongrep") && id.name == "skip"
-}
-
-///|
-fn raw_moongrep_skip_is_bare(raw : String) -> Bool {
-  let prefix = "#moongrep.skip"
-  raw.has_prefix(prefix) && raw[prefix.length():].is_blank()
-}
-
-///|
-fn unparsed_attribute_targets_moongrep_skip(raw : String) -> Bool {
-  let prefix = "#moongrep.skip"
-  if !raw.has_prefix(prefix) {
-    return false
-  }
-  if raw.length() == prefix.length() {
-    return true
-  }
-  let next = raw[prefix.length()]
-  !(next is ('a'..='z' | 'A'..='Z' | '0'..='9' | '_'))
 }
 
 ///|
@@ -496,7 +453,6 @@ async fn scan_source_file(
       continue
     }
     for node in impls {
-      let untyped_node = @untyped_ast.from_impl(node)
       let skip = impl_moongrep_skip_attributes(node)
       for loc in skip.invalid_payload_locations {
         receive(
@@ -505,7 +461,7 @@ async fn scan_source_file(
       }
       if !skip.skip_structural {
         let structural_hits = @rule_apply.apply_structural_scan_plan_to_node(
-          file, untyped_node, block_plan,
+          file, node, block_plan,
         )
         for finding in structural_hits {
           receive(
@@ -514,7 +470,7 @@ async fn scan_source_file(
         }
       }
       let taint_hits = @rule_apply.apply_taint_scan_plan_to_node(
-        file, untyped_node, block_plan,
+        file, node, block_plan,
       )
       for finding in taint_hits {
         receive(Hit(make_scan_hit(source_lines, block.rebase_finding(finding))))

@@ -45,118 +45,20 @@ fn split_source_blocks(source : StringView) -> Array[SourceBlock] {
 }
 
 ///|
-fn attach_source_block_docstrings(
-  docstrings : Array[@list.List[(@basic.Location, @tokens.Comment)]],
-  toplevels : @list.List[@syntax.Impl],
-) -> Unit {
-  fn search_docstrings(
-    last_pos : @basic.Position,
-    loc : @basic.Location,
-  ) -> @list.List[(@basic.Location, @tokens.Comment)]? {
-    let mut result = None
-    while docstrings.last() is Some(comments) &&
-          comments.head().unwrap().0.start.lnum <= loc.start.lnum {
-      let comments = docstrings.pop().unwrap()
-      let line = comments.head().unwrap().0.start.lnum
-      if last_pos.lnum < line && line <= loc.start.lnum {
-        result = Some(comments)
-      }
-    }
-    result
-  }
-
-  fn make_doc(
-    comments : @list.List[(@basic.Location, @tokens.Comment)],
-  ) -> @syntax.DocString {
-    {
-      content: comments.map(comment => {
-        match comment.1.content {
-          [.. "///|", .. remain] =>
-            if remain.is_blank() {
-              ""
-            } else {
-              remain.to_owned()
-            }
-          [.. "///", .. remain] => remain.to_owned()
-          _ => panic()
-        }
-      }),
-      loc: {
-        start: comments.head().unwrap().0.start,
-        end: comments.last().unwrap().0.end,
-      },
-    }
-  }
-
-  let mut last_pos = @basic.Position::{ fname: "", lnum: -1, bol: 0, cnum: 0 }
-  for toplevel in toplevels {
-    let loc = toplevel.loc()
-    let doc = search_docstrings(last_pos, loc)
-      .map(make_doc)
-      .unwrap_or(@syntax.DocString::empty())
-    match toplevel {
-      TopTypeDef(type_decl) => {
-        type_decl.doc = doc
-        last_pos = loc.start
-        match type_decl.components {
-          Abstract | Alias(_) | Error(NoPayload) | TupleStruct(_) => ()
-          Error(EnumPayload(constructors))
-          | Variant(constructors)
-          | ExtensibleEnum(constructors) =>
-            constructors.each(ctor => {
-              let previous = search_docstrings(last_pos, ctor.loc)
-                .map(make_doc)
-                .unwrap_or(@syntax.DocString::empty())
-              ctor.doc = previous
-              last_pos = ctor.loc.end
-            })
-          ExtendEnum(constructors~, ..) =>
-            constructors.each(ctor => {
-              let previous = search_docstrings(last_pos, ctor.loc)
-                .map(make_doc)
-                .unwrap_or(@syntax.DocString::empty())
-              ctor.doc = previous
-              last_pos = ctor.loc.end
-            })
-          Record(fields~) =>
-            fields.each(field => {
-              let previous = search_docstrings(last_pos, field.loc)
-                .map(make_doc)
-                .unwrap_or(@syntax.DocString::empty())
-              field.doc = previous
-              last_pos = field.loc.end
-            })
-        }
-      }
-      TopFuncDef(fun_decl~, ..) => fun_decl.doc = doc
-      TopLetDef(..) as let_def => let_def.doc = doc
-      TopExpr(..) => ()
-      TopImplRelation(..) as impl_relation => impl_relation.doc = doc
-      TopTest(..) as test_node => test_node.doc = doc
-      TopTrait(trait_decl) => trait_decl.doc = doc
-      TopView(..) as view => view.doc = doc
-      TopImpl(..) as impl_node => impl_node.doc = doc
-      TopUsing(..) as using_stmt => using_stmt.doc = doc
-    }
-    last_pos = loc.end
-  }
-}
-
-///|
-// `@parser.parse_string` requires an owned `String`. Keep block parsing
-// zero-copy through lexing while preserving its docstring attachment behavior.
 fn parse_source_block(
   source : StringView,
   name : String,
-) -> (@list.List[@syntax.Impl], Array[@basic.Report]) {
-  let { tokens, docstrings, .. } = @lexer.tokens_from_string(
-    source,
-    comment=true,
-    name~,
-  )
-  let (impls, reports) = @handrolled_parser.parse(tokens)
-  attach_source_block_docstrings(docstrings, impls)
-  (impls, reports)
+) -> (Array[@untyped_cst.CstNode], Array[@basic.Report]) {
+  let parsed = @untyped_cst.parse_structure(source.to_owned(), name~)
+  let reports = parsed.diagnostics_view().to_owned()
+  if reports.is_empty() &&
+    @cst.first_recovery_node(parsed.root()) is Some(recovery) {
+    reports.push({
+      loc: recovery.loc,
+      msg: "Unexpected end of file, missing simple expression here.",
+    })
+  }
+  (@cst.toplevel_nodes(parsed.root()), reports)
 }
 
 ///|

@@ -58,12 +58,11 @@ test "source block rebases parser locations to the original source" {
   let source = "fn first { \"🤣\" }\r\n///|\r\nfn second {\r\n  target()\r\n}\r\n"
   let blocks = split_source_blocks(source)
   guard blocks is [_, second_block] else { fail("expected two source blocks") }
-  let (whole_impls, whole_reports) = @parser.parse_string(
-    source,
-    name="sample.mbt",
-  )
-  guard whole_reports is [] else { fail("expected whole source to parse") }
-  guard whole_impls.to_array() is [_, expected_node] else {
+  let whole = @untyped_cst.parse_structure(source, name="sample.mbt")
+  guard whole.diagnostics_view().is_empty() else {
+    fail("expected whole source to parse")
+  }
+  guard @cst.toplevel_nodes(whole.root()) is [_, expected_node] else {
     fail("expected two whole-source nodes")
   }
   let (block_impls, block_reports) = parse_source_block(
@@ -71,17 +70,17 @@ test "source block rebases parser locations to the original source" {
     "sample.mbt",
   )
   guard block_reports is [] else { fail("expected source block to parse") }
-  guard block_impls.to_array() is [block_node] else {
+  guard block_impls is [block_node] else {
     fail("expected one source-block node")
   }
-  let actual = second_block.rebase_location(block_node.loc())
-  let expected = expected_node.loc()
+  let actual = second_block.rebase_location(block_node.loc)
+  let expected = expected_node.loc
   assert_block_position_equal(actual.start, expected.start)
   assert_block_position_equal(actual.end, expected.end)
 }
 
 ///|
-test "source block view parser preserves parser AST semantics" {
+test "source block view parser preserves parser CST semantics" {
   let source =
     #|///| API documentation
     #|fn documented(value : Int) -> Int {
@@ -91,20 +90,25 @@ test "source block view parser preserves parser AST semantics" {
   guard split_source_blocks(source) is [block] else {
     fail("expected one source block")
   }
-  let (whole_impls, whole_reports) = @parser.parse_string(
-    source,
-    name="documented.mbt",
-  )
+  let whole = @untyped_cst.parse_structure(source, name="documented.mbt")
   let (block_impls, block_reports) = parse_source_block(
     block.source,
     "documented.mbt",
   )
-  guard whole_reports is [] && block_reports is [] else {
+  guard whole.diagnostics_view().is_empty() && block_reports is [] else {
     fail("expected both parser entries to succeed")
   }
-  guard (whole_impls.to_array(), block_impls.to_array())
+  guard (@cst.toplevel_nodes(whole.root()), block_impls)
     is ([whole_node], [block_node]) else {
     fail("expected one top-level node from both parser entries")
   }
-  assert_true(whole_node.json_repr() == block_node.json_repr())
+  assert_eq("\{Repr(whole_node)}", "\{Repr(block_node)}")
+}
+
+///|
+test "source block parser preserves recovery diagnostics" {
+  let source = "fn sample { target()\n"
+  let (nodes, reports) = parse_source_block(source, "bad.mbt")
+  assert_eq(nodes.length(), 1)
+  assert_true(reports.length() > 0)
 }
