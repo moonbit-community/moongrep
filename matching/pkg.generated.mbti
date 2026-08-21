@@ -2,7 +2,9 @@
 package "moonbit-community/moongrep/matching"
 
 import {
+  "moonbit-community/moongrep/cst",
   "moonbitlang/core/hashmap",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
 }
 
@@ -10,6 +12,10 @@ import {
 pub fn expr_matches(@untyped_cst.CstNode, @untyped_cst.CstNode) -> Bool
 
 pub fn match_expr_pattern(CompiledExprPattern, @untyped_cst.CstNode) -> ExprMatch?
+
+pub fn match_expr_pattern_candidate(CompiledExprPattern, @cst.ExprMatchCandidate) -> ExprMatch?
+
+pub fn match_expr_pattern_candidate_with_bindings(CompiledExprPattern, @cst.ExprMatchCandidate, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
 
 pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @untyped_cst.CstNode, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
 
@@ -52,6 +58,7 @@ pub(all) enum EllipsisMetavarKind {
 pub(all) struct ExprMatch {
   root : @untyped_cst.CstNode
   bindings : @hashmap.HashMap[String, BoundValue]
+  loc : @basic.Location
 }
 
 pub(all) struct IgnoredPatternField {

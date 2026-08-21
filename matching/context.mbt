@@ -55,4 +55,5 @@ pub(all) enum BoundValue {
 pub(all) struct ExprMatch {
   root : @untyped_cst.CstNode
   bindings : @hashmap.HashMap[String, BoundValue]
+  loc : @basic.Location
 }
