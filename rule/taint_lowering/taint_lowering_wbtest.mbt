@@ -2,15 +2,14 @@
 using @compile {compile_rules}
 
 ///|
-fn parse_single_taint_impl(source : String) -> @untyped_ast.Node raise {
-  let (impls, reports) = @parser.parse_string(
-    source,
-    name="taint lowering test",
-  )
-  guard reports is [] else { fail("expected source to parse") }
-  let nodes = impls.to_array()
+fn parse_single_taint_impl(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="taint lowering test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
+  let nodes = @cst.toplevel_nodes(parsed.root())
   guard nodes is [node] else { fail("expected exactly one impl") }
-  @untyped_ast.from_impl(node)
+  node
 }
 
 ///|

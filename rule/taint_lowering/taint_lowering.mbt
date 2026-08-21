@@ -45,7 +45,7 @@ fn transfer_compiled_taint_call(
   let killed_paths : Array[@taint.StoragePath] = []
   let findings : Array[@taint.SinkFinding] = []
   for index in 0..<taint_rule.sources.length() {
-    if taint_pattern_match(taint_rule.sources[index].pattern, call.ast)
+    if taint_pattern_match(taint_rule.sources[index].pattern, call.cst)
       is Some(_) {
       matched = true
       return_taint.push({
@@ -63,7 +63,7 @@ fn transfer_compiled_taint_call(
   }
   for index in 0..<taint_rule.sanitizers.length() {
     let sanitizer = taint_rule.sanitizers[index]
-    if taint_pattern_match(sanitizer.pattern, call.ast) is Some(pattern_match) {
+    if taint_pattern_match(sanitizer.pattern, call.cst) is Some(pattern_match) {
       matched = true
       if target_value_for_match(call, sanitizer.target, pattern_match)
         is Some(target) &&
@@ -74,7 +74,7 @@ fn transfer_compiled_taint_call(
   }
   for index in 0..<taint_rule.sinks.length() {
     let sink = taint_rule.sinks[index]
-    if taint_pattern_match(sink.pattern, call.ast) is Some(pattern_match) {
+    if taint_pattern_match(sink.pattern, call.cst) is Some(pattern_match) {
       matched = true
       if target_value_for_match(call, sink.target, pattern_match)
         is Some(target) {
@@ -101,7 +101,7 @@ fn transfer_compiled_taint_call(
 ///|
 fn taint_pattern_match(
   pattern : CompiledRulePattern,
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
 ) -> @matching.ExprMatch? {
   @matching.match_expr_pattern(pattern.compiled, node)
 }
@@ -130,7 +130,7 @@ fn target_value_for_match(
 ///|
 fn target_value_at_expr(
   call : @taint.CallInfo,
-  source : @untyped_ast.Node,
+  source : @untyped_cst.CstNode,
 ) -> TargetValue? {
   for argument in call.arguments {
     if argument.expr.loc == source.loc {
