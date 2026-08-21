@@ -99,26 +99,29 @@ fn collect_node_matches(
   cst : @untyped_cst.CstNode,
   matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
-  @cst.visit_scoped_expr_roots(cst, fn(scoped_expr) {
-    collect_scoped_node_matches(pattern, scoped_expr, matches)
+  @cst.visit_scoped_expr_match_candidate_roots(cst, fn(scoped_candidate) {
+    collect_scoped_candidate_matches(pattern, scoped_candidate, matches)
     @cst.NodeVisitPrune
   })
 }
 
 ///|
-fn collect_scoped_node_matches(
+fn collect_scoped_candidate_matches(
   pattern : CompiledRulePattern,
-  scoped_expr : @cst.ScopedExprNode,
+  scoped_candidate : @cst.ScopedExprMatchCandidate,
   matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
-  if @matching.match_expr_pattern(pattern.compiled, scoped_expr.expr)
+  if @matching.match_expr_pattern_candidate(
+      pattern.compiled,
+      scoped_candidate.candidate,
+    )
     is Some(result) {
     matches.push(capture_map_from_bindings(result.bindings))
   } else {
-    @cst.visit_scoped_expr_children(
-      scoped_expr.expr,
-      scoped_expr.shadowed_names,
-      fn(child) { collect_scoped_node_matches(pattern, child, matches) },
+    @cst.visit_scoped_expr_match_candidate_children(
+      scoped_candidate.candidate,
+      scoped_candidate.shadowed_names,
+      fn(child) { collect_scoped_candidate_matches(pattern, child, matches) },
     )
   }
 }
