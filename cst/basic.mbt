@@ -204,6 +204,10 @@ pub fn semantic_children(
     let (label, child) = entry
     if label == Some("doc") ||
       is_location_label(label) ||
+      (
+        node.kind is @untyped_cst.InterpSegment_Source &&
+        label == Some("payload")
+      ) ||
       is_pure_punctuation_kind(child.kind) {
       continue
     }
