@@ -6,6 +6,5 @@ import {
 import {
   "moonbit-community/moongrep/rule/apply",
   "moonbit-community/moongrep/rule/compile",
-  "moonbit-community/moongrep/untyped_ast",
-  "moonbitlang/parser",
+  "moonbitlang/parser/untyped_cst",
 } for "test"

@@ -89,14 +89,16 @@ test "builtin catch_all matches async function signature variants" {
     #|  try risky() catch { _ => value }
     #|}
     #|
-  let (impls, reports) = @parser.parse_string(source, name="catch_all test")
-  guard reports is [] else { fail("expected source to parse") }
+  let parsed = @untyped_cst.parse_structure(source, name="catch_all test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
   let plan = @apply.ScanPlan::from_rules(
     @compile.compile_rules(@builtin.load_rules()),
   )
   let findings = @apply.apply_structural_scan_plan_to_node(
     "sample.mbt",
-    @untyped_ast.from_impls(impls),
+    parsed.root(),
     plan,
   )
   assert_eq(findings.length(), 13)
@@ -126,17 +128,19 @@ test "builtin simplifiable_assignment matches supported augmented assignment ope
     #|  add += step
     #|}
     #|
-  let (impls, reports) = @parser.parse_string(
+  let parsed = @untyped_cst.parse_structure(
     source,
     name="simplifiable_assignment test",
   )
-  guard reports is [] else { fail("expected source to parse") }
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
   let plan = @apply.ScanPlan::from_rules(
     @compile.compile_rules(@builtin.load_rules()),
   )
   let findings = @apply.apply_structural_scan_plan_to_node(
     "sample.mbt",
-    @untyped_ast.from_impls(impls),
+    parsed.root(),
     plan,
   )
   let matches : Array[String] = []
