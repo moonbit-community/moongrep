@@ -243,6 +243,29 @@ source:
 3 | }
 ```
 
+Function body braces are traversal containers rather than expression matches.
+The JSON range and matched source for a broad expression pattern therefore
+refer to the expression inside the body.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern '$(root:exp)' testdata/body-candidates/function.mbt | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*"matched_source":"\([^"]*\)".*/\1:\2-\3:\4 \5/p'
+3:3-3:13 f <| value
+```
+
+An explicit block shape does not match those function body braces.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern '{ a; b }' testdata/body-candidates/function.mbt
+```
+
+The same shape does match a block written inside the body, and its JSON range
+and matched source include the explicit braces.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern '{ a; b }' testdata/body-candidates/explicit.mbt | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*"matched_source":"\([^"]*\)".*/\1:\2-\3:\4 \5/p'
+3:3-3:11 { a; b }
+```
+
 A guard pattern without an explicit body matches the guard header and ignores
 the candidate continuation. The reported range still covers the complete
 candidate guard expression, including the following call.
