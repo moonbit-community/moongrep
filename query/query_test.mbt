@@ -1,44 +1,18 @@
 ///|
-fn query_leaf_string(node : @untyped_ast.Node) -> String? {
-  match node.kind {
-    Leaf(PString(value)) => Some(value)
-    _ => None
-  }
+fn query_leaf_string(node : @untyped_cst.CstNode) -> String? {
+  @cst.normalized_name(node)
 }
 
 ///|
-fn query_child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, value) = entry
-    if child_name == Some(name) {
-      return Some(value)
-    }
-  }
-  None
+fn query_constant_value(node : @untyped_cst.CstNode) -> String? {
+  guard node.kind.is_constant() else { return None }
+  @cst.string_payload(node)
 }
 
 ///|
-fn query_leaf_string_child(node : @untyped_ast.Node, name : String) -> String? {
-  if query_child(node, name) is Some(value) {
-    query_leaf_string(value)
-  } else {
-    None
-  }
-}
-
-///|
-fn query_constant_value(node : @untyped_ast.Node) -> String? {
-  guard node.kind == Constant_Int || node.kind == Constant_String else {
-    return None
-  }
-  query_leaf_string_child(node, "value")
-}
-
-///|
-fn query_argument_kind_signature(node : @untyped_ast.Node) -> String? {
-  guard node.kind == Argument else { return None }
-  guard query_child(node, "kind") is Some(kind) else { return None }
-  Some(kind.kind.to_string())
+fn query_argument_kind_signature(node : @untyped_cst.CstNode) -> String? {
+  guard node.kind.is_argument() else { return None }
+  Some("\{Repr(node.kind)}")
 }
 
 ///|
@@ -47,32 +21,29 @@ fn string_array_signature(values : Array[String]) -> String {
 }
 
 ///|
-fn parse_query_expr(source : String) -> @syntax.Expr raise {
-  let lex_result = @lexer.tokens_from_string(
-    source,
-    comment=true,
-    name="query expr test",
-  )
-  guard lex_result.errors.length() == 0 else {
-    fail("expected expression to lex: \{source}")
+fn parse_query_expr(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_expression(source, name="query expr test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected expression to parse: \{source}")
   }
-  let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
-  guard reports is [] else { fail("expected expression to parse: \{source}") }
-  expr
+  @cst.expression_root(parsed.root())
 }
 
 ///|
-fn parse_query_impls(source : String) -> @list.List[@syntax.Impl] raise {
-  let (impls, reports) = @parser.parse_string(source, name="query impl test")
-  guard reports is [] else { fail("expected impls to parse: \{source}") }
-  impls
+fn parse_query_impls(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="query impl test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected impls to parse: \{source}")
+  }
+  parsed.root()
 }
 
 ///|
-fn parse_query_impl(source : String) -> @syntax.Impl raise {
-  let impls = parse_query_impls(source).to_array()
-  guard impls.length() == 1 else { fail("expected one impl: \{source}") }
-  impls[0]
+fn parse_query_impl(source : String) -> @untyped_cst.CstNode raise {
+  guard @cst.toplevel_nodes(parse_query_impls(source)) is [node] else {
+    fail("expected one impl: \{source}")
+  }
+  node
 }
 
 ///|
@@ -86,6 +57,90 @@ test "query matches simple expression and returns empty capture map" {
   let matches = query.captures(source_name="sample.mbt", source)
   assert_eq(matches.length(), 1)
   assert_eq(matches[0].length(), 0)
+}
+
+///|
+test "query visits expressions that occur only in an if else branch" {
+  let query = ExprQuery::ExprQuery("$(left:exp) + $(right:exp)")
+  let source =
+    #|fn sample {
+    #|  if clean() {
+    #|    ()
+    #|  } else {
+    #|    left() + right()
+    #|  }
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 1)
+  let cst_matches = query.captures_from_cst(cst=parse_query_impls(source))
+  assert_eq(cst_matches.length(), 1)
+}
+
+///|
+test "query supports keyword names for explicit metavariables" {
+  let query = ExprQuery::ExprQuery(
+    "if $(condition:exp) { $(then:exp) } else { $(else:exp) }",
+  )
+  let source =
+    #|fn sample {
+    #|  if ready() { accepted() } else { rejected() }
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 1)
+  assert_true(matches[0].contains("condition"))
+  assert_true(matches[0].contains("then"))
+  assert_true(matches[0].contains("else"))
+}
+
+///|
+test "query matches every keyword metavariable kind and bare form" {
+  let cases = [
+    ("sink($(else:exp))", "fn sample { sink(actual()) }"),
+    ("sink($(if:const))", "fn sample { sink(42) }"),
+    ("sink($(for:id))", "fn sample { sink(actual) }"),
+    ("sink($(match:arg))", "fn sample { sink(label=value) }"),
+    (
+      "match input { $(if:pat) => body }", "fn sample { match input { Some(value) => body } }",
+    ),
+    (
+      "let value : $(for:type) = input", "fn sample { let value : Array[Int] = input }",
+    ),
+    ("$if + $if", "fn sample { actual() + actual() }"),
+  ]
+  for case in cases {
+    let query = ExprQuery::ExprQuery(case.0)
+    assert_eq(query.captures(source_name="sample.mbt", case.1).length(), 1)
+  }
+}
+
+///|
+test "query preserves uppercase identifier classes for id and bare metavars" {
+  let explicit = ExprQuery::ExprQuery("$(Ctor:id)($(Ctor:id))")
+  let bare = ExprQuery::ExprQuery("$Ctor($Ctor)")
+  let source = "fn sample { @pkg.Actual(@pkg.Actual) }"
+  assert_eq(explicit.captures(source_name="sample.mbt", source).length(), 1)
+  assert_eq(bare.captures(source_name="sample.mbt", source).length(), 1)
+}
+
+///|
+test "query matches bare foreach parameter and let mut binders" {
+  let cases = [
+    (
+      "for $item in $items { $body }", "fn sample { for actual in values { consume(actual) } }",
+    ),
+    (
+      "fn($param) { $body }", "fn sample { let callback = fn(actual) { consume(actual) } }",
+    ),
+    (
+      "let mut $value = $initial", "fn sample { let mut actual = source(); sink(actual) }",
+    ),
+  ]
+  for case in cases {
+    let query = ExprQuery::ExprQuery(case.0)
+    assert_eq(query.captures(source_name="sample.mbt", case.1).length(), 1)
+  }
 }
 
 ///|
@@ -117,7 +172,7 @@ test "query captures one repeated expression and rejects non-repeated candidates
   guard matches[0].get("value") is Some(Single(value)) else {
     fail("expected value capture")
   }
-  assert_true(value.kind == Expr_Apply)
+  assert_true(value.kind is @untyped_cst.Expr_Apply)
 }
 
 ///|
@@ -192,7 +247,7 @@ test "query captures argument metavars as full argument nodes" {
   }
   inspect(
     string_array_signature(kinds),
-    content="[ArgumentKind::Positional, ArgumentKind::Labelled, ArgumentKind::LabelledPun, ArgumentKind::LabelledOption, ArgumentKind::LabelledOptionPun]",
+    content="[Argument_Positional, Argument_Labelled, Argument_LabelledPun, Argument_LabelledOption, Argument_LabelledOptionPun]",
   )
 }
 
@@ -215,7 +270,7 @@ test "query repeated argument metavars require full argument equality" {
     guard capture.get("arg") is Some(Single(arg)) else {
       fail("expected argument capture")
     }
-    assert_true(arg.kind == Argument)
+    assert_true(arg.kind.is_argument())
   }
 }
 
@@ -256,7 +311,7 @@ test "query raises when pattern is invalid" {
 }
 
 ///|
-test "query captures_from_ast finds matches under an impl list root" {
+test "query captures_from_cst finds matches under an impl list root" {
   let query = ExprQuery::ExprQuery("target()")
   let source =
     #|fn sample {
@@ -264,17 +319,17 @@ test "query captures_from_ast finds matches under an impl list root" {
     #|  other()
     #|}
     #|
-  let ast = @untyped_ast.from_impls(parse_query_impls(source))
-  let matches = query.captures_from_ast(ast~)
+  let cst = parse_query_impls(source)
+  let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
   assert_eq(matches[0].length(), 0)
 }
 
 ///|
-test "query captures_from_ast matches a direct expression root" {
+test "query captures_from_cst matches a direct expression root" {
   let query = ExprQuery::ExprQuery("target($(literal:const))")
-  let ast = @untyped_ast.from_expr(parse_query_expr("target(42)"))
-  let matches = query.captures_from_ast(ast~)
+  let cst = parse_query_expr("target(42)")
+  let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
   guard matches[0].get("literal") is Some(Single(literal)) else {
     fail("expected literal capture")
@@ -286,16 +341,16 @@ test "query captures_from_ast matches a direct expression root" {
 }
 
 ///|
-test "query captures_from_ast finds nested expressions from a non-expression impl root" {
+test "query captures_from_cst finds nested expressions from a non-expression impl root" {
   let query = ExprQuery::ExprQuery("target()")
-  let ast = @untyped_ast.from_impl(parse_query_impl("fn sample { target() }"))
-  assert_true(ast.kind == Impl_TopFuncDef)
-  let matches = query.captures_from_ast(ast~)
+  let cst = parse_query_impl("fn sample { target() }")
+  assert_true(cst.kind is @untyped_cst.Impl_Function)
+  let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
 }
 
 ///|
-test "query captures_from_ast preserves expression id and constant captures" {
+test "query captures_from_cst preserves expression id and constant captures" {
   let query = ExprQuery::ExprQuery(
     "sink($(callee:id), $(value:exp), $(literal:const))",
   )
@@ -305,23 +360,21 @@ test "query captures_from_ast preserves expression id and constant captures" {
     #|}
     #|
   let source_matches = query.captures(source_name="sample.mbt", source)
-  let ast_matches = query.captures_from_ast(
-    ast=@untyped_ast.from_impls(parse_query_impls(source)),
-  )
-  assert_eq(ast_matches.length(), source_matches.length())
-  assert_eq(ast_matches.length(), 1)
-  guard ast_matches[0].get("callee") is Some(Single(callee)) else {
+  let cst_matches = query.captures_from_cst(cst=parse_query_impls(source))
+  assert_eq(cst_matches.length(), source_matches.length())
+  assert_eq(cst_matches.length(), 1)
+  guard cst_matches[0].get("callee") is Some(Single(callee)) else {
     fail("expected callee capture")
   }
   guard query_leaf_string(callee) is Some(callee_name) else {
     fail("expected callee name")
   }
   inspect(callee_name, content="source")
-  guard ast_matches[0].get("value") is Some(Single(value)) else {
+  guard cst_matches[0].get("value") is Some(Single(value)) else {
     fail("expected expression capture")
   }
-  assert_true(value.kind == Expr_Apply)
-  guard ast_matches[0].get("literal") is Some(Single(literal)) else {
+  assert_true(value.kind is @untyped_cst.Expr_Apply)
+  guard cst_matches[0].get("literal") is Some(Single(literal)) else {
     fail("expected literal capture")
   }
   guard query_constant_value(literal) is Some(literal_value) else {
@@ -331,15 +384,15 @@ test "query captures_from_ast preserves expression id and constant captures" {
 }
 
 ///|
-test "query captures_from_ast prunes nested expressions after an outer match" {
+test "query captures_from_cst prunes nested expressions after an outer match" {
   let query = ExprQuery::ExprQuery("wrap($(value:exp))")
-  let ast = @untyped_ast.from_expr(parse_query_expr("wrap(wrap(1))"))
-  let matches = query.captures_from_ast(ast~)
+  let cst = parse_query_expr("wrap(wrap(1))")
+  let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
   guard matches[0].get("value") is Some(Single(value)) else {
     fail("expected value capture")
   }
-  assert_true(value.kind == Expr_Apply)
+  assert_true(value.kind is @untyped_cst.Expr_Apply)
 }
 
 ///|
@@ -360,7 +413,7 @@ test "query captures zero one and many sibling arguments with ellipsis" {
       fail("expected multiple argument capture")
     }
     for arg in args {
-      assert_true(arg.kind == Argument)
+      assert_true(arg.kind.is_argument())
     }
     lengths.push(args.length())
   }
@@ -458,7 +511,7 @@ test "query ellipsis covers parameter pattern and type lists" {
   }
   assert_eq(params.length(), 3)
   for parameter in params {
-    assert_true(parameter.kind.to_string().has_prefix("Parameter::"))
+    assert_true("\{Repr(parameter.kind)}".has_prefix("Parameter_"))
   }
 
   let pattern_query = ExprQuery::ExprQuery(
@@ -474,7 +527,7 @@ test "query ellipsis covers parameter pattern and type lists" {
   }
   assert_eq(patterns.length(), 3)
   for pattern in patterns {
-    assert_true(pattern.kind.to_string().has_prefix("ArrayPattern::"))
+    assert_true(pattern.kind is @untyped_cst.ArrayPattern_Pattern)
   }
 
   let type_query = ExprQuery::ExprQuery(
@@ -490,7 +543,7 @@ test "query ellipsis covers parameter pattern and type lists" {
   }
   assert_eq(types.length(), 2)
   for ty in types {
-    assert_true(ty.kind.to_string().has_prefix("Type::"))
+    assert_true(ty.kind.is_type())
   }
 }
 
@@ -509,7 +562,7 @@ test "query failed ellipsis branches do not leak single bindings" {
     fail("expected value binding")
   }
   assert_eq(gap.length(), 1)
-  guard value.normalized_expr_identifier_name() is Some(name) else {
+  guard @cst.normalized_expr_identifier_name(value) is Some(name) else {
     fail("expected identifier expression")
   }
   inspect(name, content="selected")

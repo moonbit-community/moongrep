@@ -3,7 +3,7 @@ package "moonbit-community/moongrep/query"
 
 import {
   "moonbit-community/moongrep/matching",
-  "moonbit-community/moongrep/untyped_ast",
+  "moonbitlang/parser/untyped_cst",
 }
 
 // Values
@@ -14,7 +14,7 @@ import {
 type ExprQuery
 pub fn ExprQuery::ExprQuery(String) -> Self raise
 pub fn ExprQuery::captures(Self, source_name~ : String, String) -> ArrayView[Map[String, @matching.BoundValue]] raise
-pub fn ExprQuery::captures_from_ast(Self, ast~ : @untyped_ast.Node) -> ArrayView[Map[String, @matching.BoundValue]]
+pub fn ExprQuery::captures_from_cst(Self, cst~ : @untyped_cst.CstNode) -> ArrayView[Map[String, @matching.BoundValue]]
 
 // Type aliases
 
