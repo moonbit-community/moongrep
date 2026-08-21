@@ -49,7 +49,7 @@ fn flow_result(
 
 ///|
 fn analyze_single_function_like(
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
   spec : TaintSpec,
 ) -> AnalysisResult raise {
   let function_like = function_like_from_impl(node)
@@ -94,50 +94,42 @@ fn function_has_param_root(function_like : FunctionLike, root : String) -> Bool 
 
 ///|
 fn eval_expr(
-  expr : @untyped_ast.Node,
+  expr : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
   match expr.kind {
-    Expr_Ident => eval_path_like(expr, state)
-    Expr_Field =>
+    @untyped_cst.Expr_Block =>
+      eval_cst_sequence(@cst.sequence_items(expr), state, spec, findings)
+    @untyped_cst.Expr_Ident => eval_path_like(expr, state)
+    @untyped_cst.Expr_Field =>
       match (node_child(expr, "record"), node_child(expr, "accessor")) {
         (Some(record), Some(accessor)) =>
           eval_field_expr(expr, record, accessor, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_ArrayGet =>
+    @untyped_cst.Expr_ArrayGet =>
       match (node_child(expr, "array"), node_child(expr, "index")) {
         (Some(array), Some(index)) =>
           eval_array_get_expr(expr, array, index, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_Tuple =>
+    @untyped_cst.Expr_Tuple =>
       eval_tuple_expr(node_child_items(expr, "exprs"), state, spec, findings)
-    Expr_Array =>
+    @untyped_cst.Expr_Array =>
       eval_array_expr(node_child_items(expr, "exprs"), state, spec, findings)
-    Expr_Record =>
+    @untyped_cst.Expr_Record =>
       eval_record_expr(node_child_items(expr, "fields"), state, spec, findings)
-    Expr_Group | Expr_Constraint =>
+    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    Expr_Sequence =>
-      if node_child(expr, "last_expr") is Some(last_expr) {
-        eval_sequence(
-          node_child_items(expr, "exprs"),
-          last_expr,
-          state,
-          spec,
-          findings,
-        )
-      } else {
-        normal_result(state, [])
-      }
-    Expr_Let =>
+    @untyped_cst.Expr_Sequence =>
+      eval_cst_sequence(@cst.sequence_items(expr), state, spec, findings)
+    @untyped_cst.Expr_Let =>
       match
         (
           node_child(expr, "pattern"),
@@ -148,7 +140,7 @@ fn eval_expr(
           eval_let(pattern, bound_expr, body, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_LetMut =>
+    @untyped_cst.Expr_LetMut =>
       match
         (
           node_child(expr, "binder"),
@@ -159,29 +151,25 @@ fn eval_expr(
           eval_let_binder(binder, bound_expr, body, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_Assign =>
-      match (node_child(expr, "var"), node_child(expr, "expr")) {
-        (Some(var_), Some(rhs)) => eval_assign(var_, rhs, state, spec, findings)
+    @untyped_cst.Expr_Assign =>
+      if @cst.raw_child(expr, "rhs") is Some(rhs) {
+        eval_assign(expr, rhs, state, spec, findings)
+      } else {
+        normal_result(state, [])
+      }
+    @untyped_cst.Expr_Mutate =>
+      match (@cst.raw_child(expr, "self"), @cst.raw_child(expr, "rhs")) {
+        (Some(receiver), Some(rhs)) =>
+          eval_mutate(expr, receiver, rhs, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_Mutate =>
-      match
-        (
-          node_child(expr, "record"),
-          node_child(expr, "accessor"),
-          node_child(expr, "field"),
-        ) {
-        (Some(record), Some(accessor), Some(field)) =>
-          eval_mutate(record, accessor, field, state, spec, findings)
-        _ => normal_result(state, [])
-      }
-    Expr_Apply =>
+    @untyped_cst.Expr_Apply =>
       match (node_child(expr, "func"), node_child(expr, "args")) {
         (Some(func), Some(args)) =>
           eval_apply_call(expr, func, args, expr.loc, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_DotApply =>
+    @untyped_cst.Expr_DotApply =>
       match
         (
           node_child(expr, "self"),
@@ -201,19 +189,19 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    Expr_Pipe =>
+    @untyped_cst.Expr_Pipe =>
       match (node_child(expr, "lhs"), node_child(expr, "rhs")) {
         (Some(lhs), Some(rhs)) =>
           eval_pipe_call(expr, lhs, rhs, expr.loc, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_RevPipe =>
+    @untyped_cst.Expr_RevPipe =>
       match (node_child(expr, "lhs"), node_child(expr, "rhs")) {
         (Some(lhs), Some(rhs)) =>
           eval_rev_pipe_call(expr, lhs, rhs, expr.loc, state, spec, findings)
         _ => normal_result(state, [])
       }
-    Expr_If =>
+    @untyped_cst.Expr_If =>
       match (node_child(expr, "cond"), node_child(expr, "ifso")) {
         (Some(cond), Some(ifso)) =>
           eval_if(
@@ -226,7 +214,7 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    Expr_Match =>
+    @untyped_cst.Expr_Match =>
       if node_child(expr, "expr") is Some(scrutinee) {
         eval_match(
           scrutinee,
@@ -238,7 +226,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_Lexmatch =>
+    @untyped_cst.Expr_LexMatch =>
       if node_child(expr, "expr") is Some(scrutinee) {
         eval_lex_match(
           scrutinee,
@@ -250,7 +238,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_Lexscan =>
+    @untyped_cst.Expr_LexScan =>
       if node_child(expr, "expr") is Some(scrutinee) {
         eval_lex_scan(
           scrutinee,
@@ -262,7 +250,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_Try =>
+    @untyped_cst.Expr_Try =>
       if node_child(expr, "body") is Some(body) {
         eval_try(
           body,
@@ -275,7 +263,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_While =>
+    @untyped_cst.Expr_While =>
       match (node_child(expr, "loop_cond"), node_child(expr, "loop_body")) {
         (Some(loop_cond), Some(loop_body)) =>
           eval_while(
@@ -288,14 +276,14 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    Expr_For =>
+    @untyped_cst.Expr_For =>
       if node_child(expr, "body") is Some(body) {
         eval_for(
           node_child_items(expr, "binders"),
-          node_optional_child(expr, "condition"),
+          @cst.raw_child(expr, "cond"),
           node_child_items(expr, "continue_block"),
           body,
-          node_optional_child(expr, "for_else"),
+          @cst.raw_child(expr, "else"),
           state,
           spec,
           findings,
@@ -303,7 +291,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_ForEach =>
+    @untyped_cst.Expr_ForEach =>
       match (node_child(expr, "expr"), node_child(expr, "body")) {
         (Some(collection), Some(body)) =>
           eval_for_each(
@@ -319,7 +307,7 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    Expr_LetFn =>
+    @untyped_cst.Expr_LetFn =>
       match (node_child(expr, "name"), node_child(expr, "body")) {
         (Some(name), Some(body)) => {
           let roots : Array[String] = []
@@ -328,7 +316,7 @@ fn eval_expr(
         }
         _ => normal_result(state, [])
       }
-    Expr_LetAnd =>
+    @untyped_cst.Expr_LetAnd =>
       if node_child(expr, "body") is Some(body) {
         eval_clean_root_scope(
           body,
@@ -340,29 +328,29 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_Function => normal_result(state, [])
-    Expr_Return =>
+    @untyped_cst.Expr_Function => normal_result(state, [])
+    @untyped_cst.Expr_Return =>
       if node_optional_child(expr, "return_value") is Some(value) {
         let result = eval_expr(value, state, spec, findings)
         flow_result(FlowReturn, result.state, result.value)
       } else {
         flow_result(FlowReturn, state, [])
       }
-    Expr_Break =>
+    @untyped_cst.Expr_Break =>
       if node_optional_child(expr, "arg") is Some(value) {
         let result = eval_expr(value, state, spec, findings)
         flow_result(FlowBreak, result.state, result.value)
       } else {
         flow_result(FlowBreak, state, [])
       }
-    Expr_Raise =>
+    @untyped_cst.Expr_Raise =>
       if node_child(expr, "err_value") is Some(value) {
         let result = eval_expr(value, state, spec, findings)
         flow_result(FlowRaise, result.state, result.value)
       } else {
         flow_result(FlowRaise, state, [])
       }
-    Expr_Continue => {
+    @untyped_cst.Expr_Continue => {
       let result = eval_children(
         node_child_items(expr, "args"),
         state,
@@ -376,7 +364,89 @@ fn eval_expr(
 }
 
 ///|
-fn eval_path_like(expr : @untyped_ast.Node, state : TaintState) -> EvalResult {
+fn eval_cst_sequence(
+  expressions : Array[@untyped_cst.CstNode],
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let outer_state = state
+  let local_roots : Array[String] = []
+  let mut current = state
+  let mut value : TaintTree = []
+  for expr in expressions {
+    let result = match expr.kind {
+      @untyped_cst.Expr_Let | @untyped_cst.Expr_LetMut =>
+        match (@cst.raw_child(expr, "pattern"), @cst.raw_child(expr, "expr")) {
+          (Some(pattern), Some(bound_expr)) => {
+            let bound = eval_expr(bound_expr, current, spec, findings)
+            if bound.flow != FlowNormal {
+              bound
+            } else {
+              let roots = pattern_bound_roots(pattern)
+              for root in roots {
+                add_unique_root_name(local_roots, root)
+              }
+              normal_result(
+                bind_pattern(pattern, bound.value, bound.state),
+                bound.value,
+              )
+            }
+          }
+          _ => normal_result(current, [])
+        }
+      @untyped_cst.Expr_LetFn => {
+        let roots : Array[String] = []
+        add_binder_root_name(roots, expr)
+        for root in roots {
+          add_unique_root_name(local_roots, root)
+        }
+        normal_result(clean_bind_roots(current, roots), [])
+      }
+      @untyped_cst.Expr_LetAnd => {
+        let roots = let_and_bound_roots(@cst.raw_children(expr, "binding"))
+        for root in roots {
+          add_unique_root_name(local_roots, root)
+        }
+        normal_result(clean_bind_roots(current, roots), [])
+      }
+      @untyped_cst.Expr_Guard =>
+        if @cst.raw_child(expr, "cond") is Some(cond) {
+          let condition = eval_condition_scope(cond, current, spec, findings)
+          if condition.flow != FlowNormal {
+            flow_result(condition.flow, condition.base_state, condition.value)
+          } else {
+            if @cst.raw_child(expr, "else") is Some(otherwise) {
+              ignore(eval_expr(otherwise, condition.base_state, spec, findings))
+            }
+            for root in condition.bound_roots {
+              add_unique_root_name(local_roots, root)
+            }
+            normal_result(condition.true_state, condition.value)
+          }
+        } else {
+          normal_result(current, [])
+        }
+      _ => eval_expr(expr, current, spec, findings)
+    }
+    if result.flow != FlowNormal {
+      return restore_result_scoped_roots(result, outer_state, local_roots)
+    }
+    current = result.state
+    value = result.value
+  }
+  restore_result_scoped_roots(
+    normal_result(current, value),
+    outer_state,
+    local_roots,
+  )
+}
+
+///|
+fn eval_path_like(
+  expr : @untyped_cst.CstNode,
+  state : TaintState,
+) -> EvalResult {
   if storage_path_from_expr(expr) is Some(path) {
     normal_result(state, state_read_path(state, path))
   } else {
@@ -386,9 +456,9 @@ fn eval_path_like(expr : @untyped_ast.Node, state : TaintState) -> EvalResult {
 
 ///|
 fn eval_field_expr(
-  expr : @untyped_ast.Node,
-  record : @untyped_ast.Node,
-  accessor : @untyped_ast.Node,
+  expr : @untyped_cst.CstNode,
+  record : @untyped_cst.CstNode,
+  accessor : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -413,9 +483,9 @@ fn eval_field_expr(
 
 ///|
 fn eval_array_get_expr(
-  expr : @untyped_ast.Node,
-  array : @untyped_ast.Node,
-  index : @untyped_ast.Node,
+  expr : @untyped_cst.CstNode,
+  array : @untyped_cst.CstNode,
+  index : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -440,7 +510,7 @@ fn eval_array_get_expr(
 
 ///|
 fn eval_tuple_expr(
-  exprs : Array[@untyped_ast.Node],
+  exprs : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -460,7 +530,7 @@ fn eval_tuple_expr(
 
 ///|
 fn eval_array_expr(
-  exprs : Array[@untyped_ast.Node],
+  exprs : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -484,7 +554,7 @@ fn eval_array_expr(
 
 ///|
 fn eval_record_expr(
-  fields : Array[@untyped_ast.Node],
+  fields : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -510,29 +580,10 @@ fn eval_record_expr(
 }
 
 ///|
-fn eval_sequence(
-  exprs : Array[@untyped_ast.Node],
-  last_expr : @untyped_ast.Node,
-  state : TaintState,
-  spec : TaintSpec,
-  findings : Array[SinkFinding],
-) -> EvalResult {
-  let mut current = state
-  for item in exprs {
-    let result = eval_expr(item, current, spec, findings)
-    if result.flow != FlowNormal {
-      return result
-    }
-    current = result.state
-  }
-  eval_expr(last_expr, current, spec, findings)
-}
-
-///|
 fn eval_let(
-  pattern : @untyped_ast.Node,
-  bound_expr : @untyped_ast.Node,
-  body : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
+  bound_expr : @untyped_cst.CstNode,
+  body : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -548,9 +599,9 @@ fn eval_let(
 
 ///|
 fn eval_let_binder(
-  binder : @untyped_ast.Node,
-  bound_expr : @untyped_ast.Node,
-  body : @untyped_ast.Node,
+  binder : @untyped_cst.CstNode,
+  bound_expr : @untyped_cst.CstNode,
+  body : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -568,7 +619,7 @@ fn eval_let_binder(
 
 ///|
 fn eval_clean_root_scope(
-  body : @untyped_ast.Node,
+  body : @untyped_cst.CstNode,
   roots : Array[String],
   state : TaintState,
   spec : TaintSpec,
@@ -581,8 +632,8 @@ fn eval_clean_root_scope(
 
 ///|
 fn eval_assign(
-  var_ : @untyped_ast.Node,
-  rhs : @untyped_ast.Node,
+  assignment : @untyped_cst.CstNode,
+  rhs : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -591,7 +642,7 @@ fn eval_assign(
   if rhs_result.flow != FlowNormal {
     return rhs_result
   }
-  if storage_path_from_var(var_) is Some(path) {
+  if storage_path_from_assignment(assignment) is Some(path) {
     normal_result(
       state_write_path(rhs_result.state, path, rhs_result.value),
       rhs_result.value,
@@ -603,40 +654,25 @@ fn eval_assign(
 
 ///|
 fn eval_mutate(
-  record : @untyped_ast.Node,
-  accessor : @untyped_ast.Node,
-  field : @untyped_ast.Node,
+  assignment : @untyped_cst.CstNode,
+  receiver : @untyped_cst.CstNode,
+  rhs : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let record_result = eval_expr(record, state, spec, findings)
-  if record_result.flow != FlowNormal {
-    return record_result
+  let receiver_result = eval_expr(receiver, state, spec, findings)
+  if receiver_result.flow != FlowNormal {
+    return receiver_result
   }
-  let field_result = eval_expr(field, record_result.state, spec, findings)
-  if field_result.flow != FlowNormal {
-    return field_result
-  }
-  match (storage_path_from_expr(record), segment_from_accessor(accessor)) {
-    (Some(path), Some(segment)) =>
-      normal_result(
-        state_write_path(
-          field_result.state,
-          append_path_segment(path, segment),
-          field_result.value,
-        ),
-        field_result.value,
-      )
-    _ => field_result
-  }
+  eval_assign(assignment, rhs, receiver_result.state, spec, findings)
 }
 
 ///|
 fn eval_apply_call(
-  ast : @untyped_ast.Node,
-  func : @untyped_ast.Node,
-  args : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
+  func : @untyped_cst.CstNode,
+  args : @untyped_cst.CstNode,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -652,7 +688,7 @@ fn eval_apply_call(
   }
   let info = {
     kind: Apply,
-    ast,
+    cst,
     loc,
     callee_name: callee_name_from_expr(func),
     receiver_path: None,
@@ -665,10 +701,10 @@ fn eval_apply_call(
 
 ///|
 fn eval_dot_apply_call(
-  ast : @untyped_ast.Node,
-  self : @untyped_ast.Node,
-  method_name : @untyped_ast.Node,
-  args : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
+  self : @untyped_cst.CstNode,
+  method_name : @untyped_cst.CstNode,
+  args : @untyped_cst.CstNode,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -686,7 +722,7 @@ fn eval_dot_apply_call(
   }
   let info = {
     kind: DotApply,
-    ast,
+    cst,
     loc,
     callee_name: node_label_name(method_name),
     receiver_path,
@@ -699,9 +735,9 @@ fn eval_dot_apply_call(
 
 ///|
 fn eval_pipe_call(
-  ast : @untyped_ast.Node,
-  lhs : @untyped_ast.Node,
-  rhs : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
+  lhs : @untyped_cst.CstNode,
+  rhs : @untyped_cst.CstNode,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -713,7 +749,7 @@ fn eval_pipe_call(
   }
   let lhs_arg = evaled_argument_from_result(0, None, lhs, lhs_result)
   match rhs.kind {
-    Expr_Apply =>
+    @untyped_cst.Expr_Apply =>
       match (node_child(rhs, "func"), node_child(rhs, "args")) {
         (Some(func), Some(args)) => {
           let func_result = eval_expr(func, lhs_result.state, spec, findings)
@@ -737,7 +773,7 @@ fn eval_pipe_call(
           let arguments = prepend_argument(lhs_arg, args_result.arguments)
           let info = call_info_without_receiver(
             Pipe,
-            ast,
+            cst,
             loc,
             callee_name_from_expr(func),
             arguments,
@@ -746,7 +782,7 @@ fn eval_pipe_call(
         }
         _ => normal_result(lhs_result.state, lhs_result.value)
       }
-    Expr_DotApply =>
+    @untyped_cst.Expr_DotApply =>
       match
         (
           node_child(rhs, "self"),
@@ -777,7 +813,7 @@ fn eval_pipe_call(
           let arguments = prepend_argument(lhs_arg, args_result.arguments)
           let info = {
             kind: Pipe,
-            ast,
+            cst,
             loc,
             callee_name: node_label_name(method_name),
             receiver_path,
@@ -796,7 +832,7 @@ fn eval_pipe_call(
       }
       let info = call_info_without_receiver(
         Pipe,
-        ast,
+        cst,
         loc,
         callee_name_from_expr(rhs),
         [lhs_arg],
@@ -808,9 +844,9 @@ fn eval_pipe_call(
 
 ///|
 fn eval_rev_pipe_call(
-  ast : @untyped_ast.Node,
-  lhs : @untyped_ast.Node,
-  rhs : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
+  lhs : @untyped_cst.CstNode,
+  rhs : @untyped_cst.CstNode,
   loc : @basic.Location,
   state : TaintState,
   spec : TaintSpec,
@@ -827,7 +863,7 @@ fn eval_rev_pipe_call(
   let arg = evaled_argument_from_result(0, None, rhs, rhs_result)
   let info = call_info_without_receiver(
     RevPipe,
-    ast,
+    cst,
     loc,
     callee_name_from_expr(lhs),
     [arg],
@@ -837,7 +873,7 @@ fn eval_rev_pipe_call(
 
 ///|
 fn eval_arguments(
-  args : @untyped_ast.Node,
+  args : @untyped_cst.CstNode,
   start_index : Int,
   state : TaintState,
   spec : TaintSpec,
@@ -848,28 +884,25 @@ fn eval_arguments(
   let raw = node_items(args)
   for offset in 0..<raw.length() {
     let arg = raw[offset]
-    match (node_child(arg, "value"), node_child(arg, "kind")) {
-      (Some(value), Some(kind)) => {
-        let result = eval_expr(value, current, spec, findings)
-        if result.flow != FlowNormal {
-          return {
-            state: result.state,
-            arguments,
-            flow: result.flow,
-            value: result.value,
-          }
+    if @cst.argument_value(arg) is Some(value) {
+      let result = eval_expr(value, current, spec, findings)
+      if result.flow != FlowNormal {
+        return {
+          state: result.state,
+          arguments,
+          flow: result.flow,
+          value: result.value,
         }
-        current = result.state
-        arguments.push(
-          call_argument_from_result(
-            start_index + offset,
-            argument_label(kind),
-            value,
-            result,
-          ),
-        )
       }
-      _ => ()
+      current = result.state
+      arguments.push(
+        call_argument_from_result(
+          start_index + offset,
+          argument_label(arg),
+          value,
+          result,
+        ),
+      )
     }
   }
   { state: current, arguments, flow: FlowNormal, value: [] }
@@ -879,7 +912,7 @@ fn eval_arguments(
 fn evaled_argument_from_result(
   index : Int,
   label : String?,
-  expr : @untyped_ast.Node,
+  expr : @untyped_cst.CstNode,
   result : EvalResult,
 ) -> CallArgument {
   call_argument_from_result(index, label, expr, result)
@@ -889,7 +922,7 @@ fn evaled_argument_from_result(
 fn call_argument_from_result(
   index : Int,
   label : String?,
-  expr : @untyped_ast.Node,
+  expr : @untyped_cst.CstNode,
   result : EvalResult,
 ) -> CallArgument {
   let path = storage_path_from_expr(expr)
@@ -919,14 +952,14 @@ fn prepend_argument(
 ///|
 fn call_info_without_receiver(
   kind : CallKind,
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
   loc : @basic.Location,
   callee_name : String?,
   arguments : Array[CallArgument],
 ) -> CallInfo {
   {
     kind,
-    ast,
+    cst,
     loc,
     callee_name,
     receiver_path: None,
@@ -1160,7 +1193,7 @@ fn tree_shift(prefix : Array[PathSegment], tree : TaintTree) -> TaintTree {
 }
 
 ///|
-fn site_for_expr(expr : @untyped_ast.Node, path : StoragePath?) -> ValueSite {
+fn site_for_expr(expr : @untyped_cst.CstNode, path : StoragePath?) -> ValueSite {
   if path is Some(path) {
     Path(path)
   } else {
@@ -1169,30 +1202,25 @@ fn site_for_expr(expr : @untyped_ast.Node, path : StoragePath?) -> ValueSite {
 }
 
 ///|
-fn callee_name_from_expr(expr : @untyped_ast.Node) -> String? {
+fn callee_name_from_expr(expr : @untyped_cst.CstNode) -> String? {
   match expr.kind {
-    Expr_Ident =>
-      if node_child(expr, "id") is Some(id) {
-        node_var_name(id)
-      } else {
-        None
-      }
-    Expr_Field =>
+    @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(expr)
+    @untyped_cst.Expr_Field =>
       if node_child(expr, "accessor") is Some(accessor) {
         match accessor.kind {
-          Accessor_Label => node_first_label_name(accessor)
+          @untyped_cst.Accessor_Label => node_first_label_name(accessor)
           _ => None
         }
       } else {
         None
       }
-    Expr_Method =>
+    @untyped_cst.Expr_Method =>
       if node_child(expr, "method_name") is Some(method_name) {
         node_label_name(method_name)
       } else {
         None
       }
-    Expr_Group | Expr_Constraint =>
+    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
       if node_child(expr, "expr") is Some(inner) {
         callee_name_from_expr(inner)
       } else {
@@ -1224,7 +1252,7 @@ fn add_unique_root_name(names : Array[String], name : String) -> Unit {
 ///|
 fn add_binder_root_name(
   names : Array[String],
-  binder : @untyped_ast.Node,
+  binder : @untyped_cst.CstNode,
 ) -> Unit {
   if node_binder_name(binder) is Some(name) {
     add_unique_root_name(names, name)
@@ -1318,7 +1346,7 @@ fn tree_project_for_binding(
 }
 
 ///|
-fn pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
+fn pattern_bound_roots(pattern : @untyped_cst.CstNode) -> Array[String] {
   let roots : Array[String] = []
   add_pattern_bound_roots(roots, pattern)
   roots
@@ -1327,14 +1355,14 @@ fn pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
 ///|
 fn add_pattern_bound_roots(
   roots : Array[String],
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
 ) -> Unit {
   match pattern.kind {
-    Pattern_Var =>
-      if node_first_child(pattern) is Some(binder) {
-        add_binder_root_name(roots, binder)
+    @untyped_cst.Pattern_Var =>
+      if @cst.normalized_pattern_identifier_name(pattern) is Some(name) {
+        add_unique_root_name(roots, name)
       }
-    Pattern_Alias => {
+    @untyped_cst.Pattern_Alias => {
       if node_child(pattern, "pat") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
@@ -1342,43 +1370,43 @@ fn add_pattern_bound_roots(
         add_binder_root_name(roots, alias_)
       }
     }
-    Pattern_Constraint =>
+    @untyped_cst.Pattern_Constraint =>
       if node_child(pattern, "pat") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
-    Pattern_Tuple =>
-      for pat in node_child_items(pattern, "pats") {
+    @untyped_cst.Pattern_Tuple =>
+      for pat in pattern_body_items(pattern) {
         add_pattern_bound_roots(roots, pat)
       }
-    Pattern_Record =>
-      for field in node_child_items(pattern, "fields") {
+    @untyped_cst.Pattern_Record =>
+      for field in pattern_body_items(pattern) {
         if node_child(field, "pattern") is Some(pat) {
           add_pattern_bound_roots(roots, pat)
+        } else if field.kind is @untyped_cst.Field_Pattern {
+          add_binder_root_name(roots, field)
         }
       }
-    Pattern_Map =>
-      for elem in node_child_items(pattern, "elems") {
-        if node_child(elem, "pat") is Some(pat) {
+    @untyped_cst.Pattern_Map =>
+      for elem in pattern_body_items(pattern) {
+        if node_child(elem, "pattern") is Some(pat) {
           add_pattern_bound_roots(roots, pat)
         }
       }
-    Pattern_Array =>
-      if node_child(pattern, "pats") is Some(pats) {
-        add_array_pattern_bound_roots(roots, pats)
+    @untyped_cst.Pattern_Array =>
+      for item in array_pattern_items(pattern) {
+        add_array_pattern_item_bound_roots(roots, item)
       }
-    Pattern_Constr =>
-      for arg in node_optional_items(pattern, "args") {
-        if node_child(arg, "pat") is Some(pat) {
+    @untyped_cst.Pattern_Constr | @untyped_cst.Pattern_SpecialConstr =>
+      for arg in constructor_pattern_items(pattern) {
+        if arg.kind.is_pattern() {
+          add_pattern_bound_roots(roots, arg)
+        } else if node_child(arg, "pattern") is Some(pat) {
           add_pattern_bound_roots(roots, pat)
+        } else if arg.kind is @untyped_cst.Argument_LabelledPun {
+          add_binder_root_name(roots, arg)
         }
       }
-    Pattern_SpecialConstr =>
-      for arg in node_child_items(pattern, "args") {
-        if node_child(arg, "pat") is Some(pat) {
-          add_pattern_bound_roots(roots, pat)
-        }
-      }
-    Pattern_Or | Pattern_Range => {
+    @untyped_cst.Pattern_Or | @untyped_cst.Pattern_Range => {
       if node_child(pattern, "pat1") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
@@ -1392,90 +1420,78 @@ fn add_pattern_bound_roots(
         add_pattern_bound_roots(roots, pat)
       }
     }
-    Pattern_Any | Pattern_Constant => ()
+    @untyped_cst.Pattern_Rest => add_binder_root_name(roots, pattern)
+    @untyped_cst.Pattern_Any | @untyped_cst.Pattern_Constant => ()
     _ => ()
   }
 }
 
 ///|
-fn add_array_pattern_bound_roots(
-  roots : Array[String],
-  patterns : @untyped_ast.Node,
-) -> Unit {
-  match patterns.kind {
-    ArrayPatterns_Closed =>
-      if node_first_child(patterns) is Some(items) {
-        for item in node_items(items) {
-          add_array_pattern_item_bound_roots(roots, item)
-        }
-      }
-    ArrayPatterns_Open => {
-      if node_child(patterns, "0") is Some(left) {
-        for item in node_items(left) {
-          add_array_pattern_item_bound_roots(roots, item)
-        }
-      }
-      if node_child(patterns, "1") is Some(right) {
-        for item in node_items(right) {
-          add_array_pattern_item_bound_roots(roots, item)
-        }
-      }
-      if node_child(patterns, "2") is Some(middle) {
-        add_dot_dot_binder_bound_roots(roots, middle)
-      }
-    }
-    _ => ()
+fn pattern_body_items(
+  pattern : @untyped_cst.CstNode,
+) -> Array[@untyped_cst.CstNode] {
+  if @cst.raw_child(pattern, "body") is Some(body) {
+    node_items(body)
+  } else {
+    []
+  }
+}
+
+///|
+fn array_pattern_items(
+  pattern : @untyped_cst.CstNode,
+) -> Array[@untyped_cst.CstNode] {
+  guard @cst.raw_child(pattern, "body") is Some(array_patterns) else {
+    return []
+  }
+  if @cst.raw_child(array_patterns, "body") is Some(list) {
+    node_items(list)
+  } else {
+    []
+  }
+}
+
+///|
+fn constructor_pattern_items(
+  pattern : @untyped_cst.CstNode,
+) -> Array[@untyped_cst.CstNode] {
+  if @cst.raw_child(pattern, "params") is Some(list) {
+    node_items(list)
+  } else {
+    []
   }
 }
 
 ///|
 fn add_array_pattern_item_bound_roots(
   roots : Array[String],
-  item : @untyped_ast.Node,
+  item : @untyped_cst.CstNode,
 ) -> Unit {
   match item.kind {
-    ArrayPattern_Pattern =>
-      if node_first_child(item) is Some(pattern) {
+    @untyped_cst.ArrayPattern_Pattern =>
+      if @cst.raw_child(item, "pattern") is Some(pattern) {
         add_pattern_bound_roots(roots, pattern)
       }
-    ArrayPattern_ConstSpread =>
-      if node_child(item, "binder") is Some(binder) {
-        add_binder_root_name(roots, binder)
-      }
-    ArrayPattern_BytesSpread | ArrayPattern_StringSpread => ()
+    @untyped_cst.ArrayPattern_ConstSpread => add_binder_root_name(roots, item)
+    @untyped_cst.Pattern_Rest => add_binder_root_name(roots, item)
+    @untyped_cst.ArrayPattern_BytesSpread
+    | @untyped_cst.ArrayPattern_StringSpread => ()
     _ => ()
   }
 }
 
 ///|
-fn add_dot_dot_binder_bound_roots(
-  roots : Array[String],
-  binder : @untyped_ast.Node,
-) -> Unit {
-  match binder.kind {
-    DotDotBinder_Binder | DotDotBinder_BinderAs =>
-      if node_first_child(binder) is Some(value) {
-        add_binder_root_name(roots, value)
-      }
-    DotDotBinder_NoBinder | DotDotBinder_Underscore => ()
-    _ => ()
-  }
-}
-
-///|
-fn let_and_bound_roots(bindings : Array[@untyped_ast.Node]) -> Array[String] {
+fn let_and_bound_roots(bindings : Array[@untyped_cst.CstNode]) -> Array[String] {
   let roots : Array[String] = []
   for binding in bindings {
-    if node_child(binding, "binder") is Some(binder) {
-      add_binder_root_name(roots, binder)
-    }
+    add_binder_root_name(roots, binding)
   }
   roots
 }
 
 ///|
 fn bind_binder(
-  binder : @untyped_ast.Node,
+  binder : @untyped_cst.CstNode,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
@@ -1488,18 +1504,13 @@ fn bind_binder(
 
 ///|
 fn bind_pattern(
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
   match pattern.kind {
-    Pattern_Var =>
-      if node_first_child(pattern) is Some(binder) {
-        bind_binder(binder, value, state)
-      } else {
-        state
-      }
-    Pattern_Alias => {
+    @untyped_cst.Pattern_Var => bind_binder(pattern, value, state)
+    @untyped_cst.Pattern_Alias => {
       let next = if node_child(pattern, "pat") is Some(pat) {
         bind_pattern(pat, value, state)
       } else {
@@ -1511,15 +1522,15 @@ fn bind_pattern(
         next
       }
     }
-    Pattern_Constraint =>
+    @untyped_cst.Pattern_Constraint =>
       if node_child(pattern, "pat") is Some(pat) {
         bind_pattern(pat, value, state)
       } else {
         state
       }
-    Pattern_Tuple => {
+    @untyped_cst.Pattern_Tuple => {
       let mut next = state
-      let items = node_child_items(pattern, "pats")
+      let items = pattern_body_items(pattern)
       for index in 0..<items.length() {
         next = bind_pattern(
           items[index],
@@ -1529,76 +1540,68 @@ fn bind_pattern(
       }
       next
     }
-    Pattern_Record => {
+    @untyped_cst.Pattern_Record => {
       let mut next = state
-      for field in node_child_items(pattern, "fields") {
-        if node_child(field, "pattern") is Some(pat) &&
-          node_child(field, "label") is Some(label) &&
-          node_label_name(label) is Some(name) {
-          next = bind_pattern(
-            pat,
-            tree_project_for_binding(value, Field(name)),
-            next,
-          )
+      for field in pattern_body_items(pattern) {
+        if node_label_name(field) is Some(name) {
+          let projected = tree_project_for_binding(value, Field(name))
+          if node_child(field, "pattern") is Some(pat) {
+            next = bind_pattern(pat, projected, next)
+          } else if field.kind is @untyped_cst.Field_Pattern {
+            next = bind_binder(field, projected, next)
+          }
         }
       }
       next
     }
-    Pattern_Map => {
+    @untyped_cst.Pattern_Map => {
       let mut next = state
-      for elem in node_child_items(pattern, "elems") {
-        if node_child(elem, "pat") is Some(pat) {
+      for elem in pattern_body_items(pattern) {
+        if node_child(elem, "pattern") is Some(pat) {
           next = bind_pattern(pat, value, next)
         }
       }
       next
     }
-    Pattern_Array =>
-      if node_child(pattern, "pats") is Some(pats) {
-        bind_array_pattern(pats, value, state)
-      } else {
-        state
-      }
-    Pattern_Constr => {
+    @untyped_cst.Pattern_Array => {
       let mut next = state
-      let items = node_optional_items(pattern, "args")
-      for index in 0..<items.length() {
-        match
-          (node_child(items[index], "pat"), node_child(items[index], "kind")) {
-          (Some(pat), Some(kind)) => {
-            let segment = segment_from_argument_kind(kind, index)
-            next = bind_pattern(
-              pat,
-              tree_project_for_binding(value, segment),
-              next,
-            )
-          }
-          _ => ()
+      let items = array_pattern_items(pattern)
+      let mut after_rest = false
+      let mut positional_index = 0
+      for item in items {
+        let segment = if after_rest || item.kind is @untyped_cst.Pattern_Rest {
+          AnyIndex
+        } else {
+          ConstIndex(positional_index.to_string())
+        }
+        next = bind_array_pattern_item(item, segment, value, next)
+        if item.kind is @untyped_cst.Pattern_Rest {
+          after_rest = true
+        } else {
+          positional_index += 1
         }
       }
       next
     }
-    Pattern_SpecialConstr => {
+    @untyped_cst.Pattern_Constr | @untyped_cst.Pattern_SpecialConstr => {
       let mut next = state
-      let items = node_child_items(pattern, "args")
+      let items = constructor_pattern_items(pattern)
       for index in 0..<items.length() {
-        match
-          (node_child(items[index], "pat"), node_child(items[index], "kind")) {
-          (Some(pat), Some(kind)) => {
-            let segment = segment_from_argument_kind(kind, index)
-            next = bind_pattern(
-              pat,
-              tree_project_for_binding(value, segment),
-              next,
-            )
-          }
-          _ => ()
+        let item = items[index]
+        let segment = segment_from_argument_kind(item, index)
+        let projected = tree_project_for_binding(value, segment)
+        if item.kind.is_pattern() {
+          next = bind_pattern(item, projected, next)
+        } else if node_child(item, "pattern") is Some(pat) {
+          next = bind_pattern(pat, projected, next)
+        } else if item.kind is @untyped_cst.Argument_LabelledPun {
+          next = bind_binder(item, projected, next)
         }
       }
       next
     }
-    Pattern_Or =>
-      match (node_child(pattern, "pat1"), node_child(pattern, "pat2")) {
+    @untyped_cst.Pattern_Or =>
+      match (node_child(pattern, "lhs"), node_child(pattern, "rhs")) {
         (Some(pat1), Some(pat2)) =>
           state_merge(
             bind_pattern(pat1, value, state),
@@ -1611,98 +1614,23 @@ fn bind_pattern(
 }
 
 ///|
-fn bind_array_pattern(
-  pats : @untyped_ast.Node,
-  value : TaintTree,
-  state : TaintState,
-) -> TaintState {
-  match pats.kind {
-    ArrayPatterns_Closed =>
-      if node_first_child(pats) is Some(items) {
-        bind_array_pattern_items(node_items(items), 0, value, state)
-      } else {
-        state
-      }
-    ArrayPatterns_Open => {
-      let mut next = if node_child(pats, "0") is Some(left) {
-        bind_array_pattern_items(node_items(left), 0, value, state)
-      } else {
-        state
-      }
-      if node_child(pats, "1") is Some(right) {
-        let right_items = node_items(right)
-        for index in 0..<right_items.length() {
-          next = bind_array_pattern_item(
-            right_items[index],
-            AnyIndex,
-            value,
-            next,
-          )
-        }
-      }
-      if node_child(pats, "2") is Some(middle) {
-        match middle.kind {
-          DotDotBinder_Binder | DotDotBinder_BinderAs =>
-            if node_first_child(middle) is Some(binder) {
-              bind_binder(
-                binder,
-                tree_project_for_binding(value, AnyIndex),
-                next,
-              )
-            } else {
-              next
-            }
-          DotDotBinder_NoBinder | DotDotBinder_Underscore => next
-          _ => next
-        }
-      } else {
-        next
-      }
-    }
-    _ => state
-  }
-}
-
-///|
-fn bind_array_pattern_items(
-  items : Array[@untyped_ast.Node],
-  start : Int,
-  value : TaintTree,
-  state : TaintState,
-) -> TaintState {
-  let mut next = state
-  for offset in 0..<items.length() {
-    next = bind_array_pattern_item(
-      items[offset],
-      ConstIndex((start + offset).to_string()),
-      value,
-      next,
-    )
-  }
-  next
-}
-
-///|
 fn bind_array_pattern_item(
-  item : @untyped_ast.Node,
+  item : @untyped_cst.CstNode,
   segment : PathSegment,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
   match item.kind {
-    ArrayPattern_Pattern =>
-      if node_first_child(item) is Some(pattern) {
+    @untyped_cst.ArrayPattern_Pattern =>
+      if @cst.raw_child(item, "pattern") is Some(pattern) {
         bind_pattern(pattern, tree_project_for_binding(value, segment), state)
       } else {
         state
       }
-    ArrayPattern_ConstSpread =>
-      if node_child(item, "binder") is Some(binder) {
-        bind_binder(binder, tree_project_for_binding(value, segment), state)
-      } else {
-        state
-      }
-    ArrayPattern_BytesSpread | ArrayPattern_StringSpread => state
+    @untyped_cst.ArrayPattern_ConstSpread | @untyped_cst.Pattern_Rest =>
+      bind_binder(item, tree_project_for_binding(value, segment), state)
+    @untyped_cst.ArrayPattern_BytesSpread
+    | @untyped_cst.ArrayPattern_StringSpread => state
     _ => state
   }
 }
@@ -1720,19 +1648,19 @@ fn condition_from_eval_result(result : EvalResult) -> ConditionEval {
 
 ///|
 fn eval_condition_scope(
-  cond : @untyped_ast.Node,
+  cond : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> ConditionEval {
   match cond.kind {
-    Expr_Group | Expr_Constraint =>
+    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
       if node_child(cond, "expr") is Some(expr) {
         eval_condition_scope(expr, state, spec, findings)
       } else {
         condition_from_eval_result(normal_result(state, []))
       }
-    Expr_Is =>
+    @untyped_cst.Expr_Is =>
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
@@ -1750,38 +1678,7 @@ fn eval_condition_scope(
         }
         _ => condition_from_eval_result(normal_result(state, []))
       }
-    Expr_IsLexmatch =>
-      if node_child(cond, "expr") is Some(expr) {
-        let matched = eval_expr(expr, state, spec, findings)
-        if matched.flow != FlowNormal {
-          return condition_from_eval_result(matched)
-        }
-        let patterns = node_child_items(cond, "pat")
-        let pattern_result = eval_lex_top_pattern_exprs(
-          patterns,
-          matched.state,
-          spec,
-          findings,
-        )
-        if pattern_result.flow != FlowNormal {
-          return condition_from_eval_result(pattern_result)
-        }
-        let roots = lex_top_patterns_bound_roots(patterns)
-        {
-          base_state: pattern_result.state,
-          true_state: bind_lex_top_patterns(
-            patterns,
-            matched.value,
-            pattern_result.state,
-          ),
-          bound_roots: roots,
-          flow: FlowNormal,
-          value: matched.value,
-        }
-      } else {
-        condition_from_eval_result(normal_result(state, []))
-      }
-    Expr_RegexMatch =>
+    @untyped_cst.Expr_RegexMatch =>
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
@@ -1812,7 +1709,7 @@ fn eval_condition_scope(
         }
         _ => condition_from_eval_result(normal_result(state, []))
       }
-    Expr_Infix =>
+    @untyped_cst.Expr_Infix =>
       if is_logical_and_expr(cond) &&
         node_child(cond, "lhs") is Some(lhs) &&
         node_child(cond, "rhs") is Some(rhs) {
@@ -1826,8 +1723,8 @@ fn eval_condition_scope(
 
 ///|
 fn eval_and_condition_scope(
-  lhs : @untyped_ast.Node,
-  rhs : @untyped_ast.Node,
+  lhs : @untyped_cst.CstNode,
+  rhs : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1852,7 +1749,7 @@ fn eval_and_condition_scope(
 }
 
 ///|
-fn is_logical_and_expr(expr : @untyped_ast.Node) -> Bool {
+fn is_logical_and_expr(expr : @untyped_cst.CstNode) -> Bool {
   if node_child(expr, "op") is Some(op) {
     node_var_name(op) == Some("&&")
   } else {
@@ -1862,7 +1759,7 @@ fn is_logical_and_expr(expr : @untyped_ast.Node) -> Bool {
 
 ///|
 fn eval_lex_top_pattern_exprs(
-  patterns : Array[@untyped_ast.Node],
+  patterns : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1870,15 +1767,11 @@ fn eval_lex_top_pattern_exprs(
   let mut current = state
   let mut value : TaintTree = []
   for pattern in patterns {
-    let result = match pattern.kind {
-      LexTopPattern_Pattern =>
-        if node_first_child(pattern) is Some(pat) {
-          eval_lex_pattern_exprs(pat, current, spec, findings)
-        } else {
-          normal_result(current, [])
-        }
-      LexTopPattern_Binder | LexTopPattern_Wildcard =>
-        normal_result(current, [])
+    let result = match lex_top_pattern_kind(pattern) {
+      Some(@untyped_cst.LexTopPattern_Pattern) =>
+        eval_lex_pattern_exprs(pattern, current, spec, findings)
+      Some(@untyped_cst.LexTopPattern_Binder)
+      | Some(@untyped_cst.LexTopPattern_Wildcard) => normal_result(current, [])
       _ => normal_result(current, [])
     }
     if result.flow != FlowNormal {
@@ -1892,7 +1785,7 @@ fn eval_lex_top_pattern_exprs(
 
 ///|
 fn eval_lex_pattern_exprs(
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1914,7 +1807,7 @@ fn eval_lex_pattern_exprs(
     LexPattern_Sequence => {
       let mut current = state
       let mut value : TaintTree = []
-      for pat in node_child_items(pattern, "pats") {
+      for pat in pattern_body_items(pattern) {
         let result = eval_lex_pattern_exprs(pat, current, spec, findings)
         if result.flow != FlowNormal {
           return result
@@ -1924,14 +1817,14 @@ fn eval_lex_pattern_exprs(
       }
       normal_result(current, value)
     }
-    LexPattern_ConstantRef | LexPattern_Regex => normal_result(state, [])
+    LexPattern_ConstantRef | LexPattern_Literal => normal_result(state, [])
     _ => normal_result(state, [])
   }
 }
 
 ///|
 fn eval_interp_elems(
-  elems : Array[@untyped_ast.Node],
+  elems : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -1940,7 +1833,7 @@ fn eval_interp_elems(
   let mut value : TaintTree = []
   for elem in elems {
     match elem.kind {
-      InterpElem_Expr =>
+      @untyped_cst.InterpSegment_Source =>
         if node_child(elem, "expr") is Some(expr) {
           let result = eval_expr(expr, current, spec, findings)
           if result.flow != FlowNormal {
@@ -1949,7 +1842,7 @@ fn eval_interp_elems(
           current = result.state
           value = tree_merge(value, result.value)
         }
-      InterpElem_Literal | InterpElem_Source => ()
+      @untyped_cst.InterpSegment_Literal => ()
       _ => ()
     }
   }
@@ -1958,7 +1851,7 @@ fn eval_interp_elems(
 
 ///|
 fn lex_top_patterns_bound_roots(
-  patterns : Array[@untyped_ast.Node],
+  patterns : Array[@untyped_cst.CstNode],
 ) -> Array[String] {
   let roots : Array[String] = []
   for pattern in patterns {
@@ -1970,67 +1863,72 @@ fn lex_top_patterns_bound_roots(
 ///|
 fn add_lex_top_pattern_bound_roots(
   roots : Array[String],
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
 ) -> Unit {
-  match pattern.kind {
-    LexTopPattern_Binder =>
-      if node_first_child(pattern) is Some(binder) {
-        add_binder_root_name(roots, binder)
-      }
-    LexTopPattern_Pattern =>
-      if node_first_child(pattern) is Some(pat) {
-        add_lex_pattern_bound_roots(roots, pat)
-      }
-    LexTopPattern_Wildcard => ()
+  match lex_top_pattern_kind(pattern) {
+    Some(@untyped_cst.LexTopPattern_Binder) =>
+      add_binder_root_name(roots, pattern)
+    Some(@untyped_cst.LexTopPattern_Pattern) =>
+      add_lex_pattern_bound_roots(roots, pattern)
+    Some(@untyped_cst.LexTopPattern_Wildcard) => ()
     _ => ()
   }
 }
 
 ///|
+fn lex_top_pattern_items(
+  pattern : @untyped_cst.CstNode,
+) -> Array[@untyped_cst.CstNode] {
+  if pattern.kind is @untyped_cst.Pattern_Tuple &&
+    @cst.raw_child(pattern, "pattern_group") is None {
+    pattern_body_items(pattern)
+  } else {
+    [pattern]
+  }
+}
+
+///|
+fn lex_top_pattern_kind(
+  pattern : @untyped_cst.CstNode,
+) -> @untyped_cst.NodeKind? {
+  @cst.raw_child(pattern, "lex_top_pattern").map(item => item.kind)
+}
+
+///|
 fn add_lex_pattern_bound_roots(
   roots : Array[String],
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
 ) -> Unit {
   match pattern.kind {
     LexPattern_Alias => {
       if node_child(pattern, "pat") is Some(pat) {
         add_lex_pattern_bound_roots(roots, pat)
       }
-      if node_child(pattern, "binder") is Some(binder) {
-        add_binder_root_name(roots, binder)
-      }
+      add_binder_root_name(roots, pattern)
     }
     LexPattern_Sequence =>
-      for pat in node_child_items(pattern, "pats") {
+      for pat in pattern_body_items(pattern) {
         add_lex_pattern_bound_roots(roots, pat)
       }
-    LexPattern_ConstantRef | LexPattern_Regex | LexPattern_RegexInterp => ()
+    LexPattern_ConstantRef | LexPattern_Literal | LexPattern_RegexInterp => ()
     _ => ()
   }
 }
 
 ///|
 fn bind_lex_top_patterns(
-  patterns : Array[@untyped_ast.Node],
+  patterns : Array[@untyped_cst.CstNode],
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
   let mut next = state
   for pattern in patterns {
-    next = match pattern.kind {
-      LexTopPattern_Binder =>
-        if node_first_child(pattern) is Some(binder) {
-          bind_binder(binder, value, next)
-        } else {
-          next
-        }
-      LexTopPattern_Pattern =>
-        if node_first_child(pattern) is Some(pat) {
-          bind_lex_pattern(pat, value, next)
-        } else {
-          next
-        }
-      LexTopPattern_Wildcard => next
+    next = match lex_top_pattern_kind(pattern) {
+      Some(@untyped_cst.LexTopPattern_Binder) =>
+        bind_binder(pattern, value, next)
+      Some(@untyped_cst.LexTopPattern_Pattern) =>
+        bind_lex_pattern(pattern, value, next)
+      Some(@untyped_cst.LexTopPattern_Wildcard) => next
       _ => next
     }
   }
@@ -2039,7 +1937,7 @@ fn bind_lex_top_patterns(
 
 ///|
 fn bind_lex_pattern(
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
@@ -2050,26 +1948,25 @@ fn bind_lex_pattern(
       } else {
         state
       }
-      if node_child(pattern, "binder") is Some(binder) {
-        bind_binder(binder, value, next)
-      } else {
-        next
-      }
+      bind_binder(pattern, value, next)
     }
     LexPattern_Sequence => {
       let mut next = state
-      for pat in node_child_items(pattern, "pats") {
+      for pat in pattern_body_items(pattern) {
         next = bind_lex_pattern(pat, value, next)
       }
       next
     }
-    LexPattern_ConstantRef | LexPattern_Regex | LexPattern_RegexInterp => state
+    LexPattern_ConstantRef | LexPattern_Literal | LexPattern_RegexInterp =>
+      state
     _ => state
   }
 }
 
 ///|
-fn lex_scan_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
+fn lex_scan_pattern_bound_roots(
+  pattern : @untyped_cst.CstNode,
+) -> Array[String] {
   let roots : Array[String] = []
   add_lex_scan_pattern_bound_roots(roots, pattern)
   roots
@@ -2078,48 +1975,38 @@ fn lex_scan_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
 ///|
 fn add_lex_scan_pattern_bound_roots(
   roots : Array[String],
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
 ) -> Unit {
-  match pattern.kind {
-    LexScanCasePattern_Binder =>
-      if node_first_child(pattern) is Some(binder) {
-        add_binder_root_name(roots, binder)
-      }
-    LexScanCasePattern_Pattern =>
-      if node_first_child(pattern) is Some(pat) {
-        add_regex_pattern_bound_roots(roots, pat)
-      }
-    LexScanCasePattern_Wildcard => ()
+  match
+    @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
+    Some(@untyped_cst.LexScanCasePattern_Binder) =>
+      add_binder_root_name(roots, pattern)
+    Some(@untyped_cst.LexScanCasePattern_Pattern) =>
+      add_regex_pattern_bound_roots(roots, pattern)
+    Some(@untyped_cst.LexScanCasePattern_Wildcard) => ()
     _ => ()
   }
 }
 
 ///|
 fn bind_lex_scan_pattern(
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match pattern.kind {
-    LexScanCasePattern_Binder =>
-      if node_first_child(pattern) is Some(binder) {
-        bind_binder(binder, value, state)
-      } else {
-        state
-      }
-    LexScanCasePattern_Pattern =>
-      if node_first_child(pattern) is Some(pat) {
-        bind_regex_pattern(pat, value, state)
-      } else {
-        state
-      }
-    LexScanCasePattern_Wildcard => state
+  match
+    @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
+    Some(@untyped_cst.LexScanCasePattern_Binder) =>
+      bind_binder(pattern, value, state)
+    Some(@untyped_cst.LexScanCasePattern_Pattern) =>
+      bind_regex_pattern(pattern, value, state)
+    Some(@untyped_cst.LexScanCasePattern_Wildcard) => state
     _ => state
   }
 }
 
 ///|
-fn regex_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
+fn regex_pattern_bound_roots(pattern : @untyped_cst.CstNode) -> Array[String] {
   let roots : Array[String] = []
   add_regex_pattern_bound_roots(roots, pattern)
   roots
@@ -2128,25 +2015,27 @@ fn regex_pattern_bound_roots(pattern : @untyped_ast.Node) -> Array[String] {
 ///|
 fn add_regex_pattern_bound_roots(
   roots : Array[String],
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
 ) -> Unit {
   match pattern.kind {
     RegexPattern_Alias => {
       if node_child(pattern, "pat") is Some(pat) {
         add_regex_pattern_bound_roots(roots, pat)
       }
-      if node_child(pattern, "binder") is Some(binder) {
-        add_binder_root_name(roots, binder)
-      }
+      add_binder_root_name(roots, pattern)
     }
     RegexPattern_Alternation | RegexPattern_Sequence => {
-      if node_child(pattern, "pat1") is Some(pat1) {
+      if node_child(pattern, "lhs") is Some(pat1) {
         add_regex_pattern_bound_roots(roots, pat1)
       }
-      if node_child(pattern, "pat2") is Some(pat2) {
+      if node_child(pattern, "rhs") is Some(pat2) {
         add_regex_pattern_bound_roots(roots, pat2)
       }
     }
+    RegexPattern_Placeholder =>
+      if node_child(pattern, "pattern") is Some(inner) {
+        add_regex_pattern_bound_roots(roots, inner)
+      }
     RegexPattern_Literal | RegexPattern_Reference => ()
     _ => ()
   }
@@ -2154,7 +2043,7 @@ fn add_regex_pattern_bound_roots(
 
 ///|
 fn regex_bindings_bound_roots(
-  bindings : Array[@untyped_ast.Node],
+  bindings : Array[@untyped_cst.CstNode],
 ) -> Array[String] {
   let roots : Array[String] = []
   for binding in bindings {
@@ -2167,7 +2056,7 @@ fn regex_bindings_bound_roots(
 
 ///|
 fn bind_regex_pattern(
-  pattern : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
@@ -2178,14 +2067,10 @@ fn bind_regex_pattern(
       } else {
         state
       }
-      if node_child(pattern, "binder") is Some(binder) {
-        bind_binder(binder, value, next)
-      } else {
-        next
-      }
+      bind_binder(pattern, value, next)
     }
     RegexPattern_Alternation =>
-      match (node_child(pattern, "pat1"), node_child(pattern, "pat2")) {
+      match (node_child(pattern, "lhs"), node_child(pattern, "rhs")) {
         (Some(pat1), Some(pat2)) =>
           state_merge(
             bind_regex_pattern(pat1, value, state),
@@ -2194,7 +2079,7 @@ fn bind_regex_pattern(
         _ => state
       }
     RegexPattern_Sequence =>
-      match (node_child(pattern, "pat1"), node_child(pattern, "pat2")) {
+      match (node_child(pattern, "lhs"), node_child(pattern, "rhs")) {
         (Some(pat1), Some(pat2)) =>
           bind_regex_pattern(
             pat2,
@@ -2203,6 +2088,12 @@ fn bind_regex_pattern(
           )
         _ => state
       }
+    RegexPattern_Placeholder =>
+      if node_child(pattern, "pattern") is Some(inner) {
+        bind_regex_pattern(inner, value, state)
+      } else {
+        state
+      }
     RegexPattern_Literal | RegexPattern_Reference => state
     _ => state
   }
@@ -2210,7 +2101,7 @@ fn bind_regex_pattern(
 
 ///|
 fn bind_regex_bindings(
-  bindings : Array[@untyped_ast.Node],
+  bindings : Array[@untyped_cst.CstNode],
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
@@ -2225,9 +2116,9 @@ fn bind_regex_bindings(
 
 ///|
 fn eval_if(
-  cond : @untyped_ast.Node,
-  ifso : @untyped_ast.Node,
-  ifnot : @untyped_ast.Node?,
+  cond : @untyped_cst.CstNode,
+  ifso : @untyped_cst.CstNode,
+  ifnot : @untyped_cst.CstNode?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2275,9 +2166,9 @@ fn merge_branch_results(
 
 ///|
 fn eval_guard(
-  cond : @untyped_ast.Node,
-  otherwise : @untyped_ast.Node?,
-  body : @untyped_ast.Node,
+  cond : @untyped_cst.CstNode,
+  otherwise : @untyped_cst.CstNode?,
+  body : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2305,8 +2196,8 @@ fn eval_guard(
 
 ///|
 fn eval_match(
-  scrutinee : @untyped_ast.Node,
-  cases : Array[@untyped_ast.Node],
+  scrutinee : @untyped_cst.CstNode,
+  cases : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2350,7 +2241,7 @@ fn eval_match(
 
 ///|
 fn eval_pattern_case(
-  case : @untyped_ast.Node,
+  case : @untyped_cst.CstNode,
   value : TaintTree,
   base_state : TaintState,
   spec : TaintSpec,
@@ -2391,8 +2282,8 @@ fn eval_pattern_case(
 
 ///|
 fn eval_lex_match(
-  scrutinee : @untyped_ast.Node,
-  cases : Array[@untyped_ast.Node],
+  scrutinee : @untyped_cst.CstNode,
+  cases : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2436,13 +2327,17 @@ fn eval_lex_match(
 
 ///|
 fn eval_lex_case(
-  case : @untyped_ast.Node,
+  case : @untyped_cst.CstNode,
   value : TaintTree,
   base_state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
-  let patterns = node_child_items(case, "pat")
+  let patterns = if node_child(case, "pat") is Some(pattern) {
+    lex_top_pattern_items(pattern)
+  } else {
+    []
+  }
   let pattern_result = eval_lex_top_pattern_exprs(
     patterns, base_state, spec, findings,
   )
@@ -2479,8 +2374,8 @@ fn eval_lex_case(
 
 ///|
 fn eval_lex_scan(
-  scrutinee : @untyped_ast.Node,
-  cases : Array[@untyped_ast.Node],
+  scrutinee : @untyped_cst.CstNode,
+  cases : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2524,7 +2419,7 @@ fn eval_lex_scan(
 
 ///|
 fn eval_lex_scan_case(
-  case : @untyped_ast.Node,
+  case : @untyped_cst.CstNode,
   value : TaintTree,
   base_state : TaintState,
   spec : TaintSpec,
@@ -2565,9 +2460,9 @@ fn eval_lex_scan_case(
 
 ///|
 fn eval_try(
-  body : @untyped_ast.Node,
-  catch_ : Array[@untyped_ast.Node],
-  try_else : @untyped_ast.Node?,
+  body : @untyped_cst.CstNode,
+  catch_ : Array[@untyped_cst.CstNode],
+  try_else : @untyped_cst.CstNode?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2591,7 +2486,7 @@ fn eval_try(
     }
   }
   if try_else is Some(cases) {
-    for case in node_items(cases) {
+    for case in case_items(cases) {
       let result = eval_pattern_case(
         case,
         body_result.value,
@@ -2611,7 +2506,7 @@ fn eval_try(
 ///|
 fn eval_catch_cases(
   raised : EvalResult,
-  catch_ : Array[@untyped_ast.Node],
+  catch_ : Array[@untyped_cst.CstNode],
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
@@ -2650,9 +2545,9 @@ fn eval_catch_cases(
 
 ///|
 fn eval_while(
-  loop_cond : @untyped_ast.Node,
-  loop_body : @untyped_ast.Node,
-  while_else : @untyped_ast.Node?,
+  loop_cond : @untyped_cst.CstNode,
+  loop_body : @untyped_cst.CstNode,
+  while_else : @untyped_cst.CstNode?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2703,11 +2598,11 @@ fn eval_while(
 
 ///|
 fn eval_for(
-  binders : Array[@untyped_ast.Node],
-  condition : @untyped_ast.Node?,
-  continue_block : Array[@untyped_ast.Node],
-  body : @untyped_ast.Node,
-  for_else : @untyped_ast.Node?,
+  binders : Array[@untyped_cst.CstNode],
+  condition : @untyped_cst.CstNode?,
+  continue_block : Array[@untyped_cst.CstNode],
+  body : @untyped_cst.CstNode,
+  for_else : @untyped_cst.CstNode?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2832,12 +2727,12 @@ fn eval_for(
 
 ///|
 fn eval_for_each(
-  binders : Array[@untyped_ast.Node],
-  collection : @untyped_ast.Node,
-  init : Array[@untyped_ast.Node],
-  continue_block : Array[@untyped_ast.Node],
-  body : @untyped_ast.Node,
-  else_block : @untyped_ast.Node?,
+  binders : Array[@untyped_cst.CstNode],
+  collection : @untyped_cst.CstNode,
+  init : Array[@untyped_cst.CstNode],
+  continue_block : Array[@untyped_cst.CstNode],
+  body : @untyped_cst.CstNode,
+  else_block : @untyped_cst.CstNode?,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -2926,26 +2821,29 @@ fn eval_for_each(
 
 ///|
 fn eval_unknown_expr(
-  expr : @untyped_ast.Node,
+  expr : @untyped_cst.CstNode,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
 ) -> EvalResult {
   match expr.kind {
-    Expr_Infix =>
+    @untyped_cst.Expr_Infix =>
       eval_children(
         node_children_by_names(expr, ["lhs", "rhs"]),
         state,
         spec,
         findings,
       )
-    Expr_Unary =>
+    @untyped_cst.Expr_Unary =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    Expr_As | Expr_TryOperator | Expr_ProofAssert | Expr_TemplateWriting =>
+    @untyped_cst.Expr_As
+    | @untyped_cst.Expr_TryOperator
+    | @untyped_cst.Expr_ProofAssert
+    | @untyped_cst.Expr_TemplateWriting =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else if node_child(expr, "body") is Some(body) {
@@ -2953,14 +2851,14 @@ fn eval_unknown_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_ArraySet | Expr_ArrayAugmentedSet =>
+    @untyped_cst.Expr_ArraySet | @untyped_cst.Expr_ArrayAugmentedSet =>
       eval_children(
         node_children_by_names(expr, ["array", "index", "value"]),
         state,
         spec,
         findings,
       )
-    Expr_ArrayGetSlice =>
+    @untyped_cst.Expr_ArrayGetSlice =>
       eval_children(
         node_optional_children_by_names(expr, [
           "array", "start_index", "end_index",
@@ -2969,14 +2867,14 @@ fn eval_unknown_expr(
         spec,
         findings,
       )
-    Expr_Defer =>
+    @untyped_cst.Expr_Defer =>
       eval_children(
         node_children_by_names(expr, ["expr", "body"]),
         state,
         spec,
         findings,
       )
-    Expr_Guard =>
+    @untyped_cst.Expr_Guard =>
       match (node_child(expr, "cond"), node_child(expr, "body")) {
         (Some(cond), Some(body)) =>
           eval_guard(
@@ -2989,34 +2887,15 @@ fn eval_unknown_expr(
           )
         _ => normal_result(state, [])
       }
-    Expr_Is | Expr_RegexMatch =>
+    @untyped_cst.Expr_Is | @untyped_cst.Expr_RegexMatch =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    Expr_IsLexmatch =>
-      if node_child(expr, "expr") is Some(inner) {
-        let matched = eval_expr(inner, state, spec, findings)
-        if matched.flow != FlowNormal {
-          return matched
-        }
-        let pattern_result = eval_lex_top_pattern_exprs(
-          node_child_items(expr, "pat"),
-          matched.state,
-          spec,
-          findings,
-        )
-        if pattern_result.flow != FlowNormal {
-          return pattern_result
-        }
-        normal_result(pattern_result.state, matched.value)
-      } else {
-        normal_result(state, [])
-      }
-    Expr_Interp | Expr_BytesInterp =>
+    @untyped_cst.Expr_Interp | @untyped_cst.Expr_BytesInterp =>
       eval_interp_elems(node_child_items(expr, "elems"), state, spec, findings)
-    Expr_Map => {
+    @untyped_cst.Expr_Map => {
       let mut current = state
       let mut value : TaintTree = []
       for elem in node_child_items(expr, "elems") {
@@ -3031,7 +2910,7 @@ fn eval_unknown_expr(
       }
       normal_result(current, value)
     }
-    Expr_RecordUpdate =>
+    @untyped_cst.Expr_RecordUpdate =>
       if node_child(expr, "record") is Some(record) {
         let base = eval_expr(record, state, spec, findings)
         if base.flow != FlowNormal {
@@ -3052,10 +2931,10 @@ fn eval_unknown_expr(
 
 ///|
 fn node_children_by_names(
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
   names : Array[String],
-) -> Array[@untyped_ast.Node] {
-  let children : Array[@untyped_ast.Node] = []
+) -> Array[@untyped_cst.CstNode] {
+  let children : Array[@untyped_cst.CstNode] = []
   for name in names {
     if node_child(node, name) is Some(child) {
       children.push(child)
@@ -3066,10 +2945,10 @@ fn node_children_by_names(
 
 ///|
 fn node_optional_children_by_names(
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
   names : Array[String],
-) -> Array[@untyped_ast.Node] {
-  let children : Array[@untyped_ast.Node] = []
+) -> Array[@untyped_cst.CstNode] {
+  let children : Array[@untyped_cst.CstNode] = []
   for name in names {
     if node_optional_child(node, name) is Some(child) {
       children.push(child)
@@ -3080,7 +2959,7 @@ fn node_optional_children_by_names(
 
 ///|
 fn eval_children(
-  children : Array[@untyped_ast.Node],
+  children : Array[@untyped_cst.CstNode],
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
