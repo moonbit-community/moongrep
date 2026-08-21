@@ -1,7 +1,7 @@
 ///|
-// AST structural matching used to try every pattern at every collected
+// CST structural matching used to try every pattern at every collected
 // expression. These buckets keep the same observable behavior while skipping
-// patterns whose root AST node kind cannot match the candidate expression.
+// patterns whose root CST node kind cannot match the candidate expression.
 //
 // The optimization is deliberately conservative:
 //
@@ -11,7 +11,7 @@
 //   bucket.
 // * Identifier and constant root captures are precise enough to bucket as
 //   `Expr_Ident` and `Expr_Constant`.
-// * Literal structural patterns are bucketed by their untyped root node kind,
+// * Literal structural patterns are bucketed by their semantic root node kind,
 //   for example `Expr_Apply`, `Expr_Infix`, or `Expr_Field`.
 //
 // Each bucket stores the original pattern index. When a candidate expression is
@@ -34,9 +34,16 @@ priv struct IndexedCompiledRulePattern {
 
 ///|
 priv struct KeyedCompiledRulePatterns {
-  key : @untyped_ast.NodeKind
+  key : ExprRootKey
   patterns : Array[IndexedCompiledRulePattern]
 }
+
+///|
+priv enum ExprRootKey {
+  IdentRoot
+  ConstantRoot
+  OtherRoot(@untyped_cst.NodeKind)
+} derive(Eq)
 
 ///|
 // Wildcard patterns are always eligible. Keyed patterns are only eligible when
@@ -47,7 +54,7 @@ priv struct ExprPatternBuckets {
 }
 
 ///|
-fn ast_bucket_contains_name(values : Array[String], value : String) -> Bool {
+fn cst_bucket_contains_name(values : Array[String], value : String) -> Bool {
   for item in values {
     if item == value {
       return true
@@ -57,13 +64,17 @@ fn ast_bucket_contains_name(values : Array[String], value : String) -> Bool {
 }
 
 ///|
-fn ast_bucket_is_ignore_placeholder(name : String) -> Bool {
-  name == "$_"
+fn cst_bucket_is_ignore_placeholder(name : String) -> Bool {
+  name == "$_" || name == "__moongrep_ignore"
 }
 
 ///|
-fn node_root_key(node : @untyped_ast.Node) -> @untyped_ast.NodeKind {
-  node.kind
+fn node_root_key(node : @untyped_cst.CstNode) -> ExprRootKey {
+  match node.kind {
+    @untyped_cst.Expr_Ident => IdentRoot
+    @untyped_cst.Expr_Constant => ConstantRoot
+    _ => OtherRoot(node.kind)
+  }
 }
 
 ///|
@@ -73,41 +84,85 @@ fn node_root_key(node : @untyped_ast.Node) -> @untyped_ast.NodeKind {
 fn compiled_root_ident_key(
   compiled : @matching.CompiledExprPattern,
   name : String,
-) -> @untyped_ast.NodeKind?? {
-  if ast_bucket_is_ignore_placeholder(name) ||
+) -> ExprRootKey?? {
+  let logical = cst_bucket_marker_name(name)
+  if cst_bucket_is_ignore_placeholder(name) ||
     compiled.target_metavar == Some(name) ||
     compiled.source_metavar == Some(name) ||
-    ast_bucket_contains_name(compiled.expr_metavars, name) {
+    cst_bucket_contains_name(compiled.expr_metavars, name) ||
+    (
+      logical is Some(value) &&
+      cst_bucket_contains_name(compiled.expr_metavars, value)
+    ) {
     Some(None)
-  } else if ast_bucket_contains_name(compiled.identifier_metavars, name) {
-    Some(Some(Expr_Ident))
-  } else if ast_bucket_contains_name(compiled.constant_metavars, name) {
-    Some(Some(Expr_Constant))
+  } else if cst_bucket_contains_name(compiled.identifier_metavars, name) ||
+    (
+      logical is Some(value) &&
+      cst_bucket_contains_name(compiled.identifier_metavars, value)
+    ) {
+    Some(Some(IdentRoot))
+  } else if cst_bucket_contains_name(compiled.constant_metavars, name) ||
+    (
+      logical is Some(value) &&
+      cst_bucket_contains_name(compiled.constant_metavars, value)
+    ) {
+    Some(Some(ConstantRoot))
   } else {
     None
   }
 }
 
 ///|
+fn cst_bucket_marker_name(name : String) -> String? {
+  for
+    prefix in [
+      "__moongrep_exp_", "__moongrep_const_", "__moongrep_id_", "__moongrep_bare_",
+    ] {
+    if name.has_prefix(prefix) && name.length() > prefix.length() {
+      return Some(name[prefix.length():].to_owned())
+    }
+  }
+  None
+}
+
+///|
 // Computes the conservative root key for a compiled pattern. A wildcard key
 // means "do not filter by root"; every other key is safe to compare directly
 // with `expr_root_key(candidate)`.
-fn compiled_pattern_root_key(
-  pattern : CompiledRulePattern,
-) -> @untyped_ast.NodeKind? {
+fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> ExprRootKey? {
   let compiled = pattern.compiled
-  if compiled.ast.kind == Expr_Ident {
-    if compiled.ast.normalized_expr_identifier_name() is Some(name) {
+  if compiled.cst.kind is @untyped_cst.Expression ||
+    cst_bucket_lexical_statement_has_continuation(compiled.cst.kind) {
+    // A parsed multi-statement fragment is an `Expression` container, while
+    // the same statements in a function body live under `Expr_Block`.
+    None
+  } else if compiled.cst.kind is @untyped_cst.Expr_Ident {
+    if @cst.normalized_expr_identifier_name(compiled.cst) is Some(name) {
       if compiled_root_ident_key(compiled, name) is Some(key) {
         key
       } else {
-        Some(node_root_key(compiled.ast))
+        Some(node_root_key(compiled.cst))
       }
     } else {
-      Some(node_root_key(compiled.ast))
+      Some(node_root_key(compiled.cst))
     }
   } else {
-    Some(node_root_key(compiled.ast))
+    Some(node_root_key(compiled.cst))
+  }
+}
+
+///|
+fn cst_bucket_lexical_statement_has_continuation(
+  kind : @untyped_cst.NodeKind,
+) -> Bool {
+  match kind {
+    @untyped_cst.Expr_Let
+    | @untyped_cst.Expr_LetMut
+    | @untyped_cst.Expr_LetFn
+    | @untyped_cst.Expr_LetAnd
+    | @untyped_cst.Expr_Guard
+    | @untyped_cst.Expr_ProofLet => true
+    _ => false
   }
 }
 
@@ -134,7 +189,7 @@ fn ExprPatternBuckets::from_patterns(
 ///|
 fn ExprPatternBuckets::patterns_for_node(
   self : ExprPatternBuckets,
-  node : @untyped_ast.Node,
+  node : @untyped_cst.CstNode,
 ) -> Array[IndexedCompiledRulePattern] {
   let keyed = if keyed_patterns_for_key(self.keyed, node_root_key(node))
     is Some(items) {
@@ -148,7 +203,7 @@ fn ExprPatternBuckets::patterns_for_node(
 ///|
 fn push_keyed_pattern(
   keyed : Array[KeyedCompiledRulePatterns],
-  key : @untyped_ast.NodeKind,
+  key : ExprRootKey,
   indexed : IndexedCompiledRulePattern,
 ) -> Unit {
   for index in 0..<keyed.length() {
@@ -163,7 +218,7 @@ fn push_keyed_pattern(
 ///|
 fn keyed_patterns_for_key(
   keyed : Array[KeyedCompiledRulePatterns],
-  key : @untyped_ast.NodeKind,
+  key : ExprRootKey,
 ) -> Array[IndexedCompiledRulePattern]? {
   for entry in keyed {
     if entry.key == key {

@@ -2,20 +2,12 @@
 using @compile {compile_rules}
 
 ///|
-fn parse_bucket_expr(source : String) -> @syntax.Expr raise {
-  let tokens = @lexer.tokens_from_string(
-      source,
-      comment=true,
-      name="ast bucket test",
-    ).tokens
-  let (expr, reports) = @handrolled_parser.parse_expr(tokens)
-  guard reports is [] else { fail("expected expression to parse: \{source}") }
-  expr
-}
-
-///|
-fn parse_bucket_node(source : String) -> @untyped_ast.Node raise {
-  @untyped_ast.from_expr(parse_bucket_expr(source))
+fn parse_bucket_node(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_expression(source, name="CST bucket test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected expression to parse: \{source}")
+  }
+  @cst.expression_root(parsed.root())
 }
 
 ///|
@@ -55,7 +47,7 @@ fn compile_bucket_inside_pattern(source : String) -> CompiledRulePattern raise {
 ///|
 fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
   let compiled : @matching.CompiledExprPattern = {
-    ast: @untyped_ast.from_expr(parse_bucket_expr(shape)),
+    cst: parse_bucket_node(shape),
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
@@ -74,11 +66,12 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
 }
 
 ///|
-fn root_key_signature(key : @untyped_ast.NodeKind?) -> String {
-  if key is Some(kind) {
-    kind.to_string()
-  } else {
-    "*"
+fn root_key_signature(key : ExprRootKey?) -> String {
+  match key {
+    None => "*"
+    Some(IdentRoot) => "Expr_Ident"
+    Some(ConstantRoot) => "Expr_Constant"
+    Some(OtherRoot(kind)) => "\{Repr(kind)}"
   }
 }
 
@@ -103,7 +96,7 @@ fn int_array_signature(values : Array[Int]) -> String {
 }
 
 ///|
-test "ast bucket treats broad root placeholders as wildcard" {
+test "CST bucket treats broad root placeholders as wildcard" {
   let wildcard = "*"
   let exp_rule_source =
     #|id: example
@@ -148,7 +141,7 @@ test "ast bucket treats broad root placeholders as wildcard" {
 }
 
 ///|
-test "ast bucket keeps id and const root metavars precise" {
+test "CST bucket keeps id and const root metavars precise" {
   let rule_source =
     #|id: example
     #|description: Root kinds.
@@ -160,20 +153,45 @@ test "ast bucket keeps id and const root metavars precise" {
   let patterns = compile_bucket_structural_patterns(rule_source)
   inspect(
     root_key_signature(compiled_pattern_root_key(patterns[0])),
-    content="Expr::Ident",
+    content="Expr_Ident",
   )
   inspect(
     root_key_signature(compiled_pattern_root_key(patterns[1])),
-    content="Expr::Constant",
+    content="Expr_Constant",
   )
   inspect(
     root_key_signature(compiled_pattern_root_key(patterns[2])),
-    content="Expr::Apply",
+    content="Expr_Apply",
   )
 }
 
 ///|
-test "ast bucket merges wildcard and keyed patterns in source order" {
+test "CST bucket decodes keyword metavar markers" {
+  let rule_source =
+    #|id: example
+    #|description: Keyword root kinds.
+    #|patterns:
+    #|  - shape: $(else:exp)
+    #|  - shape: $(if:id)
+    #|  - shape: $(for:const)
+    #|
+  let patterns = compile_bucket_structural_patterns(rule_source)
+  inspect(
+    root_key_signature(compiled_pattern_root_key(patterns[0])),
+    content="*",
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(patterns[1])),
+    content="Expr_Ident",
+  )
+  inspect(
+    root_key_signature(compiled_pattern_root_key(patterns[2])),
+    content="Expr_Constant",
+  )
+}
+
+///|
+test "CST bucket merges wildcard and keyed patterns in source order" {
   let rule_source =
     #|id: example
     #|description: Ordered root buckets.

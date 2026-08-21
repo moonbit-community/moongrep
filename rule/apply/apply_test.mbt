@@ -5,15 +5,12 @@ using @compile {compile_rules}
 using @model {type CompiledRule, type RuleFinding}
 
 ///|
-fn parse_impls(source : String) -> @list.List[@syntax.Impl] raise {
-  let (impls, reports) = @parser.parse_string(source, name="apply test")
-  guard reports is [] else { fail("expected source to parse") }
-  impls
-}
-
-///|
-fn parse_root_node(source : String) -> @untyped_ast.Node raise {
-  @untyped_ast.from_impls(parse_impls(source))
+fn parse_root_node(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="apply test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
+  parsed.root()
 }
 
 ///|
@@ -28,7 +25,7 @@ fn compile_rule_source(source : String) -> Array[CompiledRule] raise {
 ///|
 fn apply_structural_test_rules(
   file : String,
-  root_node : @untyped_ast.Node,
+  root_node : @untyped_cst.CstNode,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
   apply_structural_scan_plan_to_node(
@@ -41,14 +38,13 @@ fn apply_structural_test_rules(
 ///|
 fn apply_taint_test_rules(
   file : String,
-  root_node : @untyped_ast.Node,
+  root_node : @untyped_cst.CstNode,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
   let plan = ScanPlan::from_rules(rules)
-  if root_node.kind == ImplList {
-    for entry in root_node.children {
-      let (_, node) = entry
+  if root_node.kind is @untyped_cst.Impls {
+    for node in @cst.toplevel_nodes(root_node) {
       let node_hits = apply_taint_scan_plan_to_node(file, node, plan)
       for hit in node_hits {
         hits.push(hit)
@@ -92,7 +88,7 @@ fn apply_structural_rule_findings(
 }
 
 ///|
-test "apply structural rules accepts untyped ast roots" {
+test "apply structural rules accepts untyped CST roots" {
   let rule_source =
     #|id: example
     #|description: |
@@ -162,6 +158,48 @@ test "apply structural rule supports inline expression metavars" {
   )
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "apply structural rule visits an if else branch" {
+  let rule_source =
+    #|id: example
+    #|description: Infix in else.
+    #|patterns:
+    #|  - shape: $(left:exp) + $(right:exp)
+    #|
+  let source =
+    #|fn sample {
+    #|  if clean() { () } else { left() + right() }
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
+}
+
+///|
+test "apply structural rule matches keyword metavariables" {
+  let rule_source =
+    #|id: example
+    #|description: Keyword metavars.
+    #|patterns:
+    #|  - shape: if $(condition:exp) { $(then:exp) } else { $(else:exp) }
+    #|
+  let source =
+    #|fn sample {
+    #|  if ready() { accepted() } else { rejected() }
+    #|}
+    #|
+  let hits = apply_structural_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 1)
 }
 
 ///|
@@ -1298,6 +1336,7 @@ test "inside toplevel partial matching keeps explicit function fields exact" {
     #|      /// Required documentation.
     #|      #custom.attribute
     #|      pub async fn[T] Box::run() -> Int noraise { __TARGET__ }
+    #|    match-mode: partial
     #|patterns:
     #|  - shape: marker()
     #|
@@ -1332,7 +1371,7 @@ test "inside toplevel partial matching keeps explicit function fields exact" {
     #|pub async fn[T] Box::run() -> Int { marker() }
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
-  assert_eq(hits.length(), 1)
+  assert_eq(hits.length(), 2)
 }
 
 ///|
@@ -1381,20 +1420,80 @@ test "inside toplevel exact mode preserves complete function matching" {
     #|id: example
     #|description: Exact function context.
     #|inside-toplevel:
-    #|  - shape: fn $_ { __TARGET__ }
+    #|  - shape: |
+    #|      /// Rule documentation.
+    #|      fn $_ { __TARGET__ }
     #|    match-mode: exact
     #|patterns:
     #|  - shape: marker()
     #|
   let source =
     #|fn exact { marker() }
+    #|/// Rule documentation.
+    #|fn documented { marker() }
+    #|/// Different documentation.
+    #|fn changed_documentation { marker() }
     #|pub fn public { marker() }
     #|fn parameters() { marker() }
     #|async fn asynchronous { marker() }
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
-  assert_eq(hits.length(), 1)
+  assert_eq(hits.length(), 3)
   assert_eq(hits[0].loc.start.lnum, 1)
+}
+
+///|
+test "inside toplevel rule order is independent of same-location docstrings" {
+  let aaa_rule =
+    #|id: doc-aaa
+    #|description: AAA documentation shape.
+    #|inside-toplevel:
+    #|  - shape: |
+    #|      /// AAA
+    #|      fn same { __TARGET__ }
+    #|    match-mode: exact
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let bbb_rule =
+    #|id: doc-bbb
+    #|description: BBB documentation shape.
+    #|inside-toplevel:
+    #|  - shape: |
+    #|      /// BBB
+    #|      fn same { __TARGET__ }
+    #|    match-mode: exact
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source = "/// AAA\nfn same { marker() }\n"
+  let root = parse_root_node(source)
+  let rules_ab = compile_rules([
+    @model.RawRuleSpec::from_str("/tmp/rules/aaa.yaml", "/tmp/rules", aaa_rule),
+    @model.RawRuleSpec::from_str("/tmp/rules/bbb.yaml", "/tmp/rules", bbb_rule),
+  ])
+  let rules_ba = compile_rules([
+    @model.RawRuleSpec::from_str("/tmp/rules/bbb.yaml", "/tmp/rules", bbb_rule),
+    @model.RawRuleSpec::from_str("/tmp/rules/aaa.yaml", "/tmp/rules", aaa_rule),
+  ])
+  let hits_ab = apply_structural_test_rules("sample.mbt", root, rules_ab)
+  let hits_ba = apply_structural_test_rules("sample.mbt", root, rules_ba)
+  assert_eq(hits_ab.length(), 2)
+  assert_eq(hits_ba.length(), 2)
+  let mut ab_has_aaa = false
+  let mut ab_has_bbb = false
+  let mut ba_has_aaa = false
+  let mut ba_has_bbb = false
+  for hit in hits_ab {
+    ab_has_aaa = ab_has_aaa || hit.rule_id == "doc-aaa"
+    ab_has_bbb = ab_has_bbb || hit.rule_id == "doc-bbb"
+  }
+  for hit in hits_ba {
+    ba_has_aaa = ba_has_aaa || hit.rule_id == "doc-aaa"
+    ba_has_bbb = ba_has_bbb || hit.rule_id == "doc-bbb"
+  }
+  assert_true(ab_has_aaa && ab_has_bbb)
+  assert_true(ba_has_aaa && ba_has_bbb)
 }
 
 ///|
@@ -1933,6 +2032,7 @@ test "apply structural rule matches guard header with omitted body" {
     compile_rule_source(rule_source),
   )
   assert_eq(hits.length(), 1)
+  inspect(location_signature(hits[0].loc), content="2:3-3:37")
 }
 
 ///|
@@ -1961,6 +2061,48 @@ test "apply taint rule reports source reaching sink" {
   assert_eq(hits.length(), 1)
   inspect(hits[0].rule_id, content="example")
   assert_eq(hits[0].pattern_index, 0)
+}
+
+///|
+test "apply taint rule covers migrated CST field mappings" {
+  let rule_source =
+    #|id: regression-probe
+    #|description: Migrated CST taint fields.
+    #|taint:
+    #|  sources:
+    #|    - shape: get_user_inputs()
+    #|    - shape: get_user_input()
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|
+  let source =
+    #|fn foreach_case {
+    #|  for item in get_user_inputs() { sink(item) }
+    #|}
+    #|fn try_case {
+    #|  try get_user_input() catch {
+    #|    _ => ()
+    #|  } noraise {
+    #|    result => sink(result)
+    #|  }
+    #|}
+    #|fn array_get_case {
+    #|  let values = [get_user_input()];
+    #|  sink(values[0])
+    #|}
+    #|fn array_set_case {
+    #|  values[0] = sink(get_user_input())
+    #|}
+    #|fn else_case {
+    #|  if clean() { () } else { sink(get_user_input()) }
+    #|}
+    #|
+  let hits = apply_taint_test_rules(
+    "sample.mbt",
+    parse_root_node(source),
+    compile_rule_source(rule_source),
+  )
+  assert_eq(hits.length(), 5)
 }
 
 ///|

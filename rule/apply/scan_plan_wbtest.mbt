@@ -16,19 +16,19 @@ fn compile_scan_plan_rules(
 }
 
 ///|
-fn parse_scan_plan_root(source : String) -> @untyped_ast.Node raise {
-  let (impls, reports) = @parser.parse_string(source, name="scan plan test")
-  guard reports is [] else { fail("expected source to parse") }
-  @untyped_ast.from_impls(impls)
+fn parse_scan_plan_root(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="scan plan test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
+  parsed.root()
 }
 
 ///|
-fn parse_scan_plan_single_node(source : String) -> @untyped_ast.Node raise {
-  let (impls, reports) = @parser.parse_string(source, name="scan plan test")
-  guard reports is [] else { fail("expected source to parse") }
-  let nodes = impls.to_array()
+fn parse_scan_plan_single_node(source : String) -> @untyped_cst.CstNode raise {
+  let nodes = @cst.toplevel_nodes(parse_scan_plan_root(source))
   guard nodes is [node] else { fail("expected exactly one impl") }
-  @untyped_ast.from_impl(node)
+  node
 }
 
 ///|
@@ -148,6 +148,29 @@ test "scan plan filter source matches compiled rule prefilter" {
     .filter_source("fn sample { noop() }\n")
     .is_empty(),
   )
+}
+
+///|
+test "scan plan comment false positives do not become findings" {
+  let rule_source =
+    #|id: comment-false-positive
+    #|description: Required call appears only in documentation.
+    #|patterns:
+    #|  - shape: required_call()
+    #|
+  let rules = compile_scan_plan_rules([rule_source])
+  let source =
+    #|/// required_call()
+    #|fn sample { harmless() }
+    #|
+  let plan = ScanPlan::from_rules(rules).filter_source(source)
+  assert_false(plan.is_empty())
+  let findings = apply_structural_scan_plan_to_node(
+    "sample.mbt",
+    parse_scan_plan_root(source),
+    plan,
+  )
+  assert_true(findings.is_empty())
 }
 
 ///|
