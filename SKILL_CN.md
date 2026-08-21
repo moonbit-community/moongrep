@@ -37,7 +37,7 @@ moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:ex
 
 ## 表达式模式和元变量
 
-`moongrep`会将表达式模式和待扫描的 MoonBit 代码解析成抽象语法树（AST），然后比较两棵语法树的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
+`moongrep`会将表达式模式和待扫描的 MoonBit 代码解析成抽象语法树（CST），然后比较两棵语法树的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
 
 元变量使用以下格式：
 
@@ -94,7 +94,7 @@ none_body = show_error()
 
 同一个具名元变量可以在一条模式中出现多次。重复捕获必须按 kind 保持一致：`id`
 比较规范化后的名称，`const` 比较解析后的常量，`exp`、`arg`、`pat`、`type`
-等 AST 类型的捕获按忽略源码位置的语法树结构比较。例如：
+等 CST 类型的捕获按忽略源码位置的语法树结构比较。例如：
 
 ```moonbit
 $(value:exp) == $(value:exp)
@@ -156,9 +156,9 @@ moongrep scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@htm
 
 每个`--pattern`最多接受一个`--guard`。如果需要扫描多个带筛选条件的模式，应按`--pattern`、`--guard`成对书写；一个模式需要多个条件时，应把它们放在同一个YAML Map中。
 
-## 打印ast
+## 打印 CST
 
-MoonBit `untyped_ast` 调试 dump 可通过 `dump` 子命令使用：
+MoonBit `untyped_cst` 调试 dump 可通过 `dump` 子命令使用：
 
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
@@ -171,9 +171,9 @@ moongrep dump --expr 'x + 1'
 moongrep dump (--impl <impl> | --expr <expr>)
 ```
 
-使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_ast`
+使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_cst`
 调试输出。使用 `--expr <expr>` 可以解析一个 MoonBit 表达式，并打印它的
-`untyped_ast` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
+`untyped_cst` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
 
 不带参数调用 `moongrep dump` 会打印 `dump` 帮助，并以退出码 0 成功退出。用法
 错误，例如组合使用 `--impl` 和 `--expr`，会打印消息并以退出码 2 退出。解析或

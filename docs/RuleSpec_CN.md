@@ -10,7 +10,7 @@
 
 关键词 "must"、"must not"、"may" 和 "currently" 描述的是规则作者今天可以依赖的行为。
 
-规则使用 YAML 格式。每个 `shape` 值都是 MoonBit 表面语法。扫描器匹配解析后的 MoonBit 表达式结构，不匹配原始文本。空白排版和注释不参与匹配，但字面量的源码拼写是例外：常量按 parser AST 中的常量种类和保留的源码拼写比较，而不是按归一化后的语义值比较。因此，`1000` 和 `1_000` 不一定匹配。表达式形式、操作符、标签、被调用名称和参数结构也参与匹配。通配符和已声明元变量按下文规则修改这些匹配要求。
+规则使用 YAML 格式。每个 `shape` 值都是 MoonBit 表面语法。扫描器匹配解析后的 MoonBit 表达式结构，不匹配原始文本。空白排版和注释（包括文档注释）不参与匹配，但字面量的源码拼写是例外：常量按 parser CST 中的常量种类和保留的源码拼写比较，而不是按归一化后的语义值比较。因此，`1000` 和 `1_000` 不一定匹配。表达式形式、操作符、标签、被调用名称和参数结构也参与匹配。通配符和已声明元变量按下文规则修改这些匹配要求。
 
 ## 规则文件
 
@@ -105,13 +105,12 @@ Taint `sources`、`sinks` 和 `sanitizers` 同样使用 `shape` 键。这些字�
 shape 是结构性的：
 
 - 未声明的标识符和标签按字面匹配
-- 常量按 parser AST 中的常量种类和保留的源码拼写匹配；`1000` 和
+- 常量按 parser CST 中的常量种类和保留的源码拼写匹配；`1000` 和
   `1_000` 这样的等值常量不一定匹配
 - 操作符按字面匹配
 - 调用和方法调用的参数种类、标签、顺序和数量必须匹配
 - 匹配语法中出现的类型注解和类型名必须匹配
-- 源码位置、注释和空白排版不参与匹配；顶层文档是 AST 字段，遵循
-  `inside-toplevel` 的匹配模式
+- 源码位置、注释（包括 docstring）和空白排版在任何模式下都不参与匹配
 
 扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个指向同一定义的导入名称只在解析后的源码拼写一致或被元变量捕获时视为相同。
 
@@ -260,7 +259,7 @@ moongrep会为同名的所有出现位置推导出单一 kind。只出现在表�
 
 ### Ellipsis 元变量
 
-`$$$name` 捕获 untyped AST 有序列表中零个或多个连续 sibling；
+`$$$name` 捕获 untyped CST 有序列表中零个或多个连续 sibling；
 `$$$(name:kind)` 使用 `exp`、`id`、`const`、`arg`、`pat` 或 `type`
 约束捕获到的每一项。裸命名 ellipsis 的 kind 是 `AnyItem`；如果同名位置中还存在
 typed occurrence，则由 typed occurrence 决定所有裸 occurrence 的 kind。
@@ -271,9 +270,10 @@ patterns:
   - shape: pair([$$$(items:exp)], [$$$items])
 ```
 
-标记必须占据 untyped AST 中没有字段名的完整 child。调用实参列表、表达式列表、
+标记必须占据 untyped CST 中没有字段名的完整 child。调用实参列表、表达式列表、
 parameter 列表、pattern 列表和类型列表都可以支持它。它不能作为根、普通具名字段、
-标签或另一个节点的一部分；尤其不会展开 `Expr_Sequence.last_expr` 这样的具名字段。
+标签或另一个节点的一部分。块的最终值后没有 `Syntax_Separator`，
+因此它不是可替换的语句序列。
 
 匹配器从左到右处理 pattern item。遇到 ellipsis 时从空序列开始尝试最短捕获，
 失败时恢复 bindings 并逐步增加长度，直到剩余 pattern 成功。一个列表包含多个
@@ -295,7 +295,7 @@ ellipsis 必须使用相同 kind。taint sink 和 sanitizer 可以在唯一的�
 
 公开 matcher 和 query API 使用 `BoundValue` 表示捕获：普通捕获是
 `Single(Node)`，ellipsis 捕获是 `Multiple(Array[Node])`。
-`ExprMatch.bindings`、`ExprQuery::captures` 和 `ExprQuery::captures_from_ast`
+`ExprMatch.bindings`、`ExprQuery::captures` 和 `ExprQuery::captures_from_cst`
 都返回这种表示。
 
 ### 保留名称
@@ -337,9 +337,9 @@ patterns:
   - shape: sink($(arg:arg))
 ```
 
-该占位符可以匹配候选中的 positional、labelled、labelled pun、optional labelled 和 optional pun 参数。捕获值是完整 `Argument` AST 节点，包括参数 kind、标签和值。
+该占位符可以匹配候选中的 positional、labelled、labelled pun、optional labelled 和 optional pun 参数。捕获值是完整 `Argument` CST 节点，包括参数 kind、标签和值。
 
-如果需要捕获完整 MoonBit 类型 AST 节点，请使用 `$(name:type)`。它必须占据一个完整类型节点，例如标注、类型参数、option 类型、tuple 成员或函数类型组成部分：
+如果需要捕获完整 MoonBit 类型 CST 节点，请使用 `$(name:type)`。它必须占据一个完整类型节点，例如标注、类型参数、option 类型、tuple 成员或函数类型组成部分：
 
 ```yaml
 patterns:
@@ -349,9 +349,9 @@ patterns:
       let values : Array[$T] = input
 ```
 
-捕获值是完整 `Type` AST 节点。重复使用同一个 `type` 名称时，捕获到的类型节点必须结构相等；源码位置会被忽略。`type` 不捕获方法类型限定符或构造器 extra-info 等类型名 identity 位置；这些名称请使用 `id`。
+捕获值是完整 `Type` CST 节点。重复使用同一个 `type` 名称时，捕获到的类型节点必须结构相等；源码位置会被忽略。`type` 不捕获方法类型限定符或构造器 extra-info 等类型名 identity 位置；这些名称请使用 `id`。
 
-如果需要捕获整个 pattern AST，请使用 `$(name:pat)`。它只在简单 pattern variable 位置有效：
+如果需要捕获整个 pattern CST，请使用 `$(name:pat)`。它只在简单 pattern variable 位置有效：
 
 ```yaml
 patterns:
@@ -406,7 +406,7 @@ make(value) == make(other)
 
 当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`exp` 通常不是合适选择。此时应使用 `id`。
 
-重复 `exp` 相等性由 untyped AST 节点比较保证：比较节点 kind 和子值，并忽略源码位置。它不再限定为一组固定表达式形状。AST 结构不同的语义等价代码不会匹配。占位符可以吸收结构差异。
+重复 `exp` 相等性由 untyped CST 节点比较保证：比较节点 kind 和子值，并忽略源码位置。它不再限定为一组固定表达式形状。CST 结构不同的语义等价代码不会匹配。占位符可以吸收结构差异。
 
 ### `id`
 
@@ -444,7 +444,7 @@ for i = 0; j < n; i = i + 1 {
 
 `const` 元变量捕获解析后的 MoonBit 常量。在表达式位置，它匹配 `Expr::Constant`；在 pattern 位置，它匹配 `Pattern::Constant`。
 
-常量比较使用 parser AST 中的常量种类和保留的源码拼写；它不会进行类型检查，也不会归一化等值常量。例如，`1000` 和 `1_000` 不一定被视为同一个常量。
+常量比较使用 parser CST 中的常量种类和保留的源码拼写；它不会进行类型检查，也不会归一化等值常量。例如，`1000` 和 `1_000` 不一定被视为同一个常量。
 
 示例：
 
@@ -503,7 +503,7 @@ sink(label?)
 
 ### `type`
 
-`type` 元变量捕获完整 MoonBit `Type` AST 节点。它可以匹配 `Int` 或 `T` 这样的简单类型名和类型变量，也可以匹配 `Array[Int]`、`T?`、tuple 和函数类型等复合类型。
+`type` 元变量捕获完整 MoonBit `Type` CST 节点。它可以匹配 `Int` 或 `T` 这样的简单类型名和类型变量，也可以匹配 `Array[Int]`、`T?`、tuple 和函数类型等复合类型。
 
 示例：
 
@@ -536,7 +536,7 @@ patterns:
 
 ### `pat`
 
-`pat` 元变量捕获整个候选 `Pattern` AST。它只在简单 pattern variable 位置有效。
+`pat` 元变量捕获整个候选 `Pattern` CST。它只在简单 pattern variable 位置有效。
 
 示例：
 
@@ -565,7 +565,7 @@ patterns:
 `arg` 捕获、`pat` 捕获、`type` 捕获或未知名称，会在规则编译时报错。内部 `patterns` 可以
 guard 由 `inside-expr` 或 `inside-toplevel` 建立的 `id` 和 `const` 捕获。
 
-Guard 会在结构 AST 匹配成功后检查。单个 pattern object 中的所有 guard 都必须
+Guard 会在结构 CST 匹配成功后检查。单个 pattern object 中的所有 guard 都必须
 匹配，即 AND 语义。正则使用包含匹配语义；如果需要整串匹配，请使用 `^...$`
 这样的锚点。
 
@@ -703,7 +703,7 @@ patterns:
 | `partial` | 函数定义 | `partial` |
 | `partial` | 其他顶层项 | 编译错误 |
 
-Exact 会比较完整的顶层 AST，保留函数 shape 改为默认 partial 之前的行为：
+Exact 会比较解析后顶层语义 CST 中的每个字段：
 
 ```yaml
 inside-toplevel:
@@ -712,16 +712,19 @@ inside-toplevel:
     match-mode: exact
 ```
 
+Docstring 属于注释，永远不会约束匹配。在 default、`exact` 或 `partial`
+模式中增加、删除或修改 docstring 都不影响结果。
+
 Partial 第一版只支持函数定义。函数名、函数体和 `__TARGET__` 始终精确
 匹配。只有当 shape 将以下函数头字段保持为缺省形态时，才会忽略它们：
 
-- 类型限定、`async`、参数列表、类型参数、返回类型、错误类型、可见性、
-  attribute 和文档
+- 类型限定、`async`、参数列表、类型参数、返回类型、错误类型、可见性和
+  attribute
 - 顶层 `where` 子句
 
 一旦写出字段，它仍然精确匹配。例如，`fn f()` 要求显式空参数列表，
 `pub fn` 要求 public 可见性；`async fn`、返回类型、`noraise`、类型参数、
-文档、attribute 或 `where` 子句也都会约束候选项。
+attribute 或 `where` 子句也都会约束候选项。
 
 迁移提示：旧规则如果依赖“函数头中省略的字段必须不存在”，需要添加
 `match-mode: exact`。宽泛的函数上下文规则可以继续省略标注，使用新的

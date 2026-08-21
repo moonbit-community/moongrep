@@ -19,10 +19,11 @@ let _embed_rulespec_md : String =
   #|
   #|Rules use YAML format. Every `shape` value is MoonBit surface syntax. The scanner
   #|matches parsed MoonBit expression structure and does not match raw text.
-  #|Whitespace formatting and comments are not significant. Literal source spelling
-  #|is an exception: constants are compared by their parser AST kind and preserved
-  #|source spelling, not by normalized semantic value. Equivalent values such as
-  #|`1000` and `1_000` therefore do not necessarily match. Expression form,
+  #|Whitespace formatting and comments, including documentation comments, are not
+  #|significant. Literal source spelling is an exception: constants are compared by
+  #|their parser CST kind and preserved source spelling, not by normalized semantic
+  #|value. Equivalent values such as `1000` and `1_000` therefore do not necessarily
+  #|match. Expression form,
   #|operators, labels, callee names, and argument structure are also significant.
   #|Wildcards and declared metavariables modify these matching requirements as
   #|documented below.
@@ -137,14 +138,13 @@ let _embed_rulespec_md : String =
   #|Shapes are structural:
   #|
   #|- undeclared identifiers and labels match literally
-  #|- constants match by parser AST kind and preserved source spelling; equivalent
+  #|- constants match by parser CST kind and preserved source spelling; equivalent
   #|  values such as `1000` and `1_000` do not necessarily match
   #|- operators match literally
   #|- call and method-call argument kinds, labels, order, and arity must match
   #|- type annotations and type names in matched syntax must match where present
-  #|- source locations, comments, and whitespace formatting do not participate in
-  #|  matching; top-level documentation is an AST field and follows the
-  #|  `inside-toplevel` matching mode
+  #|- source locations, comments (including docstrings), and whitespace formatting
+  #|  do not participate in matching in any mode
   #|
   #|The scanner does not type-check shapes and does not resolve names semantically.
   #|For example, two imported names that refer to the same definition compare as
@@ -323,7 +323,7 @@ let _embed_rulespec_md : String =
   #|
   #|### Ellipsis Metavariables
   #|
-  #|`$$$name` captures zero or more consecutive siblings in an ordered untyped-AST
+  #|`$$$name` captures zero or more consecutive siblings in an ordered untyped-CST
   #|list. `$$$(name:kind)` applies one of `exp`, `id`, `const`, `arg`, `pat`, or
   #|`type` to every captured item. A bare named ellipsis has kind `AnyItem`; if the
   #|same name also has a typed occurrence, that occurrence determines the kind for
@@ -336,10 +336,10 @@ let _embed_rulespec_md : String =
   #|```
   #|
   #|The marker must occupy a complete child whose field name is absent in the
-  #|untyped AST. Valid examples include argument, expression, parameter, pattern,
+  #|untyped CST. Valid examples include argument, expression, parameter, pattern,
   #|and type lists. It cannot occupy the root, a normal named field, a label, or
-  #|part of another node. In particular it does not expand named fields such as
-  #|`Expr_Sequence.last_expr`.
+  #|part of another node. A block's final value has no following
+  #|`Syntax_Separator`, so it is not a replaceable statement sequence.
   #|
   #|Matching processes pattern items from left to right. At an ellipsis it tries
   #|the shortest possible capture first, starting with the empty sequence, and
@@ -368,7 +368,7 @@ let _embed_rulespec_md : String =
   #|The public matcher and query APIs expose captures as `BoundValue`. Ordinary
   #|captures are `Single(Node)`. Ellipsis captures are `Multiple(Array[Node])`.
   #|`ExprMatch.bindings`, `ExprQuery::captures`, and
-  #|`ExprQuery::captures_from_ast` all use this representation.
+  #|`ExprQuery::captures_from_cst` all use this representation.
   #|
   #|### Reserved Names
   #|
@@ -419,10 +419,10 @@ let _embed_rulespec_md : String =
   #|
   #|The placeholder can match a candidate positional argument, labelled argument,
   #|labelled pun, optional labelled argument, or optional labelled pun. The captured
-  #|value is the whole `Argument` AST node, including argument kind, label, and
+  #|value is the whole `Argument` CST node, including argument kind, label, and
   #|value.
   #|
-  #|Use `$(name:type)` for a whole MoonBit type AST node. It is valid only when it
+  #|Use `$(name:type)` for a whole MoonBit type CST node. It is valid only when it
   #|occupies a complete type node, such as an annotation, a type argument, an option
   #|type, a tuple member, or a function type component:
   #|
@@ -434,12 +434,12 @@ let _embed_rulespec_md : String =
   #|      let values : Array[$T] = input
   #|```
   #|
-  #|The captured value is the whole `Type` AST node. Repeating the same `type` name
+  #|The captured value is the whole `Type` CST node. Repeating the same `type` name
   #|requires the captured type nodes to be structurally equal, ignoring source
   #|locations. `type` does not capture type-name identity positions such as method
   #|type qualifiers or constructor extra-info; use `id` for those names.
   #|
-  #|Use `$(name:pat)` for a whole pattern AST capture. It is valid only as a simple
+  #|Use `$(name:pat)` for a whole pattern CST capture. It is valid only as a simple
   #|pattern variable position:
   #|
   #|```yaml
@@ -504,9 +504,9 @@ let _embed_rulespec_md : String =
   #|expression. Use `id` for that.
   #|
   #|Repeated `exp` equality is currently guaranteed because captured values are
-  #|compared as untyped AST nodes by node kind and child values, ignoring source
+  #|compared as untyped CST nodes by node kind and child values, ignoring source
   #|locations. It is not limited to a fixed list of expression shapes. Semantic
-  #|equivalents with different AST structures do not match. A placeholder can
+  #|equivalents with different CST structures do not match. A placeholder can
   #|absorb the structural difference.
   #|
   #|### `id`
@@ -550,7 +550,7 @@ let _embed_rulespec_md : String =
   #|
   #|A `const` metavar captures a parsed MoonBit constant. In expression position,
   #|it matches `Expr::Constant`; in pattern position, it matches `Pattern::Constant`.
-  #|It compares the parser AST constant kind and preserved source spelling; it does
+  #|It compares the parser CST constant kind and preserved source spelling; it does
   #|not type-check or normalize equivalent values. For example, `1000` and `1_000`
   #|do not necessarily compare as the same constant.
   #|
@@ -622,7 +622,7 @@ let _embed_rulespec_md : String =
   #|
   #|### `type`
   #|
-  #|A `type` metavar captures a whole MoonBit `Type` AST node. It can match simple
+  #|A `type` metavar captures a whole MoonBit `Type` CST node. It can match simple
   #|type names and type variables such as `Int` or `T`, and composite types such as
   #|`Array[Int]`, `T?`, tuples, and function types.
   #|
@@ -657,7 +657,7 @@ let _embed_rulespec_md : String =
   #|
   #|### `pat`
   #|
-  #|A `pat` metavar captures the whole candidate `Pattern` AST. It is valid only in
+  #|A `pat` metavar captures the whole candidate `Pattern` CST. It is valid only in
   #|a simple pattern variable position.
   #|
   #|Example:
@@ -688,7 +688,7 @@ let _embed_rulespec_md : String =
   #|rejected during rule compilation. Inner `patterns` may guard `id` and `const`
   #|captures established by `inside-expr` or `inside-toplevel`.
   #|
-  #|Guards are checked after the structural AST match succeeds. All guards in a
+  #|Guards are checked after the structural CST match succeeds. All guards in a
   #|single pattern object must match; this is AND semantics. Regex matching uses
   #|contains semantics. Use anchors such as `^...$` when the whole capture value
   #|must match.
@@ -877,8 +877,7 @@ let _embed_rulespec_md : String =
   #|| `partial` | function definition | `partial` |
   #|| `partial` | any other top-level item | compile error |
   #|
-  #|Exact matching compares the complete parsed top-level AST, preserving the
-  #|behavior used before function shapes became partial by default:
+  #|Exact matching compares every field in the parsed top-level semantic CST:
   #|
   #|```yaml
   #|inside-toplevel:
@@ -887,18 +886,21 @@ let _embed_rulespec_md : String =
   #|    match-mode: exact
   #|```
   #|
+  #|Docstrings are comments and never constrain a match. Adding, removing, or
+  #|changing a docstring has no effect in default, `exact`, or `partial` mode.
+  #|
   #|Partial matching is limited to function definitions. It always matches the
   #|function name, body, and `__TARGET__` exactly. The following function-header
   #|fields are ignored only when the shape leaves them in their default form:
   #|
   #|- type qualifier, `async`, parameter list, type parameters, return type, error
-  #|  type, visibility, attributes, and documentation
+  #|  type, visibility, and attributes
   #|- the top-level `where` clause
   #|
   #|Writing any such field keeps it exact. For example, `fn f()` requires an
   #|explicit empty parameter list, `pub fn` requires public visibility, and
-  #|`async fn`, a return type, `noraise`, type parameters, documentation,
-  #|attributes, or a `where` clause constrain the candidate exactly.
+  #|`async fn`, a return type, `noraise`, type parameters, attributes, or a `where`
+  #|clause constrain the candidate exactly.
   #|
   #|Migration note: an older rule that depended on an omitted function-header
   #|field being absent must add `match-mode: exact`. Broad function-context rules

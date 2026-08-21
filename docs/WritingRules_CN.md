@@ -65,15 +65,20 @@ fn generated_adapter {
 该标记只影响结构规则。对于带标记的函数定义和 impl 方法，污点分析始终继续运行。
 
 该属性不支持 payload。`#moongrep.skip()`、布尔 payload、其他 payload 和畸形
-payload 都不会抑制结构规则。每个无效 payload 都会在标准错误输出以下 warning，
-扫描会继续，退出码不变：
+payload 都不会抑制结构规则。对于进入解析流程的源码，每个无效 payload 都会在
+标准错误输出以下 warning：
 
 ```text
 warning: <location>: #moongrep.skip does not accept a payload; use bare #moongrep.skip
 ```
 
+源码文本 prefilter 在解析前运行；如果已启用规则都不可能命中某个文件或 `///|`
+源码块，它可以直接丢弃该部分。被丢弃源码中的无效 payload 不会被检查，也不会产生
+warning。无论是否产生 warning，扫描都会继续，退出码不变。
+
 `#skip`、`#other.skip` 等无关属性会被忽略。如果同一顶层项同时带有裸标记和
-无效 payload，无效形式仍会产生 warning，裸标记仍会抑制结构规则。
+无效 payload，并且该顶层项进入了解析流程，无效形式仍会产生 warning，裸标记仍会
+抑制结构规则。
 
 对于污点规则：
 
@@ -244,7 +249,7 @@ patterns:
   - shape: $(value:const) + $(value:const)
 ```
 
-使用 `$(name:pat)` 捕获完整 pattern AST：
+使用 `$(name:pat)` 捕获完整 pattern CST：
 
 ```yaml
 patterns:
@@ -260,7 +265,7 @@ patterns:
 
 这个 pattern 可以在单个参数槽中匹配 positional、labelled、labelled pun、optional labelled 和 optional pun 参数。裸 `$arg` 不会推导为 `arg`；请在每个参数槽显式写出 kind。
 
-使用 `$(name:type)` 捕获完整类型 AST 节点：
+使用 `$(name:type)` 捕获完整类型 CST 节点：
 
 ```yaml
 patterns:
@@ -272,7 +277,7 @@ patterns:
 
 重复的 `type` 捕获会比较完整解析类型节点并忽略源码位置。`type` 捕获必须占据完整类型节点；它不捕获表达式参数、构造器、标签或方法类型限定符。
 
-使用 `$$$name` 捕获有序 AST 列表中零个或多个连续项；使用
+使用 `$$$name` 捕获有序 CST 列表中零个或多个连续项；使用
 `$$$(name:kind)` 约束捕获序列中的每一项：
 
 ```yaml
@@ -281,7 +286,7 @@ patterns:
   - shape: f(prefix, $$$(values:exp), suffix)
 ```
 
-ellipsis 必须占据完整列表项。只要对应语法会解析为无字段名的有序 AST
+ellipsis 必须占据完整列表项。只要对应语法会解析为无字段名的有序 CST
 列表项，它就可以用于调用实参、数组或 tuple 元素、parameter、pattern 或类型列表。
 它不能作为整个 pattern 根、表达式的一部分，也不能展开块的最后表达式等具名标量字段。
 匹配从左到右采用惰性策略：每个 ellipsis 依次尝试长度 0、1、2……，并回滚直到
@@ -331,15 +336,15 @@ patterns:
       }
 ```
 
-这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配。原始 AST node 不同。`id` 会比较它们规范化后的名称。
+这里 `counter` 既作为 binder 出现，也作为后续标识符表达式出现。它们应该按相同拼写匹配。原始 CST node 不同。`id` 会比较它们规范化后的名称。
 
-`id` 也适用于 parser AST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，不把它当作字面字符串。
+`id` 也适用于 parser CST 中表示为 `Var` 的简单赋值目标，因此像 `x = x + 1` 这样的规则可以按归一化名称绑定左侧目标，不把它当作字面字符串。
 
 `id` 也可以比较限定函数名和构造器 identity。像 `@int.abs` 这样的限定函数名会归一化为 `@int.abs`；限定构造器会包含 extra info，例如 `@pkg.Ctor` 或 `@pkg.Type::Ctor`。
 
 当候选必须是解析后的 MoonBit 常量时，使用 `const`。重复的 `const` 捕获会比较常量 kind 和值。`1 + 1` 可以匹配。`1 + 2` 和 `x + x` 不会匹配。
 
-当候选必须是整个 pattern AST 时，使用 `pat`：
+当候选必须是整个 pattern CST 时，使用 `pat`：
 
 ```yaml
 patterns:
@@ -355,7 +360,7 @@ patterns:
 
 这可以匹配 `sink(value, value)` 和 `sink(label=value, label=value)`。它不会匹配 `sink(value, other)` 或 `sink(label=value, other=value)`。
 
-当候选必须是完整类型标注或类型组成部分时，使用 `type`。重复的 `type` 捕获会比较完整类型 AST 节点，因此可以要求两个标注使用同一种类型：
+当候选必须是完整类型标注或类型组成部分时，使用 `type`。重复的 `type` 捕获会比较完整类型 CST 节点，因此可以要求两个标注使用同一种类型：
 
 ```yaml
 patterns:
@@ -424,9 +429,12 @@ patterns:
 | `exact` | exact | exact |
 | `partial` | partial | 非法 |
 
+文档注释在所有模式中都会被忽略。Shape 中的 docstring 不要求候选项具有相同
+docstring，也不要求候选项存在 docstring。
+
 在 partial 模式中，函数头里省略的类型限定、`async`、参数、类型参数、
-返回类型、错误类型、可见性、attribute、文档和 `where` 都不约束候选项。
-shape 中一旦写出某个字段，该字段仍然精确匹配。函数名、函数体和
+返回类型、错误类型、可见性、attribute 和 `where` 都不约束候选项。
+shape 中一旦写出某个语义字段，该字段仍然精确匹配。函数名、函数体和
 `__TARGET__` 永远不会自动放宽。
 
 完整函数头确实重要时，显式使用 exact：
@@ -546,7 +554,7 @@ moonx moonbit-community/moongrep -- scan [--verbose] [--rules <rules-root>] [sca
 匹配结果会流式写入标准输出；`--verbose` 会在扫描过程中把已加载的 rule id 和
 目录遍历进度写入标准错误，扫描 warning 也写入标准错误。
 
-扫描器默认使用 untyped AST matcher。重复的 `exp`、`arg`、`pat` 和 `type` 捕获会按忽略源码位置的 untyped AST 结构相等性进行比较。
+扫描器默认使用 untyped CST matcher。重复的 `exp`、`arg`、`pat` 和 `type` 捕获会按忽略源码位置的 untyped CST 结构相等性进行比较。
 
 ## 完整示例
 
@@ -563,7 +571,7 @@ patterns:
 为什么它能工作：
 
 - `expr` 被声明为 `exp` 元变量
-- 两次出现必须绑定到忽略源码位置后相等的 untyped AST 节点
+- 两次出现必须绑定到忽略源码位置后相等的 untyped CST 节点
 - 该规则可以匹配比简单名称更复杂的内容
 
 ### Binder 和使用处必须共享同一个源码层面名称
@@ -581,8 +589,8 @@ patterns:
 
 为什么它能工作：
 
-- `counter` 按归一化后的标识符名称比较，不使用原始 AST 相等性
-- `start`、`limit` 和 `body` 是以 untyped AST 节点保存的表达式捕获
+- `counter` 按归一化后的标识符名称比较，不使用原始 CST 相等性
+- `start`、`limit` 和 `body` 是以 untyped CST 节点保存的表达式捕获
 
 ### 同一规则，多个 shape
 
@@ -611,6 +619,7 @@ patterns:
 
 如果函数上下文现在命中了更多声明，请检查旧规则是否依赖完整函数头匹配。
 可以添加 `match-mode: exact`，或只写出确实需要精确匹配的函数头字段。
+Docstring 不能用于区分其他结构相同的 shape。
 
 ### 规则编译提示元变量语法无效
 

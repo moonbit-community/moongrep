@@ -120,17 +120,23 @@ let _embed_writingrules_md : String =
   #|marked function definitions and impl methods.
   #|
   #|Payloads are not supported. `#moongrep.skip()`, Boolean payloads, other
-  #|payloads, and malformed payloads do not suppress structural rules. Each
-  #|invalid payload writes the following warning to standard error and scanning
-  #|continues without changing the exit status:
+  #|payloads, and malformed payloads do not suppress structural rules. For source
+  #|that reaches parsing, each invalid payload writes the following warning to
+  #|standard error:
   #|
   #|```text
   #|warning: <location>: #moongrep.skip does not accept a payload; use bare #moongrep.skip
   #|```
   #|
+  #|The source-text prefilter runs before parsing and may discard a file or `///|`
+  #|block when none of the enabled rules can match it. Invalid payloads in discarded
+  #|source are not inspected and do not produce warnings. Scanning continues
+  #|without changing the exit status in either case.
+  #|
   #|`#skip`, `#other.skip`, and other unrelated attributes are ignored. When an
-  #|item has both a bare marker and invalid payload forms, the invalid forms still
-  #|produce warnings and the bare marker still suppresses structural rules.
+  #|item that reaches parsing has both a bare marker and invalid payload forms, the
+  #|invalid forms still produce warnings and the bare marker still suppresses
+  #|structural rules.
   #|
   #|For taint rules:
   #|
@@ -328,7 +334,7 @@ let _embed_writingrules_md : String =
   #|  - shape: $(value:const) + $(value:const)
   #|```
   #|
-  #|Use `$(name:pat)` for a whole pattern AST capture:
+  #|Use `$(name:pat)` for a whole pattern CST capture:
   #|
   #|```yaml
   #|patterns:
@@ -346,7 +352,7 @@ let _embed_writingrules_md : String =
   #|and optional pun arguments in the single slot. Bare `$arg` does not infer
   #|`arg`; write the explicit kind at each argument slot.
   #|
-  #|Use `$(name:type)` for a whole type AST node:
+  #|Use `$(name:type)` for a whole type CST node:
   #|
   #|```yaml
   #|patterns:
@@ -360,7 +366,7 @@ let _embed_writingrules_md : String =
   #|locations. A `type` capture must occupy a whole type node; it does not
   #|capture expression arguments, constructors, labels, or method type qualifiers.
   #|
-  #|Use `$$$name` to capture zero or more consecutive items from an ordered AST
+  #|Use `$$$name` to capture zero or more consecutive items from an ordered CST
   #|list, or `$$$(name:kind)` to constrain every captured item:
   #|
   #|```yaml
@@ -371,7 +377,7 @@ let _embed_writingrules_md : String =
   #|
   #|An ellipsis must be the complete list item. It can stand for call arguments,
   #|array or tuple elements, parameters, patterns, or type-list members when that
-  #|syntax is parsed as an unnamed ordered AST list. It cannot be the pattern root,
+  #|syntax is parsed as an unnamed ordered CST list. It cannot be the pattern root,
   #|part of an expression, or a named scalar field such as the final expression of
   #|a block. Matching is left-to-right and lazy: each ellipsis tries length zero,
   #|then one, and so on, with backtracking until the complete shape matches.
@@ -427,7 +433,7 @@ let _embed_writingrules_md : String =
   #|- `make(value) == make(value)`
   #|
   #|Use `id` when you want to compare source-level names across positions that are
-  #|not the same raw AST node kind, especially binder positions versus identifier
+  #|not the same raw CST node kind, especially binder positions versus identifier
   #|uses.
   #|
   #|```yaml
@@ -439,10 +445,10 @@ let _embed_writingrules_md : String =
   #|```
   #|
   #|Here `counter` appears as both a binder and later identifier expressions. The
-  #|same spelling should match. The raw AST nodes are different. The `id` kind
+  #|same spelling should match. The raw CST nodes are different. The `id` kind
   #|compares their normalized names.
   #|
-  #|`id` also works for simple assignment targets represented in the parser AST as
+  #|`id` also works for simple assignment targets represented in the parser CST as
   #|`Var`. Rules such as `x = x + 1` can bind the left-hand target by normalized
   #|name. They do not treat the target as a literal string.
   #|
@@ -455,7 +461,7 @@ let _embed_writingrules_md : String =
   #|`const` captures compare constant kind and value. `1 + 1` can match. `1 + 2`
   #|and `x + x` do not match.
   #|
-  #|Use `pat` when the candidate must be a whole pattern AST:
+  #|Use `pat` when the candidate must be a whole pattern CST:
   #|
   #|```yaml
   #|patterns:
@@ -475,7 +481,7 @@ let _embed_writingrules_md : String =
   #|does not match `sink(value, other)` or `sink(label=value, other=value)`.
   #|
   #|Use `type` when the candidate must be a complete type annotation or type
-  #|component. Repeated `type` captures compare the whole type AST node, so a rule
+  #|component. Repeated `type` captures compare the whole type CST node, so a rule
   #|can require two annotations to use the same type:
   #|
   #|```yaml
@@ -561,11 +567,13 @@ let _embed_writingrules_md : String =
   #|| `exact` | exact | exact |
   #|| `partial` | partial | invalid |
   #|
+  #|Documentation comments are ignored in every mode. A docstring in a shape does
+  #|not require the candidate to have the same docstring, or any docstring.
+  #|
   #|In partial mode, omitted function-header details are unconstrained: type
   #|qualifier, `async`, parameters, type parameters, return and error types,
-  #|visibility, attributes, documentation, and `where`. Any detail written in the
-  #|shape remains exact. The function name, body, and `__TARGET__` are never
-  #|relaxed.
+  #|visibility, attributes, and `where`. Any semantic detail written in the shape
+  #|remains exact. The function name, body, and `__TARGET__` are never relaxed.
   #|
   #|Use explicit exact matching when the complete header matters:
   #|
@@ -702,8 +710,8 @@ let _embed_writingrules_md : String =
   #|traversal progress to standard error as the scan proceeds; scan warnings also
   #|use standard error.
   #|
-  #|The scanner uses the untyped AST matcher by default. Repeated `exp`, `arg`,
-  #|`pat`, and `type` captures are compared by structural untyped AST equality
+  #|The scanner uses the untyped CST matcher by default. Repeated `exp`, `arg`,
+  #|`pat`, and `type` captures are compared by structural untyped CST equality
   #|and ignore source locations.
   #|
   #|## Worked Examples
@@ -721,7 +729,7 @@ let _embed_writingrules_md : String =
   #|Why it works:
   #|
   #|- `expr` is declared inline as an `exp` metavar
-  #|- both occurrences must bind to equal untyped AST nodes for a repeated expression
+  #|- both occurrences must bind to equal untyped CST nodes for a repeated expression
   #|  with source locations ignored
   #|- the rule can match more than simple names
   #|
@@ -740,8 +748,8 @@ let _embed_writingrules_md : String =
   #|
   #|Why it works:
   #|
-  #|- `counter` is compared by normalized identifier name, not by raw AST equality
-  #|- `start`, `limit`, and `body` are expression captures stored as untyped AST nodes
+  #|- `counter` is compared by normalized identifier name, not by raw CST equality
+  #|- `start`, `limit`, and `body` are expression captures stored as untyped CST nodes
   #|
   #|### Same rule, multiple shapes
   #|
@@ -772,6 +780,7 @@ let _embed_writingrules_md : String =
   #|If a function context now matches more declarations than expected, check
   #|whether the rule relied on the old complete-header behavior. Add
   #|`match-mode: exact`, or write only the header fields that should remain exact.
+  #|Docstrings cannot be used to distinguish otherwise equal shapes.
   #|
   #|### Rule compilation rejects an metavar
   #|
