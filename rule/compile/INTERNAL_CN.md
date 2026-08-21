@@ -17,7 +17,7 @@
 - 检查重复 rule id
 - 把普通规则 `shape` 解析成 MoonBit 表达式，并把每个
   `inside-toplevel` 条目的 shape 解析成一个顶层项
-- 把 metavar 重写成 matcher 可读取的 AST 名称
+- 把 metavar 重写成 matcher 可读取的 CST 名称
 - 拒绝不支持的占位符位置和格式错误的 guard
 - 记录 taint sink 和 sanitizer 的 target 元数据
 - 为编译后的定义构造源码文本 prefilter
@@ -34,47 +34,44 @@
 
 1. structural rule 走 `compile_structural_rule`
 2. taint rule 走 `compile_taint_rule`
-3. `compile_rule_prefilter(definition)` 从编译后的 AST 推导必需源码字面量
+3. `compile_rule_prefilter(definition)` 从编译后的 CST 推导必需源码字面量
 
 prefilter 必须基于编译后的 definition。此时 metavar
 已经被规范化，可以从字面量收集中排除。原始 YAML 不具备这个条件。
 
 ## Shape 解析
 
-`parse_shape` 使用以下 lexer 配置：
+`prepare_shape` 先使用以下 lexer 配置：
 
 ```text
 comment = true
 enable_metavar = true
 ```
 
-随后用 `parse_expr` 解析 token 流。因此普通 `patterns`、`patterns-not`、
-每个 `inside-expr` 条目和 taint 子句的 shape 正好是一个 MoonBit 表达式，
-不是文件片段或顶层声明。
+lexer 会在解析前识别 metavar token。每个出现位置都会在源码文本中替换成合法的
+保留 marker，同时记录 marker span 和逻辑语法。随后 `parse_shape` 调用
+`@untyped_cst.parse_expression`；`parse_toplevel_shape` 调用
+`@untyped_cst.parse_structure`，并要求 `@cst.toplevel_nodes` 只返回一个节点。
 
-每个 `inside-toplevel` 条目的 shape 使用同样的 lexer 配置。它通过
-`parse_toplevel_shape` 解析，接受且只接受一个 MoonBit 顶层项，并通过
-`@untyped_ast.from_impl` 转换。
+普通 `patterns`、`patterns-not`、每个 `inside-expr` 条目和 taint 子句的 shape
+都必须正好是一个 MoonBit 表达式。每个 `inside-toplevel` shape 必须正好是一个
+顶层项。编译器直接保留 parser 的 `CstNode`，不再 lower 到 typed syntax，也不再
+转换成本地树类型。
 
 词法错误会先于解析错误报告。`InvalidMetavarSyntax` 有专门诊断，因此
 `$exp:value` 这样的旧语法可以提示迁移到现代的 `$(value:exp)` 形式。
 其他词法错误会报告 lexical errors，解析错误会根据子句报告
 "not a valid MoonBit expression" 或 "not a valid MoonBit top-level item"。
 
-matcher 不会直接看到 parser AST。metavar 重写完成后，表达式会通过
-`@untyped_ast.from_expr` 转成 `@untyped_ast.Node`；顶层上下文项会通过
-`@untyped_ast.from_impl` 转换。
+即使 parser 没有生成诊断，编译器也会拒绝 recovery 节点（`Missing` 和 `Error`）。
+向规则作者显示 parse diagnostic 前，会把内部 marker 恢复成原始 metavar 拼写。
 
-## Metavar 重写
+## Metavar 上下文与 Marker
 
-Metavar 编译会对 parser AST 进行两遍遍历：
-
-1. 收集显式声明和 bare `$name` 的出现位置
-2. 解析 bare kind，并用具体名称重写 AST
-
-两遍遍历都使用相同形态的 `MetavarRewriteContext`。在收集阶段，显式
-`$(name:kind)` 会立即注册 kind；bare `$name` 只记录出现的语法位置，并保持 AST
-不变。
+Metavar 编译会按记录的 marker span 在 CST 中定位每个出现位置，并从节点路径推导
+上下文。上下文记录 expression、identifier、pattern、type、whole-argument、
+binder-only、qualified-name 和 ordered-list 信息。kind 校验只使用这些上下文，
+不会修改或重建只读 CST。
 
 Bare kind 推断有意保守：
 
@@ -99,21 +96,13 @@ pattern，因为该位置在 `id`、`const` 和 `pat` 之间有歧义。
 - `const`：完整的 bare identifier 表达式或简单 pattern-variable 位置，
   并且必须匹配解析后的常量
 - `arg`：完整的裸调用参数槽
-- `pat`：简单 pattern-variable 位置，捕获完整候选 pattern AST
-- `type`：完整的 `@syntax.Type` 节点，在编译后的 untyped AST 中表示为简单
-  `Type::Name` 标记
+- `pat`：简单 pattern-variable 位置，捕获完整候选 pattern CST
+- `type`：完整的 CST type 节点
 
-重写代码通过 `rewrite_expr_var`、`rewrite_var`、`rewrite_binder`、
-`rewrite_label`、`rewrite_constructor` 和 `rewrite_pattern_var_binder`
-分派并校验位置，类型位置由 `metavar_type.mbt` 中的 walker 处理。Top-level
-shape 会把 function、impl、let、view、trait 和 type declaration 中的
-`Type` / `ErrorType` 字段也交给同一个类型 walker。
-
-Pattern metavar 有特殊表示。`$(name:pat)` pattern variable 会被重写成字面
-binder 文本 `$(name:pat)`，这样 `matching` 可以从 AST 里识别 whole-pattern
-捕获。收集阶段会临时把它注册到其他 kind 数组中，用于发现同名冲突；随后
-`cleanup_temporary_pattern_metavars` 会移除这些临时项，并返回单独的
-`pattern_metavars` 列表供 guard 校验使用。
+大多数 marker 直接保留 metavar 的逻辑名称。`pat`、ellipsis 和 `$_` 使用保留的
+内部名称，使 parser 能接受它们，也使 matcher 能识别 whole-node 语义。大写
+metavar 会按所在语法位置使用合法 marker。编译后的 kind 数组和 ellipsis 元数据
+保存逻辑名称，不保存 marker 拼写。
 
 Metavar 数组保持首次出现顺序。若干测试会断言这个顺序，不要把这些数组排序当作清理。
 
@@ -169,11 +158,11 @@ Guard 只能引用 `id` 和 `const` 捕获。它不能引用：
 - `type` 捕获
 
 这是规则编译器层面的限制。`rule/apply` 中的 guard 求值期望从规范化 identifier
-或 constant 中得到类似字符串的值。它不接受任意 expression、pattern、argument 或 type AST。
+或 constant 中得到类似字符串的值。它不接受任意 expression、pattern、argument 或 type CST。
 
 ## Taint Rule
 
-每个 taint source、sink 和 sanitizer shape 都必须编译成顶层 call AST：
+每个 taint source、sink 和 sanitizer shape 都必须编译成顶层 call CST：
 
 - `Expr_Apply`
 - `Expr_DotApply`
@@ -209,13 +198,13 @@ call argument，并用 label 确认选中的是同一个 labelled slot。
 
 ## 维护清单
 
-新增 parser AST 形式支持时：
+新增 parser CST 形式支持时：
 
-1. 更新相关 rewrite walker，保证该形式内部的 metavar 会被访问
-2. 保留不需要重写的 source AST 字段
+1. 为新的路径或包装节点更新 CST occurrence-context 分类
+2. 直接保留 parser 节点，不要增加第二套树表示
 3. 添加 `rule/compile` 校验测试，展示新位置可用
-4. 检查 `matching` 是否真的能匹配生成的 untyped AST
-5. 如果新 AST 携带字面名称或常量，更新 `rule/prefilter`
+4. 检查 `matching` 是否真的能匹配生成的 untyped CST
+5. 如果新 CST 携带字面名称或常量，更新 `rule/prefilter`
 
 修改 metavar kind 或位置时：
 

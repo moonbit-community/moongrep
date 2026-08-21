@@ -6,16 +6,16 @@
 
 `rule/prefilter` 为编译后的规则构造并执行保守的源码文本筛选。
 
-筛选发生在解析和 AST 匹配之前。它只判断源码文本是否包含某个规则分支每次成功匹配时
+筛选发生在解析和 CST 匹配之前。它只判断源码文本是否包含某个规则分支每次成功匹配时
 都必需出现的字面量。返回 false 时，调用方可以跳过该规则；返回 true 只表示该规则仍是
 候选项。
 
 因此，这个包可以接受假阳性，例如字面量只出现在注释、字符串或无关表达式中；但它不能
-引入假阴性。它不解析源码、不比较 AST 结构、不执行 guard，也不分析 taint 数据流。
+引入假阴性。它不解析源码、不比较 CST 结构、不执行 guard，也不分析 taint 数据流。
 
 `rule/compile` 只会在构造好 `CompiledRuleDefinition` 后调用
 `compile_rule_prefilter`。这个顺序很重要：只有编译后的 pattern 才包含安全提取
-字面量所需的规范化 AST、metavar 集合、保留的 target/source 占位符和 matcher
+字面量所需的规范化 CST、metavar 集合、保留的 target/source 占位符和 matcher
 忽略字段。
 
 ## 表示与求值
@@ -111,22 +111,17 @@ Sanitizer 会被有意排除。Taint finding 不要求 sanitizer 出现；若强
 ## 必需字面量提取
 
 `required_literals_from_compiled_pattern` 遍历编译后的
-`@untyped_ast.Node`，而不是原始 YAML shape。这样字面量提取才能与
-`matching` 实际使用的 AST 保持一致。
+`@untyped_cst.CstNode`，而不是原始 YAML shape。这样字面量提取才能与
+`matching` 实际使用的 CST 保持一致。
 
-收集器识别以下携带名称的节点：
-
-- `Var` 通过 long identifier 取值；非限定名贡献保存的源码拼写，限定名则把保存的
-  package 和 identifier 拼写分别作为字面量
-- `Binder`、`Label` 和 `ConstrName` 通过其 `name` 子节点取值
-- `Type_Name` 使用同一套 long identifier 分量提取逻辑
+收集器识别 `@cst.normalized_name` 暴露的所有名称节点，包括 variable、binder、
+label、accessor、constructor 和 type name。非限定名贡献保存的源码拼写；限定名把
+package/type 前缀和最终 identifier 分别作为字面量。
 
 限定名不会贡献拼接出来的 `@pkg.name` 字面量。MoonBit 允许点号前出现空白，因此同一
-AST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含保存的 `pkg` 和 `name`
+CST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含保存的 `pkg` 和 `name`
 分量，对两种拼写都保持保守。每个分量还会独立检查 matcher placeholder，所以
 `@pkg.$(callee:id)` 只要求固定的 `pkg` 分量。
-
-记录 `Type_Name` 后仍会继续访问其子节点，以免遗漏类型参数里的字面量。
 
 收集器还会识别：
 
@@ -140,7 +135,7 @@ AST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含
 单字符整数形式会有意忽略，因为它们是很弱的锚点。这里检查的是保存形式的长度，不是数值
 大小。空字符串也会忽略。
 
-未单独识别的非 leaf 节点会递归遍历。裸 leaf 节点本身不会成为字面量，因此 AST kind
+未单独识别的非 leaf 节点会递归遍历。裸 leaf 节点本身不会成为字面量，因此 CST kind
 名称和结构标点不会变成源码要求。字符串插值里的表达式会通过普通递归访问，而仅供 parser
 使用的 source 元数据不会成为锚点。
 
@@ -149,9 +144,9 @@ AST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含
 当 matcher 可以用任意源码替换某个名称时，就不能收集这个名称。
 `is_filter_placeholder` 会排除：
 
-- 以 `$$$` 开头的名称，包括 ellipsis metavar
+- ellipsis、expression、argument、constant、pattern 和 type 的保留内部 marker 前缀
 - 精确拼写为 `$_` 的忽略占位符
-- 编码为 `$(name:pat)` 的 whole-pattern 占位符
+- 内部 ignore marker
 - 编译后 pattern 的 `target_metavar` 和 `source_metavar`
 - 已声明的 expression、identifier、constant、argument 和 type metavar
 
@@ -161,8 +156,12 @@ AST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含
 `CompiledExprPattern.ignored_fields` 也是安全性约定的一部分。遍历子节点时，只有
 parent `NodeKind` 和 child name 都与 ignored-field 条目一致才会跳过该字段。
 这与结构匹配保持一致，尤其适用于 partial `inside-toplevel` 函数 shape：其中省略的
-visibility、attribute、documentation、parameter、return type 等默认字段不能成为
-prefilter 要求。显式写出的字段仍可贡献字面量。
+visibility、attribute、parameter、return type 等默认字段不能成为 prefilter 要求。
+显式写出的语义字段仍可贡献字面量。
+
+Docstring 则由 `@cst.semantic_children` 在字面量收集前统一移除，所以它的文本在
+default、exact 或 partial 模式中都不会成为必需字面量。候选源码注释仍可能满足某个
+无关的必需文本搜索；这是保守假阳性，最终 CST matcher 会将其排除。
 
 修改 `matching` 或 `rule/compile` 的占位符、忽略字段行为时，必须在同一个改动中
 同步 prefilter。
@@ -176,8 +175,8 @@ prefilter 要求。显式写出的字段仍可贡献字面量。
   `Map[String, Bool]` 缓存。
 - CLI 先筛选整个文件，再在解析前筛选每个 `///|` 源码块。因此，不相关且格式错误的
   文件或源码块可以在 parser 产生诊断前被跳过。
-- `query` 先筛选完整源码，再筛选每个顶层项的源码切片，然后才遍历 AST。
-  `captures_from_ast` 没有源码文本，因此会绕过 prefilter。
+- `query` 先筛选完整源码，再筛选每个顶层项的源码切片，然后才遍历 CST。
+  `captures_from_cst` 没有源码文本，因此会绕过 prefilter。
 
 继续筛选一个已经过滤过的 `ScanPlan` 是安全的：它只会针对更小的源码切片移除更多条目，
 不会修改原始 plan。
@@ -194,7 +193,7 @@ prefilter 要求。显式写出的字段仍可贡献字面量。
 - 不要要求负向 pattern、guard 或 sanitizer 中的字面量
 - 不要要求任何 matcher 占位符的拼写
 - 不要使用结构匹配已经忽略的字段
-- 不要从 AST 推导可能与原始源码拼写不同的文本
+- 不要从 CST 推导可能与原始源码拼写不同的文本
 - 组合备选项时保留原有分支结构
 
 移除锚点或把备选项变为空是保守操作：可能损失性能，但不会隐藏 finding。新增锚点或加强
@@ -208,7 +207,7 @@ prefilter 要求。显式写出的字段仍可贡献字面量。
 2. 添加从规则编译到 prefilter 的测试，证明替换后的源码仍然相关
 3. 检查 `matching/INTERNAL.md` 和 `rule/compile/INTERNAL.md` 中的同一占位符约定
 
-新增或修改 untyped AST 形式时：
+新增或修改 untyped CST 形式时：
 
 1. 判断它是否携带一次成功匹配必需的源码拼写
 2. 只有满足逐字文本不变量时才添加专门的 collector 分支

@@ -8,19 +8,19 @@ changing the `rule/prefilter` package.
 `rule/prefilter` builds and evaluates a conservative source-text filter for a
 compiled rule.
 
-The filter runs before parsing or AST matching. It asks only whether the source
+The filter runs before parsing or CST matching. It asks only whether the source
 text contains literals that every possible match of at least one rule branch
 would require. A negative answer lets callers skip the rule. A positive answer
 means only that the rule is still a candidate.
 
 This package therefore may admit false positives, including literals found in
 comments, strings, or unrelated expressions. It must not introduce false
-negatives. It does not parse source, compare AST structure, evaluate guards, or
+negatives. It does not parse source, compare CST structure, evaluate guards, or
 analyze taint flow.
 
 `rule/compile` calls `compile_rule_prefilter` only after a
 `CompiledRuleDefinition` has been built. This ordering is important because the
-compiled patterns contain the normalized AST, metavar sets, reserved
+compiled patterns contain the normalized CST, metavar sets, reserved
 target/source placeholders, and ignored matcher fields needed for safe literal
 extraction.
 
@@ -129,26 +129,20 @@ placeholder is excluded during literal collection.
 ## Required Literal Extraction
 
 `required_literals_from_compiled_pattern` walks the compiled
-`@untyped_ast.Node`, not the original YAML shape. This keeps literal extraction
-aligned with the AST that `matching` will use.
+`@untyped_cst.CstNode`, not the original YAML shape. This keeps literal extraction
+aligned with the CST that `matching` will use.
 
-The collector recognizes these name-bearing nodes:
-
-- `Var` through its long identifier; an unqualified name contributes its
-  stored spelling, while a qualified name contributes its stored package and
-  identifier spellings as separate literals
-- `Binder`, `Label`, and `ConstrName` through their `name` child
-- `Type_Name` through the same long-identifier component extraction
+The collector recognizes every node exposed by `@cst.normalized_name`,
+including variables, binders, labels, accessors, constructors, and type names.
+An unqualified name contributes its stored spelling. A qualified name
+contributes its package/type prefix and final identifier as separate literals.
 
 Qualified names deliberately do not contribute a synthesized `@pkg.name`
 literal. MoonBit accepts whitespace before the dot, so a matching source may
-spell the same AST identity as `@pkg .name`. Requiring the stored `pkg` and
+spell the same CST identity as `@pkg .name`. Requiring the stored `pkg` and
 `name` components separately remains conservative across both spellings. Each
 component is checked independently for matcher placeholders, so a pattern such
 as `@pkg.$(callee:id)` requires only the fixed `pkg` component.
-
-After recording a `Type_Name`, the collector still visits its children so
-literals in type arguments are not lost.
 
 The collector also recognizes:
 
@@ -164,7 +158,7 @@ weak anchors. This is a length check on the stored spelling, not a numeric
 magnitude check. Empty strings are also omitted.
 
 Unrecognized non-leaf nodes are traversed recursively. Bare leaf nodes do not
-become literals by themselves, so AST kind names and structural punctuation
+become literals by themselves, so CST kind names and structural punctuation
 are not source requirements. Literal interpolation expressions are reached
 through normal recursion, while parser-only source metadata is not used as an
 anchor.
@@ -174,9 +168,10 @@ anchor.
 A name must not be collected when the matcher can replace it with arbitrary
 source. `is_filter_placeholder` excludes:
 
-- names beginning with `$$$`, including ellipsis metavars
+- reserved internal ellipsis, expression, argument, constant, pattern, and type
+  marker prefixes
 - the exact ignore placeholder `$_`
-- encoded whole-pattern placeholders of the form `$(name:pat)`
+- the internal ignore marker
 - the compiled pattern's `target_metavar` and `source_metavar`
 - declared expression, identifier, constant, argument, and type metavars
 
@@ -187,9 +182,14 @@ all-underscore identifier such as `__` remains a required literal.
 During child traversal, a field is skipped only when both its parent
 `NodeKind` and child name match an ignored-field entry. This mirrors structural
 matching, especially partial `inside-toplevel` function shapes whose omitted
-visibility, attributes, documentation, parameters, return type, or other
-default fields must not become prefilter requirements. Explicit fields remain
-eligible literals.
+visibility, attributes, parameters, return type, or other default fields must
+not become prefilter requirements. Explicit semantic fields remain eligible
+literals.
+
+Docstrings are different: `@cst.semantic_children` removes them before literal
+collection, so their text is never required in default, exact, or partial mode.
+Candidate source comments can still satisfy an unrelated required text search;
+that is a conservative false positive and the final CST matcher rejects it.
 
 When placeholder or ignored-field behavior changes in `matching` or
 `rule/compile`, the prefilter must change in the same patch.
@@ -206,7 +206,7 @@ granularities:
   parsing it. An irrelevant malformed file or block can therefore be skipped
   before parser diagnostics are produced.
 - `query` filters the whole source and then each top-level item's source slice
-  before AST traversal. `captures_from_ast` has no source text and bypasses the
+  before CST traversal. `captures_from_cst` has no source text and bypasses the
   prefilter.
 
 Filtering a previously filtered `ScanPlan` is safe: it can only remove more
@@ -242,7 +242,7 @@ When adding a matcher placeholder or metavar kind:
 3. check `matching/INTERNAL.md` and `rule/compile/INTERNAL.md` for the same
    placeholder contract
 
-When adding or changing an untyped AST form:
+When adding or changing an untyped CST form:
 
 1. decide whether it carries a source spelling that is necessary for a match
 2. add a dedicated collector branch only when the verbatim-text invariant
