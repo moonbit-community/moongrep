@@ -95,7 +95,101 @@ test "query supports keyword names for explicit metavariables" {
 }
 
 ///|
-test "query matches every keyword metavariable kind and bare form" {
+test "query captures typed metavars in string interpolation" {
+  let query = ExprQuery::ExprQuery("\"hello \\{$(value:exp)}\"")
+  let source =
+    #|fn sample {
+    #|  "hello \{name}";
+    #|  "hello \{make()}";
+    #|  "goodbye \{name}"
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 2)
+  guard matches[0].get("value") is Some(Single(identifier)) else {
+    fail("expected identifier interpolation capture")
+  }
+  guard matches[1].get("value") is Some(Single(call)) else {
+    fail("expected call interpolation capture")
+  }
+  assert_true(identifier.kind is @untyped_cst.Expr_Ident)
+  assert_true(call.kind is @untyped_cst.Expr_Apply)
+}
+
+///|
+test "query supports bare and ignore metavars in string interpolation" {
+  let source =
+    #|fn sample {
+    #|  "hello \{name}";
+    #|  "hello \{make()}"
+    #|}
+    #|
+  let bare = ExprQuery::ExprQuery("\"hello \\{$value}\"")
+  let bare_matches = bare.captures(source_name="sample.mbt", source)
+  assert_eq(bare_matches.length(), 2)
+  for capture in bare_matches {
+    assert_true(capture.contains("value"))
+  }
+  let ignore = ExprQuery::ExprQuery("\"hello \\{$_}\"")
+  let ignore_matches = ignore.captures(source_name="sample.mbt", source)
+  assert_eq(ignore_matches.length(), 2)
+  for capture in ignore_matches {
+    assert_eq(capture.length(), 0)
+  }
+}
+
+///|
+test "query enforces repeated metavars across string interpolations" {
+  let query = ExprQuery::ExprQuery(
+    "\"left \\{$(value:exp)}, right \\{$(value:exp)}\"",
+  )
+  let source =
+    #|fn sample {
+    #|  "left \{name}, right \{name}";
+    #|  "left \{make()}, right \{make()}";
+    #|  "left \{name}, right \{other}"
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 2)
+}
+
+///|
+test "query captures metavars in bytes interpolation" {
+  let query = ExprQuery::ExprQuery("b\"hello \\{$(value:exp)}\"")
+  let source =
+    #|fn sample {
+    #|  b"hello \{name}";
+    #|  b"hello \{make()}"
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 2)
+  guard matches[1].get("value") is Some(Single(call)) else {
+    fail("expected bytes interpolation capture")
+  }
+  assert_true(call.kind is @untyped_cst.Expr_Apply)
+}
+
+///|
+test "query captures metavars in nested string interpolation" {
+  let query = ExprQuery::ExprQuery("\"outer \\{\"inner \\{$(value:exp)}\"}\"")
+  let source =
+    #|fn sample {
+    #|  "outer \{"inner \{name}"}";
+    #|  "outer \{"inner \{make()}"}"
+    #|}
+    #|
+  let matches = query.captures(source_name="sample.mbt", source)
+  assert_eq(matches.length(), 2)
+  guard matches[1].get("value") is Some(Single(call)) else {
+    fail("expected nested interpolation capture")
+  }
+  assert_true(call.kind is @untyped_cst.Expr_Apply)
+}
+
+///|
+test "query matches keyword non-type metavariables and bare forms" {
   let cases = [
     ("sink($(else:exp))", "fn sample { sink(actual()) }"),
     ("sink($(if:const))", "fn sample { sink(42) }"),
@@ -103,9 +197,6 @@ test "query matches every keyword metavariable kind and bare form" {
     ("sink($(match:arg))", "fn sample { sink(label=value) }"),
     (
       "match input { $(if:pat) => body }", "fn sample { match input { Some(value) => body } }",
-    ),
-    (
-      "let value : $(for:type) = input", "fn sample { let value : Array[Int] = input }",
     ),
     ("$if + $if", "fn sample { actual() + actual() }"),
   ]

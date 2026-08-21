@@ -161,6 +161,33 @@ test "apply structural rule supports inline expression metavars" {
 }
 
 ///|
+test "apply structural rule supports metavars in string and bytes interpolation" {
+  let rule_source =
+    #|id: example
+    #|description: Interpolation captures.
+    #|patterns:
+    #|  - shape: |
+    #|      "hello \{$(value:exp)}"
+    #|  - shape: |
+    #|      b"hello \{$(value:exp)}"
+    #|
+  let source =
+    #|fn sample {
+    #|  "hello \{name}";
+    #|  "hello \{make()}";
+    #|  b"hello \{name}";
+    #|  b"hello \{make()}"
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 4)
+  inspect(
+    int_array_signature(hits.map(hit => hit.pattern_index)),
+    content="[0, 0, 1, 1]",
+  )
+}
+
+///|
 test "apply structural rule visits an if else branch" {
   let rule_source =
     #|id: example

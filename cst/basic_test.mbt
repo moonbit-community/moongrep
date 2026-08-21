@@ -16,6 +16,22 @@ test "semantic view ignores formatting and exposes payloads" {
 }
 
 ///|
+test "interpolation semantics use the parsed expression" {
+  let root = @untyped_cst.parse_expression("\"hello \\{value}\"").root()
+  guard find_first_node(root, node => {
+      node.kind is @untyped_cst.InterpSegment_Source
+    })
+    is Some(segment) else {
+    fail("expected interpolation source")
+  }
+  guard semantic_children(segment) is [(Some("expr"), expr)] else {
+    fail("expected only the parsed interpolation expression")
+  }
+  assert_true(expr.kind is @untyped_cst.Expr_Ident)
+  debug_inspect(string_payload(segment), content="Some(\"value\")")
+}
+
+///|
 test "groups and structure roots are normalized" {
   let pattern = @untyped_cst.parse_expression("match x { (Some(y)) => y }").root()
   let grouped = find_first_node(pattern, fn(node) {
