@@ -44,6 +44,40 @@ test "groups and structure roots are normalized" {
 }
 
 ///|
+test "constructor identities retain every qualifier" {
+  let cases = [
+    ("Ctor", "Ctor"),
+    ("@pkg.Ctor", "@pkg.Ctor"),
+    ("Type::Ctor", "Type::Ctor"),
+    ("@pkg.Type::Ctor", "@pkg.Type::Ctor"),
+    ("@pkg.Type::@other.Ctor", "@pkg.Type::@other.Ctor"),
+  ]
+  for case in cases {
+    let (source, expected) = case
+    let parsed = @untyped_cst.parse_expression(source)
+    guard parsed.diagnostics_view().is_empty() else {
+      fail("expected constructor expression to parse: \{source}")
+    }
+    let constructor_expr = expression_root(parsed.root())
+    assert_true(constructor_expr.kind is @untyped_cst.Expr_Constr)
+    assert_eq(normalized_name(constructor_expr), Some(expected))
+  }
+  let pattern = @untyped_cst.parse_expression(
+    "match input { @pkg.Type::@other.Ctor(value) => value }",
+  ).root()
+  guard find_first_node(pattern, node => {
+      node.kind is @untyped_cst.Pattern_Constr
+    })
+    is Some(constructor_pattern) else {
+    fail("expected constructor pattern")
+  }
+  assert_eq(
+    normalized_name(constructor_pattern),
+    Some("@pkg.Type::@other.Ctor"),
+  )
+}
+
+///|
 test "qualified attributes expose metadata" {
   let root = @untyped_cst.parse_structure("#moongrep.skip\nfn f {}").root()
   let item = toplevel_nodes(root)[0]

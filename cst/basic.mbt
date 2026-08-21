@@ -345,24 +345,51 @@ pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
     return None
   }
   let components = raw_children(node, "component")
-  guard components is [first, ..] else { return None }
-  guard string_payload(first) is Some(first_name) else { return None }
-  if components.length() == 1 {
-    return Some(first_name)
+  guard !components.is_empty() else { return None }
+  let groups : Array[String] = []
+  let mut package_name : String? = None
+  for component in components {
+    guard string_payload(component) is Some(name) else { return None }
+    if component.kind is @untyped_cst.Name_Package {
+      if package_name is Some(_) {
+        return None
+      }
+      package_name = Some(name)
+    } else {
+      match package_name {
+        Some(package_value) => {
+          groups.push("@\{package_value}.\{name}")
+          package_name = None
+        }
+        None => groups.push(name)
+      }
+    }
   }
-  guard string_payload(components.last().unwrap()) is Some(last_name) else {
-    return None
-  }
-  if first.kind is @untyped_cst.Name_Package {
-    Some("@\{first_name}.\{last_name}")
+  guard package_name is None && !groups.is_empty() else { return None }
+  Some(groups.join("::"))
+}
+
+///|
+fn normalized_constructor_identity(node : @untyped_cst.CstNode) -> String? {
+  if node.kind is @untyped_cst.Expr_Constr &&
+    raw_child(node, "type") is Some(type_name) {
+    guard normalized_constructor_identity(type_name) is Some(prefix) else {
+      return None
+    }
+    guard name_node(node).bind(normalized_name) is Some(constructor_name) else {
+      return None
+    }
+    Some("\{prefix}::\{constructor_name}")
   } else {
-    Some("\{first_name}::\{last_name}")
+    name_node(node).bind(normalized_name)
   }
 }
 
 ///|
 pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
   match node.kind {
+    @untyped_cst.Expr_Constr | @untyped_cst.Pattern_Constr =>
+      normalized_constructor_identity(node)
     @untyped_cst.Syntax_Identifier
     | @untyped_cst.Syntax_Label
     | @untyped_cst.Syntax_Accessor =>
