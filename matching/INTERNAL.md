@@ -11,6 +11,12 @@ callers, not for rule authors.
 matching. Failed matches may leave partial captures in that local copy. The
 caller's map remains unchanged.
 
+`match_expr_pattern_candidate` and
+`match_expr_pattern_candidate_with_bindings` apply the same state rules to
+`Direct(CstNode)` and `Sequence(Array[CstNode])` candidates. Every successful
+`ExprMatch` carries the exact candidate `loc`; sequence locations merge the
+first and last statement and therefore exclude container braces.
+
 Ordinary nodes bind as they walk left to right. Ordered child lists use a small
 backtracking matcher when they contain ellipses: each candidate length runs
 against a copied binding map, and only the first complete successful branch is
@@ -69,6 +75,13 @@ label, constructor, accessor, type-name, and qualified-name nodes. Repeated
 bindings compare the normalized spelling even when the two occurrences use
 different CST name kinds.
 
+In constructor position, one identifier metavar binds the complete constructor
+identity. Expression constructors retain their real `Expr_Constr` node;
+constructor patterns retain their real full-span semantic name node. Both
+normalize forms such as `@pkg.Ctor`, `Type::Ctor`, `@pkg.Type::Ctor`, and
+`@pkg.Type::@other.Ctor`. A shape that explicitly separates
+`$(Type:id)::$(Ctor:id)` still binds the two parts independently.
+
 Constant placeholders accept only constant expression or pattern nodes. Pattern
 metavars bind whole pattern nodes. Type metavars bind whole type nodes.
 Repeated constant, pattern, and type captures use the same semantic-CST equality
@@ -81,9 +94,11 @@ argument, pattern, and type captures. Repeated binding comparison is handled by
 `bound_value_equal`, which compares `Single` with `Single` and `Multiple` with
 `Multiple`; mixed variants are unequal.
 
-`node_equal_ignoring_loc` compares normalized name nodes first. Other nodes
-require the same kind and recursively compare the semantic child view in order.
-Leaf payloads remain significant. Locations never enter this view.
+`node_equal_ignoring_loc` compares normalized identity nodes first. Whole
+constructor patterns captured by `pat` are not identity nodes: they still
+require the same kind and recursively compare the semantic child view,
+including constructor arguments. Leaf payloads remain significant. Locations
+never enter this view.
 
 ## Semantic CST View
 
@@ -102,9 +117,18 @@ used as a labelled `body` container can bind a single whole-body expression
 placeholder to the candidate block. This preserves multi-statement body
 captures used by loop and function-context rules.
 
-The expression-container matcher also retains the earlier spelling-level
-compatibility for an omitted let or guard body versus a trailing unit. Explicit
-bodies continue to match structurally.
+Expression matching is preceded by the candidate traversal in `cst/scoped.mbt`.
+Function, method, test, lambda, local-function, and letrec body blocks produce a
+brace-free `Sequence` candidate instead of a direct block candidate. Explicit
+nested blocks remain `Direct(Expr_Block)` candidates and keep their braces in
+the match location.
+
+A sequence accepts only a complete multi-statement `Expression` shape or the
+omitted-continuation shortcut for ordinary `let` and `guard`. `let mut`, local
+functions, `letrec`, and `defer` own their continuation but do not get the
+shortcut. When one of these headers has following statements, traversal emits
+the sequence suffix instead of a header-only direct candidate. `proof_let` is
+not a continuation owner and remains independently matchable.
 
 ## Exactness
 

@@ -114,6 +114,22 @@ shape 是结构性的：
 
 扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个指向同一定义的导入名称只在解析后的源码拼写一致或被元变量捕获时视为相同。
 
+### 函数体与显式 block
+
+函数、方法、测试、lambda 和局部函数 body 外层的花括号只是匹配容器，不是显式
+block 表达式候选。body 内的语句组成 sequence 候选，其中的每个表达式仍可独立搜索。
+
+因此，`$_` 和 `$(root:exp)` 会搜索函数体内部的表达式，而不会捕获函数体花括号。
+完整的多语句 shape 可以匹配 body sequence；finding range 从第一条命中语句开始，
+到最后一条命中语句结束，不包含 body 花括号。
+
+源码中作为表达式写出的嵌套 block 仍是显式 block 候选。例如，`{ a; b }` 不匹配
+`fn sample { a; b }` 的函数体容器，但会匹配 `fn sample { { a; b } }` 中的
+嵌套 block。该显式 block 的 finding range 包含花括号。
+
+普通正向 pattern、`patterns-not`、`inside-expr` target 遍历和 expression query
+都使用同一套候选及 range 规则。
+
 ### 省略 body 的 let shape
 
 没有显式 body 的普通 `let` shape 是 let-header pattern。例如，下面的 shape
@@ -138,7 +154,9 @@ let item = load(); use(item)
 let item = load(); { trace(item); item }
 ```
 
-MoonBit parser 会把 `let item = load()` 表示为 `Expr::Let`，其 body 是一个合成的 unit 表达式。当 pattern shape 中出现这个合成 unit 时，matcher 会把它解释为“pattern 省略了 body”。候选 body 无需匹配同一个 unit node。
+扫描器会把这个单语句 `let` shape 识别为 let-header pattern。候选存在后续语句时，
+匹配候选是从该 `let` 开始的 sequence suffix；matcher 只比较 header，不约束 suffix
+中的其余语句。
 
 如果 body 重要，请显式写出 body：
 
@@ -164,8 +182,10 @@ patterns:
 这会匹配显式 unit body。它不同于上面的省略 body shape；省略 body 的形式会有意忽略候选 body。当前结构 shape
 无法表达“只匹配语法上省略 body 的 let”。
 
-这个快捷匹配只适用于普通 `let` 表达式。`let mut`、局部函数定义和
-`letrec` shape 使用普通结构匹配。
+这个快捷匹配只适用于普通 `let` 表达式。`let mut`、局部函数定义、`letrec` 和
+`defer` shape 使用普通结构匹配。这些形式的 header-only shape 不匹配带 continuation
+的候选；需要约束 continuation 时应写出完整语句序列。`proof_let` 是独立表达式候选，
+因此 header 命中只覆盖 `proof_let`，后续表达式仍可继续搜索。
 
 ### 省略 body 的 guard shape
 
@@ -191,9 +211,9 @@ guard ready() else { fallback() }; continue_work()
 guard ready() else { fallback() }; { prepare(); finish() }
 ```
 
-MoonBit parser 会把省略的 body 表示为一个合成的 unit 表达式。当 pattern
-shape 中出现这个合成 unit 时，matcher 会忽略候选 body。condition 和
-`else` 表达式仍使用普通的递归结构匹配。
+扫描器会把这个单语句 shape 识别为 guard-header pattern。候选存在后续语句时，
+matcher 会将其与从该 `guard` 开始的 sequence suffix 比较，并忽略 suffix 中的
+其余语句。condition 和 `else` 表达式仍使用普通的递归结构匹配。
 
 如果 continuation 重要，请显式写出 body：
 
