@@ -6,11 +6,11 @@ priv struct EllipsisMarker {
 
 ///|
 fn ellipsis_marker(
-  item : @untyped_ast.Node,
+  item : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
 ) -> EllipsisMarker? {
   guard ellipsis_item_raw(item) is Some(raw) else { return None }
-  guard matching_parse_ellipsis_syntax(raw) is Some(parsed) else { return None }
+  guard matching_parse_ellipsis_marker(raw) is Some(parsed) else { return None }
   let (name, raw_kind) = parsed
   if name == "_" {
     Some({ name, kind: raw_kind.unwrap_or(AnyItem) })
@@ -35,94 +35,70 @@ fn compiled_ellipsis_metavar(
 }
 
 ///|
-fn ellipsis_item_raw(item : @untyped_ast.Node) -> String? {
+fn ellipsis_item_raw(item : @untyped_cst.CstNode) -> String? {
   if matching_ellipsis_direct_raw(item) is Some(raw) {
     return Some(raw)
   }
   match item.kind {
-    Argument => {
-      guard child(item, "kind") is Some(kind) &&
-        kind.kind == ArgumentKind_Positional else {
-        return None
-      }
-      guard child(item, "value") is Some(value) else { return None }
-      matching_ellipsis_direct_raw(value)
-    }
-    ConstrPatArg => {
-      guard child(item, "kind") is Some(kind) &&
-        kind.kind == ArgumentKind_Positional else {
-        return None
-      }
-      guard child(item, "pat") is Some(pattern) else { return None }
-      matching_ellipsis_direct_raw(pattern)
-    }
-    ArrayPattern_Pattern | SpreadableElem_Regular =>
-      if child(item, "value") is Some(value) {
-        matching_ellipsis_direct_raw(value)
-      } else {
-        None
-      }
-    Parameter_Positional => {
-      guard child(item, "binder") is Some(binder) else { return None }
-      guard child(item, "ty") is Some(ty) && matching_is_null(ty) else {
-        return None
-      }
-      matching_ellipsis_direct_raw(binder)
-    }
+    @untyped_cst.Argument_Positional =>
+      @cst.argument_value(item).bind(matching_ellipsis_direct_raw)
+    @untyped_cst.ArrayPattern_Pattern =>
+      first_pattern_child(item).bind(matching_ellipsis_direct_raw)
+    @untyped_cst.ArrayElement_Regular =>
+      @cst.raw_child(item, "expr").bind(matching_ellipsis_direct_raw)
+    @untyped_cst.Parameter_Positional =>
+      parameter_pattern(item).bind(matching_ellipsis_direct_raw)
     _ => None
   }
 }
 
 ///|
-fn matching_ellipsis_direct_raw(node : @untyped_ast.Node) -> String? {
+fn matching_ellipsis_direct_raw(node : @untyped_cst.CstNode) -> String? {
   let raw = match node.kind {
-    Expr_Ident => node.normalized_expr_identifier_name()
-    Pattern_Var =>
-      if child(node, "value") is Some(binder) {
-        leaf_string_child(binder, "name")
-      } else {
-        None
-      }
-    Binder => leaf_string_child(node, "name")
-    Type_Name => type_placeholder_name(node)
+    @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(node)
+    @untyped_cst.Pattern_Var => @cst.normalized_pattern_identifier_name(node)
+    @untyped_cst.Name_Binder => @cst.normalized_name(node)
+    @untyped_cst.Type_Name => type_placeholder_name(node)
     _ => None
   }
   match raw {
-    Some(raw) if raw.has_prefix("$$$") => Some(raw)
+    Some(raw) if raw.has_prefix("__moongrep_ellipsis_") ||
+      raw.has_prefix("MoongrepEllipsis_") => Some(raw)
     _ => None
   }
 }
 
 ///|
-fn matching_parse_ellipsis_syntax(
+fn matching_parse_ellipsis_marker(
   raw : String,
 ) -> (String, EllipsisMetavarKind?)? {
-  if !raw.has_prefix("$$$") {
+  let prefix = if raw.has_prefix("__moongrep_ellipsis_") {
+    "__moongrep_ellipsis_"
+  } else if raw.has_prefix("MoongrepEllipsis_") {
+    "MoongrepEllipsis_"
+  } else {
     return None
   }
-  if raw.has_prefix("$$$(") && raw.has_suffix(")") {
-    let end = raw.length() - 1
-    for index in 4..<end {
-      if raw[index] == ':' {
-        let name = raw[4:index].trim().to_owned()
-        let kind = match raw[index + 1:end].trim().to_owned() {
-          "exp" => Some(ExpItem)
-          "id" => Some(IdItem)
-          "const" => Some(ConstItem)
-          "arg" => Some(ArgItem)
-          "pat" => Some(PatItem)
-          "type" => Some(TypeItem)
-          _ => None
-        }
-        if name.length() > 0 && kind is Some(_) {
-          return Some((name, kind))
-        }
-        return None
+  let payload = raw[prefix.length():].to_owned()
+  let kinds : Array[(String, EllipsisMetavarKind)] = [
+    ("any_", AnyItem),
+    ("exp_", ExpItem),
+    ("id_", IdItem),
+    ("const_", ConstItem),
+    ("arg_", ArgItem),
+    ("pat_", PatItem),
+    ("type_", TypeItem),
+  ]
+  for entry in kinds {
+    if payload.has_prefix(entry.0) {
+      let name = payload[entry.0.length():].to_owned()
+      if name.length() > 0 {
+        return Some((name, Some(entry.1)))
       }
     }
-    None
-  } else if raw.length() > 3 {
-    Some((raw[3:].to_owned(), None))
+  }
+  if payload.length() > 0 {
+    Some((payload, None))
   } else {
     None
   }
@@ -130,38 +106,38 @@ fn matching_parse_ellipsis_syntax(
 
 ///|
 fn ellipsis_candidate_matches(
-  pattern_item : @untyped_ast.Node,
-  candidate_item : @untyped_ast.Node,
+  pattern_item : @untyped_cst.CstNode,
+  candidate_item : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
   if kind == AnyItem {
     return true
   }
   match pattern_item.kind {
-    Expr_Ident => matching_ellipsis_expr_kind(candidate_item, kind)
-    Argument => matching_ellipsis_argument_kind(candidate_item, kind)
-    Pattern_Var => matching_ellipsis_pattern_kind(candidate_item, kind)
-    ConstrPatArg =>
-      matching_ellipsis_constr_pattern_arg_kind(candidate_item, kind)
-    ArrayPattern_Pattern =>
+    @untyped_cst.Expr_Ident => matching_ellipsis_expr_kind(candidate_item, kind)
+    @untyped_cst.Argument_Positional =>
+      matching_ellipsis_argument_kind(candidate_item, kind)
+    @untyped_cst.Pattern_Var =>
+      matching_ellipsis_pattern_kind(candidate_item, kind)
+    @untyped_cst.ArrayPattern_Pattern =>
       matching_ellipsis_array_pattern_kind(candidate_item, kind)
-    Type_Name => kind == TypeItem && is_type_node(candidate_item)
-    Parameter_Positional =>
+    @untyped_cst.Type_Name => kind == TypeItem && is_type_node(candidate_item)
+    @untyped_cst.Parameter_Positional =>
       kind == IdItem && matching_parameter_has_binder(candidate_item)
-    SpreadableElem_Regular =>
-      matching_ellipsis_spreadable_expr_kind(candidate_item, kind)
+    @untyped_cst.ArrayElement_Regular =>
+      matching_ellipsis_array_element_kind(candidate_item, kind)
     _ => false
   }
 }
 
 ///|
 fn matching_ellipsis_expr_kind(
-  candidate : @untyped_ast.Node,
+  candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
   match kind {
-    ExpItem => matching_is_expr_node(candidate)
-    IdItem => candidate.normalized_expr_identifier_name() is Some(_)
+    ExpItem => candidate.kind.is_expr()
+    IdItem => @cst.normalized_expr_identifier_name(candidate) is Some(_)
     ConstItem => expr_constant(candidate) is Some(_)
     _ => false
   }
@@ -169,97 +145,103 @@ fn matching_ellipsis_expr_kind(
 
 ///|
 fn matching_ellipsis_argument_kind(
-  candidate : @untyped_ast.Node,
+  candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
-  if candidate.kind != Argument {
-    return false
-  }
+  guard candidate.kind.is_argument() else { return false }
   if kind == ArgItem {
     return true
   }
-  guard child(candidate, "kind") is Some(argument_kind) &&
-    argument_kind.kind == ArgumentKind_Positional else {
-    return false
+  guard candidate.kind is @untyped_cst.Argument_Positional else { return false }
+  if @cst.argument_value(candidate) is Some(value) {
+    matching_ellipsis_expr_kind(value, kind)
+  } else {
+    false
   }
-  guard child(candidate, "value") is Some(value) else { return false }
-  matching_ellipsis_expr_kind(value, kind)
 }
 
 ///|
 fn matching_ellipsis_pattern_kind(
-  candidate : @untyped_ast.Node,
+  candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
+  let candidate = @cst.unwrap_groups(candidate)
   match kind {
-    PatItem => matching_is_pattern_node(candidate)
-    IdItem => candidate.normalized_pattern_identifier_name() is Some(_)
+    PatItem => candidate.kind.is_pattern()
+    IdItem => @cst.normalized_pattern_identifier_name(candidate) is Some(_)
     ConstItem => pattern_constant(candidate) is Some(_)
     _ => false
   }
 }
 
 ///|
-fn matching_ellipsis_constr_pattern_arg_kind(
-  candidate : @untyped_ast.Node,
-  kind : EllipsisMetavarKind,
-) -> Bool {
-  guard candidate.kind == ConstrPatArg else { return false }
-  guard child(candidate, "pat") is Some(pattern) else { return false }
-  matching_ellipsis_pattern_kind(pattern, kind)
-}
-
-///|
 fn matching_ellipsis_array_pattern_kind(
-  candidate : @untyped_ast.Node,
+  candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
-  guard candidate.kind == ArrayPattern_Pattern else { return false }
-  guard child(candidate, "value") is Some(pattern) else { return false }
-  matching_ellipsis_pattern_kind(pattern, kind)
-}
-
-///|
-fn matching_ellipsis_spreadable_expr_kind(
-  candidate : @untyped_ast.Node,
-  kind : EllipsisMetavarKind,
-) -> Bool {
-  guard candidate.kind == SpreadableElem_Regular else { return false }
-  guard child(candidate, "value") is Some(expr) else { return false }
-  matching_ellipsis_expr_kind(expr, kind)
-}
-
-///|
-fn matching_parameter_has_binder(node : @untyped_ast.Node) -> Bool {
-  match node.kind {
-    Parameter_Positional
-    | Parameter_Labelled
-    | Parameter_Optional
-    | Parameter_QuestionOptional => child(node, "binder") is Some(_)
-    _ => false
+  guard candidate.kind is @untyped_cst.ArrayPattern_Pattern else {
+    return false
+  }
+  if first_pattern_child(candidate) is Some(pattern) {
+    matching_ellipsis_pattern_kind(pattern, kind)
+  } else {
+    false
   }
 }
 
 ///|
-fn matching_is_expr_node(node : @untyped_ast.Node) -> Bool {
-  node.kind.to_string().has_prefix("Expr::")
+fn matching_ellipsis_array_element_kind(
+  candidate : @untyped_cst.CstNode,
+  kind : EllipsisMetavarKind,
+) -> Bool {
+  guard candidate.kind is @untyped_cst.ArrayElement_Regular else {
+    return false
+  }
+  if @cst.raw_child(candidate, "expr") is Some(expr) {
+    matching_ellipsis_expr_kind(expr, kind)
+  } else {
+    false
+  }
 }
 
 ///|
-fn matching_is_pattern_node(node : @untyped_ast.Node) -> Bool {
-  node.kind.to_string().has_prefix("Pattern::")
+fn first_pattern_child(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
+  for entry in node.children {
+    if entry.1.kind.is_pattern() {
+      return Some(@cst.unwrap_groups(entry.1))
+    }
+  }
+  None
 }
 
 ///|
-fn matching_is_null(node : @untyped_ast.Node) -> Bool {
-  node.kind == Leaf(PNull)
+fn parameter_pattern(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
+  if @cst.raw_child(node, "pattern") is Some(pattern) {
+    Some(@cst.unwrap_groups(pattern))
+  } else {
+    @cst.name_node(node)
+  }
+}
+
+///|
+fn matching_parameter_has_binder(node : @untyped_cst.CstNode) -> Bool {
+  match node.kind {
+    @untyped_cst.Parameter_Positional
+    | @untyped_cst.Parameter_Labelled
+    | @untyped_cst.Parameter_Optional
+    | @untyped_cst.Parameter_QuestionOptional =>
+      parameter_pattern(node).bind(@cst.normalized_name) is Some(_) ||
+      parameter_pattern(node).bind(@cst.normalized_pattern_identifier_name)
+      is Some(_)
+    _ => false
+  }
 }
 
 ///|
 fn bind_multiple(
   bindings : @hashmap.HashMap[String, BoundValue],
   name : String,
-  values : Array[@untyped_ast.Node],
+  values : Array[@untyped_cst.CstNode],
 ) -> Bool {
   let value = Multiple(values)
   if bindings.get(name) is Some(existing) {

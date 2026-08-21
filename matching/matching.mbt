@@ -1,14 +1,11 @@
 ///|
-/// Returns whether `candidate` has the same AST shape as `pattern`.
-///
-/// This convenience entry point does not enable declared metavars. It still
-/// treats the exact identifier `$_` as an ignore placeholder.
+/// Returns whether `candidate` has the same semantic CST shape as `pattern`.
 pub fn expr_matches(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
 ) -> Bool {
   let compiled : CompiledExprPattern = {
-    ast: pattern,
+    cst: pattern,
     expr_metavars: [],
     identifier_metavars: [],
     constant_metavars: [],
@@ -23,36 +20,24 @@ pub fn expr_matches(
 }
 
 ///|
-/// Matches `candidate` against a compiled expression pattern.
-///
-/// This attempts a single root-level match of `compiled.ast` against
-/// `candidate`. It does not traverse candidate descendants; callers that need
-/// search should pass each candidate expression subtree separately.
-///
-/// The returned bindings are fresh for this call. A failed match returns
-/// `None` and does not expose partial bindings.
+/// Attempts one root-level match of `compiled.cst` against `candidate`.
 pub fn match_expr_pattern(
   compiled : CompiledExprPattern,
-  candidate : @untyped_ast.Node,
+  candidate : @untyped_cst.CstNode,
 ) -> ExprMatch? {
   let bindings : @hashmap.HashMap[String, BoundValue] = HashMap([])
   match_expr_pattern_with_bindings(compiled, candidate, bindings)
 }
 
 ///|
-/// Matches with a caller-supplied binding context.
-///
-/// This is used by inside-context rules: the outer match establishes bindings,
-/// then candidate target expressions are matched with those bindings already in
-/// scope. The input map is copied before matching, so failed attempts cannot
-/// mutate the caller's context.
+/// Matches with a copied caller-supplied binding context.
 pub fn match_expr_pattern_with_bindings(
   compiled : CompiledExprPattern,
-  candidate : @untyped_ast.Node,
+  candidate : @untyped_cst.CstNode,
   initial_bindings : @hashmap.HashMap[String, BoundValue],
 ) -> ExprMatch? {
   let bindings = initial_bindings.copy()
-  if match_node(compiled.ast, candidate, compiled, bindings) {
+  if match_node(compiled.cst, candidate, compiled, bindings) {
     Some({ root: candidate, bindings })
   } else {
     None
@@ -61,133 +46,179 @@ pub fn match_expr_pattern_with_bindings(
 
 ///|
 fn match_node(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+  raw_pattern : @untyped_cst.CstNode,
+  raw_candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  if match_expr_placeholder(pattern, candidate, compiled, bindings)
-    is Some(result) {
-    result
-  } else if match_type_placeholder(pattern, candidate, compiled, bindings)
-    is Some(result) {
-    result
-  } else if match_pattern_placeholder(pattern, candidate, compiled, bindings)
-    is Some(result) {
-    result
-  } else if match_argument_placeholder(pattern, candidate, compiled, bindings)
-    is Some(result) {
-    result
-  } else {
-    match pattern.kind {
-      Expr_Guard => match_guard_node(pattern, candidate, compiled, bindings)
-      Expr_Let => match_let_node(pattern, candidate, compiled, bindings)
-      InterpElem_Source => candidate.kind == InterpElem_Source
-      Var => match_var(pattern, candidate, compiled, bindings)
-      Binder => match_binder(pattern, candidate, compiled, bindings)
-      Label => match_label(pattern, candidate, compiled, bindings)
-      Constructor => match_constructor(pattern, candidate, compiled, bindings)
-      TypeName => match_type_name(pattern, candidate, compiled, bindings)
-      _ => structural_match(pattern, candidate, compiled, bindings)
+  let pattern = @cst.unwrap_groups(raw_pattern)
+  let candidate = @cst.unwrap_groups(raw_candidate)
+  if lexical_statement_has_continuation(pattern.kind) &&
+    candidate.kind
+    is (@untyped_cst.Expression
+    | @untyped_cst.Expr_Block
+    | @untyped_cst.Expr_Sequence) {
+    match sequence_items(candidate) {
+      [first, ..] if first.kind == pattern.kind =>
+        return match_node(pattern, first, compiled, bindings)
+      _ => return false
     }
   }
+  if match_expr_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    return result
+  }
+  if match_type_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    return result
+  }
+  if match_pattern_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    return result
+  }
+  if match_argument_placeholder(pattern, candidate, compiled, bindings)
+    is Some(result) {
+    return result
+  }
+  if is_name_node(pattern) {
+    return match_name_node(pattern, candidate, compiled, bindings)
+  }
+  if pattern.kind is @untyped_cst.Expression ||
+    pattern.kind is @untyped_cst.Expr_Block ||
+    pattern.kind is @untyped_cst.Expr_Sequence {
+    return match_expression_container(pattern, candidate, compiled, bindings)
+  }
+  structural_match(pattern, candidate, compiled, bindings)
 }
 
 ///|
-fn match_type_placeholder(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool? {
-  guard type_placeholder_name(pattern) is Some(name) else { return None }
-  if contains_name(compiled.type_metavars, name) {
-    Some(is_type_node(candidate) && bind_value(bindings, name, candidate))
-  } else {
-    None
-  }
-}
-
-///|
-fn type_placeholder_name(node : @untyped_ast.Node) -> String? {
-  if node.kind != Type_Name {
-    return None
-  }
-  guard child(node, "tys") is Some(tys) else { return None }
-  if !tys.children.is_empty() {
-    return None
-  }
-  guard child(node, "constr_id") is Some(constr_id) else { return None }
-  guard child(constr_id, "id") is Some(long_ident) else { return None }
-  guard long_ident.kind == LongIdent_Ident else { return None }
-  leaf_string_child(long_ident, "value")
-}
-
-///|
-fn is_type_node(node : @untyped_ast.Node) -> Bool {
-  match node.kind {
-    Type_Any
-    | Type_Arrow
-    | Type_Name
-    | Type_Object
-    | Type_Option
-    | Type_Tuple => true
+/// These statements scoped the rest of a sequence in the previous
+/// representation. The CST stores the header and continuation as siblings.
+fn lexical_statement_has_continuation(kind : @untyped_cst.NodeKind) -> Bool {
+  match kind {
+    @untyped_cst.Expr_Let
+    | @untyped_cst.Expr_LetMut
+    | @untyped_cst.Expr_LetFn
+    | @untyped_cst.Expr_LetAnd
+    | @untyped_cst.Expr_Guard
+    | @untyped_cst.Expr_ProofLet => true
     _ => false
   }
 }
 
 ///|
-fn match_argument_placeholder(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+fn match_type_placeholder(
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
-  if pattern.kind != Argument {
-    return None
-  }
-  guard argument_placeholder_name(pattern) is Some(name) else { return None }
-  if contains_name(compiled.arg_metavars, name) {
-    Some(candidate.kind == Argument && bind_value(bindings, name, candidate))
+  guard type_placeholder_name(pattern) is Some(name) else { return None }
+  if contains_name(compiled.type_metavars, name) {
+    Some(candidate.kind.is_type() && bind_value(bindings, name, candidate))
   } else {
     None
   }
 }
 
 ///|
-fn argument_placeholder_name(node : @untyped_ast.Node) -> String? {
-  guard child(node, "kind") is Some(kind) else { return None }
-  guard kind.kind == ArgumentKind_Positional else { return None }
-  guard child(node, "value") is Some(value) else { return None }
-  guard value.kind == Expr_Ident else { return None }
-  value.normalized_expr_identifier_name()
+fn type_placeholder_name(node : @untyped_cst.CstNode) -> String? {
+  guard node.kind is @untyped_cst.Type_Name else { return None }
+  for entry in @cst.semantic_children(node) {
+    if entry.1.kind.is_type() {
+      return None
+    }
+  }
+  @cst.name_node(node)
+  .bind(@cst.normalized_name)
+  .map(name => {
+    if marker_name(name, "MoongrepType_") is Some(logical) {
+      logical
+    } else if marker_name(name, "MoongrepBare_") is Some(logical) {
+      logical
+    } else {
+      name
+    }
+  })
+}
+
+///|
+fn is_type_node(node : @untyped_cst.CstNode) -> Bool {
+  @cst.unwrap_groups(node).kind.is_type()
+}
+
+///|
+fn match_argument_placeholder(
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool? {
+  guard pattern.kind is @untyped_cst.Argument_Positional else { return None }
+  guard argument_placeholder_name(pattern) is Some(name) else { return None }
+  if contains_name(compiled.arg_metavars, name) {
+    Some(candidate.kind.is_argument() && bind_value(bindings, name, candidate))
+  } else {
+    None
+  }
+}
+
+///|
+fn argument_placeholder_name(node : @untyped_cst.CstNode) -> String? {
+  guard node.kind is @untyped_cst.Argument_Positional else { return None }
+  @cst.argument_value(node)
+  .bind(@cst.normalized_expr_identifier_name)
+  .map(name => strip_internal_marker(name, "__moongrep_arg_"))
 }
 
 ///|
 fn match_expr_placeholder(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
-  if pattern.kind != Expr_Ident {
+  guard pattern.kind is @untyped_cst.Expr_Ident else { return None }
+  guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
     return None
   }
-  guard pattern.normalized_expr_identifier_name() is Some(name) else {
-    return None
-  }
+  let logical = single_marker_name(name)
   if is_ignore_placeholder(name) {
     Some(true)
+  } else if logical is Some(logical) {
+    if contains_name(compiled.expr_metavars, logical) {
+      Some(bind_value(bindings, logical, candidate))
+    } else if contains_name(compiled.identifier_metavars, logical) {
+      match
+        (
+          @cst.normalized_expr_identifier_name(candidate),
+          @cst.name_node(candidate),
+        ) {
+        (Some(_), Some(candidate_name)) =>
+          Some(bind_value(bindings, logical, candidate_name))
+        _ => Some(false)
+      }
+    } else if contains_name(compiled.constant_metavars, logical) {
+      if expr_constant(candidate) is Some(constant) {
+        Some(bind_value(bindings, logical, constant))
+      } else {
+        Some(false)
+      }
+    } else {
+      None
+    }
   } else if is_special_expr_metavar(compiled, name) ||
     contains_name(compiled.expr_metavars, name) {
     Some(bind_value(bindings, name, candidate))
   } else if contains_name(compiled.identifier_metavars, name) {
-    if candidate.normalized_expr_identifier_name() is Some(candidate_name) {
-      Some(
-        bind_value(bindings, name, string_binding(candidate_name, candidate)),
-      )
-    } else {
-      Some(false)
+    match
+      (
+        @cst.normalized_expr_identifier_name(candidate),
+        @cst.name_node(candidate),
+      ) {
+      (Some(_), Some(candidate_name)) =>
+        Some(bind_value(bindings, name, candidate_name))
+      _ => Some(false)
     }
   } else if contains_name(compiled.constant_metavars, name) {
     if expr_constant(candidate) is Some(constant) {
@@ -202,28 +233,46 @@ fn match_expr_placeholder(
 
 ///|
 fn match_pattern_placeholder(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
-  if pattern.kind != Pattern_Var {
-    return None
-  }
-  guard pattern.normalized_pattern_identifier_name() is Some(name) else {
+  guard pattern.kind is @untyped_cst.Pattern_Var else { return None }
+  guard @cst.normalized_pattern_identifier_name(pattern) is Some(name) else {
     return None
   }
   if parse_pattern_metavar_name(name) is Some(meta_name) {
     Some(bind_value(bindings, meta_name, candidate))
   } else if is_ignore_placeholder(name) {
     Some(true)
-  } else if contains_name(compiled.identifier_metavars, name) {
-    if candidate.normalized_pattern_identifier_name() is Some(candidate_name) {
-      Some(
-        bind_value(bindings, name, string_binding(candidate_name, candidate)),
-      )
+  } else if single_marker_name(name) is Some(logical) &&
+    contains_name(compiled.identifier_metavars, logical) {
+    match
+      (
+        @cst.normalized_pattern_identifier_name(candidate),
+        @cst.name_node(candidate),
+      ) {
+      (Some(_), Some(candidate_name)) =>
+        Some(bind_value(bindings, logical, candidate_name))
+      _ => Some(false)
+    }
+  } else if single_marker_name(name) is Some(logical) &&
+    contains_name(compiled.constant_metavars, logical) {
+    if pattern_constant(candidate) is Some(constant) {
+      Some(bind_value(bindings, logical, constant))
     } else {
       Some(false)
+    }
+  } else if contains_name(compiled.identifier_metavars, name) {
+    match
+      (
+        @cst.normalized_pattern_identifier_name(candidate),
+        @cst.name_node(candidate),
+      ) {
+      (Some(_), Some(candidate_name)) =>
+        Some(bind_value(bindings, name, candidate_name))
+      _ => Some(false)
     }
   } else if contains_name(compiled.constant_metavars, name) {
     if pattern_constant(candidate) is Some(constant) {
@@ -237,72 +286,99 @@ fn match_pattern_placeholder(
 }
 
 ///|
-fn match_guard_node(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+fn match_expression_container(
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  if candidate.kind != Expr_Guard {
+  if pattern.kind is @untyped_cst.Expr_Block &&
+    !(candidate.kind is @untyped_cst.Expr_Block) {
     return false
   }
-  guard child(pattern, "cond") is Some(pattern_cond) else { return false }
-  guard child(candidate, "cond") is Some(candidate_cond) else { return false }
-  guard child(pattern, "otherwise") is Some(pattern_otherwise) else {
+  if pattern.kind is @untyped_cst.Expr_Sequence &&
+    !(candidate.kind is @untyped_cst.Expr_Sequence) {
     return false
   }
-  guard child(candidate, "otherwise") is Some(candidate_otherwise) else {
-    return false
+  let pattern_items = sequence_items(pattern)
+  let candidate_items = sequence_items(candidate)
+  if candidate_items is [] {
+    if candidate.kind
+      is (@untyped_cst.Expression
+      | @untyped_cst.Expr_Block
+      | @untyped_cst.Expr_Sequence) {
+      return pattern_items.is_empty()
+    }
+    return pattern_items is [single] &&
+      match_node(single, candidate, compiled, bindings)
   }
-  guard child(pattern, "body") is Some(pattern_body) else { return false }
-  guard child(candidate, "body") is Some(candidate_body) else { return false }
-  match_node(pattern_cond, candidate_cond, compiled, bindings) &&
-  match_node(pattern_otherwise, candidate_otherwise, compiled, bindings) &&
-  (
-    is_faked_unit(pattern_body) ||
-    match_node(pattern_body, candidate_body, compiled, bindings)
-  )
+  let pattern_children = unlabelled(pattern_items)
+  let candidate_children = unlabelled(candidate_items)
+  if match_children(
+      pattern.kind,
+      pattern_children,
+      candidate_children,
+      compiled,
+      bindings,
+    ) {
+    return true
+  }
+  // Earlier versions synthesized a final unit for a body-less let/guard.
+  // Preserve that spelling-level compatibility.
+  if pattern_items.length() == candidate_items.length() + 1 &&
+    pattern_items.last().unwrap().kind is @untyped_cst.Expr_Unit {
+    let without_unit = pattern_children[:pattern_children.length() - 1].to_owned()
+    return match_children(
+      pattern.kind,
+      without_unit,
+      candidate_children,
+      compiled,
+      bindings,
+    )
+  }
+  false
 }
 
 ///|
-fn match_let_node(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  if candidate.kind != Expr_Let {
-    return false
+fn sequence_items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
+  match node.kind {
+    @untyped_cst.Expression => @cst.expression_nodes(node)
+    @untyped_cst.Expr_Block
+    | @untyped_cst.Expr_Sequence
+    | @untyped_cst.List_BlockStatementList => @cst.sequence_items(node)
+    _ => []
   }
-  guard child(pattern, "pattern") is Some(pattern_pat) else { return false }
-  guard child(candidate, "pattern") is Some(candidate_pat) else { return false }
-  guard child(pattern, "expr") is Some(pattern_expr) else { return false }
-  guard child(candidate, "expr") is Some(candidate_expr) else { return false }
-  guard child(pattern, "body") is Some(pattern_body) else { return false }
-  guard child(candidate, "body") is Some(candidate_body) else { return false }
-  match_node(pattern_pat, candidate_pat, compiled, bindings) &&
-  match_node(pattern_expr, candidate_expr, compiled, bindings) &&
-  (
-    is_faked_unit(pattern_body) ||
-    match_node(pattern_body, candidate_body, compiled, bindings)
-  )
+}
+
+///|
+fn unlabelled(
+  nodes : Array[@untyped_cst.CstNode],
+) -> Array[(String?, @untyped_cst.CstNode)] {
+  let result : Array[(String?, @untyped_cst.CstNode)] = []
+  for node in nodes {
+    result.push((None, node))
+  }
+  result
 }
 
 ///|
 fn structural_match(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
+  if pattern.kind != candidate.kind {
+    return false
+  }
   match (pattern.kind, candidate.kind) {
-    (Leaf(_), Leaf(_)) => pattern.kind == candidate.kind
+    (@untyped_cst.Leaf(_), @untyped_cst.Leaf(_)) =>
+      pattern.kind == candidate.kind
     _ =>
-      pattern.kind == candidate.kind &&
       match_children(
         pattern.kind,
-        pattern.children,
-        candidate.children,
+        @cst.semantic_children(pattern),
+        @cst.semantic_children(candidate),
         compiled,
         bindings,
       )
@@ -311,20 +387,43 @@ fn structural_match(
 
 ///|
 fn match_children(
-  parent_kind : @untyped_ast.NodeKind,
-  pattern : Array[(String?, @untyped_ast.Node)],
-  candidate : Array[(String?, @untyped_ast.Node)],
+  parent_kind : @untyped_cst.NodeKind,
+  pattern : Array[(String?, @untyped_cst.CstNode)],
+  candidate : Array[(String?, @untyped_cst.CstNode)],
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match_children_from(parent_kind, pattern, candidate, 0, 0, compiled, bindings)
+  let filtered_pattern = without_ignored_fields(parent_kind, pattern, compiled)
+  let filtered_candidate = without_ignored_fields(
+    parent_kind, candidate, compiled,
+  )
+  match_children_from(
+    parent_kind, filtered_pattern, filtered_candidate, 0, 0, compiled, bindings,
+  )
+}
+
+///|
+fn without_ignored_fields(
+  parent_kind : @untyped_cst.NodeKind,
+  children : Array[(String?, @untyped_cst.CstNode)],
+  compiled : CompiledExprPattern,
+) -> Array[(String?, @untyped_cst.CstNode)] {
+  let result : Array[(String?, @untyped_cst.CstNode)] = []
+  for entry in children {
+    if entry.0 is Some(name) &&
+      compiled_ignores_field(compiled, parent_kind, name) {
+      continue
+    }
+    result.push(entry)
+  }
+  result
 }
 
 ///|
 fn match_children_from(
-  parent_kind : @untyped_ast.NodeKind,
-  pattern : Array[(String?, @untyped_ast.Node)],
-  candidate : Array[(String?, @untyped_ast.Node)],
+  parent_kind : @untyped_cst.NodeKind,
+  pattern : Array[(String?, @untyped_cst.CstNode)],
+  candidate : Array[(String?, @untyped_cst.CstNode)],
   pattern_index : Int,
   candidate_index : Int,
   compiled : CompiledExprPattern,
@@ -334,23 +433,6 @@ fn match_children_from(
     return candidate_index == candidate.length()
   }
   let (pattern_name, pattern_value) = pattern[pattern_index]
-  if pattern_name is Some(child_name) &&
-    compiled_ignores_field(compiled, parent_kind, child_name) {
-    if candidate_index >= candidate.length() {
-      return false
-    }
-    let (candidate_name, _) = candidate[candidate_index]
-    return pattern_name == candidate_name &&
-      match_children_from(
-        parent_kind,
-        pattern,
-        candidate,
-        pattern_index + 1,
-        candidate_index + 1,
-        compiled,
-        bindings,
-      )
-  }
   if pattern_name is None &&
     ellipsis_marker(pattern_value, compiled) is Some(marker) {
     let fixed_remaining = minimum_fixed_children(
@@ -363,7 +445,7 @@ fn match_children_from(
       return false
     }
     for length in 0..<=maximum_length {
-      let captured : Array[@untyped_ast.Node] = []
+      let captured : Array[@untyped_cst.CstNode] = []
       let mut compatible = true
       for offset in 0..<length {
         let (candidate_name, candidate_value) = candidate[candidate_index +
@@ -405,7 +487,9 @@ fn match_children_from(
     }
     let (candidate_name, candidate_value) = candidate[candidate_index]
     pattern_name == candidate_name &&
-    match_node(pattern_value, candidate_value, compiled, bindings) &&
+    match_child_node(
+      pattern_name, pattern_value, candidate_value, compiled, bindings,
+    ) &&
     match_children_from(
       parent_kind,
       pattern,
@@ -419,9 +503,28 @@ fn match_children_from(
 }
 
 ///|
+fn match_child_node(
+  label : String?,
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool {
+  if label == Some("body") &&
+    pattern.kind is @untyped_cst.Expr_Block &&
+    candidate.kind is @untyped_cst.Expr_Block &&
+    sequence_items(pattern) is [single] &&
+    match_expr_placeholder(single, candidate, compiled, bindings)
+    is Some(result) {
+    return result
+  }
+  match_node(pattern, candidate, compiled, bindings)
+}
+
+///|
 fn compiled_ignores_field(
   compiled : CompiledExprPattern,
-  parent_kind : @untyped_ast.NodeKind,
+  parent_kind : @untyped_cst.NodeKind,
   child_name : String,
 ) -> Bool {
   for field in compiled.ignored_fields {
@@ -434,7 +537,7 @@ fn compiled_ignores_field(
 
 ///|
 fn minimum_fixed_children(
-  pattern : Array[(String?, @untyped_ast.Node)],
+  pattern : Array[(String?, @untyped_cst.CstNode)],
   start : Int,
   compiled : CompiledExprPattern,
 ) -> Int {
@@ -449,224 +552,101 @@ fn minimum_fixed_children(
 }
 
 ///|
-fn match_var(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  if candidate.kind != Var {
-    return false
-  }
-  match (child(pattern, "name"), child(candidate, "name")) {
-    (Some(pattern_name), Some(candidate_name)) =>
-      match_long_ident(pattern_name, candidate_name, compiled, bindings)
+fn is_name_node(node : @untyped_cst.CstNode) -> Bool {
+  match node.kind {
+    @untyped_cst.Name_Identifier
+    | @untyped_cst.Name_Package
+    | @untyped_cst.LongIdent_Ident
+    | @untyped_cst.LongIdent_Dot
+    | @untyped_cst.Name_Binder
+    | @untyped_cst.Name_Label
+    | @untyped_cst.Name_Type
+    | @untyped_cst.Name_Constr
+    | @untyped_cst.Name_ConstrId
+    | @untyped_cst.Name_Var
+    | @untyped_cst.Name_Constructor
+    | @untyped_cst.Name_Field
+    | @untyped_cst.Name_AliasTarget
+    | @untyped_cst.Name_Test
+    | @untyped_cst.Accessor_Label => true
     _ => false
   }
 }
 
 ///|
-fn match_long_ident(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
+fn match_name_node(
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool {
-  match pattern.kind {
-    LongIdent_Ident => {
-      guard leaf_string_child(pattern, "value") is Some(pattern_name) else {
-        return false
-      }
-      guard candidate.normalized_long_ident() is Some(candidate_name) else {
-        return false
-      }
-      match_identifier_name(
-        pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
-      )
-    }
-    LongIdent_Dot => {
-      if candidate.kind != LongIdent_Dot {
-        return false
-      }
-      guard leaf_string_child(pattern, "pkg") is Some(pattern_pkg) else {
-        return false
-      }
-      guard leaf_string_child(candidate, "pkg") is Some(candidate_pkg) else {
-        return false
-      }
-      guard leaf_string_child(pattern, "id") is Some(pattern_id) else {
-        return false
-      }
-      guard leaf_string_child(candidate, "id") is Some(candidate_id) else {
-        return false
-      }
-      guard candidate.normalized_long_ident() is Some(bound_candidate) else {
-        return false
-      }
-      pattern_pkg == candidate_pkg &&
-      match_identifier_name(
-        pattern_id, candidate_id, bound_candidate, candidate, compiled, bindings,
-      )
-    }
-    _ => structural_match(pattern, candidate, compiled, bindings)
-  }
-}
-
-///|
-fn match_binder(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  if candidate.kind != Binder {
+  guard @cst.normalized_name(pattern) is Some(pattern_name) else {
     return false
   }
-  match (pattern.normalized_binder_name(), candidate.normalized_binder_name()) {
-    (Some(pattern_name), Some(candidate_name)) =>
-      match_identifier_name(
-        pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
-      )
-    _ => false
-  }
-}
-
-///|
-fn match_label(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  if candidate.kind != Label {
+  guard @cst.normalized_name(candidate) is Some(candidate_name) else {
     return false
   }
-  match (pattern.normalized_label_name(), candidate.normalized_label_name()) {
-    (Some(pattern_name), Some(candidate_name)) =>
-      match_identifier_name(
-        pattern_name, candidate_name, candidate_name, candidate, compiled, bindings,
-      )
-    _ => false
-  }
-}
-
-///|
-fn match_identifier_name(
-  pattern_name : String,
-  literal_candidate_name : String,
-  bound_candidate_name : String,
-  candidate_source : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
   if is_ignore_placeholder(pattern_name) {
-    true
-  } else if contains_name(compiled.identifier_metavars, pattern_name) {
-    bind_value(
-      bindings,
-      pattern_name,
-      string_binding(bound_candidate_name, candidate_source),
-    )
-  } else {
-    pattern_name == literal_candidate_name
+    return true
   }
-}
-
-///|
-fn match_type_name(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  if candidate.kind != TypeName {
-    return false
-  }
-  guard child(pattern, "name") is Some(pattern_name) else { return false }
-  guard child(candidate, "name") is Some(candidate_name) else { return false }
-  leaf_bool_child(pattern, "is_object") ==
-  leaf_bool_child(candidate, "is_object") &&
-  match_long_ident(pattern_name, candidate_name, compiled, bindings)
-}
-
-///|
-fn match_constructor(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  if candidate.kind != Constructor {
-    return false
-  }
-  guard constructor_name(pattern) is Some(pattern_name) else { return false }
-  guard constructor_name(candidate) is Some(candidate_name) else {
-    return false
-  }
-  guard child(pattern, "extra_info") is Some(pattern_extra) else {
-    return false
-  }
-  guard child(candidate, "extra_info") is Some(candidate_extra) else {
-    return false
+  if single_marker_name(pattern_name) is Some(logical) &&
+    contains_name(compiled.identifier_metavars, logical) {
+    if last_separator(pattern_name) is Some(_) &&
+      !same_qualified_prefix(pattern_name, candidate_name) {
+      return false
+    }
+    return bind_value(bindings, logical, candidate)
   }
   if contains_name(compiled.identifier_metavars, pattern_name) {
-    let extra_matches = pattern_extra.kind == ConstructorExtraInfo_NoExtraInfo ||
-      match_constructor_extra_info(
-        pattern_extra, candidate_extra, compiled, bindings,
-      )
-    extra_matches &&
-    bind_value(
-      bindings,
-      pattern_name,
-      string_binding(normalized_constructor(candidate), candidate),
-    )
-  } else if is_ignore_placeholder(pattern_name) {
-    true
-  } else {
-    pattern_name == candidate_name &&
-    match_constructor_extra_info(
-      pattern_extra, candidate_extra, compiled, bindings,
-    )
+    return bind_value(bindings, pattern_name, candidate)
+  }
+  if qualified_metavar_tail(pattern_name, compiled) is Some(name) {
+    guard same_qualified_prefix(pattern_name, candidate_name) else {
+      return false
+    }
+    return bind_value(bindings, name, candidate)
+  }
+  pattern_name == candidate_name
+}
+
+///|
+fn qualified_metavar_tail(
+  name : String,
+  compiled : CompiledExprPattern,
+) -> String? {
+  for candidate in compiled.identifier_metavars {
+    if name.has_suffix(".\{candidate}") || name.has_suffix("::\{candidate}") {
+      return Some(candidate)
+    }
+  }
+  None
+}
+
+///|
+fn same_qualified_prefix(pattern : String, candidate : String) -> Bool {
+  let pattern_dot = last_separator(pattern)
+  let candidate_dot = last_separator(candidate)
+  match (pattern_dot, candidate_dot) {
+    (Some(left), Some(right)) => pattern[:left] == candidate[:right]
+    _ => false
   }
 }
 
 ///|
-fn match_constructor_extra_info(
-  pattern : @untyped_ast.Node,
-  candidate : @untyped_ast.Node,
-  compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
-) -> Bool {
-  match (pattern.kind, candidate.kind) {
-    (ConstructorExtraInfo_NoExtraInfo, ConstructorExtraInfo_NoExtraInfo) => true
-    (ConstructorExtraInfo_Package, ConstructorExtraInfo_Package) =>
-      leaf_string_child(pattern, "value") ==
-      leaf_string_child(candidate, "value")
-    (ConstructorExtraInfo_TypeName, ConstructorExtraInfo_TypeName) =>
-      match (child(pattern, "value"), child(candidate, "value")) {
-        (Some(pattern_type), Some(candidate_type)) =>
-          match_type_name(pattern_type, candidate_type, compiled, bindings)
-        _ => false
-      }
-    (
-      ConstructorExtraInfo_TypeNameWithConstrPackage,
-      ConstructorExtraInfo_TypeNameWithConstrPackage,
-    ) =>
-      leaf_string_child(pattern, "pkg") == leaf_string_child(candidate, "pkg") &&
-      (match (child(pattern, "type_name"), child(candidate, "type_name")) {
-        (Some(pattern_type), Some(candidate_type)) =>
-          match_type_name(pattern_type, candidate_type, compiled, bindings)
-        _ => false
-      })
-    _ => false
+fn last_separator(name : String) -> Int? {
+  for index = name.length() - 1; index >= 0; index = index - 1 {
+    if name[index] == '.' || name[index] == ':' {
+      return Some(index)
+    }
   }
+  None
 }
 
 ///|
 fn bind_value(
   bindings : @hashmap.HashMap[String, BoundValue],
   name : String,
-  value : @untyped_ast.Node,
+  value : @untyped_cst.CstNode,
 ) -> Bool {
   let value = Single(value)
   if bindings.get(name) is Some(existing) {
@@ -675,14 +655,6 @@ fn bind_value(
     bindings[name] = value
     true
   }
-}
-
-///|
-fn string_binding(
-  value : String,
-  source : @untyped_ast.Node,
-) -> @untyped_ast.Node {
-  { kind: Leaf(PString(value)), loc: source.loc, children: [] }
 }
 
 ///|
@@ -696,8 +668,8 @@ fn bound_value_equal(left : BoundValue, right : BoundValue) -> Bool {
 
 ///|
 fn nodes_equal_ignoring_loc(
-  left : Array[@untyped_ast.Node],
-  right : Array[@untyped_ast.Node],
+  left : Array[@untyped_cst.CstNode],
+  right : Array[@untyped_cst.CstNode],
 ) -> Bool {
   if left.length() != right.length() {
     return false
@@ -712,157 +684,63 @@ fn nodes_equal_ignoring_loc(
 
 ///|
 fn node_equal_ignoring_loc(
-  left : @untyped_ast.Node,
-  right : @untyped_ast.Node,
+  raw_left : @untyped_cst.CstNode,
+  raw_right : @untyped_cst.CstNode,
 ) -> Bool {
+  let left = @cst.unwrap_groups(raw_left)
+  let right = @cst.unwrap_groups(raw_right)
+  match (@cst.normalized_name(left), @cst.normalized_name(right)) {
+    (Some(left_name), Some(right_name)) => return left_name == right_name
+    _ => ()
+  }
+  if left.kind != right.kind {
+    return false
+  }
   match (left.kind, right.kind) {
-    (Leaf(_), Leaf(_)) => left.kind == right.kind
+    (@untyped_cst.Leaf(_), @untyped_cst.Leaf(_)) => left.kind == right.kind
     _ =>
-      left.kind == right.kind &&
-      children_equal_ignoring_loc(left.children, right.children)
+      children_equal_ignoring_loc(
+        @cst.semantic_children(left),
+        @cst.semantic_children(right),
+      )
   }
 }
 
 ///|
 fn children_equal_ignoring_loc(
-  left : Array[(String?, @untyped_ast.Node)],
-  right : Array[(String?, @untyped_ast.Node)],
+  left : Array[(String?, @untyped_cst.CstNode)],
+  right : Array[(String?, @untyped_cst.CstNode)],
 ) -> Bool {
-  left.length() == right.length() &&
-  ({
-    for index in 0..<left.length() {
-      let (left_name, left_value) = left[index]
-      let (right_name, right_value) = right[index]
-      if left_name != right_name ||
-        !node_equal_ignoring_loc(left_value, right_value) {
-        return false
-      }
-    }
-    true
-  })
-}
-
-///|
-fn child(node : @untyped_ast.Node, name : String) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, value) = entry
-    if child_name == Some(name) {
-      return Some(value)
+  if left.length() != right.length() {
+    return false
+  }
+  for index in 0..<left.length() {
+    let (left_name, left_value) = left[index]
+    let (right_name, right_value) = right[index]
+    if left_name != right_name ||
+      !node_equal_ignoring_loc(left_value, right_value) {
+      return false
     }
   }
-  None
+  true
 }
 
 ///|
-fn leaf_string(node : @untyped_ast.Node) -> String? {
-  match node.kind {
-    Leaf(PString(value)) => Some(value)
-    _ => None
-  }
-}
-
-///|
-fn leaf_bool(node : @untyped_ast.Node) -> Bool? {
-  match node.kind {
-    Leaf(PBool(value)) => Some(value)
-    _ => None
-  }
-}
-
-///|
-fn leaf_string_child(node : @untyped_ast.Node, name : String) -> String? {
-  if child(node, name) is Some(value) {
-    leaf_string(value)
+fn expr_constant(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
+  if node.kind is @untyped_cst.Expr_Constant {
+    @cst.constant(node)
   } else {
     None
   }
 }
 
 ///|
-fn leaf_bool_child(node : @untyped_ast.Node, name : String) -> Bool? {
-  if child(node, name) is Some(value) {
-    leaf_bool(value)
+fn pattern_constant(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
+  if node.kind is @untyped_cst.Pattern_Constant {
+    @cst.constant(node)
   } else {
     None
   }
-}
-
-///|
-fn expr_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
-  if node.kind == Expr_Constant {
-    child(node, "constant")
-  } else {
-    None
-  }
-}
-
-///|
-fn pattern_constant(node : @untyped_ast.Node) -> @untyped_ast.Node? {
-  if node.kind == Pattern_Constant {
-    child(node, "constant")
-  } else {
-    None
-  }
-}
-
-///|
-fn constructor_name(node : @untyped_ast.Node) -> String? {
-  guard child(node, "name") is Some(name_node) else { return None }
-  leaf_string_child(name_node, "name")
-}
-
-///|
-fn normalized_constructor(constr : @untyped_ast.Node) -> String {
-  let name = constructor_name(constr).unwrap_or("")
-  if child(constr, "extra_info") is Some(extra) {
-    match extra.kind {
-      ConstructorExtraInfo_NoExtraInfo => name
-      ConstructorExtraInfo_Package =>
-        if leaf_string_child(extra, "value") is Some(pkg) {
-          "@\{pkg}.\{name}"
-        } else {
-          name
-        }
-      ConstructorExtraInfo_TypeName =>
-        if child(extra, "value") is Some(type_name) {
-          "\{normalized_type_name(type_name)}::\{name}"
-        } else {
-          name
-        }
-      ConstructorExtraInfo_TypeNameWithConstrPackage =>
-        if child(extra, "type_name") is Some(type_name) {
-          if leaf_string_child(extra, "pkg") is Some(pkg) {
-            "\{normalized_type_name(type_name)}::@\{pkg}.\{name}"
-          } else {
-            "\{normalized_type_name(type_name)}::\{name}"
-          }
-        } else {
-          name
-        }
-      _ => name
-    }
-  } else {
-    name
-  }
-}
-
-///|
-fn normalized_type_name(type_name : @untyped_ast.Node) -> String {
-  let name = if child(type_name, "name") is Some(long_ident) {
-    long_ident.normalized_long_ident().unwrap_or("")
-  } else {
-    ""
-  }
-  if leaf_bool_child(type_name, "is_object") == Some(true) {
-    "object \{name}"
-  } else {
-    name
-  }
-}
-
-///|
-fn is_faked_unit(node : @untyped_ast.Node) -> Bool {
-  node.kind == Expr_Unit && leaf_bool_child(node, "faked") == Some(true)
 }
 
 ///|
@@ -885,21 +763,54 @@ fn is_special_expr_metavar(
 
 ///|
 fn parse_pattern_metavar_name(raw : String) -> String? {
-  if raw.has_prefix("$(") && raw.has_suffix(")") {
-    let end = raw.length() - 1
-    for index in 2..<end {
-      if raw[index] == ':' && raw[index + 1:end].to_owned() == "pat" {
-        let name = raw[2:index]
-        if name.length() > 0 {
-          return Some(name.to_owned())
-        }
-      }
+  let prefix = "__moongrep_pat_"
+  if raw.has_prefix(prefix) && raw.length() > prefix.length() {
+    Some(raw[prefix.length():].to_owned())
+  } else if raw.has_prefix("$(") && raw.has_suffix(":pat)") {
+    Some(raw[2:raw.length() - ":pat)".length()].to_owned())
+  } else {
+    None
+  }
+}
+
+///|
+fn is_ignore_placeholder(name : String) -> Bool {
+  name == "$_" || name == "__moongrep_ignore"
+}
+
+///|
+fn strip_internal_marker(name : String, prefix : String) -> String {
+  if marker_name(name, prefix) is Some(logical) {
+    logical
+  } else {
+    name
+  }
+}
+
+///|
+fn single_marker_name(name : String) -> String? {
+  for
+    prefix in [
+      "__moongrep_exp_", "__moongrep_const_", "__moongrep_arg_", "__moongrep_pat_",
+      "__moongrep_id_", "__moongrep_bare_", "MoongrepId_", "MoongrepType_", "MoongrepBare_",
+    ] {
+    if marker_name(name, prefix) is Some(logical) {
+      return Some(logical)
     }
   }
   None
 }
 
 ///|
-fn is_ignore_placeholder(name : String) -> Bool {
-  name == "$_"
+fn marker_name(name : String, prefix : String) -> String? {
+  let component_start = match last_separator(name) {
+    Some(index) => index + 1
+    None => 0
+  }
+  let component = name[component_start:]
+  if component.has_prefix(prefix) && component.length() > prefix.length() {
+    Some(component[prefix.length():].to_owned())
+  } else {
+    None
+  }
 }

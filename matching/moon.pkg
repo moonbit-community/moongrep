@@ -1,12 +1,5 @@
 import {
-  "moonbit-community/moongrep/untyped_ast",
+  "moonbit-community/moongrep/cst",
   "moonbitlang/core/hashmap",
+  "moonbitlang/parser/untyped_cst",
 }
-
-import {
-  "moonbitlang/lexer",
-  "moonbitlang/lexer/basic",
-  "moonbitlang/parser/handrolled_parser",
-  "moonbitlang/parser/syntax",
-  "moonbitlang/core/list",
-} for "test"
