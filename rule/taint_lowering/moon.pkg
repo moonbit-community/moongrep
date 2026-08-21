@@ -1,12 +1,12 @@
 import {
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
-  "moonbit-community/moongrep/untyped_ast",
   "moonbit-community/moongrep/taint",
   "moonbitlang/lexer/basic",
+  "moonbitlang/parser/untyped_cst",
 }
 
 import {
+  "moonbit-community/moongrep/cst",
   "moonbit-community/moongrep/rule/compile",
-  "moonbitlang/parser",
 } for "wbtest"
