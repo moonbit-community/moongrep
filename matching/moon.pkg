@@ -1,5 +1,6 @@
 import {
   "moonbit-community/moongrep/cst",
   "moonbitlang/core/hashmap",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
 }

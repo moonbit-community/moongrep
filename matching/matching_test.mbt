@@ -51,6 +51,16 @@ fn test_compiled(
 }
 
 ///|
+fn test_candidate(source : String) -> @cst.ExprMatchCandidate raise {
+  let node = test_expr(source)
+  if node.kind is @untyped_cst.Expression {
+    @cst.Sequence(@cst.expression_nodes(node))
+  } else {
+    @cst.Direct(node)
+  }
+}
+
+///|
 fn test_single_binding(
   result : ExprMatch?,
   name : String,
@@ -131,6 +141,106 @@ test "identifier metavars normalize binder and expression names" {
     match_expr_pattern(compiled, test_expr("match subject { item => other }"))
     is Some(_),
   )
+}
+
+///|
+test "one identifier metavar captures a complete constructor identity" {
+  let compiled = test_compiled(test_expr("$(Ctor:id)($(Ctor:id))"), identifier_metavars=[
+    "Ctor",
+  ])
+  let cases = [
+    ("Ctor(Ctor)", "Ctor"),
+    ("@pkg.Ctor(@pkg.Ctor)", "@pkg.Ctor"),
+    ("Type::Ctor(Type::Ctor)", "Type::Ctor"),
+    ("@pkg.Type::Ctor(@pkg.Type::Ctor)", "@pkg.Type::Ctor"),
+    ("@pkg.Type::@other.Ctor(@pkg.Type::@other.Ctor)", "@pkg.Type::@other.Ctor"),
+  ]
+  for case in cases {
+    let (source, identity) = case
+    let captured = test_single_binding(
+      match_expr_pattern(compiled, test_expr(source)),
+      "Ctor",
+    )
+    assert_eq(@cst.normalized_name(captured), Some(identity))
+    assert_eq(@cst.source_text(captured, source), identity)
+  }
+  assert_false(
+    match_expr_pattern(
+      compiled,
+      test_expr("@pkg.Type::Ctor(@other.Type::Ctor)"),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "constructor identity bindings compare across patterns and expressions" {
+  let compiled = test_compiled(
+    test_expr(
+      "match input { $(Ctor:id)($(item:id)) => $(Ctor:id)($(item:id)) }",
+    ),
+    identifier_metavars=["Ctor", "item"],
+  )
+  let matched = test_expr(
+    "match input { @pkg.Type::Ctor(item) => @pkg.Type::Ctor(item) }",
+  )
+  let constructor_name = test_single_binding(
+    match_expr_pattern(compiled, matched),
+    "Ctor",
+  )
+  assert_eq(@cst.normalized_name(constructor_name), Some("@pkg.Type::Ctor"))
+  assert_false(
+    match_expr_pattern(
+      compiled,
+      test_expr(
+        "match input { @pkg.Type::Ctor(item) => @other.Type::Ctor(item) }",
+      ),
+    )
+    is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(
+      compiled,
+      test_expr(
+        "match input { @pkg.Type::Ctor(left) => @pkg.Type::Ctor(right) }",
+      ),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "explicit constructor identity parts remain separate captures" {
+  let compiled = test_compiled(test_expr("$(Type:id)::$(Ctor:id)(value)"), identifier_metavars=[
+    "Type", "Ctor",
+  ])
+  guard match_expr_pattern(compiled, test_expr("@pkg.Type::Ctor(value)"))
+    is Some(result) else {
+    fail("expected split constructor identity match")
+  }
+  guard result.bindings.get("Type") is Some(Single(type_name)) &&
+    result.bindings.get("Ctor") is Some(Single(constructor_name)) else {
+    fail("expected split constructor identity captures")
+  }
+  assert_eq(@cst.normalized_name(type_name), Some("@pkg.Type"))
+  assert_eq(@cst.normalized_name(constructor_name), Some("Ctor"))
+  let pattern_compiled = test_compiled(
+    test_expr("match input { $(Type:id)::$(Ctor:id)(value) => body }"),
+    identifier_metavars=["Type", "Ctor"],
+  )
+  guard match_expr_pattern(
+      pattern_compiled,
+      test_expr("match input { Type::Ctor(value) => body }"),
+    )
+    is Some(pattern_result) else {
+    fail("expected split constructor pattern identity match")
+  }
+  guard pattern_result.bindings.get("Type") is Some(Single(pattern_type)) &&
+    pattern_result.bindings.get("Ctor") is Some(Single(pattern_constructor)) else {
+    fail("expected split constructor pattern captures")
+  }
+  assert_eq(@cst.normalized_name(pattern_type), Some("Type"))
+  assert_eq(@cst.normalized_name(pattern_constructor), Some("Ctor"))
 }
 
 ///|
@@ -299,6 +409,100 @@ test "guard and let headers match their lexical CST continuation" {
     match_expr_pattern(
       let_pattern,
       test_expr("let (fst, snd) = tuple\nconsume(fst)\nsnd"),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "only ordinary let and guard omit a sequence continuation" {
+  let allowed = [
+    ("let value = source()", "let value = source(); consume(value)"),
+    (
+      "guard ready() else { fallback() }", "guard ready() else { fallback() }; continue_work()",
+    ),
+  ]
+  for case in allowed {
+    let (pattern, candidate) = case
+    assert_true(
+      match_expr_pattern_candidate(
+        test_compiled(test_expr(pattern)),
+        test_candidate(candidate),
+      )
+      is Some(_),
+    )
+  }
+  let rejected = [
+    ("let mut value = source()", "let mut value = source(); consume(value)"),
+    (
+      "letrec recur = fn(value) { value }", "letrec recur = fn(value) { value }; recur(source())",
+    ),
+    ("defer cleanup()", "defer cleanup(); continue_work()"),
+  ]
+  for case in rejected {
+    let (pattern, candidate) = case
+    assert_false(
+      match_expr_pattern_candidate(
+        test_compiled(test_expr(pattern)),
+        test_candidate(candidate),
+      )
+      is Some(_),
+    )
+  }
+}
+
+///|
+test "complete statement shapes match sequence candidates" {
+  for
+    source in [
+      "let mut value = source(); consume(value)", "letrec recur = fn(value) { value }; recur(source())",
+      "defer cleanup(); continue_work()",
+    ] {
+    let compiled = test_compiled(test_expr(source))
+    assert_true(
+      match_expr_pattern_candidate(compiled, test_candidate(source)) is Some(_),
+    )
+  }
+}
+
+///|
+test "sequence candidates reject broad expressions and omit wrapper braces" {
+  let broad = test_compiled(test_expr("$_"))
+  assert_false(
+    match_expr_pattern_candidate(broad, test_candidate("first(); second()"))
+    is Some(_),
+  )
+  let source = "first(); second()"
+  let exact = test_compiled(test_expr(source))
+  guard match_expr_pattern_candidate(exact, test_candidate(source))
+    is Some(result) else {
+    fail("expected complete sequence match")
+  }
+  assert_eq(result.loc.start.cnum, 0)
+  assert_eq(result.loc.end.cnum, source.length())
+  let block_source = "{ first(); second() }"
+  guard match_expr_pattern_candidate(
+      test_compiled(test_expr(block_source)),
+      test_candidate(block_source),
+    )
+    is Some(block_result) else {
+    fail("expected explicit block match")
+  }
+  assert_eq(block_result.loc.start.cnum, 0)
+  assert_eq(block_result.loc.end.cnum, block_source.length())
+}
+
+///|
+test "proof let remains an independent direct candidate" {
+  let sequence = test_candidate("proof_let witness = fact(); use(witness)")
+  guard sequence is @cst.Sequence([header, ..]) else {
+    fail("expected proof-let sequence")
+  }
+  assert_true(header.kind is @untyped_cst.Expr_ProofLet)
+  assert_true(
+    match_expr_pattern_candidate(
+      test_compiled(test_expr("proof_let witness = fact()")),
+      @cst.Direct(header),
     )
     is Some(_),
   )
