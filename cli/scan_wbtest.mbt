@@ -1,8 +1,10 @@
 ///|
-fn parse_single_scan_impl(source : String) -> @syntax.Impl raise {
-  let (impls, reports) = @parser.parse_string(source, name="scan test")
-  guard reports is [] else { fail("expected source to parse") }
-  let nodes = impls.to_array()
+fn parse_single_scan_impl(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="scan test")
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected source to parse")
+  }
+  let nodes = @cst.toplevel_nodes(parsed.root())
   guard nodes is [node] else { fail("expected exactly one impl") }
   node
 }

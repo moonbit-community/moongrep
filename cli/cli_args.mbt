@@ -136,7 +136,7 @@ let docs_command : @argparse.Command = Command(
 ///|
 let dump_command : @argparse.Command = Command(
   "dump",
-  about="Parse a MoonBit impl or expression and print untyped_ast debug output.",
+  about="Parse a MoonBit impl or expression and print untyped CST debug output.",
   arg_required_else_help=true,
   options=[
     OptionArg(

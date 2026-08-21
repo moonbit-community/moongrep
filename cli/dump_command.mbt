@@ -11,24 +11,31 @@ pub fn render_dump_command(
 
 ///|
 fn render_dump_impl_debug(source : String) -> String raise {
-  "\{Repr(@untyped_ast.from_impl(parse_dump_impl(source)))}"
+  "\{Repr(parse_dump_impl(source))}"
 }
 
 ///|
 fn render_dump_expr_debug(source : String) -> String raise {
-  "\{Repr(@untyped_ast.from_expr(parse_dump_expr(source)))}"
+  "\{Repr(parse_dump_expr(source))}"
 }
 
 ///|
-fn parse_dump_impl(source : String) -> @syntax.Impl raise {
-  let (impls, reports) = @parser.parse_string(source, name="dump --impl")
-  if reports.length() != 0 {
+fn parse_dump_impl(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name="dump --impl")
+  let reports = parsed.diagnostics_view().to_owned()
+  if !reports.is_empty() {
     raise CliError::Usage(
       message="dump --impl parse failed: \{compact_reports(reports)}",
       exit_code=1,
     )
   }
-  let nodes = impls.to_array()
+  if @cst.first_recovery_node(parsed.root()) is Some(_) {
+    raise CliError::Usage(
+      message="dump --impl parse failed: incomplete recovered CST node",
+      exit_code=1,
+    )
+  }
+  let nodes = @cst.toplevel_nodes(parsed.root())
   if nodes.length() != 1 {
     raise CliError::Usage(
       message="dump --impl expects exactly one top-level item",
@@ -39,23 +46,22 @@ fn parse_dump_impl(source : String) -> @syntax.Impl raise {
 }
 
 ///|
-fn parse_dump_expr(source : String) -> @syntax.Expr raise {
-  let lex_result = @lexer.tokens_from_string(
-    source,
-    comment=true,
-    name="dump --expr",
-  )
-  if lex_result.errors.length() != 0 {
-    raise CliError::Usage(message="dump --expr has lexical errors", exit_code=1)
-  }
-  let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
-  if reports.length() != 0 {
+fn parse_dump_expr(source : String) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_expression(source, name="dump --expr")
+  let reports = parsed.diagnostics_view().to_owned()
+  if !reports.is_empty() {
     raise CliError::Usage(
       message="dump --expr parse failed: \{compact_reports(reports)}",
       exit_code=1,
     )
   }
-  expr
+  if @cst.first_recovery_node(parsed.root()) is Some(_) {
+    raise CliError::Usage(
+      message="dump --expr parse failed: incomplete recovered CST node",
+      exit_code=1,
+    )
+  }
+  @cst.expression_root(parsed.root())
 }
 
 ///|
