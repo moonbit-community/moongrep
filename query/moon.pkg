@@ -1,17 +1,10 @@
 import {
+  "moonbit-community/moongrep/cst",
   "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/compile" @rule_compile,
   "moonbit-community/moongrep/rule/model" @rule_model,
   "moonbit-community/moongrep/rule/prefilter" @rule_prefilter,
-  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/core/hashmap",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser",
-  "moonbitlang/parser/syntax",
+  "moonbitlang/parser/untyped_cst",
 }
-
-import {
-  "moonbitlang/core/list",
-  "moonbitlang/lexer",
-  "moonbitlang/parser/handrolled_parser",
-} for "test"

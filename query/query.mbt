@@ -44,29 +44,36 @@ pub fn ExprQuery::captures(
   if !@rule_prefilter.rule_is_relevant_to_source(self.rule, source) {
     return matches
   }
-  let (impls, reports) = @parser.parse_string(source, name=source_name)
+  let parsed = @untyped_cst.parse_structure(source, name=source_name)
+  let reports = parsed.diagnostics_view()
   if reports.length() > 0 {
     raise QueryError::ParseError(
       source_name~,
       info="parse failed due to \{compact_reports(reports)}",
     )
   }
-  for node in impls {
-    let impl_source = source_text_for_impl(source, node)
+  if @cst.first_recovery_node(parsed.root()) is Some(_) {
+    raise QueryError::ParseError(
+      source_name~,
+      info="parse failed due to an incomplete recovered CST node",
+    )
+  }
+  for node in @cst.toplevel_nodes(parsed.root()) {
+    let impl_source = @cst.source_text(node, source)
     if @rule_prefilter.rule_is_relevant_to_source(self.rule, impl_source) {
-      collect_node_matches(self.pattern, @untyped_ast.from_impl(node), matches)
+      collect_node_matches(self.pattern, node, matches)
     }
   }
   matches
 }
 
 ///|
-pub fn ExprQuery::captures_from_ast(
+pub fn ExprQuery::captures_from_cst(
   self : ExprQuery,
-  ast~ : @untyped_ast.Node,
+  cst~ : @untyped_cst.CstNode,
 ) -> ArrayView[Map[String, @matching.BoundValue]] {
   let matches : Array[Map[String, @matching.BoundValue]] = []
-  collect_node_matches(self.pattern, ast, matches)
+  collect_node_matches(self.pattern, cst, matches)
   matches
 }
 
@@ -89,26 +96,26 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
 ///|
 fn collect_node_matches(
   pattern : CompiledRulePattern,
-  ast : @untyped_ast.Node,
+  cst : @untyped_cst.CstNode,
   matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
-  @untyped_ast.visit_node_scoped_expr_roots(ast, fn(scoped_expr) {
+  @cst.visit_scoped_expr_roots(cst, fn(scoped_expr) {
     collect_scoped_node_matches(pattern, scoped_expr, matches)
-    NodeVisitPrune
+    @cst.NodeVisitPrune
   })
 }
 
 ///|
 fn collect_scoped_node_matches(
   pattern : CompiledRulePattern,
-  scoped_expr : @untyped_ast.ScopedExprNode,
+  scoped_expr : @cst.ScopedExprNode,
   matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
   if @matching.match_expr_pattern(pattern.compiled, scoped_expr.expr)
     is Some(result) {
     matches.push(capture_map_from_bindings(result.bindings))
   } else {
-    @untyped_ast.visit_node_scoped_expr_children(
+    @cst.visit_scoped_expr_children(
       scoped_expr.expr,
       scoped_expr.shadowed_names,
       fn(child) { collect_scoped_node_matches(pattern, child, matches) },
@@ -126,37 +133,7 @@ fn capture_map_from_bindings(
 }
 
 ///|
-fn source_text_for_impl(source : String, node : @syntax.Impl) -> String {
-  source_text_for_location(source, node.loc())
-}
-
-///|
-fn source_text_for_location(source : String, loc : @basic.Location) -> String {
-  let lines = source.split("\n").to_array()
-  let start_line = loc.start.lnum
-  let end_line = loc.end.lnum
-  if start_line <= 0 || end_line <= 0 || end_line < start_line {
-    return source
-  }
-  let start_index = start_line - 1
-  let end_index = end_line
-  if start_index >= lines.length() || end_index > lines.length() {
-    return source
-  }
-  let block_lines = []
-  for line in lines[start_index:end_index] {
-    block_lines.push(line)
-  }
-  let block = block_lines.join("\n")
-  if block.length() == 0 {
-    source
-  } else {
-    block
-  }
-}
-
-///|
-fn compact_reports(reports : Array[@basic.Report]) -> String {
+fn compact_reports(reports : ArrayView[@basic.Report]) -> String {
   let messages : Array[String] = []
   for report in reports {
     messages.push(report.msg.replace_all(old="\n", new=" "))

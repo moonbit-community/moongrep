@@ -26,23 +26,39 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
   let filtered_capture_maps : Array[Map[String, @matching.BoundValue]] = []
   for capture in captures {
     if capture.get("counter") is Some(Single(counter_node)) &&
-      counter_node.kind is Leaf(PString(counter_name)) &&
+      @cst.normalized_name(counter_node) is Some(counter_name) &&
       capture.get("body") is Some(Single(body)) {
       // unused variable in for loop body
-      if !body.contains_unshadowed(id=counter_name) {
+      if !query_contains_unshadowed(body, counter_name) {
         filtered_capture_maps.push(capture)
       }
     }
   }
   assert_eq(filtered_capture_maps.length(), 2)
   guard filtered_capture_maps[0].get("counter") is Some(Single(first)) &&
-    first.kind is Leaf(PString(first_name)) else {
+    @cst.normalized_name(first) is Some(first_name) else {
     fail("expected first counter")
   }
   inspect(first_name, content="i")
   guard filtered_capture_maps[1].get("counter") is Some(Single(second)) &&
-    second.kind is Leaf(PString(second_name)) else {
+    @cst.normalized_name(second) is Some(second_name) else {
     fail("expected second counter")
   }
   inspect(second_name, content="k")
+}
+
+///|
+fn query_contains_unshadowed(cst : @untyped_cst.CstNode, name : String) -> Bool {
+  let mut found = false
+  @cst.visit_scoped_expr_roots(cst, fn(item) {
+    if !found &&
+      !item.shadowed_names.contains(name) &&
+      @cst.normalized_expr_identifier_name(item.expr) == Some(name) {
+      found = true
+      @cst.NodeVisitReturn
+    } else {
+      @cst.NodeVisitContinue
+    }
+  })
+  found
 }
