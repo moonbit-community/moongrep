@@ -1,0 +1,87 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/cst"
+
+import {
+  "moonbitlang/parser/untyped_cst",
+}
+
+// Values
+pub fn argument_label_name(@untyped_cst.CstNode) -> String?
+
+pub fn argument_value(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+
+pub fn attribute_info(@untyped_cst.CstNode) -> AttributeInfo?
+
+pub fn attribute_payload(@untyped_cst.CstNode, String, String) -> String?
+
+pub fn attributes(@untyped_cst.CstNode) -> Array[AttributeInfo]
+
+pub fn bool_payload(@untyped_cst.CstNode) -> Bool?
+
+pub fn child(@untyped_cst.CstNode, String) -> @untyped_cst.CstNode?
+
+pub fn children(@untyped_cst.CstNode, String) -> Array[@untyped_cst.CstNode]
+
+pub fn constant(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+
+pub fn expression_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+
+pub fn expression_root(@untyped_cst.CstNode) -> @untyped_cst.CstNode
+
+pub fn first_child(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+
+pub fn first_recovery_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+
+pub fn has_bare_attribute(@untyped_cst.CstNode, String, String) -> Bool
+
+pub fn int_payload(@untyped_cst.CstNode) -> Int?
+
+pub fn is_list_kind(@untyped_cst.NodeKind) -> Bool
+
+pub fn is_syntax_kind(@untyped_cst.NodeKind) -> Bool
+
+pub fn items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+
+pub fn name_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+
+pub fn normalized_expr_identifier_name(@untyped_cst.CstNode) -> String?
+
+pub fn normalized_long_ident(@untyped_cst.CstNode) -> String?
+
+pub fn normalized_name(@untyped_cst.CstNode) -> String?
+
+pub fn normalized_pattern_identifier_name(@untyped_cst.CstNode) -> String?
+
+pub fn operator_name(@untyped_cst.CstNode) -> String?
+
+pub fn payload(@untyped_cst.CstNode) -> @untyped_cst.NodePayload?
+
+pub fn raw_child(@untyped_cst.CstNode, String) -> @untyped_cst.CstNode?
+
+pub fn raw_children(@untyped_cst.CstNode, String) -> Array[@untyped_cst.CstNode]
+
+pub fn semantic_children(@untyped_cst.CstNode) -> Array[(String?, @untyped_cst.CstNode)]
+
+pub fn sequence_items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+
+pub fn source_text(@untyped_cst.CstNode, String) -> String
+
+pub fn string_payload(@untyped_cst.CstNode) -> String?
+
+pub fn toplevel_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+
+pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
+
+// Errors
+
+// Types and methods
+pub(all) struct AttributeInfo {
+  qualifier : String?
+  name : String
+  raw_payload : String
+  node : @untyped_cst.CstNode
+}
+
+// Type aliases
+
+// Traits
