@@ -86,9 +86,12 @@ testdata/skip-structural/src/hit.mbt:28:8-28:9
 rule: taint
 ```
 
-Every payload form writes a source-rebased warning to standard error. The
-command still exits successfully, and the empty-payload warning is emitted even
-though the same function also has a valid bare marker.
+Every payload form in this fixture writes a source-rebased warning to standard
+error because the enabled rules keep its source blocks relevant through the
+prefilter. The command still exits successfully, and the empty-payload warning
+is emitted even though the same function also has a valid bare marker. More
+generally, the prefilter may discard an irrelevant file or source block before
+parsing; payload forms in discarded source do not emit warnings.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/skip-structural/rules testdata/skip-structural/src 2>&1 >/dev/null
@@ -139,6 +142,57 @@ no match hits
 ```
 
 ## Anonymous patterns
+
+Expressions that occur only in an `if` else branch are traversed and matched.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$(left:exp) + $(right:exp)' testdata/cst-else
+testdata/cst-else/hit.mbt:5:5-5:21
+rule: $(left:exp) + $(right:exp)
+description:
+  Anonymous CLI pattern.
+source:
+3 |     then_call()
+4 |   } else {
+5 >     left() + right()
+6 |   }
+7 | }
+```
+
+Keyword metavariable names remain placeholders instead of being parsed as
+MoonBit keywords.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'if $(condition:exp) { $(then:exp) } else { $(else:exp) }' testdata/cst-else
+testdata/cst-else/hit.mbt:2:3-6:4
+rule: if $(condition:exp) { $(then:exp) } else { $(else:exp) }
+description:
+  Anonymous CLI pattern.
+source:
+1 | fn sample {
+2 >   if clean() {
+3 >     then_call()
+4 >   } else {
+5 >     left() + right()
+6 >   }
+7 | }
+```
+
+Bare metavariables in foreach binder positions infer the identifier kind.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'for $item in $items { $body }' testdata/metavar-regressions
+testdata/metavar-regressions/hit.mbt:2:3-4:4
+rule: for $item in $items { $body }
+description:
+  Anonymous CLI pattern.
+source:
+1 | fn sample {
+2 >   for item in items {
+3 >     body()
+4 >   }
+5 | }
+```
 
 A repeated typed metavariable must bind to the same expression at every use.
 This matches `make() + make()` but not the following expression with different
@@ -257,7 +311,7 @@ source:
 
 ## Constant source spelling
 
-Constant equality preserves the spelling stored in the parser AST instead of
+Constant equality preserves the spelling stored in the parser CST instead of
 normalizing numeric values. A literal `1000` pattern therefore matches only the
 identically spelled call; the equivalent `1_000` call is omitted.
 
@@ -438,4 +492,16 @@ source:
 4 >   sink(x)
 5 |   after()
 6 | }
+```
+
+Migrated CST fields preserve taint flows through foreach binders, `noraise`
+cases, array reads and writes, and `if` else branches.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --rules e2etests/rules/cst-regressions testdata/taint-cst-regressions | sed -n 's/.*"matched_source":"\([^"]*\)".*/\1/p'
+item
+result
+values[0]
+get_user_input()
+get_user_input()
 ```

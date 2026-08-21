@@ -1,0 +1,8 @@
+id: cst-taint-regressions
+description: Migrated CST taint fields.
+taint:
+  sources:
+    - shape: get_user_inputs()
+    - shape: get_user_input()
+  sinks:
+    - shape: sink(__SOURCE__)

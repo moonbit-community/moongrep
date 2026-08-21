@@ -131,7 +131,7 @@ const_args()
 const_args(1, \"two\")
 ```
 
-## Ordered AST list positions
+## Ordered CST list positions
 
 The array fixture also contains a spread element; both the bare and `exp`
 patterns below intentionally match only the regular-element array.
@@ -307,11 +307,11 @@ source:
 Ellipses must occupy a complete unnamed ordered-list item.
 
 A standalone ellipsis is an expression position rather than an item inside an
-ordered AST list, so it is rejected during rule validation.
+ordered CST list, so it is rejected during rule validation.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt
-$$$items: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item
+$$$items: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [1]
 ```
 
@@ -320,7 +320,7 @@ part of a list item and is invalid.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'wrap($$$items + 1)' testdata/ellipsis/sample.mbt
-wrap($$$items + 1): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item
+wrap($$$items + 1): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [1]
 ```
 
@@ -329,7 +329,7 @@ be used as only the value of that labelled argument.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'sink(label=$$$items)' testdata/ellipsis/sample.mbt
-sink(label=$$$items): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item
+sink(label=$$$items): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [1]
 ```
 
@@ -338,7 +338,7 @@ bare ellipsis in that position must therefore be rejected.
 
 ```mooncram
 $ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern 'if condition { $$$items }' testdata/ellipsis/sample.mbt
-if condition { $$$items }: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item
+if condition { $$$items }: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [1]
 ```
 
