@@ -132,11 +132,11 @@ pub fn apply_structural_scan_plan_to_node(
     node,
     hits,
   )
-  @cst.visit_scoped_expr_roots(node, fn(scoped_expr) {
-    apply_cst_structural_rule_entries_to_scoped_expr(
+  @cst.visit_scoped_expr_match_candidate_roots(node, fn(scoped_candidate) {
+    apply_cst_structural_rule_entries_to_scoped_candidate(
       file,
       plan.structural_entries,
-      scoped_expr,
+      scoped_candidate,
       hits,
     )
     @cst.NodeVisitPrune
@@ -197,17 +197,17 @@ fn apply_toplevel_structural_rule_entries_to_node(
 }
 
 ///|
-fn apply_cst_structural_rule_entries_to_scoped_expr(
+fn apply_cst_structural_rule_entries_to_scoped_candidate(
   file : String,
   entries : Array[CstStructuralRuleEntry],
-  scoped_expr : @cst.ScopedExprNode,
+  scoped_candidate : @cst.ScopedExprMatchCandidate,
   hits : Array[RuleFinding],
 ) -> Unit {
   let child_entries : Array[CstStructuralRuleEntry] = []
   for entry in entries {
     match
-      apply_cst_structural_rule_entry_to_scoped_expr(
-        file, entry, scoped_expr, hits,
+      apply_cst_structural_rule_entry_to_scoped_candidate(
+        file, entry, scoped_candidate, hits,
       ) {
       RuleContinue => child_entries.push(entry)
       RulePrune => ()
@@ -216,11 +216,11 @@ fn apply_cst_structural_rule_entries_to_scoped_expr(
   if child_entries.length() == 0 {
     return
   }
-  @cst.visit_scoped_expr_children(
-    scoped_expr.expr,
-    scoped_expr.shadowed_names,
+  @cst.visit_scoped_expr_match_candidate_children(
+    scoped_candidate.candidate,
+    scoped_candidate.shadowed_names,
     fn(child) {
-      apply_cst_structural_rule_entries_to_scoped_expr(
+      apply_cst_structural_rule_entries_to_scoped_candidate(
         file, child_entries, child, hits,
       )
     },
@@ -228,10 +228,10 @@ fn apply_cst_structural_rule_entries_to_scoped_expr(
 }
 
 ///|
-fn apply_cst_structural_rule_entry_to_scoped_expr(
+fn apply_cst_structural_rule_entry_to_scoped_candidate(
   file : String,
   entry : CstStructuralRuleEntry,
-  scoped_expr : @cst.ScopedExprNode,
+  scoped_candidate : @cst.ScopedExprMatchCandidate,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
   if !entry.structural.inside_expr.is_empty() {
@@ -242,19 +242,19 @@ fn apply_cst_structural_rule_entry_to_scoped_expr(
       entry.inside_pattern_buckets,
       entry.pattern_buckets,
       entry.negative_pattern_buckets,
-      scoped_expr.expr,
+      scoped_candidate.candidate,
       hits,
     )
     RuleContinue
   } else if !entry.structural.inside_toplevel.is_empty() {
     RulePrune
   } else {
-    apply_cst_patterns_at_node(
+    apply_cst_patterns_at_candidate(
       file,
       entry.rule,
       entry.pattern_buckets,
       entry.negative_pattern_buckets,
-      scoped_expr.expr,
+      scoped_candidate.candidate,
       None,
       hits,
     )
@@ -321,8 +321,14 @@ fn apply_inside_toplevel_cst_bucketed(
 ) -> Unit {
   ignore(
     apply_inside_context_cst_bucketed(
-      file, rule, structural, inside_pattern_buckets, pattern_buckets, negative_pattern_buckets,
-      toplevel, hits,
+      file,
+      rule,
+      structural,
+      inside_pattern_buckets,
+      pattern_buckets,
+      negative_pattern_buckets,
+      @cst.Direct(toplevel),
+      hits,
     ),
   )
 }
@@ -335,21 +341,21 @@ fn apply_inside_expr_cst_bucketed(
   inside_pattern_buckets : ExprPatternBuckets,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  expr : @untyped_cst.CstNode,
+  candidate : @cst.ExprMatchCandidate,
   hits : Array[RuleFinding],
 ) -> Unit {
   let context_hits : Array[RuleFinding] = []
   let context_loc = apply_inside_context_cst_bucketed(
     file, rule, structural, inside_pattern_buckets, pattern_buckets, negative_pattern_buckets,
-    expr, context_hits,
+    candidate, context_hits,
   )
-  if context_hits.get(0) is Some(first) {
+  if context_hits.get(0) is Some(first) && context_loc is Some(loc) {
     hits.push({
       file: first.file,
       rule_id: first.rule_id,
       description: first.description,
       pattern_index: first.pattern_index,
-      loc: context_loc.unwrap_or(expr.loc),
+      loc,
     })
   }
 }
@@ -362,20 +368,22 @@ fn apply_inside_context_cst_bucketed(
   inside_pattern_buckets : ExprPatternBuckets,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  context_node : @untyped_cst.CstNode,
+  context_candidate : @cst.ExprMatchCandidate,
   hits : Array[RuleFinding],
 ) -> @basic.Location? {
-  for indexed in inside_pattern_buckets.patterns_for_node(context_node) {
+  for
+    indexed in inside_pattern_buckets.patterns_for_candidate(context_candidate) {
     let inside = indexed.pattern
-    if match_node_rule_pattern(inside, context_node, None) is Some(result) {
-      let context_loc = matched_context_location(
-        inside.compiled.cst,
-        context_node,
-      )
+    if match_candidate_rule_pattern(inside, context_candidate, None)
+      is Some(result) {
+      let context_loc = result.loc
       if result.bindings.get("__TARGET__") is Some(Single(target)) {
+        let target_candidate = inside_target_match_candidate(
+          context_candidate, target,
+        )
         if structural.patterns.is_empty() {
-          let target_exprs : Array[@cst.ScopedExprNode] = []
-          @cst.collect_scoped_exprs(target, target_exprs)
+          let target_exprs : Array[@cst.ScopedExprMatchCandidate] = []
+          collect_target_match_candidates(target_candidate, target_exprs)
           apply_inside_context_only_cst_bucketed(
             file,
             rule,
@@ -394,7 +402,7 @@ fn apply_inside_context_cst_bucketed(
                 rule,
                 pattern_buckets,
                 negative_pattern_buckets,
-                target,
+                target_candidate,
                 result.bindings,
                 inside.compiled.identifier_metavars,
                 hits,
@@ -405,7 +413,7 @@ fn apply_inside_context_cst_bucketed(
                 rule,
                 pattern_buckets,
                 negative_pattern_buckets,
-                target,
+                target_candidate,
                 result.bindings,
                 inside.compiled.identifier_metavars,
                 hits,
@@ -422,38 +430,85 @@ fn apply_inside_context_cst_bucketed(
 }
 
 ///|
-/// A multi-statement rule fragment has an `Expression` root without braces.
-/// Lexically scoped let/guard forms likewise carried their continuation in the
-/// previous representation. In a function body the CST stores these forms in
-/// an `Expr_Block`; report the statement span rather than the body's braces.
-fn matched_context_location(
-  pattern : @untyped_cst.CstNode,
-  candidate : @untyped_cst.CstNode,
-) -> @basic.Location {
-  guard pattern.kind is @untyped_cst.Expression ||
-    cst_apply_lexical_statement_has_continuation(pattern.kind) else {
-    return candidate.loc
-  }
-  match @cst.sequence_items(candidate) {
-    [first, .., last] => first.loc.merge(last.loc)
-    [single] => single.loc
-    _ => candidate.loc
+fn inside_target_match_candidate(
+  context : @cst.ExprMatchCandidate,
+  target : @untyped_cst.CstNode,
+) -> @cst.ExprMatchCandidate {
+  if target.kind is @untyped_cst.Expression {
+    @cst.Sequence(@cst.expression_nodes(target))
+  } else if target.kind is @untyped_cst.Expr_Block &&
+    match_candidate_contains_function_body_target(context, target) {
+    @cst.Sequence(@cst.sequence_items(target))
+  } else {
+    @cst.Direct(target)
   }
 }
 
 ///|
-fn cst_apply_lexical_statement_has_continuation(
-  kind : @untyped_cst.NodeKind,
+fn match_candidate_contains_function_body_target(
+  context : @cst.ExprMatchCandidate,
+  target : @untyped_cst.CstNode,
 ) -> Bool {
-  match kind {
-    @untyped_cst.Expr_Let
-    | @untyped_cst.Expr_LetMut
-    | @untyped_cst.Expr_LetFn
-    | @untyped_cst.Expr_LetAnd
-    | @untyped_cst.Expr_Guard
-    | @untyped_cst.Expr_ProofLet => true
-    _ => false
+  match context {
+    @cst.Direct(node) => node_contains_function_body_target(node, target)
+    @cst.Sequence(items) => {
+      for item in items {
+        if node_contains_function_body_target(item, target) {
+          return true
+        }
+      }
+      false
+    }
   }
+}
+
+///|
+fn node_contains_function_body_target(
+  node : @untyped_cst.CstNode,
+  target : @untyped_cst.CstNode,
+) -> Bool {
+  let body = match node.kind {
+    @untyped_cst.Impl_Function
+    | @untyped_cst.Impl_Test
+    | @untyped_cst.Expr_Function
+    | @untyped_cst.Expr_LetFn
+    | @untyped_cst.Binding_LetRec => @cst.raw_child(node, "body")
+    @untyped_cst.Impl_ImplMethod =>
+      @cst.raw_child(node, "method").bind(method_node => {
+        @cst.raw_child(method_node, "body")
+      })
+    _ => None
+  }
+  if body is Some(found) && same_cst_span(found, target) {
+    return true
+  }
+  for entry in node.children {
+    if node_contains_function_body_target(entry.1, target) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn same_cst_span(
+  left : @untyped_cst.CstNode,
+  right : @untyped_cst.CstNode,
+) -> Bool {
+  left.source_span.0 == right.source_span.0 &&
+  left.source_span.1 == right.source_span.1 &&
+  left.loc.start.fname == right.loc.start.fname
+}
+
+///|
+fn collect_target_match_candidates(
+  target : @cst.ExprMatchCandidate,
+  output : Array[@cst.ScopedExprMatchCandidate],
+) -> Unit {
+  @cst.visit_scoped_expr_match_candidate(target, [], fn(item) {
+    output.push(item)
+    @cst.NodeVisitContinue
+  })
 }
 
 ///|
@@ -462,16 +517,16 @@ fn apply_cst_bucketed_patterns_in_target_subtree(
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  target : @untyped_cst.CstNode,
+  target : @cst.ExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
 ) -> Unit {
-  @cst.visit_scoped_exprs(target, fn(scoped_expr) {
+  @cst.visit_scoped_expr_match_candidate(target, [], fn(scoped_candidate) {
     match
-      apply_cst_bucketed_patterns_at_scoped_expr(
-        file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_bindings,
-        inherited_identifier_metavars, hits,
+      apply_cst_bucketed_patterns_at_scoped_candidate(
+        file, rule, pattern_buckets, negative_pattern_buckets, scoped_candidate,
+        outer_bindings, inherited_identifier_metavars, hits,
       ) {
       RulePrune => @cst.NodeVisitPrune
       RuleContinue => @cst.NodeVisitContinue
@@ -485,21 +540,21 @@ fn apply_cst_bucketed_covered_patterns_in_target_subtree(
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  target : @untyped_cst.CstNode,
+  target : @cst.ExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
 ) -> Unit {
   let pending_hits : Array[RuleFinding] = []
   let mut rejected = false
-  @cst.visit_scoped_exprs(target, fn(scoped_expr) {
+  @cst.visit_scoped_expr_match_candidate(target, [], fn(scoped_candidate) {
     if rejected {
       @cst.NodeVisitPrune
     } else {
       match
-        apply_cst_bucketed_covered_patterns_at_scoped_expr(
-          file, rule, pattern_buckets, negative_pattern_buckets, scoped_expr, outer_bindings,
-          inherited_identifier_metavars, pending_hits,
+        apply_cst_bucketed_covered_patterns_at_scoped_candidate(
+          file, rule, pattern_buckets, negative_pattern_buckets, scoped_candidate,
+          outer_bindings, inherited_identifier_metavars, pending_hits,
         ) {
         InsideTargetPrune => @cst.NodeVisitPrune
         InsideTargetReject => {
@@ -520,13 +575,13 @@ fn apply_inside_context_only_cst_bucketed(
   file : String,
   rule : CompiledRule,
   negative_pattern_buckets : ExprPatternBuckets,
-  target_exprs : Array[@cst.ScopedExprNode],
+  target_exprs : Array[@cst.ScopedExprMatchCandidate],
   context_loc : @basic.Location,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
 ) -> Unit {
-  if cst_bucketed_negative_patterns_match_any_scoped_expr(
+  if cst_bucketed_negative_patterns_match_any_scoped_candidate(
       negative_pattern_buckets, target_exprs, outer_bindings, inherited_identifier_metavars,
     ) {
     return
@@ -551,46 +606,46 @@ fn push_inside_context_only_hit(
 }
 
 ///|
-fn apply_cst_bucketed_covered_patterns_at_scoped_expr(
+fn apply_cst_bucketed_covered_patterns_at_scoped_candidate(
   file : String,
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  scoped_expr : @cst.ScopedExprNode,
+  scoped_candidate : @cst.ScopedExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
 ) -> InsideTargetScanAction {
-  for indexed in pattern_buckets.patterns_for_node(scoped_expr.expr) {
+  for
+    indexed in pattern_buckets.patterns_for_candidate(
+      scoped_candidate.candidate,
+    ) {
     if cst_pattern_blocked_by_shadowed_outer_id(
         indexed.pattern,
         outer_bindings,
         inherited_identifier_metavars,
-        scoped_expr.shadowed_names,
+        scoped_candidate.shadowed_names,
       ) {
       continue
     }
-    if match_node_rule_pattern(
+    if match_candidate_rule_pattern(
         indexed.pattern,
-        scoped_expr.expr,
+        scoped_candidate.candidate,
         Some(outer_bindings),
       )
-      is Some(_) {
+      is Some(result) {
       hits.push({
         file,
         rule_id: rule.rule_id,
         description: rule.description,
         pattern_index: indexed.pattern_index,
-        loc: matched_context_location(
-          indexed.pattern.compiled.cst,
-          scoped_expr.expr,
-        ),
+        loc: result.loc,
       })
       return InsideTargetPrune
     }
   }
-  if cst_bucketed_negative_patterns_match_scoped_expr(
-      negative_pattern_buckets, scoped_expr, outer_bindings, inherited_identifier_metavars,
+  if cst_bucketed_negative_patterns_match_scoped_candidate(
+      negative_pattern_buckets, scoped_candidate, outer_bindings, inherited_identifier_metavars,
     ) {
     return InsideTargetReject
   }
@@ -598,46 +653,46 @@ fn apply_cst_bucketed_covered_patterns_at_scoped_expr(
 }
 
 ///|
-fn apply_cst_bucketed_patterns_at_scoped_expr(
+fn apply_cst_bucketed_patterns_at_scoped_candidate(
   file : String,
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  scoped_expr : @cst.ScopedExprNode,
+  scoped_candidate : @cst.ScopedExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
-  for indexed in pattern_buckets.patterns_for_node(scoped_expr.expr) {
+  for
+    indexed in pattern_buckets.patterns_for_candidate(
+      scoped_candidate.candidate,
+    ) {
     if cst_pattern_blocked_by_shadowed_outer_id(
         indexed.pattern,
         outer_bindings,
         inherited_identifier_metavars,
-        scoped_expr.shadowed_names,
+        scoped_candidate.shadowed_names,
       ) {
       continue
     }
-    if match_node_rule_pattern(
+    if match_candidate_rule_pattern(
         indexed.pattern,
-        scoped_expr.expr,
+        scoped_candidate.candidate,
         Some(outer_bindings),
       )
-      is Some(_) {
+      is Some(result) {
       hits.push({
         file,
         rule_id: rule.rule_id,
         description: rule.description,
         pattern_index: indexed.pattern_index,
-        loc: matched_context_location(
-          indexed.pattern.compiled.cst,
-          scoped_expr.expr,
-        ),
+        loc: result.loc,
       })
       return RulePrune
     }
   }
-  if cst_bucketed_negative_patterns_match_scoped_expr(
-      negative_pattern_buckets, scoped_expr, outer_bindings, inherited_identifier_metavars,
+  if cst_bucketed_negative_patterns_match_scoped_candidate(
+      negative_pattern_buckets, scoped_candidate, outer_bindings, inherited_identifier_metavars,
     ) {
     return RulePrune
   }
@@ -645,30 +700,34 @@ fn apply_cst_bucketed_patterns_at_scoped_expr(
 }
 
 ///|
-fn apply_cst_patterns_at_node(
+fn apply_cst_patterns_at_candidate(
   file : String,
   rule : CompiledRule,
   pattern_buckets : ExprPatternBuckets,
   negative_pattern_buckets : ExprPatternBuckets,
-  expr : @untyped_cst.CstNode,
+  candidate : @cst.ExprMatchCandidate,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
-  for indexed in pattern_buckets.patterns_for_node(expr) {
-    if match_node_rule_pattern(indexed.pattern, expr, initial_bindings)
-      is Some(_) {
+  for indexed in pattern_buckets.patterns_for_candidate(candidate) {
+    if match_candidate_rule_pattern(
+        indexed.pattern,
+        candidate,
+        initial_bindings,
+      )
+      is Some(result) {
       hits.push({
         file,
         rule_id: rule.rule_id,
         description: rule.description,
         pattern_index: indexed.pattern_index,
-        loc: matched_context_location(indexed.pattern.compiled.cst, expr),
+        loc: result.loc,
       })
       return RulePrune
     }
   }
-  if cst_negative_patterns_match_node(
-      negative_pattern_buckets, expr, initial_bindings,
+  if cst_negative_patterns_match_candidate(
+      negative_pattern_buckets, candidate, initial_bindings,
     ) {
     return RulePrune
   }
@@ -676,13 +735,17 @@ fn apply_cst_patterns_at_node(
 }
 
 ///|
-fn cst_negative_patterns_match_node(
+fn cst_negative_patterns_match_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
-  expr : @untyped_cst.CstNode,
+  candidate : @cst.ExprMatchCandidate,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
 ) -> Bool {
-  for indexed in negative_pattern_buckets.patterns_for_node(expr) {
-    if match_node_rule_pattern(indexed.pattern, expr, initial_bindings)
+  for indexed in negative_pattern_buckets.patterns_for_candidate(candidate) {
+    if match_candidate_rule_pattern(
+        indexed.pattern,
+        candidate,
+        initial_bindings,
+      )
       is Some(_) {
       return true
     }
@@ -691,24 +754,27 @@ fn cst_negative_patterns_match_node(
 }
 
 ///|
-fn cst_bucketed_negative_patterns_match_scoped_expr(
+fn cst_bucketed_negative_patterns_match_scoped_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
-  scoped_expr : @cst.ScopedExprNode,
+  scoped_candidate : @cst.ScopedExprMatchCandidate,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
 ) -> Bool {
-  for indexed in negative_pattern_buckets.patterns_for_node(scoped_expr.expr) {
+  for
+    indexed in negative_pattern_buckets.patterns_for_candidate(
+      scoped_candidate.candidate,
+    ) {
     if cst_pattern_blocked_by_shadowed_outer_id(
         indexed.pattern,
         initial_bindings,
         inherited_identifier_metavars,
-        scoped_expr.shadowed_names,
+        scoped_candidate.shadowed_names,
       ) {
       continue
     }
-    if match_node_rule_pattern(
+    if match_candidate_rule_pattern(
         indexed.pattern,
-        scoped_expr.expr,
+        scoped_candidate.candidate,
         Some(initial_bindings),
       )
       is Some(_) {
@@ -719,15 +785,15 @@ fn cst_bucketed_negative_patterns_match_scoped_expr(
 }
 
 ///|
-fn cst_bucketed_negative_patterns_match_any_scoped_expr(
+fn cst_bucketed_negative_patterns_match_any_scoped_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
-  target_exprs : Array[@cst.ScopedExprNode],
+  target_exprs : Array[@cst.ScopedExprMatchCandidate],
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
   inherited_identifier_metavars : Array[String],
 ) -> Bool {
-  for scoped_expr in target_exprs {
-    if cst_bucketed_negative_patterns_match_scoped_expr(
-        negative_pattern_buckets, scoped_expr, initial_bindings, inherited_identifier_metavars,
+  for scoped_candidate in target_exprs {
+    if cst_bucketed_negative_patterns_match_scoped_candidate(
+        negative_pattern_buckets, scoped_candidate, initial_bindings, inherited_identifier_metavars,
       ) {
       return true
     }
@@ -766,15 +832,19 @@ fn names_contain(names : Array[String], needle : String) -> Bool {
 }
 
 ///|
-fn match_node_rule_pattern(
+fn match_candidate_rule_pattern(
   pattern : CompiledRulePattern,
-  expr : @untyped_cst.CstNode,
+  candidate : @cst.ExprMatchCandidate,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue]?,
 ) -> @matching.ExprMatch? {
   let matched = if initial_bindings is Some(bindings) {
-    @matching.match_expr_pattern_with_bindings(pattern.compiled, expr, bindings)
+    @matching.match_expr_pattern_candidate_with_bindings(
+      pattern.compiled,
+      candidate,
+      bindings,
+    )
   } else {
-    @matching.match_expr_pattern(pattern.compiled, expr)
+    @matching.match_expr_pattern_candidate(pattern.compiled, candidate)
   }
   match matched {
     Some(result) if cst_guards_match(pattern.guards, result.bindings) =>

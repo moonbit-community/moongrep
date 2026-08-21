@@ -227,3 +227,34 @@ test "CST bucket merges wildcard and keyed patterns in source order" {
     content="[0, 3]",
   )
 }
+
+///|
+test "CST bucket only offers sequence-compatible patterns to sequences" {
+  let rule_source =
+    #|id: example
+    #|description: Sequence roots.
+    #|patterns:
+    #|  - shape: $(any:exp)
+    #|  - shape: let value = source()
+    #|  - shape: guard ready() else { fallback() }
+    #|  - shape: let mut value = source()
+    #|  - shape: "first(); second()"
+    #|  - shape: "{ first(); second() }"
+    #|
+  let patterns = compile_bucket_structural_patterns(rule_source)
+  let buckets = ExprPatternBuckets::from_patterns(patterns)
+  let sequence = parse_bucket_node("first(); second()")
+  guard sequence.kind is @untyped_cst.Expression else {
+    fail("expected expression sequence")
+  }
+  inspect(
+    int_array_signature(
+      bucket_pattern_indices(
+        buckets.patterns_for_candidate(
+          @cst.Sequence(@cst.expression_nodes(sequence)),
+        ),
+      ),
+    ),
+    content="[1, 2, 4]",
+  )
+}
