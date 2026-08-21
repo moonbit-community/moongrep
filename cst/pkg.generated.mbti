@@ -22,6 +22,10 @@ pub fn child(@untyped_cst.CstNode, String) -> @untyped_cst.CstNode?
 
 pub fn children(@untyped_cst.CstNode, String) -> Array[@untyped_cst.CstNode]
 
+pub fn collect_scoped_expr_roots(@untyped_cst.CstNode, Array[ScopedExprNode]) -> Unit
+
+pub fn collect_scoped_exprs(@untyped_cst.CstNode, Array[ScopedExprNode]) -> Unit
+
 pub fn constant(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
 
 pub fn expression_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
@@ -72,6 +76,12 @@ pub fn toplevel_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
 
+pub fn visit_scoped_expr_children(@untyped_cst.CstNode, Array[String], (ScopedExprNode) -> Unit) -> Unit
+
+pub fn visit_scoped_expr_roots(@untyped_cst.CstNode, (ScopedExprNode) -> NodeVisitAction) -> Unit
+
+pub fn visit_scoped_exprs(@untyped_cst.CstNode, (ScopedExprNode) -> NodeVisitAction) -> Unit
+
 // Errors
 
 // Types and methods
@@ -80,6 +90,17 @@ pub(all) struct AttributeInfo {
   name : String
   raw_payload : String
   node : @untyped_cst.CstNode
+}
+
+pub(all) enum NodeVisitAction {
+  NodeVisitContinue
+  NodeVisitPrune
+  NodeVisitReturn
+}
+
+pub(all) struct ScopedExprNode {
+  expr : @untyped_cst.CstNode
+  shadowed_names : Array[String]
 }
 
 // Type aliases
