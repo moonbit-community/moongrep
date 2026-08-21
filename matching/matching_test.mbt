@@ -1,811 +1,456 @@
 ///|
-fn parse_syntax_expr(source : String) -> @syntax.Expr raise {
-  let tokens = @lexer.tokens_from_string(
-      source,
-      comment=true,
-      name="matching test",
-    ).tokens
-  let (expr, reports) = @handrolled_parser.parse_expr(tokens)
-  guard reports is [] else { fail("expected expression to parse: \{source}") }
-  expr
-}
-
-///|
-fn parse_syntax_metavar_expr(source : String) -> @syntax.Expr raise {
-  let lex_result = @lexer.tokens_from_string(
-    source,
-    comment=true,
-    name="matching test",
-    enable_metavar=true,
-  )
-  guard lex_result.errors is [] else {
-    fail("expected expression to lex with metavars: \{source}")
+fn test_expr(
+  source : String,
+  name? : String = "matching test",
+) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_expression(source, name~)
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected expression to parse: \{source}")
   }
-  let (expr, reports) = @handrolled_parser.parse_expr(lex_result.tokens)
-  guard reports is [] else { fail("expected expression to parse: \{source}") }
-  expr
+  @cst.expression_root(parsed.root())
 }
 
 ///|
-fn parse_expr(source : String) -> @untyped_ast.Node raise {
-  @untyped_ast.from_expr(parse_syntax_expr(source))
+fn test_impl(
+  source : String,
+  name? : String = "matching test",
+) -> @untyped_cst.CstNode raise {
+  let parsed = @untyped_cst.parse_structure(source, name~)
+  guard parsed.diagnostics_view().is_empty() else {
+    fail("expected implementation to parse: \{source}")
+  }
+  guard @cst.toplevel_nodes(parsed.root()) is [node] else {
+    fail("expected one implementation")
+  }
+  node
 }
 
 ///|
-fn parse_metavar_expr(source : String) -> @untyped_ast.Node raise {
-  @untyped_ast.from_expr(parse_syntax_metavar_expr(source))
+fn test_compiled(
+  cst : @untyped_cst.CstNode,
+  expr_metavars? : Array[String] = [],
+  identifier_metavars? : Array[String] = [],
+  constant_metavars? : Array[String] = [],
+  arg_metavars? : Array[String] = [],
+  type_metavars? : Array[String] = [],
+  ellipsis_metavars? : Array[EllipsisMetavar] = [],
+  ignored_fields? : Array[IgnoredPatternField] = [],
+) -> CompiledExprPattern {
+  {
+    cst,
+    expr_metavars,
+    identifier_metavars,
+    constant_metavars,
+    arg_metavars,
+    type_metavars,
+    ellipsis_metavars,
+    target_metavar: None,
+    source_metavar: None,
+    ignored_fields,
+  }
 }
 
 ///|
-fn test_loc() -> @basic.Location {
-  @syntax.no_location
-}
-
-///|
-fn test_var(name : String) -> @syntax.Var {
-  { name: Ident(name~), loc: test_loc() }
-}
-
-///|
-fn test_binder(name : String) -> @syntax.Binder {
-  { name, loc: test_loc() }
-}
-
-///|
-fn test_pattern_var(name : String) -> @syntax.Pattern {
-  Var(test_binder(name))
-}
-
-///|
-fn test_pattern_tuple(items : Array[@syntax.Pattern]) -> @syntax.Pattern {
-  Tuple(pats=List(items), loc=test_loc())
-}
-
-///|
-fn test_match_pattern(pattern : @syntax.Pattern) -> @untyped_ast.Node {
-  @untyped_ast.from_expr(
-    Match(
-      expr=test_ident("input"),
-      cases=List([{ pattern, guard_: None, body: test_ident("body") }]),
-      match_loc=test_loc(),
-      loc=test_loc(),
-    ),
-  )
-}
-
-///|
-fn test_label(name : String) -> @syntax.Label {
-  { name, loc: test_loc() }
-}
-
-///|
-fn test_field_def(label : String, expr : @syntax.Expr) -> @syntax.FieldDef {
-  { label: test_label(label), expr, is_pun: false, loc: test_loc() }
-}
-
-///|
-fn test_ident(name : String) -> @syntax.Expr {
-  Ident(id=test_var(name), loc=test_loc())
-}
-
-///|
-fn test_implies(lhs : String, rhs : String) -> @untyped_ast.Node {
-  @untyped_ast.from_expr(
-    Implies(lhs=test_ident(lhs), rhs=test_ident(rhs), loc=test_loc()),
-  )
-}
-
-///|
-fn test_foreach_syntax(
-  init : String,
-  continue_value : String,
-  where_value : String,
-) -> @syntax.Expr {
-  ForEach(
-    binders=List([Some(test_binder("item"))]),
-    expr=test_ident("items"),
-    init=List([(test_binder("start"), test_ident(init))]),
-    continue_block=List([(test_binder("next"), test_ident(continue_value))]),
-    body=test_ident("body"),
-    else_block=None,
-    where_clause=Some({
-      fields: List([test_field_def("field", test_ident(where_value))]),
-      loc: test_loc(),
-    }),
-    label=None,
-    loc=test_loc(),
-  )
-}
-
-///|
-fn test_foreach(
-  init : String,
-  continue_value : String,
-  where_value : String,
-) -> @untyped_ast.Node {
-  @untyped_ast.from_expr(test_foreach_syntax(init, continue_value, where_value))
-}
-
-///|
-fn test_node_child(
-  node : @untyped_ast.Node,
+fn test_single_binding(
+  result : ExprMatch?,
   name : String,
-) -> @untyped_ast.Node? {
-  for entry in node.children {
-    let (child_name, value) = entry
-    if child_name == Some(name) {
-      return Some(value)
-    }
-  }
-  None
-}
-
-///|
-fn test_node_leaf_string(node : @untyped_ast.Node) -> String? {
-  match node.kind {
-    Leaf(PString(value)) => Some(value)
-    _ => None
+) -> @untyped_cst.CstNode raise {
+  guard result is Some(result) else { fail("expected match") }
+  match result.bindings.get(name) {
+    Some(Single(node)) => node
+    _ => fail("expected one binding for \{name}")
   }
 }
 
 ///|
-fn test_pattern_constructor_name(node : @untyped_ast.Node) -> String? {
-  guard node.kind == Pattern_Constr else { return None }
-  guard test_node_child(node, "constr") is Some(constr) else { return None }
-  guard test_node_child(constr, "name") is Some(name_node) else { return None }
-  guard test_node_child(name_node, "name") is Some(name_leaf) else {
-    return None
-  }
-  test_node_leaf_string(name_leaf)
-}
-
-///|
-test "undeclared double-underscore-prefixed identifier is literal" {
-  let pattern = parse_expr("__x + __x")
-  assert_false(expr_matches(pattern, parse_expr("a + a")))
-  assert_true(expr_matches(pattern, parse_expr("__x + __x")))
-}
-
-///|
-test "expression hole is literal instead of wildcard" {
-  let pattern = parse_expr("_")
-  assert_false(expr_matches(pattern, parse_expr("value")))
-  assert_true(expr_matches(pattern, parse_expr("_")))
-}
-
-///|
-test "declared expression metavar requires structural equality" {
-  let pattern = parse_expr("__x + __x")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["__x"],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(match_expr_pattern(compiled, parse_expr("a + a")) is Some(_))
-  assert_false(match_expr_pattern(compiled, parse_expr("a + b")) is Some(_))
-}
-
-///|
-test "identifier metavar compares binder and uses by normalized name" {
-  let pattern = parse_expr(
-    "for counter = 0; counter < limit; counter = counter + 1 { body }",
+test "semantic equality ignores locations formatting comments and separators" {
+  let compact = test_expr("f(1, label=x)", name="compact")
+  let formatted = test_expr(
+    "f(\n  // before\n  1,\n  label = x,\n)",
+    name="formatted",
   )
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["limit", "body"],
-    identifier_metavars: ["counter"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
+  assert_true(expr_matches(compact, formatted))
+  assert_false(expr_matches(compact, test_expr("g(1, label=x)")))
+  assert_false(expr_matches(compact, test_expr("f(1, other=x)")))
+}
+
+///|
+test "semantic equality preserves constant spelling and operators" {
+  assert_true(expr_matches(test_expr("1000"), test_expr("1000")))
+  assert_false(expr_matches(test_expr("1000"), test_expr("1_000")))
+  assert_false(
+    expr_matches(test_expr("left + right"), test_expr("left - right")),
+  )
+  assert_false(expr_matches(test_expr("true"), test_expr("false")))
+}
+
+///|
+test "expression metavars capture any expression and repeat structurally" {
+  let compiled = test_compiled(test_expr("pair(value, value)"), expr_metavars=[
+    "value",
+  ])
+  assert_true(
+    match_expr_pattern(compiled, test_expr("pair(a + 1, a + 1)")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, test_expr("pair(a + 1, a + 2)")) is Some(_),
+  )
+  let captured = test_single_binding(
+    match_expr_pattern(compiled, test_expr("pair(call(), call())")),
+    "value",
+  )
+  assert_true(captured.kind is @untyped_cst.Expr_Apply)
+}
+
+///|
+test "internal uppercase expression and constant markers use logical names" {
+  let exp = test_compiled(test_expr("__moongrep_exp_Value"), expr_metavars=[
+    "Value",
+  ])
+  assert_true(match_expr_pattern(exp, test_expr("some_call()")) is Some(_))
+  let constant = test_compiled(test_expr("__moongrep_const_Value"), constant_metavars=[
+    "Value",
+  ])
+  let value = test_single_binding(
+    match_expr_pattern(constant, test_expr("42")),
+    "Value",
+  )
+  assert_true(value.kind.is_constant())
+}
+
+///|
+test "identifier metavars normalize binder and expression names" {
+  let compiled = test_compiled(test_expr("match subject { name => name }"), identifier_metavars=[
+    "name",
+  ])
+  let captured = test_single_binding(
+    match_expr_pattern(compiled, test_expr("match subject { item => item }")),
+    "name",
+  )
+  debug_inspect(@cst.normalized_name(captured), content="Some(\"item\")")
+  assert_false(
+    match_expr_pattern(compiled, test_expr("match subject { item => other }"))
+    is Some(_),
+  )
+}
+
+///|
+test "constant metavars work in expressions and patterns" {
+  let expression = test_compiled(test_expr("check(value)"), constant_metavars=[
+    "value",
+  ])
+  assert_true(
+    match_expr_pattern(expression, test_expr("check(\"raw\")")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(expression, test_expr("check(name)")) is Some(_),
+  )
+  let pattern = test_compiled(test_expr("match input { value => body }"), constant_metavars=[
+    "value",
+  ])
+  assert_true(
+    match_expr_pattern(pattern, test_expr("match input { 7 => body }"))
+    is Some(_),
+  )
+}
+
+///|
+test "argument metavars capture the complete argument kind" {
+  let compiled = test_compiled(test_expr("sink(__moongrep_arg_item)"), arg_metavars=[
+    "item",
+  ])
+  let labelled = test_single_binding(
+    match_expr_pattern(compiled, test_expr("sink(label=value)")),
+    "item",
+  )
+  assert_true(labelled.kind is @untyped_cst.Argument_Labelled)
+  let optional = test_single_binding(
+    match_expr_pattern(compiled, test_expr("sink(label?)")),
+    "item",
+  )
+  assert_true(optional.kind is @untyped_cst.Argument_LabelledOptionPun)
+}
+
+///|
+test "pattern metavars capture whole normalized patterns" {
+  let compiled = test_compiled(
+    test_expr("match input { __moongrep_pat_item => body }"),
+  )
+  let captured = test_single_binding(
+    match_expr_pattern(
+      compiled,
+      test_expr("match input { Some(value) => body }"),
+    ),
+    "item",
+  )
+  assert_true(captured.kind is @untyped_cst.Pattern_Constr)
   assert_true(
     match_expr_pattern(
       compiled,
-      parse_expr("for i = 0; i < n; i = i + 1 { println(i) }"),
+      test_expr("match input { (Some(value)) => body }"),
+    )
+    is Some(_),
+  )
+}
+
+///|
+test "type metavars decode internal markers and compare repeated captures" {
+  let compiled = test_compiled(
+    test_expr(
+      "match input { (left : MoongrepType_ty, right : MoongrepType_ty) => body }",
+    ),
+    type_metavars=["ty"],
+  )
+  assert_true(
+    match_expr_pattern(
+      compiled,
+      test_expr(
+        "match input { (left : Array[Int], right : Array[Int]) => body }",
+      ),
     )
     is Some(_),
   )
   assert_false(
     match_expr_pattern(
       compiled,
-      parse_expr("for i = 0; j < n; i = i + 1 { println(i) }"),
+      test_expr(
+        "match input { (left : Array[Int], right : Array[String]) => body }",
+      ),
     )
     is Some(_),
   )
 }
 
 ///|
-test "identifier metavar matches loop counter" {
-  let pattern = parse_expr(
-    "for counter = 0; counter < limit; counter = counter + 1 { body }",
-  )
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["limit", "body"],
-    identifier_metavars: ["counter"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(
-      compiled,
-      parse_expr("for i = 0; i < n; i = i + 1 { println(i) }"),
-    )
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(
-      compiled,
-      parse_expr("for i = 0; j < n; i = i + 1 { println(i) }"),
-    )
-    is Some(_),
-  )
-}
-
-///|
-test "expression metavar matches repeated call expression" {
-  let pattern = parse_expr("value + value")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["value"],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("make() + make()")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("make() + other()")) is Some(_),
-  )
-}
-
-///|
-test "expression metavar keeps structural equality" {
-  let pattern = parse_expr("value + value")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["value"],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("item + make()")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("make() + item")) is Some(_),
-  )
-}
-
-///|
-test "constant metavar requires repeated constant equality" {
-  let pattern = parse_expr("value + value")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: ["value"],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(match_expr_pattern(compiled, parse_expr("1 + 1")) is Some(_))
-  assert_false(match_expr_pattern(compiled, parse_expr("1 + 2")) is Some(_))
-  assert_false(match_expr_pattern(compiled, parse_expr("x + x")) is Some(_))
-}
-
-///|
-test "constant metavar matches only constant patterns" {
-  let pattern = parse_expr("match input { lit => lit }")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["input"],
-    identifier_metavars: [],
-    constant_metavars: ["lit"],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("match value { 1 => 1 }"))
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("match value { 1 => 2 }"))
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("match value { item => item }"))
-    is Some(_),
-  )
-}
-
-///|
-test "argument metavar captures complete argument nodes" {
-  let compiled : CompiledExprPattern = {
-    ast: parse_expr("sink(arg)"),
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: ["arg"],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  for
-    source in [
-      "sink(value)", "sink(label=value)", "sink(label~)", "sink(label?=value)", "sink(label?)",
-    ] {
-    if match_expr_pattern(compiled, parse_expr(source)) is Some(result) {
-      match result.bindings.get("arg") {
-        Some(Single(node)) => assert_true(node.kind == Argument)
-        _ => fail("expected argument binding")
-      }
-    } else {
-      fail("expected argument metavar to match \{source}")
-    }
-  }
-  assert_false(match_expr_pattern(compiled, parse_expr("sink()")) is Some(_))
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("sink(value, other)")) is Some(_),
-  )
-}
-
-///|
-test "argument metavar requires repeated argument equality" {
-  let compiled : CompiledExprPattern = {
-    ast: parse_expr("sink(arg, arg)"),
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: ["arg"],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("sink(value, value)")) is Some(_),
-  )
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("sink(label=value, label=value)"))
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("sink(value, other)")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("sink(label=value, other=value)"))
-    is Some(_),
-  )
-}
-
-///|
-test "pattern metavar captures whole pattern AST" {
-  let compiled : CompiledExprPattern = {
-    ast: test_match_pattern(test_pattern_var("$(item:pat)")),
-    expr_metavars: ["input", "body"],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  if match_expr_pattern(
-      compiled,
-      parse_expr("match value { Some(actual) => ok }"),
-    )
-    is Some(result) {
-    match result.bindings.get("item") {
-      Some(Single(node)) => {
-        guard test_pattern_constructor_name(node) is Some(name) else {
-          fail("expected constructor pattern binding")
-        }
-        inspect(name, content="Some")
-      }
-      _ => fail("expected pattern binding")
-    }
-  } else {
+test "ignore placeholder does not create a binding" {
+  let compiled = test_compiled(test_expr("wrap(__moongrep_ignore)"))
+  guard match_expr_pattern(compiled, test_expr("wrap(complex(1))"))
+    is Some(result) else {
     fail("expected match")
   }
+  assert_true(result.bindings.is_empty())
 }
 
 ///|
-test "pattern metavar requires repeated pattern equality" {
-  let compiled : CompiledExprPattern = {
-    ast: test_match_pattern(
-      test_pattern_tuple([
-        test_pattern_var("$(item:pat)"),
-        test_pattern_var("$(item:pat)"),
-      ]),
-    ),
-    expr_metavars: ["input", "body"],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
+test "ellipsis captures ordered argument spans including empty spans" {
+  let compiled = test_compiled(
+    test_expr("call(__moongrep_ellipsis_any_items, tail)"),
+    ellipsis_metavars=[{ name: "items", kind: AnyItem }],
+  )
+  guard match_expr_pattern(compiled, test_expr("call(1, label=x, tail)"))
+    is Some(result) else {
+    fail("expected match")
   }
+  match result.bindings.get("items") {
+    Some(Multiple(items)) => assert_eq(items.length(), 2)
+    _ => fail("expected ellipsis capture")
+  }
+  assert_true(match_expr_pattern(compiled, test_expr("call(tail)")) is Some(_))
+}
+
+///|
+test "typed ellipsis constrains every captured item" {
+  let compiled = test_compiled(
+    test_expr("call(__moongrep_ellipsis_const_values)"),
+    ellipsis_metavars=[{ name: "values", kind: ConstItem }],
+  )
+  assert_true(
+    match_expr_pattern(compiled, test_expr("call(1, \"two\")")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, test_expr("call(1, name)")) is Some(_),
+  )
+}
+
+///|
+test "block matching handles parser sequence wrappers and lexical statements" {
+  let same = test_compiled(test_expr("{ first(); second() }"))
+  assert_true(
+    match_expr_pattern(same, test_expr("{ first(); // gap\n second() }"))
+    is Some(_),
+  )
+  let binding = test_compiled(test_expr("{ let value = source; sink(value) }"))
+  assert_true(
+    match_expr_pattern(binding, test_expr("{ let value=source; sink(value) }"))
+    is Some(_),
+  )
+}
+
+///|
+test "an expression placeholder in an if body captures the complete block" {
+  let compiled = test_compiled(
+    test_expr("if __moongrep_ignore { __moongrep_ignore } else {}"),
+  )
   assert_true(
     match_expr_pattern(
       compiled,
-      parse_expr("match value { (Some(actual), Some(actual)) => ok }"),
-    )
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(
-      compiled,
-      parse_expr("match value { (Some(actual), Some(other)) => ok }"),
-    )
-    is Some(_),
-  )
-}
-
-///|
-test "identifier metavar matches pattern vars" {
-  let pattern = parse_expr("match input { item => item }")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["input"],
-    identifier_metavars: ["item"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("match value { actual => actual }"))
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("match value { actual => other }"))
-    is Some(_),
-  )
-}
-
-///|
-test "identifier metavar matches labels" {
-  let pattern = parse_expr("record.field + record.field")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["record"],
-    identifier_metavars: ["field"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("item.name + item.name")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("item.name + item.other"))
-    is Some(_),
-  )
-}
-
-///|
-test "identifier metavar matches qualified function names" {
-  let pattern = parse_expr("callee(callee)")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: [],
-    identifier_metavars: ["callee"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("@int.abs(@int.abs)")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("@int.abs(abs)")) is Some(_),
-  )
-}
-
-///|
-test "qualified identifier metavar keeps literal package" {
-  let pattern = parse_expr("@int.callee(callee)")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: [],
-    identifier_metavars: ["callee"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("@int.abs(@int.abs)")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("@float.abs(@float.abs)"))
-    is Some(_),
-  )
-}
-
-///|
-test "identifier metavar matches constructor identity with extra info" {
-  let pattern = parse_expr("Ctor(Ctor)")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: [],
-    identifier_metavars: ["Ctor"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(compiled, parse_expr("@pkg.Actual(@pkg.Actual)"))
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("@pkg.Actual(Actual)")) is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("@pkg.Actual(@other.Actual)"))
-    is Some(_),
-  )
-}
-
-///|
-test "identifier metavar matches constructor type extra info" {
-  let pattern = parse_expr("TypeName::Ctor(Ctor)")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: [],
-    identifier_metavars: ["TypeName", "Ctor"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(
-      compiled,
-      parse_expr("@pkg.Option::Some(@pkg.Option::Some)"),
-    )
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(compiled, parse_expr("@pkg.Option::Some(Option::Some)"))
-    is Some(_),
-  )
-}
-
-///|
-test "identifier metavar matches constructor patterns" {
-  let pattern = parse_expr("match input { Ctor => Ctor }")
-  let compiled : CompiledExprPattern = {
-    ast: pattern,
-    expr_metavars: ["input"],
-    identifier_metavars: ["Ctor"],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  assert_true(
-    match_expr_pattern(
-      compiled,
-      parse_expr("match value { @pkg.Actual => @pkg.Actual }"),
-    )
-    is Some(_),
-  )
-  assert_false(
-    match_expr_pattern(
-      compiled,
-      parse_expr("match value { @pkg.Actual => Actual }"),
+      test_expr("if flag { prepare(); finish() } else {}"),
     )
     is Some(_),
   )
 }
 
 ///|
-test "structural matcher compares scalar AST fields" {
-  assert_false(expr_matches(parse_expr("a + b"), parse_expr("a - b")))
-  assert_false(expr_matches(parse_expr("f(label=a)"), parse_expr("f(other=a)")))
-  assert_false(expr_matches(parse_expr("obj.field"), parse_expr("obj.other")))
-  assert_false(expr_matches(parse_expr("1"), parse_expr("2")))
-  assert_false(
-    expr_matches(
-      parse_expr("@http.Client::new(__)"),
-      parse_expr("@http.Server::new(1)"),
-    ),
+test "guard and let headers match their lexical CST continuation" {
+  let guard_pattern = test_compiled(
+    test_expr("guard ready() else { fallback() }"),
   )
-  assert_false(expr_matches(parse_expr("Text(__)"), parse_expr("Blank")))
-}
-
-///|
-test "structural matcher supports reverse pipe and implication roots" {
   assert_true(
-    expr_matches(parse_expr("sink <| input"), parse_expr("sink <| input")),
+    match_expr_pattern(
+      guard_pattern,
+      test_expr("guard ready() else { fallback() }\ncontinue_work()"),
+    )
+    is Some(_),
   )
-  assert_false(
-    expr_matches(parse_expr("sink <| input"), parse_expr("other <| input")),
+  let let_pattern = test_compiled(
+    test_expr("let (__moongrep_ignore, __moongrep_ignore) = __moongrep_ignore"),
   )
-  assert_true(expr_matches(test_implies("a", "b"), test_implies("a", "b")))
-  assert_false(expr_matches(test_implies("a", "b"), test_implies("a", "c")))
-}
-
-///|
-test "structural matcher supports list comprehension roots" {
-  let pattern = parse_expr("[for item in items if allow(item) => target(item)]")
   assert_true(
-    expr_matches(
-      pattern,
-      parse_expr("[for item in items if allow(item) => target(item)]"),
-    ),
-  )
-  assert_false(
-    expr_matches(
-      pattern,
-      parse_expr("[for item in items if allow(item) => other(item)]"),
-    ),
+    match_expr_pattern(
+      let_pattern,
+      test_expr("let (fst, snd) = tuple\nconsume(fst)\nsnd"),
+    )
+    is Some(_),
   )
 }
 
 ///|
-test "structural matcher compares foreach init continue and where clause" {
-  let pattern = test_foreach("seed", "step", "where_value")
-  assert_true(
-    expr_matches(pattern, test_foreach("seed", "step", "where_value")),
+test "top-level exact matching ignores docstrings and compares attributes" {
+  let documented = test_impl(
+    "///| API\n/// detail\n#stable\nfn sample { body() }",
+    name="pattern-doc",
   )
-  assert_false(
-    expr_matches(pattern, test_foreach("other", "step", "where_value")),
+  let same = test_impl(
+    "///| API\n/// detail\n#stable\nfn sample { body() }",
+    name="candidate-doc",
   )
-  assert_false(
-    expr_matches(pattern, test_foreach("seed", "other", "where_value")),
+  let changed_doc = test_impl(
+    "///| Changed\n#stable\nfn sample { body() }",
+    name="changed-doc",
   )
-  assert_false(expr_matches(pattern, test_foreach("seed", "step", "other")))
+  let changed_attr = test_impl(
+    "///| API\n/// detail\n#other\nfn sample { body() }",
+    name="changed-attr",
+  )
+  let without_doc = test_impl(
+    "#stable\nfn sample { body() }",
+    name="without-doc",
+  )
+  let without_attr = test_impl(
+    "///| API\n/// detail\nfn sample { body() }",
+    name="without-attr",
+  )
+  assert_true(expr_matches(documented, same))
+  assert_true(expr_matches(documented, changed_doc))
+  assert_true(expr_matches(documented, without_doc))
+  assert_true(expr_matches(without_doc, documented))
+  assert_false(expr_matches(documented, changed_attr))
+  assert_false(expr_matches(documented, without_attr))
 }
 
 ///|
-test "let pattern with omitted body matches let header only" {
-  let pattern = parse_metavar_expr("let ($_, $_) = $_")
-  assert_true(
-    expr_matches(pattern, parse_expr("let (fst, snd) = tuple; use(fst, snd)")),
+test "nested declaration docstrings never affect exact matching" {
+  let documented_field = test_impl(
+    "struct Sample {\n  /// field docs\n  value : Int\n}",
+    name="field-doc-pattern",
   )
-  assert_true(
-    expr_matches(
-      pattern,
-      parse_expr("let (fst, snd) = tuple; { consume(fst); snd }"),
-    ),
+  let changed_field = test_impl(
+    "struct Sample {\n  /// changed docs\n  value : Int\n}",
+    name="field-doc-changed",
   )
+  let plain_field = test_impl(
+    "struct Sample {\n  value : Int\n}",
+    name="field-doc-missing",
+  )
+  assert_true(expr_matches(documented_field, changed_field))
+  assert_true(expr_matches(documented_field, plain_field))
+  assert_true(expr_matches(plain_field, documented_field))
+  let documented_constructor = test_impl(
+    "enum Sample {\n  /// constructor docs\n  Value(Int)\n}",
+    name="constructor-doc-pattern",
+  )
+  let changed_constructor = test_impl(
+    "enum Sample {\n  /// changed docs\n  Value(Int)\n}",
+    name="constructor-doc-changed",
+  )
+  let plain_constructor = test_impl(
+    "enum Sample {\n  Value(Int)\n}",
+    name="constructor-doc-missing",
+  )
+  assert_true(expr_matches(documented_constructor, changed_constructor))
+  assert_true(expr_matches(documented_constructor, plain_constructor))
+  assert_true(expr_matches(plain_constructor, documented_constructor))
+  let documented_method = test_impl(
+    "trait Sample {\n  /// method docs\n  read(Self) -> Int\n}",
+    name="trait-method-doc-pattern",
+  )
+  let changed_method = test_impl(
+    "trait Sample {\n  /// changed docs\n  read(Self) -> Int\n}",
+    name="trait-method-doc-changed",
+  )
+  let plain_method = test_impl(
+    "trait Sample {\n  read(Self) -> Int\n}",
+    name="trait-method-doc-missing",
+  )
+  assert_true(expr_matches(documented_method, changed_method))
+  assert_true(expr_matches(documented_method, plain_method))
+  assert_true(expr_matches(plain_method, documented_method))
+}
+
+///|
+test "same-location docstrings do not introduce parse-order state" {
+  let aaa_first = test_impl("/// AAA\nfn same { body() }", name="rule shape")
+  let bbb_second = test_impl("/// BBB\nfn same { body() }", name="rule shape")
+  let bbb_first = test_impl("/// BBB\nfn same { body() }", name="rule shape")
+  let aaa_second = test_impl("/// AAA\nfn same { body() }", name="rule shape")
+  let candidate = test_impl("/// AAA\nfn same { other() }", name="candidate")
+  assert_true(expr_matches(aaa_first, bbb_second))
+  assert_true(expr_matches(bbb_first, aaa_second))
+  assert_false(expr_matches(aaa_first, candidate))
+}
+
+///|
+test "ignored top-level fields implement partial matching" {
+  let pattern = test_impl("fn sample { body() }", name="partial-pattern")
+  let ignored : Array[IgnoredPatternField] = []
+  let function_kind = pattern.kind
+  for
+    name in [
+      "semantic_type_name", "async", "params", "quantifier", "clause", "vis", "attrs",
+      "where_clause",
+    ] {
+    ignored.push({ parent_kind: function_kind, child_name: name })
+  }
+  let compiled = test_compiled(pattern, ignored_fields=ignored)
+  let candidate = test_impl(
+    "///| docs\npub async fn sample(value : Int) -> Int { body() }",
+    name="partial-candidate",
+  )
+  assert_true(match_expr_pattern(compiled, candidate) is Some(_))
   assert_false(
-    expr_matches(
-      parse_metavar_expr("let ($_, $_) = $_; finish($_)"),
-      parse_expr("let (fst, snd) = tuple; other(fst)"),
-    ),
+    match_expr_pattern(
+      compiled,
+      test_impl("fn other { body() }", name="partial-other"),
+    )
+    is Some(_),
   )
 }
 
 ///|
-test "guard pattern with omitted body matches guard header only" {
-  let pattern = parse_expr("guard ready() else { fallback() }")
-  assert_true(
-    expr_matches(
-      pattern,
-      parse_expr("guard ready() else { fallback() }; continue_work()"),
-    ),
-  )
-  assert_true(
-    expr_matches(
-      pattern,
-      parse_expr("guard ready() else { fallback() }; { prepare(); finish() }"),
-    ),
-  )
-}
-
-///|
-test "guard pattern with omitted body still matches condition and otherwise" {
-  let pattern = parse_expr("guard ready() else { fallback() }")
-  assert_false(
-    expr_matches(
-      pattern,
-      parse_expr("guard waiting() else { fallback() }; continue_work()"),
-    ),
-  )
-  assert_false(
-    expr_matches(
-      pattern,
-      parse_expr("guard ready() else { recover() }; continue_work()"),
-    ),
-  )
-}
-
-///|
-test "guard pattern with explicit body matches body exactly" {
-  let pattern = parse_expr("guard ready() else { fallback() }; continue_work()")
-  assert_true(
-    expr_matches(
-      pattern,
-      parse_expr("guard ready() else { fallback() }; continue_work()"),
-    ),
-  )
-  assert_false(
-    expr_matches(
-      pattern,
-      parse_expr("guard ready() else { fallback() }; finish_work()"),
-    ),
-  )
-  let explicit_unit = parse_expr("guard ready() else { fallback() }; ()")
-  assert_true(
-    expr_matches(
-      explicit_unit,
-      parse_expr("guard ready() else { fallback() }; ()"),
-    ),
-  )
-  assert_false(
-    expr_matches(
-      explicit_unit,
-      parse_expr("guard ready() else { fallback() }; continue_work()"),
-    ),
-  )
+test "caller bindings are copied and repeated values ignore locations" {
+  let compiled = test_compiled(test_expr("pair(value, value)"), expr_metavars=[
+    "value",
+  ])
+  let initial : @hashmap.HashMap[String, BoundValue] = HashMap([])
+  initial["existing"] = Single(test_expr("kept"))
+  guard match_expr_pattern_with_bindings(
+      compiled,
+      test_expr("pair(item, item)", name="candidate-locations"),
+      initial,
+    )
+    is Some(result) else {
+    fail("expected match")
+  }
+  assert_true(result.bindings.contains("existing"))
+  assert_false(initial.contains("value"))
 }

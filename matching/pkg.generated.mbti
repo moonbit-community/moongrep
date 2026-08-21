@@ -2,27 +2,27 @@
 package "moonbit-community/moongrep/matching"
 
 import {
-  "moonbit-community/moongrep/untyped_ast",
   "moonbitlang/core/hashmap",
+  "moonbitlang/parser/untyped_cst",
 }
 
 // Values
-pub fn expr_matches(@untyped_ast.Node, @untyped_ast.Node) -> Bool
+pub fn expr_matches(@untyped_cst.CstNode, @untyped_cst.CstNode) -> Bool
 
-pub fn match_expr_pattern(CompiledExprPattern, @untyped_ast.Node) -> ExprMatch?
+pub fn match_expr_pattern(CompiledExprPattern, @untyped_cst.CstNode) -> ExprMatch?
 
-pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @untyped_ast.Node, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
+pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @untyped_cst.CstNode, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
 
 // Errors
 
 // Types and methods
 pub(all) enum BoundValue {
-  Single(@untyped_ast.Node)
-  Multiple(Array[@untyped_ast.Node])
+  Single(@untyped_cst.CstNode)
+  Multiple(Array[@untyped_cst.CstNode])
 }
 
 pub(all) struct CompiledExprPattern {
-  ast : @untyped_ast.Node
+  cst : @untyped_cst.CstNode
   expr_metavars : Array[String]
   identifier_metavars : Array[String]
   constant_metavars : Array[String]
@@ -50,12 +50,12 @@ pub(all) enum EllipsisMetavarKind {
 } derive(Eq)
 
 pub(all) struct ExprMatch {
-  root : @untyped_ast.Node
+  root : @untyped_cst.CstNode
   bindings : @hashmap.HashMap[String, BoundValue]
 }
 
 pub(all) struct IgnoredPatternField {
-  parent_kind : @untyped_ast.NodeKind
+  parent_kind : @untyped_cst.NodeKind
   child_name : String
 }
 
