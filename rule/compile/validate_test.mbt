@@ -23,11 +23,10 @@ fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
 ///|
 fn compiled_ignores_field(
   compiled : @matching.CompiledExprPattern,
-  parent_kind : @untyped_ast.NodeKind,
   child_name : String,
 ) -> Bool {
   for field in compiled.ignored_fields {
-    if field.parent_kind == parent_kind && field.child_name == child_name {
+    if field.parent_kind == compiled.cst.kind && field.child_name == child_name {
       return true
     }
   }
@@ -85,7 +84,7 @@ test "validate rejects ellipsis outside a complete list item" {
     #|  - shape: $$$items
     #|
   expect_compile_invalid(
-    root, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item",
+    root, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
   )
   let source =
     #|id: example
@@ -94,7 +93,7 @@ test "validate rejects ellipsis outside a complete list item" {
     #|  - shape: wrap($$$items + 1)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered AST list item",
+    source, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
   )
 }
 
@@ -255,6 +254,51 @@ test "validate accepts bare inline expression metavars" {
 }
 
 ///|
+test "validate accepts keyword names for every single-node metavar form" {
+  let source =
+    #|id: example
+    #|description: Keyword metavar names.
+    #|patterns:
+    #|  - shape: sink($(else:exp))
+    #|  - shape: sink($(if:const))
+    #|  - shape: $(for:id)()
+    #|  - shape: sink($(match:arg))
+    #|  - shape: match input { $(if:pat) => body }
+    #|  - shape: |
+    #|      let value : $(for:type) = input
+    #|  - shape: $if + $if
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.patterns.length(), 7)
+      debug_inspect(
+        rule.patterns[0].compiled.expr_metavars,
+        content="[\"else\"]",
+      )
+      debug_inspect(
+        rule.patterns[1].compiled.constant_metavars,
+        content="[\"if\"]",
+      )
+      debug_inspect(
+        rule.patterns[2].compiled.identifier_metavars,
+        content="[\"for\"]",
+      )
+      debug_inspect(
+        rule.patterns[3].compiled.arg_metavars,
+        content="[\"match\"]",
+      )
+      debug_inspect(
+        rule.patterns[5].compiled.type_metavars,
+        content="[\"for\"]",
+      )
+      debug_inspect(rule.patterns[6].compiled.expr_metavars, content="[\"if\"]")
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate rejects bare dollar metavar syntax" {
   let source =
     #|id: example
@@ -317,6 +361,36 @@ test "validate infers bare binder and expression metavars" {
 }
 
 ///|
+test "validate infers bare binders in foreach parameters and let mut" {
+  let foreach =
+    #|id: foreach
+    #|description: Foreach binder.
+    #|patterns:
+    #|  - shape: for $item in $items { $body }
+    #|
+  let parameter =
+    #|id: parameter
+    #|description: Parameter binder.
+    #|patterns:
+    #|  - shape: fn($param) { $body }
+    #|
+  let let_mut =
+    #|id: let-mut
+    #|description: Mutable binder.
+    #|patterns:
+    #|  - shape: let mut $value = $initial
+    #|
+  for source in [foreach, parameter, let_mut] {
+    let rules = compile_one(source)
+    match rules[0].definition {
+      Structural(rule) =>
+        assert_eq(rule.patterns[0].compiled.identifier_metavars.length(), 1)
+      Taint(_) => fail("expected structural rule")
+    }
+  }
+}
+
+///|
 test "validate rejects ambiguous bare pattern metavars" {
   let source =
     #|id: example
@@ -326,6 +400,22 @@ test "validate rejects ambiguous bare pattern metavars" {
     #|
   expect_compile_invalid(
     source, "patterns[0].shape cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
+  )
+}
+
+///|
+test "validate keeps nested match patterns ambiguous inside foreach" {
+  let source =
+    #|id: example
+    #|description: Nested match pattern.
+    #|patterns:
+    #|  - shape: |
+    #|      for $item in $items {
+    #|        match value { $pattern => $body }
+    #|      }
+    #|
+  expect_compile_invalid(
+    source, "patterns[0].shape cannot infer kind for bare metavar $pattern in a pattern variable position; use explicit typed syntax like $(pattern:id), $(pattern:const), or $(pattern:pat)",
   )
 }
 
@@ -975,21 +1065,18 @@ test "validate resolves inside toplevel match modes per alternative" {
     Structural(rule) => {
       assert_eq(rule.inside_toplevel.length(), 4)
       let default_fn = rule.inside_toplevel[0].compiled
-      assert_eq(default_fn.ignored_fields.length(), 10)
-      assert_true(compiled_ignores_field(default_fn, FunDecl, "is_async"))
-      assert_true(compiled_ignores_field(default_fn, FunDecl, "decl_params"))
-      assert_true(
-        compiled_ignores_field(default_fn, Impl_TopFuncDef, "where_clause"),
-      )
+      assert_eq(default_fn.ignored_fields.length(), 8)
+      assert_true(compiled_ignores_field(default_fn, "async"))
+      assert_true(compiled_ignores_field(default_fn, "params"))
+      assert_true(compiled_ignores_field(default_fn, "where"))
       let exact_fn = rule.inside_toplevel[1].compiled
       assert_true(exact_fn.ignored_fields.is_empty())
       let partial_fn = rule.inside_toplevel[2].compiled
-      assert_false(compiled_ignores_field(partial_fn, FunDecl, "is_async"))
-      assert_false(compiled_ignores_field(partial_fn, FunDecl, "decl_params"))
-      assert_false(compiled_ignores_field(partial_fn, FunDecl, "return_type"))
-      assert_false(compiled_ignores_field(partial_fn, FunDecl, "error_type"))
-      assert_true(compiled_ignores_field(partial_fn, FunDecl, "type_name"))
-      assert_true(compiled_ignores_field(partial_fn, FunDecl, "quantifiers"))
+      assert_false(compiled_ignores_field(partial_fn, "async"))
+      assert_false(compiled_ignores_field(partial_fn, "params"))
+      assert_false(compiled_ignores_field(partial_fn, "clause"))
+      assert_true(compiled_ignores_field(partial_fn, "semantic_type_name"))
+      assert_true(compiled_ignores_field(partial_fn, "quantifier"))
       assert_true(rule.inside_toplevel[3].compiled.ignored_fields.is_empty())
     }
     Taint(_) => fail("expected structural rule")
