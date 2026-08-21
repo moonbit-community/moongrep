@@ -51,6 +51,7 @@ priv enum ExprRootKey {
 priv struct ExprPatternBuckets {
   wildcard : Array[IndexedCompiledRulePattern]
   keyed : Array[KeyedCompiledRulePatterns]
+  sequence : Array[IndexedCompiledRulePattern]
 }
 
 ///|
@@ -145,10 +146,9 @@ fn cst_bucket_metavar_name(raw : String) -> String? {
 // with `expr_root_key(candidate)`.
 fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> ExprRootKey? {
   let compiled = pattern.compiled
-  if compiled.cst.kind is @untyped_cst.Expression ||
-    cst_bucket_lexical_statement_has_continuation(compiled.cst.kind) {
-    // A parsed multi-statement fragment is an `Expression` container, while
-    // the same statements in a function body live under `Expr_Block`.
+  if compiled.cst.kind is @untyped_cst.Expression {
+    // A parsed multi-statement fragment can match a sequence or the contents
+    // of an explicit block.
     None
   } else if compiled.cst.kind is @untyped_cst.Expr_Ident {
     if @cst.normalized_expr_identifier_name(compiled.cst) is Some(name) {
@@ -166,17 +166,19 @@ fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> ExprRootKey? {
 }
 
 ///|
-fn cst_bucket_lexical_statement_has_continuation(
-  kind : @untyped_cst.NodeKind,
-) -> Bool {
-  match kind {
-    @untyped_cst.Expr_Let
-    | @untyped_cst.Expr_LetMut
-    | @untyped_cst.Expr_LetFn
-    | @untyped_cst.Expr_LetAnd
-    | @untyped_cst.Expr_Guard
-    | @untyped_cst.Expr_ProofLet => true
-    _ => false
+fn compiled_pattern_matches_sequence(pattern : CompiledRulePattern) -> Bool {
+  pattern.compiled.cst.kind
+  is (@untyped_cst.Expression | @untyped_cst.Expr_Let | @untyped_cst.Expr_Guard)
+}
+
+///|
+fn ExprPatternBuckets::patterns_for_candidate(
+  self : ExprPatternBuckets,
+  candidate : @cst.ExprMatchCandidate,
+) -> Array[IndexedCompiledRulePattern] {
+  match candidate {
+    @cst.Direct(node) => self.patterns_for_node(node)
+    @cst.Sequence(_) => self.sequence
   }
 }
 
@@ -188,8 +190,12 @@ fn ExprPatternBuckets::from_patterns(
 ) -> ExprPatternBuckets {
   let wildcard : Array[IndexedCompiledRulePattern] = []
   let keyed : Array[KeyedCompiledRulePatterns] = []
+  let sequence : Array[IndexedCompiledRulePattern] = []
   for index in 0..<patterns.length() {
     let indexed = { pattern_index: index, pattern: patterns[index] }
+    if compiled_pattern_matches_sequence(patterns[index]) {
+      sequence.push(indexed)
+    }
     let key = compiled_pattern_root_key(patterns[index])
     if key is Some(key) {
       push_keyed_pattern(keyed, key, indexed)
@@ -197,7 +203,7 @@ fn ExprPatternBuckets::from_patterns(
       wildcard.push(indexed)
     }
   }
-  { wildcard, keyed }
+  { wildcard, keyed, sequence }
 }
 
 ///|

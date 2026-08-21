@@ -495,9 +495,12 @@ test "apply structural rule supports constructor identity metavars" {
     #|
   let source =
     #|fn sample {
+    #|  Actual(Actual);
     #|  @pkg.Actual(@pkg.Actual);
-    #|  @pkg.Actual(Actual);
-    #|  @pkg.Actual(@other.Actual)
+    #|  Type::Actual(Type::Actual);
+    #|  @pkg.Type::Actual(@pkg.Type::Actual);
+    #|  @pkg.Type::@other.Actual(@pkg.Type::@other.Actual);
+    #|  @pkg.Type::Actual(@other.Type::Actual)
     #|}
     #|
   let hits = apply_structural_test_rules(
@@ -505,8 +508,47 @@ test "apply structural rule supports constructor identity metavars" {
     parse_root_node(source),
     compile_rule_source(rule_source),
   )
-  assert_eq(hits.length(), 1)
+  assert_eq(hits.length(), 5)
   inspect(hits[0].rule_id, content="example")
+}
+
+///|
+test "constructor identity metavars repeat across patterns and expressions" {
+  let rule_source =
+    #|id: example
+    #|description: Constructor pattern identity.
+    #|patterns:
+    #|  - shape: match $_ { $(Ctor:id)($(item:id)) => $(Ctor:id)($(item:id)) }
+    #|
+  let source =
+    #|fn sample {
+    #|  match input { @pkg.Type::Ctor(item) => @pkg.Type::Ctor(item) };
+    #|  match input { @pkg.Type::Ctor(item) => @other.Type::Ctor(item) }
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+}
+
+///|
+test "identifier guards receive the complete constructor identity" {
+  let rule_source =
+    #|id: example
+    #|description: Qualified constructor.
+    #|patterns:
+    #|  - shape: $(Ctor:id)($_)
+    #|    guard:
+    #|      $Ctor: "^@pkg[.]Type::Ctor$"
+    #|
+  let source =
+    #|fn sample {
+    #|  @pkg.Type::Ctor(value);
+    #|  @other.Type::Ctor(value);
+    #|  Type::Ctor(value)
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
 }
 
 ///|
@@ -2060,6 +2102,221 @@ test "apply structural rule matches guard header with omitted body" {
   )
   assert_eq(hits.length(), 1)
   inspect(location_signature(hits[0].loc), content="2:3-3:37")
+}
+
+///|
+test "apply reports ordinary let continuation without function braces" {
+  let rule_source =
+    #|id: example
+    #|description: Let header.
+    #|patterns:
+    #|  - shape: let $(name:id) = source()
+    #|
+  let source =
+    #|fn sample {
+    #|  let value = source()
+    #|  consume(value)
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(location_signature(hits[0].loc), content="2:3-3:17")
+}
+
+///|
+test "apply rejects header-only non-shortcut continuations" {
+  let cases = [
+    (
+      "let mut value = source()", "fn sample { let mut value = source(); consume(value) }",
+    ),
+    (
+      "letrec recur = fn(value) { value }", "fn sample { letrec recur = fn(value) { value }; recur(source()) }",
+    ),
+    ("defer cleanup()", "fn sample { defer cleanup(); continue_work() }"),
+  ]
+  for case in cases {
+    let (shape, source) = case
+    let rule_source =
+      $|id: example
+      $|description: Header only.
+      $|patterns:
+      $|  - shape: \{shape}
+      $|
+    assert_eq(apply_structural_rule_findings(source, rule_source).length(), 0)
+  }
+}
+
+///|
+test "apply accepts complete non-shortcut continuation shapes" {
+  let cases = [
+    "let mut value = source(); consume(value)", "letrec recur = fn(value) { value }; recur(source())",
+    "defer cleanup(); continue_work()",
+  ]
+  for shape in cases {
+    let rule_source =
+      $|id: example
+      $|description: Complete continuation.
+      $|patterns:
+      $|  - shape: \{shape}
+      $|
+    let source = "fn sample { \{shape} }"
+    assert_eq(apply_structural_rule_findings(source, rule_source).length(), 1)
+  }
+}
+
+///|
+test "proof let matches only its header and leaves its continuation visible" {
+  let proof_rule =
+    #|id: example
+    #|description: Proof header.
+    #|patterns:
+    #|  - shape: proof_let witness = fact()
+    #|
+  let continuation_rule =
+    #|id: example
+    #|description: Continuation.
+    #|patterns:
+    #|  - shape: finish(witness)
+    #|
+  let source =
+    #|fn sample {
+    #|  proof_let witness = fact()
+    #|  finish(witness)
+    #|}
+    #|
+  let proof_hits = apply_structural_rule_findings(source, proof_rule)
+  assert_eq(proof_hits.length(), 1)
+  inspect(location_signature(proof_hits[0].loc), content="2:3-2:29")
+  let continuation_hits = apply_structural_rule_findings(
+    source, continuation_rule,
+  )
+  assert_eq(continuation_hits.length(), 1)
+  inspect(location_signature(continuation_hits[0].loc), content="3:3-3:18")
+}
+
+///|
+test "apply broad expressions skip function body wrapper braces" {
+  let ignore_rule =
+    #|id: example
+    #|description: Any expression.
+    #|patterns:
+    #|  - shape: $_
+    #|
+  let capture_rule =
+    #|id: example
+    #|description: Any captured expression.
+    #|patterns:
+    #|  - shape: $(root:exp)
+    #|
+  let source =
+    #|fn sample {
+    #|  f <| value
+    #|}
+    #|
+  let ignore_hits = apply_structural_rule_findings(source, ignore_rule)
+  let capture_hits = apply_structural_rule_findings(source, capture_rule)
+  assert_eq(ignore_hits.length(), 1)
+  assert_eq(capture_hits.length(), 1)
+  inspect(location_signature(ignore_hits[0].loc), content="2:3-2:13")
+  inspect(location_signature(capture_hits[0].loc), content="2:3-2:13")
+}
+
+///|
+test "apply explicit block shapes do not match function body wrappers" {
+  let rule_source =
+    #|id: example
+    #|description: Explicit block.
+    #|patterns:
+    #|  - shape: "{ a; b }"
+    #|
+  let source =
+    #|fn wrapper { a; b }
+    #|fn nested { { a; b } }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(location_signature(hits[0].loc), content="2:13-2:21")
+}
+
+///|
+test "negative block patterns distinguish wrappers from explicit blocks" {
+  let rule_source =
+    #|id: example
+    #|description: Target outside an explicit blocked block.
+    #|patterns:
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: "{ target(); other() }"
+    #|
+  let source =
+    #|fn wrapper { target(); other() }
+    #|fn nested { { target(); other() } }
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(location_signature(hits[0].loc), content="1:14-1:22")
+}
+
+///|
+test "inside toplevel target traversal skips function body wrapper blocks" {
+  let rule_source =
+    #|id: example
+    #|description: Inner expression.
+    #|inside-toplevel:
+    #|  - shape: fn sample { __TARGET__ }
+    #|patterns:
+    #|  - shape: $(root:exp)
+    #|
+  let source =
+    #|fn sample {
+    #|  target()
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  inspect(location_signature(hits[0].loc), content="2:3-2:11")
+}
+
+///|
+test "inside expr target traversal distinguishes lambda bodies from blocks" {
+  let rule_source =
+    #|id: example
+    #|description: Explicit block in a lambda.
+    #|inside-expr:
+    #|  - shape: wrapper(fn() { __TARGET__ })
+    #|patterns:
+    #|  - shape: "{ target(); other() }"
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(fn() { target(); other() });
+    #|  wrapper(fn() { { target(); other() } })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 3)
+}
+
+///|
+test "inside expr negative patterns use lambda body candidates" {
+  let rule_source =
+    #|id: example
+    #|description: Lambda without an explicit blocked block.
+    #|inside-expr:
+    #|  - shape: wrapper(fn() { __TARGET__ })
+    #|patterns-not:
+    #|  - shape: "{ target(); other() }"
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper(fn() { target(); other() });
+    #|  wrapper(fn() { { target(); other() } })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 2)
 }
 
 ///|
