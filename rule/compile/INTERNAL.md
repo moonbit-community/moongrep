@@ -19,7 +19,7 @@ Compilation is deliberately narrow. This package:
 - checks duplicate rule ids
 - parses ordinary rule `shape` values as MoonBit expressions and each
   `inside-toplevel` entry's shape as one top-level item
-- rewrites metavars into matcher-readable AST names
+- rewrites metavars into matcher-readable CST names
 - rejects unsupported placeholder positions and malformed guards
 - records taint sink and sanitizer target metadata
 - builds the source-text prefilter for the compiled definition
@@ -38,7 +38,7 @@ with `compile_rule`.
 1. structural rules go through `compile_structural_rule`
 2. taint rules go through `compile_taint_rule`
 3. `compile_rule_prefilter(definition)` derives required source literals from
-   the compiled AST
+   the compiled CST
 
 The prefilter must be built from the compiled definition, not from raw YAML,
 because metavars have already been normalized and can be excluded from
@@ -46,20 +46,24 @@ literal collection.
 
 ## Shape Parsing
 
-`parse_shape` lexes with:
+`prepare_shape` first lexes with:
 
 ```text
 comment = true
 enable_metavar = true
 ```
 
-Then it parses the token stream with `parse_expr`. Ordinary `patterns`,
-`patterns-not`, every `inside-expr` entry, and taint clause shapes are therefore
-exactly one MoonBit expression, not a file fragment or top-level declaration.
+The lexer identifies metavariable tokens before parsing. Each occurrence is
+replaced in the source text by a legal reserved marker, and its marker span and
+logical syntax are recorded. `parse_shape` then calls
+`@untyped_cst.parse_expression`; `parse_toplevel_shape` calls
+`@untyped_cst.parse_structure` and requires exactly one node returned by
+`@cst.toplevel_nodes`.
 
-Each `inside-toplevel` entry's shape uses the same lexer settings. It is parsed
-with `parse_toplevel_shape`, which accepts exactly one MoonBit top-level item
-and converts it with `@untyped_ast.from_impl`.
+Ordinary `patterns`, `patterns-not`, every `inside-expr` entry, and taint clause
+shape are exactly one MoonBit expression. Each `inside-toplevel` shape is
+exactly one top-level item. The compiler keeps the parser's `CstNode` directly;
+there is no typed-syntax lowering or local tree conversion.
 
 Lexing errors are reported before parse errors. `InvalidMetavarSyntax` gets a
 special diagnostic so legacy syntax such as `$exp:value` can point to the modern
@@ -67,21 +71,17 @@ special diagnostic so legacy syntax such as `$exp:value` can point to the modern
 reports become "not a valid MoonBit expression" or "not a valid MoonBit
 top-level item" depending on the clause.
 
-The matcher never sees the parser AST directly. After metavar rewriting,
-expressions are converted to `@untyped_ast.Node` with `@untyped_ast.from_expr`,
-and top-level context items are converted with `@untyped_ast.from_impl`.
+Recovery nodes (`Missing` and `Error`) are rejected even when the parser does
+not emit a diagnostic. Parse diagnostics replace internal markers with the
+original metavariable spelling before they are shown to rule authors.
 
-## Metavar Rewrite
+## Metavar Context and Markers
 
-Metavar compilation is a two-pass walk over the parser AST:
-
-1. collect explicit declarations and bare `$name` positions
-2. resolve bare kinds and rewrite the AST with concrete names
-
-The two passes use the same `MetavarRewriteContext` shape. During the
-collecting pass, explicit `$(name:kind)` forms register their kind immediately.
-Bare `$name` forms only record the syntactic position where they appeared and
-leave the AST unchanged.
+Metavar compilation locates every recorded marker span in the parsed CST and
+derives its context from the path to that node. The context records expression,
+identifier, pattern, type, whole-argument, binder-only, qualified-name, and
+ordered-list information. Kind validation uses this context; it never mutates
+or reconstructs the read-only CST.
 
 Bare kind inference is intentionally conservative:
 
@@ -110,22 +110,14 @@ Only these inline kinds are supported:
   position that must match a parsed constant
 - `arg`: a whole bare call argument slot
 - `pat`: a simple pattern-variable position that captures the whole candidate
-  pattern AST
-- `type`: a whole `@syntax.Type` node, represented as a simple `Type::Name`
-  marker in the compiled untyped AST
+  pattern CST
+- `type`: a whole CST type node
 
-The rewrite code enforces positions by dispatching through `rewrite_expr_var`,
-`rewrite_var`, `rewrite_binder`, `rewrite_label`, `rewrite_constructor`, and
-`rewrite_pattern_var_binder`, plus the type-specific walker in
-`metavar_type.mbt`. Top-level shapes route function, impl, let, view, trait,
-and type-declaration `Type` / `ErrorType` fields through the same type walker.
-
-Pattern metavars are represented specially. A `$(name:pat)` pattern variable is
-rewritten into the literal binder text `$(name:pat)` so `matching` can identify
-the whole-pattern capture from the AST. During collection it is temporarily
-registered across the other kind arrays to catch same-name conflicts, then
-`cleanup_temporary_pattern_metavars` removes those temporary entries and returns
-the separate `pattern_metavars` list used for guard validation.
+Most markers keep the logical metavariable name. `pat`, ellipsis, and `$_` use
+reserved internal names so the parser can accept them and the matcher can
+recognize their whole-node semantics. Uppercase metavariables use legal marker
+spellings for the relevant grammar position. The compiled kind arrays and
+ellipsis metadata retain the logical names, not the marker spellings.
 
 Metavar arrays preserve first-seen order. Several tests assert that order, so do
 not sort these arrays as a cleanup.
@@ -188,12 +180,12 @@ Guards can reference only `id` and `const` captures. They cannot reference:
 
 This is a rule-compiler restriction. Guard evaluation in `rule/apply` expects a
 string-like value from normalized identifiers or constants, not arbitrary
-expression, pattern, argument, or type ASTs.
+expression, pattern, argument, or type CST subtrees.
 
 ## Taint Rules
 
 Every taint source, sink, and sanitizer shape must compile to a top-level call
-AST:
+CST:
 
 - `Expr_Apply`
 - `Expr_DotApply`
@@ -233,14 +225,13 @@ the rule-author docs in `docs/RuleSpec.md` and `docs/RuleSpec_CN.md`.
 
 ## Maintenance Checklist
 
-When adding support for a new parser AST form:
+When adding support for a new parser CST form:
 
-1. update the relevant rewrite walker so metavars inside that form are
-   visited
-2. preserve source AST fields that are not being rewritten
+1. update CST occurrence-context classification for the new path or wrapper
+2. preserve the parser node directly; do not add a second tree representation
 3. add `rule/compile` validation tests showing the new position works
-4. check whether `matching` can actually match the resulting untyped AST
-5. update `rule/prefilter` if the new AST carries literal names or constants
+4. check whether `matching` can actually match the resulting untyped CST
+5. update `rule/prefilter` if the new CST carries literal names or constants
 
 When changing metavar kinds or positions:
 

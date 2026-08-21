@@ -20,7 +20,7 @@ committed.
 
 Expression matching first calls placeholder matchers such as
 `match_expr_placeholder` and `match_type_placeholder`. If one returns
-`Some(true)` or `Some(false)`, structural AST comparison is skipped. Only
+`Some(true)` or `Some(false)`, structural CST comparison is skipped. Only
 `None` falls through to normal node-kind matching.
 
 Placeholder priority in expression positions is:
@@ -30,42 +30,43 @@ Placeholder priority in expression positions is:
    in `CompiledExprPattern`
 3. declared expression metavars bind a whole expression value
 4. declared identifier metavars bind a normalized identifier string
-5. declared constant metavars bind only `Expr::Constant`
-6. undeclared names are literal AST names
+5. declared constant metavars bind only `Expr_Constant`
+6. undeclared names are literal CST names
 
-For type nodes, a simple `Type::Name` marker whose name is in
-`CompiledExprPattern.type_metavars` binds the whole candidate `Type_*` node.
+For type nodes, a simple `Type_Name` marker whose name is in
+`CompiledExprPattern.type_metavars` binds the whole candidate type node.
 Repeated type captures use the same location-insensitive structural equality as
-other AST-node captures.
+other CST-node captures.
 
 For vars, binders, and labels, only ignore placeholders and declared identifier
 metavars are special; everything else is literal. For pattern variables,
-`$(name:pat)` binds the whole candidate `Pattern` AST, declared constant
-metavars match only `Pattern::Constant`, and declared identifier metavars
+`$(name:pat)` binds the whole candidate pattern CST, declared constant
+metavars match only `Pattern_Constant`, and declared identifier metavars
 capture normalized pattern names. `__TARGET__` and `__SOURCE__` are special only
 in whole expression positions. For example, undeclared `__x` is literal: only
 exact `$_` is an ignore placeholder by spelling alone.
 
 ## Binding Kinds
 
-`BoundValue` is either `Single(Node)` or `Multiple(Array[Node])`.
+`BoundValue` is either `Single(CstNode)` or `Multiple(Array[CstNode])`.
 
 Expression, constant, argument, pattern, type, and identifier metavars use
-`Single`; normalized identifier names are encoded as `Leaf(PString(_))` nodes.
-Ellipsis metavars use `Multiple` and retain complete sibling nodes.
+`Single`. Identifier captures retain the candidate's actual semantic name CST
+node; normalization is applied when comparing or guarding the capture.
+Ellipsis metavars use `Multiple` and retain complete ordered sibling nodes.
 
 Expression metavars capture the candidate expression node at that position.
 Repeated uses compare node structure and leaf values and ignore source
 locations.
 
-Identifier metavars normalize source-level names before binding. Expr, var, and
-pattern values go through `untyped_ast` normalization helpers where possible.
-Binder and label matching uses the candidate name directly because those nodes
-already carry the short name being compared.
+Identifier metavars normalize source-level names across expression, binder,
+label, constructor, accessor, type-name, and qualified-name nodes. Repeated
+bindings compare the normalized spelling even when the two occurrences use
+different CST name kinds.
 
 Constant placeholders accept only constant expression or pattern nodes. Pattern
 metavars bind whole pattern nodes. Type metavars bind whole type nodes.
-Repeated constant, pattern, and type captures use the same untyped-node equality
+Repeated constant, pattern, and type captures use the same semantic-CST equality
 as all other bindings.
 
 ## Equality Is Location-Insensitive
@@ -75,62 +76,48 @@ argument, pattern, and type captures. Repeated binding comparison is handled by
 `bound_value_equal`, which compares `Single` with `Single` and `Multiple` with
 `Multiple`; mixed variants are unequal.
 
-`node_equal_ignoring_loc` requires the same node kind and recursively compares
-child labels and child values in order. Leaf values compare through their node
-kind. The `loc` field is ignored throughout the walk.
+`node_equal_ignoring_loc` compares normalized name nodes first. Other nodes
+require the same kind and recursively compare the semantic child view in order.
+Leaf payloads remain significant. Locations never enter this view.
 
-## Let and Guard Header Matching
+## Semantic CST View
 
-MoonBit parses an expression such as `let ($_, $_) = $_` as an `Expr::Let`
-whose body is a parser-synthesized `Unit(faked=true)`.
+The matcher does not compare raw `CstNode.children`. `@cst.semantic_children`
+removes `_loc` fields, `Aggregate_Span`, EOF, `doc` fields, `Syntax_Comment`,
+delimiters, separators, and other pure punctuation. This makes docstrings
+non-semantic at every nesting level and in every matching mode. The view expands
+semantic names, constants, operators, attributes, interpolation segments, and
+flags from parser wrappers. Redundant constructor qualification metadata is
+ignored because the normalized name already preserves that identity.
 
-The matcher treats that faked unit as "body omitted in the pattern". For
-`Expr::Let`, it matches the binding pattern and right-hand side and places no
-matching requirement on the candidate body.
+`Pattern_Group` and `Type_Group` wrappers that the previous representation
+eliminated are unwrapped. Expression blocks remain structural, except a block
+used as a labelled `body` container can bind a single whole-body expression
+placeholder to the candidate block. This preserves multi-statement body
+captures used by loop and function-context rules.
 
-Explicit let bodies use normal structural matching. These forms keep
-their old meaning:
+The expression-container matcher also retains the earlier spelling-level
+compatibility for an omitted let or guard body versus a trailing unit. Explicit
+bodies continue to match structurally.
 
-- `let ($_, $_) = $_; finish($_)`
-- `let x = $_; $_`
-- `let x = $_; ()`
+## Exactness
 
-`LetMut`, `LetFn`, and `LetAnd` do not use the faked-unit shortcut.
-
-Guard expressions use the same parser convention. A shape such as
-`guard ready() else { fallback() }` has a parser-synthesized
-`Unit(faked=true)` body. For `Expr::Guard`, the matcher still recursively
-matches `cond` and `otherwise`, but places no requirement on the candidate body
-when the pattern body is that faked unit.
-
-Explicit guard bodies use normal structural matching, including
-`guard ready() else { fallback() }; ()`. An explicit unit has `faked=false`
-and is not a wildcard. A body metavar such as `$(body:exp)` continues to bind
-the candidate body normally.
-
-These behaviors belong in the matcher. They let `inside-expr` use nested let
-expressions such as `let println = $_; __TARGET__` and traverse the target body
-normally. They do not change scoped traversal, YAML `guard` filters, or taint
-matching.
-
-## Exactness and Small Exceptions
-
-Most AST nodes require the same node kind and exact child list lengths. The
-untyped matcher compares children in stored order after checking equal lengths.
+Most semantic CST nodes require the same node kind and exact semantic child
+list length. Child labels and ordering are significant.
 
 Notable exactness details:
 
 - argument kind must match; labels must also match, and a declared label
   placeholder can capture a varying label
-- record/map trailing markers and open/closed flags are significant
-- `Unit(faked=...)` compares the `faked` flag
-- parser holes are literal AST nodes and compare by hole kind
-- interpolation `Source(_)` nodes match by node kind only; parser token
-  internals are not compared
+- constants preserve parser kind and source spelling
+- operators, name spelling, argument structure, attributes, flags, and
+  open/closed pattern structure are significant
+- comments, including docstrings, formatting, locations, delimiters, and
+  trailing punctuation are not significant
+- parser holes remain literal CST nodes and compare by hole kind
 
-There is no semantic normalization beyond the explicit identifier normalization
-used for identifier metavars. For example, equivalent code with a different AST
-shape does not match. A placeholder can absorb the structural difference.
+Equivalent code with a different semantic CST shape does not match. A
+placeholder can absorb the structural difference.
 
 ## Integration Notes
 
@@ -142,7 +129,7 @@ placeholder names:
 - `rule/compile/compile.mbt` validation for reserved names and supported
   `__TARGET__` / `__SOURCE__` positions
 
-When adding support for a new AST node:
+When adding support for a new CST node:
 
 1. add or adjust the root `match_expr` branch
 2. add helper matchers for child structures when needed

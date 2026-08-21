@@ -2,7 +2,7 @@
 /// Errors raised while loading, validating, or compiling a rule set.
 pub(all) suberror RuleLoadError {
   /// The rule set or rule at `path` is malformed, conflicts with another rule,
-  /// or cannot be represented by runtime AST matching. `path` may be the rules
+  /// or cannot be represented by runtime CST matching. `path` may be the rules
   /// root for directory-level failures. `info` is written for rule authors.
   InvalidRule(path~ : String, info~ : String)
 } derive(Debug)
@@ -23,7 +23,7 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
 ///
 /// `Default` is resolved while compiling each alternative: function
 /// definitions use partial matching and all other top-level items use exact
-/// matching. `Exact` preserves full AST matching. `Partial` is supported only
+/// matching. `Exact` preserves full CST matching. `Partial` is supported only
 /// for function definitions.
 pub(all) enum InsideToplevelMatchMode {
   Default
@@ -32,7 +32,7 @@ pub(all) enum InsideToplevelMatchMode {
 }
 
 ///|
-/// A single YAML pattern clause before it is parsed into a MoonBit AST.
+/// A single YAML pattern clause before it is parsed into a MoonBit CST.
 ///
 /// `shape` must be a valid MoonBit expression, except in an
 /// `inside-toplevel` entry where it must be one top-level item. Inline
@@ -119,7 +119,7 @@ pub(all) struct RawRuleSpec {
 /// A parsed and compiled pattern clause.
 ///
 /// `source` preserves the user-facing YAML clause for diagnostics and metadata.
-/// `compiled` is the matcher-ready AST representation. `guards` are evaluated
+/// `compiled` is the matcher-ready CST representation. `guards` are evaluated
 /// after structural matching succeeds.
 pub(all) struct CompiledRulePattern {
   source : RulePatternSpec
@@ -210,7 +210,7 @@ pub(all) struct RulePrefilter {
 }
 
 ///|
-/// A rule ready to apply to parser AST nodes.
+/// A rule ready to apply to parser CST nodes.
 pub(all) struct CompiledRule {
   rule_id : String
   description : String

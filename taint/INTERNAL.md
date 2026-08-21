@@ -6,7 +6,7 @@ the analyzer and callers, not for rule authors.
 
 ## Package Role
 
-`taint` is a generic intraprocedural taint engine over MoonBit parser ASTs. 
+`taint` is a generic intraprocedural taint engine over MoonBit parser CSTs.
 
 The package analyzes one parser `Impl` at a time through:
 
@@ -172,7 +172,7 @@ All call syntaxes are normalized to `CallInfo` before transfer logic runs:
 
 `CallInfo` carries:
 
-- the original call AST and location
+- the original call CST and location
 - a normalized `callee_name` when one can be extracted
 - receiver path/site/taint for method-style calls
 - evaluated arguments as `CallArgument`
@@ -293,7 +293,7 @@ It does not:
 - model aliases; explicit storage writes and value copies provide the available
   alias behavior
 - represent arbitrary subexpressions as killable storage
-- guarantee full semantics for unsupported AST forms
+- guarantee full semantics for unsupported CST forms
 
 These limits are deliberate for the current scanner. If a change needs stronger
 semantics, add focused tests at the package boundary and at the YAML rule

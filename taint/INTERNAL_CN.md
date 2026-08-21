@@ -5,7 +5,7 @@ analyzer 及其调用方的维护者，不面向规则作者。
 
 ## 包职责
 
-`taint` 是一个基于 MoonBit parser AST 的通用过程内污点分析引擎。
+`taint` 是一个基于 MoonBit parser CST 的通用过程内污点分析引擎。
 
 这个包每次通过以下入口分析一个 parser `Impl`：
 
@@ -146,7 +146,7 @@ else branch、loop else block 以及作用域之后的表达式使用不含这�
 
 `CallInfo` 携带：
 
-- 原始调用 AST 和位置
+- 原始调用 CST 和位置
 - 可提取时的规范化 `callee_name`
 - method-style 调用的 receiver path、site 和 taint
 - 已求值参数，表示为 `CallArgument`
@@ -251,7 +251,7 @@ Lowered YAML taint spec 使用：
 - 证明分支可行性
 - 建模通用别名；显式存储写入和值拷贝提供当前可用的别名行为
 - 把任意 subexpression 表示为可被 kill 的存储
-- 保证不支持 AST 形式的完整语义
+- 保证不支持 CST 形式的完整语义
 
 这些限制是当前 scanner 的有意选择。如果某个改动需要更强的语义，请在 package boundary 和
 YAML 规则集成 boundary 添加聚焦测试。
