@@ -1,0 +1,4 @@
+///|
+fn sample {
+  f <| value
+}
