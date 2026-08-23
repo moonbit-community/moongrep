@@ -32,3 +32,11 @@ fn else_case {
     sink(get_user_input())
   }
 }
+
+///|
+fn labelled_block_case {
+  labelled~: {
+    let value = get_user_input()
+    sink(value)
+  }
+}

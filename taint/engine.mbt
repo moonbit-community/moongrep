@@ -5,8 +5,8 @@ priv enum FlowExit {
   FlowNormal
   FlowReturn
   FlowRaise
-  FlowBreak
-  FlowContinue
+  FlowBreak(String?)
+  FlowContinue(String?)
 } derive(Eq)
 
 ///|
@@ -45,6 +45,30 @@ fn flow_result(
   value : TaintTree,
 ) -> EvalResult {
   { state, value, flow }
+}
+
+///|
+fn control_label_name(node : @untyped_cst.CstNode) -> String? {
+  let label = match node_child(node, "label") {
+    Some(label) => label
+    None =>
+      match @cst.raw_child(node, "label") {
+        Some(label) => label
+        None => return None
+      }
+  }
+  match node_label_name(label) {
+    Some(name) => Some(name)
+    None => @cst.raw_child(label, "name_value").bind(@cst.normalized_name)
+  }
+}
+
+///|
+fn control_targets_loop(target : String?, loop_label : String?) -> Bool {
+  match target {
+    None => true
+    Some(target) => loop_label == Some(target)
+  }
 }
 
 ///|
@@ -102,6 +126,18 @@ fn eval_expr(
   match expr.kind {
     @untyped_cst.Expr_Block =>
       eval_cst_sequence(@cst.sequence_items(expr), state, spec, findings)
+    @untyped_cst.Expr_LabelledBlock =>
+      if node_child(expr, "body") is Some(body) {
+        eval_labelled_block(
+          control_label_name(expr),
+          body,
+          state,
+          spec,
+          findings,
+        )
+      } else {
+        normal_result(state, [])
+      }
     @untyped_cst.Expr_Ident => eval_path_like(expr, state)
     @untyped_cst.Expr_Field =>
       match (node_child(expr, "record"), node_child(expr, "accessor")) {
@@ -267,6 +303,7 @@ fn eval_expr(
       match (node_child(expr, "loop_cond"), node_child(expr, "loop_body")) {
         (Some(loop_cond), Some(loop_body)) =>
           eval_while(
+            control_label_name(expr),
             loop_cond,
             loop_body,
             node_optional_child(expr, "while_else"),
@@ -279,6 +316,7 @@ fn eval_expr(
     @untyped_cst.Expr_For =>
       if node_child(expr, "body") is Some(body) {
         eval_for(
+          control_label_name(expr),
           node_child_items(expr, "binders"),
           @cst.raw_child(expr, "cond"),
           node_child_items(expr, "continue_block"),
@@ -295,6 +333,7 @@ fn eval_expr(
       match (node_child(expr, "expr"), node_child(expr, "body")) {
         (Some(collection), Some(body)) =>
           eval_for_each(
+            control_label_name(expr),
             node_child_items(expr, "binders"),
             collection,
             node_child_items(expr, "init"),
@@ -339,9 +378,13 @@ fn eval_expr(
     @untyped_cst.Expr_Break =>
       if node_optional_child(expr, "arg") is Some(value) {
         let result = eval_expr(value, state, spec, findings)
-        flow_result(FlowBreak, result.state, result.value)
+        flow_result(
+          FlowBreak(control_label_name(expr)),
+          result.state,
+          result.value,
+        )
       } else {
-        flow_result(FlowBreak, state, [])
+        flow_result(FlowBreak(control_label_name(expr)), state, [])
       }
     @untyped_cst.Expr_Raise =>
       if node_child(expr, "err_value") is Some(value) {
@@ -357,9 +400,29 @@ fn eval_expr(
         spec,
         findings,
       )
-      flow_result(FlowContinue, result.state, result.value)
+      flow_result(
+        FlowContinue(control_label_name(expr)),
+        result.state,
+        result.value,
+      )
     }
     _ => eval_unknown_expr(expr, state, spec, findings)
+  }
+}
+
+///|
+fn eval_labelled_block(
+  label : String?,
+  body : @untyped_cst.CstNode,
+  state : TaintState,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult {
+  let result = eval_expr(body, state, spec, findings)
+  match result.flow {
+    FlowBreak(Some(target)) if label == Some(target) =>
+      normal_result(result.state, result.value)
+    _ => result
   }
 }
 
@@ -2468,13 +2531,10 @@ fn eval_try(
   findings : Array[SinkFinding],
 ) -> EvalResult {
   let body_result = eval_expr(body, state, spec, findings)
-  if body_result.flow == FlowReturn ||
-    body_result.flow == FlowBreak ||
-    body_result.flow == FlowContinue {
-    return body_result
-  }
-  if body_result.flow == FlowRaise {
-    return eval_catch_cases(body_result, catch_, spec, findings)
+  match body_result.flow {
+    FlowReturn | FlowBreak(_) | FlowContinue(_) => return body_result
+    FlowRaise => return eval_catch_cases(body_result, catch_, spec, findings)
+    FlowNormal => ()
   }
   let branch_states : Array[TaintState] = [body_result.state]
   let mut branch_value = body_result.value
@@ -2545,6 +2605,7 @@ fn eval_catch_cases(
 
 ///|
 fn eval_while(
+  loop_label : String?,
   loop_cond : @untyped_cst.CstNode,
   loop_body : @untyped_cst.CstNode,
   while_else : @untyped_cst.CstNode?,
@@ -2553,6 +2614,7 @@ fn eval_while(
   findings : Array[SinkFinding],
 ) -> EvalResult {
   let mut current = state
+  let mut break_value : TaintTree = []
   let mut iteration = 0
   // Loops are interpreted to a bounded fixpoint. The condition is evaluated on
   // each abstract iteration so condition pattern bindings are scoped to the
@@ -2571,12 +2633,21 @@ fn eval_while(
       cond_result.base_state,
       cond_result.bound_roots,
     )
-    if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
-      return body_result
-    }
-    if body_result.flow == FlowBreak {
-      current = state_merge(cond_result.base_state, body_result.state)
-      break
+    match body_result.flow {
+      FlowReturn | FlowRaise => return body_result
+      FlowBreak(target) => {
+        if !control_targets_loop(target, loop_label) {
+          return body_result
+        }
+        current = state_merge(cond_result.base_state, body_result.state)
+        break_value = tree_merge(break_value, body_result.value)
+        break
+      }
+      FlowContinue(target) =>
+        if !control_targets_loop(target, loop_label) {
+          return body_result
+        }
+      FlowNormal => ()
     }
     let joined = state_merge(cond_result.base_state, body_result.state)
     if state_equiv(joined, current) {
@@ -2590,14 +2661,18 @@ fn eval_while(
     if else_result.flow != FlowNormal {
       return else_result
     }
-    normal_result(state_merge(current, else_result.state), else_result.value)
+    normal_result(
+      state_merge(current, else_result.state),
+      tree_merge(break_value, else_result.value),
+    )
   } else {
-    normal_result(current, [])
+    normal_result(current, break_value)
   }
 }
 
 ///|
 fn eval_for(
+  loop_label : String?,
   binders : Array[@untyped_cst.CstNode],
   condition : @untyped_cst.CstNode?,
   continue_block : Array[@untyped_cst.CstNode],
@@ -2610,6 +2685,7 @@ fn eval_for(
   let loop_roots : Array[String] = []
   let mut loop_base = state
   let mut current = state
+  let mut break_value : TaintTree = []
   for pair in binders {
     match (node_child(pair, "binder"), node_child(pair, "expr")) {
       (Some(binder), Some(expr)) => {
@@ -2663,12 +2739,22 @@ fn eval_for(
       cond_result.base_state,
       cond_result.bound_roots,
     )
-    if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
-      return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-    }
-    if body_result.flow == FlowBreak {
-      current = state_merge(cond_result.base_state, body_result.state)
-      break
+    match body_result.flow {
+      FlowReturn | FlowRaise =>
+        return restore_result_scoped_roots(body_result, loop_base, loop_roots)
+      FlowBreak(target) => {
+        if !control_targets_loop(target, loop_label) {
+          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
+        }
+        current = state_merge(cond_result.base_state, body_result.state)
+        break_value = tree_merge(break_value, body_result.value)
+        break
+      }
+      FlowContinue(target) =>
+        if !control_targets_loop(target, loop_label) {
+          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
+        }
+      FlowNormal => ()
     }
     let mut next = raw_body_result.state
     for pair in continue_block {
@@ -2720,13 +2806,14 @@ fn eval_for(
   } else {
     normal_result(
       restore_scoped_roots(loop_base, result.state, loop_roots),
-      result.value,
+      tree_merge(break_value, result.value),
     )
   }
 }
 
 ///|
 fn eval_for_each(
+  loop_label : String?,
   binders : Array[@untyped_cst.CstNode],
   collection : @untyped_cst.CstNode,
   init : Array[@untyped_cst.CstNode],
@@ -2744,6 +2831,7 @@ fn eval_for_each(
   let loop_roots : Array[String] = []
   let mut loop_base = collection_result.state
   let mut current = collection_result.state
+  let mut break_value : TaintTree = []
   for pair in init {
     match (node_child(pair, "init"), node_child(pair, "expr")) {
       (Some(binder), Some(expr)) => {
@@ -2774,12 +2862,22 @@ fn eval_for_each(
   // the loop body fixpoint starts.
   while iteration < spec.max_fixpoint_iterations {
     let body_result = eval_expr(body, current, spec, findings)
-    if body_result.flow == FlowReturn || body_result.flow == FlowRaise {
-      return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-    }
-    if body_result.flow == FlowBreak {
-      current = state_merge(current, body_result.state)
-      break
+    match body_result.flow {
+      FlowReturn | FlowRaise =>
+        return restore_result_scoped_roots(body_result, loop_base, loop_roots)
+      FlowBreak(target) => {
+        if !control_targets_loop(target, loop_label) {
+          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
+        }
+        current = state_merge(current, body_result.state)
+        break_value = tree_merge(break_value, body_result.value)
+        break
+      }
+      FlowContinue(target) =>
+        if !control_targets_loop(target, loop_label) {
+          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
+        }
+      FlowNormal => ()
     }
     let mut next = body_result.state
     for pair in continue_block {
@@ -2814,7 +2912,7 @@ fn eval_for_each(
   } else {
     normal_result(
       restore_scoped_roots(loop_base, result.state, loop_roots),
-      result.value,
+      tree_merge(break_value, result.value),
     )
   }
 }

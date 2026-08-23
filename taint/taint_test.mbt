@@ -493,6 +493,137 @@ test "taint engine does not continue sequence after return" {
 }
 
 ///|
+test "taint engine analyzes sinks inside labelled blocks" {
+  let source =
+    #|fn sample {
+    #|  labelled~: {
+    #|    sink(get_user_input())
+    #|  }
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+}
+
+///|
+test "taint engine propagates labelled block completion and break values" {
+  let source =
+    #|fn sample {
+    #|  let completed = completed~: {
+    #|    get_user_input()
+    #|  };
+    #|  sink(completed);
+    #|  let broken = broken~: {
+    #|    break broken~ get_user_input()
+    #|  };
+    #|  sink(broken)
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="2")
+}
+
+///|
+test "taint engine resumes after a matching labelled block break" {
+  let source =
+    #|fn sample {
+    #|  done~: {
+    #|    break done~;
+    #|    sink(get_user_input())
+    #|  };
+    #|  sink(get_user_input())
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+}
+
+///|
+test "taint engine propagates outer breaks through nested loops" {
+  let for_source =
+    #|fn sample {
+    #|  outer~: {
+    #|    for ;; {
+    #|      break outer~
+    #|    };
+    #|    sink(get_user_input())
+    #|  }
+    #|}
+    #|
+  inspect(analyze_call_source_sink(for_source).findings.length(), content="0")
+  let foreach_source =
+    #|fn sample {
+    #|  outer~: {
+    #|    for item in clean_items() {
+    #|      break outer~
+    #|    };
+    #|    sink(get_user_input())
+    #|  }
+    #|}
+    #|
+  inspect(
+    analyze_call_source_sink(foreach_source).findings.length(),
+    content="0",
+  )
+}
+
+///|
+test "taint engine propagates outer continues through nested loops" {
+  let source =
+    #|fn sample {
+    #|  outer~: for ;; {
+    #|    while clean() {
+    #|      continue outer~
+    #|    };
+    #|    sink(get_user_input())
+    #|  }
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="0")
+}
+
+///|
+test "taint engine consumes unlabelled and current-label continues" {
+  let source =
+    #|fn sample {
+    #|  current~: while clean() {
+    #|    continue current~;
+    #|    sink(get_user_input())
+    #|  };
+    #|  for item in clean_items() {
+    #|    continue;
+    #|    sink(get_user_input())
+    #|  };
+    #|  sink(get_user_input())
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+}
+
+///|
+test "taint engine preserves matching labelled loop break values" {
+  let source =
+    #|fn sample {
+    #|  let value = current~: for ;; {
+    #|    break current~ get_user_input()
+    #|  };
+    #|  sink(value)
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+}
+
+///|
+test "taint engine normalizes transparent control labels" {
+  let source =
+    #|fn sample {
+    #|  let value = transparent~~: {
+    #|    break transparent~~ get_user_input()
+    #|  };
+    #|  sink(value)
+    #|}
+    #|
+  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+}
+
+///|
 test "taint engine propagates unknown call argument taint to return by default" {
   let source =
     #|fn sample(input) {
