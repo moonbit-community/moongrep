@@ -144,6 +144,25 @@ test "identifier metavars normalize binder and expression names" {
 }
 
 ///|
+test "qualified identifier metavars require the same prefix" {
+  for pattern_source in ["@pkg.$(callee:id)()", "@pkg.$callee()"] {
+    let compiled = test_compiled(test_expr(pattern_source), identifier_metavars=[
+      "callee",
+    ])
+    for candidate_source in ["local()", "@other.wrong()"] {
+      assert_false(
+        match_expr_pattern(compiled, test_expr(candidate_source)) is Some(_),
+      )
+    }
+    let captured = test_single_binding(
+      match_expr_pattern(compiled, test_expr("@pkg.remote()")),
+      "callee",
+    )
+    assert_eq(@cst.normalized_name(captured), Some("@pkg.remote"))
+  }
+}
+
+///|
 test "one identifier metavar captures a complete constructor identity" {
   let compiled = test_compiled(test_expr("$(Ctor:id)($(Ctor:id))"), identifier_metavars=[
     "Ctor",

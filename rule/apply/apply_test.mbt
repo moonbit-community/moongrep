@@ -485,6 +485,28 @@ test "apply structural rule supports qualified inline identifier metavars" {
 }
 
 ///|
+test "apply structural rule requires qualified identifier metavar prefixes" {
+  let source =
+    #|fn sample {
+    #|  local();
+    #|  @pkg.remote();
+    #|  @other.wrong()
+    #|}
+    #|
+  for shape in ["@pkg.$(callee:id)()", "@pkg.$callee()"] {
+    let rule_source =
+      $|id: example
+      $|description: Qualified identifier prefix.
+      $|patterns:
+      $|  - shape: "\{shape}"
+      $|
+    let hits = apply_structural_rule_findings(source, rule_source)
+    assert_eq(hits.length(), 1)
+    inspect(location_signature(hits[0].loc), content="3:3-3:16")
+  }
+}
+
+///|
 test "apply structural rule supports constructor identity metavars" {
   let rule_source =
     #|id: example

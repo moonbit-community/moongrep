@@ -350,8 +350,13 @@ fn match_expr_placeholder(
           @cst.normalized_expr_identifier_name(candidate),
           @cst.name_node(candidate),
         ) {
-        (Some(_), Some(candidate_name)) =>
-          Some(bind_value(bindings, logical, candidate_name))
+        (Some(candidate_normalized_name), Some(candidate_name)) =>
+          if metavariable_qualified_prefix(name) is Some(_) &&
+            !same_metavariable_qualified_prefix(name, candidate_normalized_name) {
+            Some(false)
+          } else {
+            Some(bind_value(bindings, logical, candidate_name))
+          }
         _ => Some(false)
       }
     } else if contains_name(compiled.constant_metavars, logical) {
