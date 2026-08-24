@@ -161,9 +161,8 @@ match is found, JSON mode writes nothing to standard output.
 Use `--guard` to add filters to an expression pattern. The filters apply to
 the contents captured by metavariables in the pattern.
 
-A short, practical example is to use `--guard` to find `inspect` calls on
-numbers. Such calls are usually not good coding practice and should preferably
-be rewritten to use `assert_eq` or another assertion.
+The following example uses `--guard` to find `inspect` calls whose expected
+value is a number.
 
 ```bash
 moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
@@ -232,9 +231,17 @@ a message and exit with code 1.
 
 ## Documentation
 
-Embedded documentation is available through the `docs` subcommand:
+The repository contains these detailed references:
+
+- [RuleSpec](docs/RuleSpec.md) specifies YAML rules, validation, and matcher
+  semantics.
+- [CLISpec](docs/CLISpec.md) specifies command-line parsing, scanning, output,
+  diagnostics, and exit behavior.
+
+Their English versions are also available through the `docs` subcommand:
 
 ```bash
 moongrep docs --list
 moongrep docs RuleSpec
+moongrep docs CLISpec
 ```

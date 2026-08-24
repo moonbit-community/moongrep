@@ -40,6 +40,26 @@ input.
 $ moonrun "$TESTDIR"/moongrep.wasm -- dump > /dev/null && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- dump --help) <(moonrun "$TESTDIR"/moongrep.wasm -- dump)
 ```
 
+## moongrep docs
+
+The docs registry lists the English rule and CLI specifications in that order.
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- docs --list
+RuleSpec	YAML rule keys, validation, and matcher semantics.
+CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
+```
+
+The named CLI document prints the embedded source.
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- docs CLISpec | grep -E '^# Command-Line Interface Specification$|^## (`scan` and `lint`|JSON Lines Output|Diagnostics and Exit Status)$'
+# Command-Line Interface Specification
+## `scan` and `lint`
+## JSON Lines Output
+## Diagnostics and Exit Status
+```
+
 Running bare `lint` from a fixture directory produces the same output as
 enabling builtin rules explicitly through `scan`.
 
@@ -49,8 +69,7 @@ $ cd "$TESTDIR"/../testdata/builtin-rules && diff -u <(moonrun "$TESTDIR"/moongr
 
 ## moongrep lint --help
 
-The lint help exposes all scan options except the redundant
-`--enable-builtin-rules` flag.
+The lint help lists the options accepted by `lint`.
 
 ```mooncram
 $ moonrun "$TESTDIR"/moongrep.wasm -- lint --help

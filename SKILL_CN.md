@@ -131,7 +131,7 @@ JSON 模式下没有命中时，标准输出为空。
 
 `--guard`选项可以为表达式模式添加额外的筛选条件，筛选条件的对象是表达式模式里面的元变量捕获的内容。
 
-一个实用且简短的例子是使用`guard`查找针对数字的inspect调用，这样的调用通常不是一种良好的代码实践，最好改写成使用`assert_eq`或者其他的检查方式。
+下面的例子使用 `--guard` 查找预期值为数字的 `inspect` 调用。
 
 ```bash
 moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
@@ -181,9 +181,15 @@ moongrep dump (--impl <impl> | --expr <expr>)
 
 ## 文档
 
-内嵌文档可通过 `docs` 子命令查看：
+仓库内提供以下中文详细文档：
+
+- [规则规范](docs/RuleSpec_CN.md) 规定 YAML 规则、校验和匹配器语义。
+- [CLI 规范](docs/CLISpec_CN.md) 规定命令行解析、扫描、输出、诊断和退出行为。
+
+英文版本也可以通过 `docs` 子命令查看：
 
 ```bash
 moongrep docs --list
 moongrep docs RuleSpec
+moongrep docs CLISpec
 ```

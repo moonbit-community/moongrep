@@ -2,11 +2,11 @@
 package "moonbit-community/moongrep/docs"
 
 // Values
+pub let clispec_md : String
+
 pub let docs : ReadOnlyArray[(String, String, String)]
 
 pub let rulespec_md : String
-
-pub let writingrules_md : String
 
 // Errors
 
