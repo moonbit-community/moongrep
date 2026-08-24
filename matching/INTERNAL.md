@@ -61,10 +61,16 @@ captures across interpolation segments retain their normal equality semantics.
 
 `BoundValue` is either `Single(CstNode)` or `Multiple(Array[CstNode])`.
 
-Expression, constant, argument, pattern, type, and identifier metavars use
-`Single`. Identifier captures retain the candidate's actual semantic name CST
-node; normalization is applied when comparing or guarding the capture.
-Ellipsis metavars use `Multiple` and retain complete ordered sibling nodes.
+Expression, constant, argument, pattern, type, and identifier metavars normally
+use `Single`. Identifier captures retain the candidate's actual semantic name
+CST node; normalization is applied when comparing or guarding the capture.
+Ellipsis metavars use `Multiple` and retain complete ordered sibling nodes. A
+terminal named expression metavar or special target after a
+continuation-owning header also retains the flattened CST suffix: a
+one-statement suffix stays `Single`, while an empty or multi-statement suffix
+uses `Multiple`. A terminal exact `$_` after a continuation-owning header also
+matches the complete suffix, but it remains non-binding and creates no
+`BoundValue`. In every other position, `$_` matches exactly one expression.
 
 Expression metavars capture the candidate expression node at that position.
 Repeated uses compare node structure and leaf values and ignore source
@@ -124,11 +130,15 @@ nested blocks remain `Direct(Expr_Block)` candidates and keep their braces in
 the match location.
 
 A sequence accepts only a complete multi-statement `Expression` shape or the
-omitted-continuation shortcut for ordinary `let` and `guard`. `let mut`, local
-functions, `letrec`, and `defer` own their continuation but do not get the
-shortcut. When one of these headers has following statements, traversal emits
-the sequence suffix instead of a header-only direct candidate. `proof_let` is
-not a continuation owner and remains independently matchable.
+omitted-continuation shortcut for ordinary `let` and `guard`. A terminal named
+expression metavar, special target, or exact `$_` after `let`, `let mut`,
+`guard`, or another continuation-owning header absorbs the complete remaining
+suffix. Only `$_` discards that suffix instead of binding it.
+`let mut`, local functions, `letrec`, and `defer` do not get the
+omitted-continuation shortcut. When one of these headers has following
+statements, traversal emits the sequence suffix instead of a header-only direct
+candidate. `proof_let` is not a continuation owner and remains independently
+matchable.
 
 ## Exactness
 
