@@ -2146,6 +2146,132 @@ test "apply reports ordinary let continuation without function braces" {
 }
 
 ///|
+test "inside expr continuation target matches a complete multi-statement sequence" {
+  let rule_source =
+    #|id: example
+    #|description: Matching continuation sequence.
+    #|inside-expr:
+    #|  - shape: let $(name:id) = source(); __TARGET__
+    #|patterns:
+    #|  - shape: consume($(name:id)); finish($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  let item = source()
+    #|  consume(item)
+    #|  finish(item)
+    #|}
+    #|fn ignored {
+    #|  let other = source()
+    #|  consume(other)
+    #|  finish(item)
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 0)
+  inspect(location_signature(hits[0].loc), content="2:3-4:15")
+}
+
+///|
+test "inside expr continuation target matches inside a nested block" {
+  let rule_source =
+    #|id: example
+    #|description: Matching a nested continuation sequence.
+    #|inside-expr:
+    #|  - shape: wrapper({ let $(name:id) = source(); __TARGET__ })
+    #|patterns:
+    #|  - shape: consume($(name:id)); finish($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  wrapper({
+    #|    let item = source()
+    #|    consume(item)
+    #|    finish(item)
+    #|  })
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 0)
+  inspect(location_signature(hits[0].loc), content="2:3-6:5")
+}
+
+///|
+test "inside expr multi-statement continuation targets traverse expressions" {
+  let cases = [
+    (
+      "let mut $(name:id) = source(); __TARGET__", "target($(name:id))", "fn sample {\n  let mut item = source()\n  skip()\n  target(item)\n}\n",
+      "2:3-4:15",
+    ),
+    (
+      "guard ready() else { fallback() }; __TARGET__", "target()", "fn sample {\n  guard ready() else { fallback() }\n  skip()\n  target()\n}\n",
+      "2:3-4:11",
+    ),
+  ]
+  for case in cases {
+    let (inside_shape, pattern_shape, source, expected_loc) = case
+    let rule_source =
+      $|id: example
+      $|description: Traversing a continuation target.
+      $|inside-expr:
+      $|  - shape: \{inside_shape}
+      $|patterns:
+      $|  - shape: \{pattern_shape}
+      $|
+    let hits = apply_structural_rule_findings(source, rule_source)
+    assert_eq(hits.length(), 1)
+    assert_eq(location_signature(hits[0].loc), expected_loc)
+  }
+}
+
+///|
+test "inside expr empty continuation target supports patterns-not only" {
+  let rule_source =
+    #|id: example
+    #|description: Empty clean continuation.
+    #|inside-expr:
+    #|  - shape: let $(name:id) = source(); __TARGET__
+    #|patterns-not:
+    #|  - shape: danger($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  prepare()
+    #|  let item = source()
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 0)
+  assert_eq(hits[0].loc.start.lnum, 3)
+  assert_eq(hits[0].loc.start.column(), 3)
+}
+
+///|
+test "inside expr single-statement continuation target preserves location" {
+  let rule_source =
+    #|id: example
+    #|description: Single continuation expression.
+    #|inside-expr:
+    #|  - shape: let $(name:id) = source(); __TARGET__
+    #|patterns:
+    #|  - shape: target($(name:id))
+    #|
+  let source =
+    #|fn sample {
+    #|  let item = source()
+    #|  target(item)
+    #|}
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 0)
+  inspect(location_signature(hits[0].loc), content="2:3-3:15")
+}
+
+///|
 test "apply rejects header-only non-shortcut continuations" {
   let cases = [
     (

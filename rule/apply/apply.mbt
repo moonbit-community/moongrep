@@ -377,7 +377,7 @@ fn apply_inside_context_cst_bucketed(
     if match_candidate_rule_pattern(inside, context_candidate, None)
       is Some(result) {
       let context_loc = result.loc
-      if result.bindings.get("__TARGET__") is Some(Single(target)) {
+      if result.bindings.get("__TARGET__") is Some(target) {
         let target_candidate = inside_target_match_candidate(
           context_candidate, target,
         )
@@ -432,15 +432,19 @@ fn apply_inside_context_cst_bucketed(
 ///|
 fn inside_target_match_candidate(
   context : @cst.ExprMatchCandidate,
-  target : @untyped_cst.CstNode,
+  target : @matching.BoundValue,
 ) -> @cst.ExprMatchCandidate {
-  if target.kind is @untyped_cst.Expression {
-    @cst.Sequence(@cst.expression_nodes(target))
-  } else if target.kind is @untyped_cst.Expr_Block &&
-    match_candidate_contains_function_body_target(context, target) {
-    @cst.Sequence(@cst.sequence_items(target))
-  } else {
-    @cst.Direct(target)
+  match target {
+    Single(target) =>
+      if target.kind is @untyped_cst.Expression {
+        @cst.Sequence(@cst.expression_nodes(target))
+      } else if target.kind is @untyped_cst.Expr_Block &&
+        match_candidate_contains_function_body_target(context, target) {
+        @cst.Sequence(@cst.sequence_items(target))
+      } else {
+        @cst.Direct(target)
+      }
+    Multiple(targets) => @cst.Sequence(targets)
   }
 }
 
