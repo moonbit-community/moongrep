@@ -315,6 +315,27 @@ $$$items: patterns[0].shape uses ellipsis metavar $$$items outside a complete or
 [1]
 ```
 
+Grouping parentheses do not make their single contents a replaceable ordered
+list. Bare, typed, and nested grouped ellipses are rejected.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '($$$items)' testdata/ellipsis/sample.mbt
+($$$items): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+[1]
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '($$$(values:exp))' testdata/ellipsis/sample.mbt
+($$$(values:exp)): patterns[0].shape uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item
+[1]
+```
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --pattern '(($$$items))' testdata/ellipsis/sample.mbt
+(($$$items)): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+[1]
+```
+
 Embedding an ellipsis inside a larger arithmetic expression also makes it only
 part of a list item and is invalid.
 

@@ -98,6 +98,84 @@ test "validate rejects ellipsis outside a complete list item" {
 }
 
 ///|
+test "validate rejects ellipsis inside grouping parentheses" {
+  let grouped_bare =
+    #|id: grouped-bare
+    #|description: Grouped bare ellipsis.
+    #|patterns:
+    #|  - shape: ($$$items)
+    #|
+  expect_compile_invalid(
+    grouped_bare, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
+  )
+  let grouped_typed =
+    #|id: grouped-typed
+    #|description: Grouped typed ellipsis.
+    #|patterns:
+    #|  - shape: ($$$(values:exp))
+    #|
+  expect_compile_invalid(
+    grouped_typed, "patterns[0].shape uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item",
+  )
+  let nested =
+    #|id: nested-group
+    #|description: Nested grouped ellipsis.
+    #|patterns:
+    #|  - shape: (($$$items))
+    #|
+  expect_compile_invalid(
+    nested, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
+  )
+  let grouped_pattern_item =
+    #|id: grouped-pattern-item
+    #|description: Grouped pattern tuple item.
+    #|patterns:
+    #|  - shape: match input { (($$$(patterns:pat)), tail) => body }
+    #|
+  expect_compile_invalid(
+    grouped_pattern_item, "patterns[0].shape uses ellipsis metavar $$$(patterns:pat) outside a complete ordered CST list item",
+  )
+  let grouped_type_item =
+    #|id: grouped-type-item
+    #|description: Grouped type tuple item.
+    #|patterns:
+    #|  - shape: |
+    #|      let value : (($$$(Types:type)), Bool) = input
+    #|
+  expect_compile_invalid(
+    grouped_type_item, "patterns[0].shape uses ellipsis metavar $$$(Types:type) outside a complete ordered CST list item",
+  )
+}
+
+///|
+test "validate keeps ellipsis in true tuple lists" {
+  let source =
+    #|id: tuple-lists
+    #|description: True tuple list ellipses.
+    #|patterns:
+    #|  - shape: tuple_expr(($$$(items:exp), tail))
+    #|  - shape: match input { ($$$(patterns:pat), tail) => body }
+    #|  - shape: |
+    #|      let value : ($$$(Types:type), Bool) = input
+    #|
+  let rules = compile_one(source)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_true(
+        rule.patterns[0].compiled.ellipsis_metavars[0].kind == ExpItem,
+      )
+      assert_true(
+        rule.patterns[1].compiled.ellipsis_metavars[0].kind == PatItem,
+      )
+      assert_true(
+        rule.patterns[2].compiled.ellipsis_metavars[0].kind == TypeItem,
+      )
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate rejects ellipsis guards" {
   let source =
     #|id: example
