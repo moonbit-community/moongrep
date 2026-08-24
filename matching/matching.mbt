@@ -62,12 +62,26 @@ pub fn match_expr_pattern_candidate_with_bindings(
 ) -> ExprMatch? {
   let bindings = initial_bindings.copy()
   match candidate {
-    @cst.Direct(node) =>
-      if match_node(compiled.cst, node, compiled, bindings) {
+    @cst.Direct(node) => {
+      let pattern = @cst.unwrap_groups(compiled.cst)
+      let matched = if pattern.kind is Expression &&
+        match_sequence_continuation_tail(
+          @cst.expression_nodes(pattern),
+          [node],
+          compiled,
+          bindings,
+        )
+        is Some(result) {
+        result
+      } else {
+        match_node(pattern, node, compiled, bindings)
+      }
+      if matched {
         Some({ root: node, bindings, loc: node.loc })
       } else {
         None
       }
+    }
     @cst.Sequence(items) => {
       guard items is [first, ..] else { return None }
       if match_sequence_candidate(compiled.cst, items, compiled, bindings) {
@@ -104,9 +118,20 @@ fn match_sequence_candidate(
 ) -> Bool {
   let pattern = @cst.unwrap_groups(raw_pattern)
   if pattern.kind is @untyped_cst.Expression {
+    let pattern_items = @cst.expression_nodes(pattern)
+    // Keep the fixed-length path so one-statement named and special tails keep
+    // their existing `Single` binding. Empty and multi-statement tails need
+    // suffix handling because the parser exposes their expressions as siblings.
+    if pattern_items.length() != candidate_items.length() &&
+      match_sequence_continuation_tail(
+        pattern_items, candidate_items, compiled, bindings,
+      )
+      is Some(result) {
+      return result
+    }
     return match_children(
       pattern.kind,
-      unlabelled(@cst.expression_nodes(pattern)),
+      unlabelled(pattern_items),
       unlabelled(candidate_items),
       compiled,
       bindings,
@@ -118,6 +143,69 @@ fn match_sequence_candidate(
       match_node(pattern, first, compiled, bindings)
   }
   false
+}
+
+///|
+fn match_sequence_continuation_tail(
+  pattern_items : Array[@untyped_cst.CstNode],
+  candidate_items : Array[@untyped_cst.CstNode],
+  compiled : CompiledExprPattern,
+  bindings : @hashmap.HashMap[String, BoundValue],
+) -> Bool? {
+  guard pattern_items is [pattern_header, pattern_body] else { return None }
+  guard sequence_continuation_owner(pattern_header.kind) else { return None }
+  guard continuation_tail_name(pattern_body, compiled) is Some(tail_name) else {
+    return None
+  }
+  guard candidate_items is [candidate_header, ..] else { return Some(false) }
+  guard candidate_header.kind == pattern_header.kind else { return None }
+  let branch = bindings.copy()
+  guard match_node(pattern_header, candidate_header, compiled, branch) else {
+    return Some(false)
+  }
+  if is_ignore_placeholder(tail_name) {
+    replace_bindings(bindings, branch)
+    return Some(true)
+  }
+  let continuation = candidate_items[1:].to_owned()
+  if bind_multiple(branch, tail_name, continuation) {
+    replace_bindings(bindings, branch)
+    Some(true)
+  } else {
+    Some(false)
+  }
+}
+
+///|
+fn continuation_tail_name(
+  pattern : @untyped_cst.CstNode,
+  compiled : CompiledExprPattern,
+) -> String? {
+  guard pattern.kind is Expr_Ident else { return None }
+  guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
+    return None
+  }
+  if is_ignore_placeholder(name) {
+    Some(name)
+  } else if single_metavar_name(name) is Some(logical) &&
+    contains_name(compiled.expr_metavars, logical) {
+    Some(logical)
+  } else if is_special_expr_metavar(compiled, name) {
+    Some(name)
+  } else {
+    None
+  }
+}
+
+///|
+fn sequence_continuation_owner(kind : @untyped_cst.NodeKind) -> Bool {
+  kind
+  is (Expr_Let
+  | Expr_LetMut
+  | Expr_LetFn
+  | Expr_LetAnd
+  | Expr_Guard
+  | Expr_Defer)
 }
 
 ///|
@@ -439,6 +527,13 @@ fn match_expression_container(
     }
     return pattern_items is [single] &&
       match_node(single, candidate, compiled, bindings)
+  }
+  if pattern_items.length() != candidate_items.length() &&
+    match_sequence_continuation_tail(
+      pattern_items, candidate_items, compiled, bindings,
+    )
+    is Some(result) {
+    return result
   }
   let pattern_children = unlabelled(pattern_items)
   let candidate_children = unlabelled(candidate_items)

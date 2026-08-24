@@ -485,6 +485,264 @@ test "complete statement shapes match sequence candidates" {
 }
 
 ///|
+test "explicit continuation metavars capture complete let and guard suffixes" {
+  let cases = [
+    ("let value = source(); $(body:exp)", "let value = source()", "", true),
+    (
+      "let value = source(); $(body:exp)", "let value = source(); consume(value)",
+      "consume(value)", false,
+    ),
+    (
+      "let value = source(); $(body:exp)", "let value = source(); consume(value); finish(value)",
+      "consume(value); finish(value)", true,
+    ),
+    (
+      "let mut value = source(); $(body:exp)", "let mut value = source()", "", true,
+    ),
+    (
+      "let mut value = source(); $(body:exp)", "let mut value = source(); consume(value)",
+      "consume(value)", false,
+    ),
+    (
+      "let mut value = source(); $(body:exp)", "let mut value = source(); consume(value); finish(value)",
+      "consume(value); finish(value)", true,
+    ),
+    (
+      "guard ready() else { fallback() }; $(body:exp)", "guard ready() else { fallback() }",
+      "", true,
+    ),
+    (
+      "guard ready() else { fallback() }; $(body:exp)", "guard ready() else { fallback() }; continue_work()",
+      "continue_work()", false,
+    ),
+    (
+      "guard ready() else { fallback() }; $(body:exp)", "guard ready() else { fallback() }; continue_work(); finish()",
+      "continue_work(); finish()", true,
+    ),
+  ]
+  for case in cases {
+    let (pattern, candidate, expected_body, expected_multiple) = case
+    guard match_expr_pattern_candidate(
+        test_compiled(test_expr(pattern), expr_metavars=["body"]),
+        test_candidate(candidate),
+      )
+      is Some(result) else {
+      fail("expected continuation match: \{candidate}")
+    }
+    let (actual_body, actual_multiple) = match result.bindings.get("body") {
+      Some(Single(node)) => (@cst.source_text(node, candidate), false)
+      Some(Multiple(nodes)) =>
+        (
+          [ for node in nodes => @cst.source_text(node, candidate) ].join("; "),
+          true,
+        )
+      None => fail("expected body binding: \{candidate}")
+    }
+    assert_eq(actual_body, expected_body)
+    assert_eq(actual_multiple, expected_multiple)
+    assert_eq(result.loc.start.cnum, 0)
+    assert_eq(result.loc.end.cnum, candidate.length())
+  }
+}
+
+///|
+test "direct continuation captures preserve explicit block candidates" {
+  let compiled = test_compiled(test_expr("let value = source(); $(body:exp)"), expr_metavars=[
+    "body",
+  ])
+  let cases = [
+    ("{ let value = source() }", "", true),
+    ("{ let value = source(); consume(value) }", "consume(value)", false),
+    (
+      "{ let value = source(); consume(value); finish(value) }", "consume(value); finish(value)",
+      true,
+    ),
+  ]
+  for case in cases {
+    let (candidate, expected_body, expected_multiple) = case
+    guard match_expr_pattern_candidate(compiled, test_candidate(candidate))
+      is Some(result) else {
+      fail("expected explicit block continuation match: \{candidate}")
+    }
+    assert_true(result.root.kind is @untyped_cst.Expr_Block)
+    assert_eq(result.loc.start.cnum, 0)
+    assert_eq(result.loc.end.cnum, candidate.length())
+    let (actual_body, actual_multiple) = match result.bindings.get("body") {
+      Some(Single(node)) => (@cst.source_text(node, candidate), false)
+      Some(Multiple(nodes)) =>
+        (
+          [ for node in nodes => @cst.source_text(node, candidate) ].join("; "),
+          true,
+        )
+      None => fail("expected body binding: \{candidate}")
+    }
+    assert_eq(actual_body, expected_body)
+    assert_eq(actual_multiple, expected_multiple)
+  }
+  assert_false(
+    match_expr_pattern_candidate(
+      compiled,
+      test_candidate("{ let mut value = source(); consume(value) }"),
+    )
+    is Some(_),
+  )
+  let ignore = test_compiled(test_expr("let value = source(); $_"))
+  for
+    candidate in [
+      "{ let value = source() }", "{ let value = source(); consume(value) }", "{ let value = source(); consume(value); finish(value) }",
+    ] {
+    assert_true(
+      match_expr_pattern_candidate(ignore, test_candidate(candidate)) is Some(_),
+    )
+  }
+}
+
+///|
+test "nested expression containers capture complete continuation suffixes" {
+  let cases = [
+    (
+      "wrapper({ let item = source(); $(body:exp) })", "wrapper({ let item = source() })",
+      "", true,
+    ),
+    (
+      "wrapper({ let item = source(); $(body:exp) })", "wrapper({ let item = source(); consume(item) })",
+      "consume(item)", false,
+    ),
+    (
+      "wrapper({ let item = source(); $(body:exp) })", "wrapper({ let item = source(); consume(item); finish(item) })",
+      "consume(item); finish(item)", true,
+    ),
+    (
+      "if ready() { let item = source(); $(body:exp) }", "if ready() { let item = source(); consume(item); finish(item) }",
+      "consume(item); finish(item)", true,
+    ),
+  ]
+  for case in cases {
+    let (pattern, candidate, expected_body, expected_multiple) = case
+    guard match_expr_pattern_candidate(
+        test_compiled(test_expr(pattern), expr_metavars=["body"]),
+        test_candidate(candidate),
+      )
+      is Some(result) else {
+      fail("expected nested continuation match: \{candidate}")
+    }
+    let (actual_body, actual_multiple) = match result.bindings.get("body") {
+      Some(Single(node)) => (@cst.source_text(node, candidate), false)
+      Some(Multiple(nodes)) =>
+        (
+          [ for node in nodes => @cst.source_text(node, candidate) ].join("; "),
+          true,
+        )
+      None => fail("expected nested body binding: \{candidate}")
+    }
+    assert_eq(actual_body, expected_body)
+    assert_eq(actual_multiple, expected_multiple)
+  }
+}
+
+///|
+test "terminal ignore placeholder absorbs every continuation owner suffix" {
+  let headers = [
+    "let value = source()", "let mut value = source()", "fn helper(value) { value }",
+    "letrec helper = fn(value) { value }", "guard ready() else { fallback() }", "defer cleanup()",
+  ]
+  let suffixes = ["", "; continue_work()", "; continue_work(); finish()"]
+  for header in headers {
+    let root = test_compiled(test_expr("\{header}; $_"))
+    let nested = test_compiled(test_expr("wrapper({ \{header}; $_ })"))
+    for suffix in suffixes {
+      let candidate = "\{header}\{suffix}"
+      guard match_expr_pattern_candidate(root, test_candidate(candidate))
+        is Some(root_result) else {
+        fail("expected terminal ignore continuation match: \{candidate}")
+      }
+      assert_true(root_result.bindings.get("$_") is None)
+      assert_true(root_result.bindings.get("_") is None)
+      let nested_candidate = "wrapper({ \{candidate} })"
+      guard match_expr_pattern_candidate(
+          nested,
+          test_candidate(nested_candidate),
+        )
+        is Some(nested_result) else {
+        fail(
+          "expected nested terminal ignore continuation match: \{nested_candidate}",
+        )
+      }
+      assert_true(nested_result.bindings.get("$_") is None)
+      assert_true(nested_result.bindings.get("_") is None)
+    }
+  }
+}
+
+///|
+test "terminal ignore placeholder commits header bindings without binding itself" {
+  let compiled = test_compiled(
+    test_expr("let $(name:id) = $(value:exp); $_"),
+    expr_metavars=["value"],
+    identifier_metavars=["name"],
+  )
+  for
+    candidate in [
+      "let item = load()", "let item = load(); consume(item)", "let item = load(); consume(item); finish(item)",
+    ] {
+    guard match_expr_pattern_candidate(compiled, test_candidate(candidate))
+      is Some(result) else {
+      fail("expected continuation match with header bindings: \{candidate}")
+    }
+    guard result.bindings.get("name") is Some(Single(name)) else {
+      fail("expected name binding: \{candidate}")
+    }
+    guard result.bindings.get("value") is Some(Single(value)) else {
+      fail("expected value binding: \{candidate}")
+    }
+    assert_eq(@cst.source_text(name, candidate), "item")
+    assert_eq(@cst.source_text(value, candidate), "load()")
+    assert_true(result.bindings.get("$_") is None)
+    assert_true(result.bindings.get("_") is None)
+  }
+}
+
+///|
+test "non-terminal and non-owner ignore placeholders match one expression" {
+  let cases = [
+    ("before(); $_", "before()", false),
+    ("before(); $_", "before(); middle()", true),
+    ("before(); $_", "before(); middle(); after()", false),
+    ("proof_let witness = fact(); $_", "proof_let witness = fact()", false),
+    (
+      "proof_let witness = fact(); $_", "proof_let witness = fact(); use(witness)",
+      true,
+    ),
+    (
+      "proof_let witness = fact(); $_", "proof_let witness = fact(); use(witness); finish()",
+      false,
+    ),
+    (
+      "let value = source(); $_; finish()", "let value = source(); finish()", false,
+    ),
+    (
+      "let value = source(); $_; finish()", "let value = source(); middle(); finish()",
+      true,
+    ),
+    (
+      "let value = source(); $_; finish()", "let value = source(); first(); second(); finish()",
+      false,
+    ),
+  ]
+  for case in cases {
+    let (pattern, candidate, expected_match) = case
+    assert_eq(
+      match_expr_pattern_candidate(
+        test_compiled(test_expr(pattern)),
+        test_candidate(candidate),
+      )
+      is Some(_),
+      expected_match,
+    )
+  }
+}
+
+///|
 test "sequence candidates reject broad expressions and omit wrapper braces" {
   let broad = test_compiled(test_expr("$_"))
   assert_false(

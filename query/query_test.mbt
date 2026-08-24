@@ -279,6 +279,85 @@ test "query requires a complete let mut continuation when one exists" {
 }
 
 ///|
+test "query captures complete multi-statement continuations" {
+  let cases = [
+    (
+      "let $(name:id) = $(value:exp); $(body:exp)", "fn sample { let item = load(); use(item); finish(item) }",
+      "use(item); finish(item)",
+    ),
+    (
+      "let mut $(name:id) = $(value:exp); $(body:exp)", "fn sample { let mut item = load(); use(item); finish(item) }",
+      "use(item); finish(item)",
+    ),
+    (
+      "guard ready() else { fallback() }; $(body:exp)", "fn sample { guard ready() else { fallback() }; use_value(); finish() }",
+      "use_value(); finish()",
+    ),
+  ]
+  for case in cases {
+    let (pattern, source, expected_body) = case
+    let matches = ExprQuery::ExprQuery(pattern).captures(
+      source_name="sample.mbt",
+      source,
+    )
+    guard matches is [capture] else {
+      fail("expected one continuation match: \{pattern}")
+    }
+    guard capture.get("body") is Some(Multiple(items)) else {
+      fail("expected multi-statement body capture: \{pattern}")
+    }
+    let actual_body = [
+      for item in items => @cst.source_text(item, source)
+    ].join("; ")
+    assert_eq(actual_body, expected_body)
+  }
+}
+
+///|
+test "query captures a continuation inside a nested block" {
+  let pattern = "wrapper({ let $(name:id) = load(); $(body:exp) })"
+  let source = "fn sample { wrapper({ let item = load(); use(item); finish(item) }) }"
+  let matches = ExprQuery::ExprQuery(pattern).captures(
+    source_name="sample.mbt",
+    source,
+  )
+  guard matches is [capture] else {
+    fail("expected one nested continuation match")
+  }
+  guard capture.get("body") is Some(Multiple(items)) else {
+    fail("expected nested multi-statement body capture")
+  }
+  assert_eq(
+    [ for item in items => @cst.source_text(item, source) ].join("; "),
+    "use(item); finish(item)",
+  )
+}
+
+///|
+test "query terminal ignore placeholder matches complete continuations" {
+  let source =
+    #|fn empty {
+    #|  wrapper({ let value = load() })
+    #|}
+    #|fn one {
+    #|  wrapper({ let value = load(); use(value) })
+    #|}
+    #|fn many {
+    #|  wrapper({ let value = load(); use(value); finish(value) })
+    #|}
+    #|
+  let captures = ExprQuery::ExprQuery("wrapper({ let value = load(); $_ })").captures(
+    source_name="sample.mbt",
+    source,
+  )
+  assert_eq(captures.length(), 3)
+  for capture in captures {
+    assert_true(capture.get("$_") is None)
+    assert_true(capture.get("_") is None)
+  }
+}
+
+///|
 test "query distinguishes function body sequences from explicit blocks" {
   let wildcard = ExprQuery::ExprQuery("$(root:exp)")
   let source = "fn sample { f <| value }"

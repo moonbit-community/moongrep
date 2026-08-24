@@ -52,9 +52,13 @@ parser 会在重新词法分析 string / bytes 插值源码时透传 metavar 模
 
 `BoundValue` 是 `Single(CstNode)` 或 `Multiple(Array[CstNode])`。
 
-expression、constant、argument、pattern、type 和 identifier metavar 使用
+expression、constant、argument、pattern、type 和 identifier metavar 通常使用
 `Single`。identifier 捕获保留候选中真实的语义名称 CST 节点；比较或执行 guard 时
 再做名称规范化。ellipsis metavar 使用 `Multiple`，并保留完整的有序 sibling 节点。
+continuation header 后的末尾有名 expression metavar 或特殊 target 也会保留展开的
+CST suffix：单语句 suffix 仍使用 `Single`，空或多语句 suffix 使用 `Multiple`。
+continuation owner header 后精确的末尾 `$_` 也匹配完整 suffix，但它仍然不绑定，
+不会产生 `BoundValue`。其他位置的 `$_` 只匹配一个表达式。
 
 expression metavar 会捕获该位置上的候选表达式节点。重复使用时比较节点结构和 leaf
 值，并忽略源码位置。
@@ -104,10 +108,12 @@ lambda、局部函数和 letrec body block 会生成不带花括号的 `Sequence
 花括号。
 
 sequence 只接受完整的多语句 `Expression` shape，或普通 `let` / `guard` 的
-omitted-continuation shortcut。`let mut`、局部函数、`letrec` 和 `defer` 拥有
-continuation，但不使用该 shortcut。这些 header 后存在语句时，遍历会生成 sequence
-suffix，而不会暴露 header-only direct 候选。`proof_let` 不是 continuation owner，
-仍可独立匹配。
+omitted-continuation shortcut。`let`、`let mut`、`guard` 或其他 continuation owner
+header 后的末尾有名 expression metavar、特殊 target 或精确 `$_` 会吸收完整的剩余
+suffix；只有 `$_` 会丢弃该 suffix 而不绑定。
+`let mut`、局部函数、`letrec` 和 `defer` 不使用 omitted-continuation shortcut。
+这些 header 后存在语句时，遍历会生成 sequence suffix，而不会暴露 header-only
+direct 候选。`proof_let` 不是 continuation owner，仍可独立匹配。
 
 ## 精确性
 
