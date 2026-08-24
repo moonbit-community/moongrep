@@ -447,7 +447,9 @@ fn ellipsis_slot_from_path(
   for index in 0..<path.length() {
     let container = path[index]
     let slot = ellipsis_slot_for_container(container.kind)
-    if slot is Some(slot) && index + 1 < path.length() {
+    if slot is Some(slot) &&
+      index + 1 < path.length() &&
+      !ellipsis_container_is_grouping_list(path, index) {
       let item = path[index + 1]
       if ellipsis_item_is_whole_occurrence(item, occurrence) &&
         ellipsis_container_item_is_replaceable(container, item) {
@@ -461,6 +463,23 @@ fn ellipsis_slot_from_path(
     return Some(EllipsisExprSlot)
   }
   None
+}
+
+///|
+fn ellipsis_container_is_grouping_list(
+  path : Array[@untyped_cst.CstNode],
+  index : Int,
+) -> Bool {
+  if index == 0 {
+    return false
+  }
+  let parent = path[index - 1]
+  match parent.kind {
+    @untyped_cst.Expr_Group | @untyped_cst.Type_Group => true
+    @untyped_cst.Pattern_Tuple =>
+      @cst.raw_child(parent, "pattern_group") is Some(_)
+    _ => false
+  }
 }
 
 ///|
@@ -527,7 +546,7 @@ fn ellipsis_item_is_whole_occurrence(
     @untyped_cst.ArrayPattern_Pattern => first_cst_pattern_child(item)
     @untyped_cst.ArrayElement_Regular => @cst.raw_child(item, "expr")
     @untyped_cst.Parameter_Positional => @cst.raw_child(item, "pattern")
-    _ => Some(@cst.unwrap_groups(item))
+    _ => Some(item)
   }
   if value is Some(value) {
     metavar_node_matches_occurrence(value, occurrence) &&
@@ -543,7 +562,7 @@ fn first_cst_pattern_child(
 ) -> @untyped_cst.CstNode? {
   for entry in node.children {
     if entry.1.kind.is_pattern() {
-      return Some(@cst.unwrap_groups(entry.1))
+      return Some(entry.1)
     }
   }
   None
