@@ -1,17 +1,10 @@
 # Rule Specification
 
-This document is the authoritative specification for YAML rules accepted by
-the moongrep.
+This document specifies the current YAML rule format, validation rules, and
+matching semantics accepted by moongrep.
 
-If you are writing your first rule, start with [WritingRules.md](WritingRules.md).
-
-## Scope and Status
-
-This document specifies the current YAML rule file format, validation rules,
-and matching semantics.
-
-The keywords "must", "must not", "may", and "currently" describe the behavior
-rule authors can rely on today.
+For command-line rule selection, scanning, output, diagnostics, and exit
+behavior, see [CLISpec.md](CLISpec.md).
 
 Rules use YAML format. Every `shape` value is MoonBit surface syntax. The scanner
 matches parsed MoonBit expression structure and does not match raw text.

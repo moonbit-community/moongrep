@@ -3,17 +3,19 @@ test "docs list renders names and summaries" {
   inspect(
     render_docs_list(),
     content=(
-      #|RuleSpec	Authoritative YAML rule specification for accepted keys, validation, and matcher semantics.
-      #|WritingRules	Practical guide for writing and refining moongrep YAML rules.
+      #|RuleSpec	YAML rule keys, validation, and matcher semantics.
+      #|CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
     ),
   )
 }
 
 ///|
-test "docs show returns matching document body" {
-  let body = render_doc_body("RuleSpec")
-  assert_true(body.has_prefix("# Rule Specification"))
-  assert_true(body.contains("## YAML Schema"))
+test "docs show returns CLI specification body" {
+  let body = render_doc_body("CLISpec")
+  assert_true(body.has_prefix("# Command-Line Interface Specification"))
+  assert_true(body.contains("## `scan` and `lint`"))
+  assert_true(body.contains("## JSON Lines Output"))
+  assert_true(body.contains("## Diagnostics and Exit Status"))
 }
 
 ///|

@@ -7,9 +7,3 @@
   an identifier capture. This inference may be too broad. Consider requiring
   an explicit kind for cross-position reuse, improving the diagnostic, or
   adding a storage-path metavariable kind.
-
-- Make the Chinese rule documentation available through the `docs` command,
-  or document that only English documents are embedded. `docs/export.mbt`
-  currently registers only `RuleSpec` and `WritingRules`; consider adding
-  `RuleSpec_CN` and `WritingRules_CN`, or linking to accessible Chinese
-  documents from `SKILL_CN.md`.

@@ -3,6 +3,6 @@ rule(
   command: "moon runwasm moonbit-community/embed@0.1.1 $input -o $output",
 )
 
-dev_build(rule: "embed", input: "WritingRules.md", output: "writing_rules.mbt")
+dev_build(rule: "embed", input: "CLISpec.md", output: "cli_spec.mbt")
 
 dev_build(rule: "embed", input: "RuleSpec.md", output: "rule_spec.mbt")
