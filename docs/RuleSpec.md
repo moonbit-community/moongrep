@@ -389,9 +389,13 @@ ellipsis must use the same kind. Taint sink and sanitizer shapes may place
 ellipses around their single whole-argument or receiver `__SOURCE__` target.
 
 The public matcher and query APIs expose captures as `BoundValue`. Ordinary
-captures are `Single(Node)`. Ellipsis captures are `Multiple(Array[Node])`.
-`ExprMatch.bindings`, `ExprQuery::captures`, and
-`ExprQuery::captures_from_cst` all use this representation.
+node captures are `Single(Node)`. Ellipsis captures are
+`Multiple(Array[Node])`. A terminal named expression metavar or special target
+that captures a flattened continuation is `Single` for one statement and
+`Multiple` for an empty or multi-statement suffix. `ExprMatch.bindings`,
+`ExprQuery::captures`, and
+`ExprQuery::captures_from_cst` all use this representation. A terminal `$_`
+continuation wildcard is non-binding and therefore produces no `BoundValue`.
 
 ### Reserved Names
 
@@ -480,8 +484,9 @@ patterns:
   - shape: foo($_)
 ```
 
-An ignore placeholder matches anything at that one position. It does not bind a
-value, and repeated ignore placeholders are independent:
+Outside the terminal continuation form below, an ignore placeholder matches
+anything at exactly one position. It does not bind a value, and repeated ignore
+placeholders are independent:
 
 ```yaml
 patterns:
@@ -489,6 +494,15 @@ patterns:
 ```
 
 The example above can match `pair(left, right)`.
+
+When an expression sequence consists exactly of a continuation owner followed
+by terminal `$_`, the placeholder matches the complete remaining suffix: zero,
+one, or more expressions. The continuation owners are ordinary `let`,
+`let mut`, local function definitions, `letrec`, `guard`, and `defer`. The
+placeholder remains non-binding, so neither `$_` nor `_` is added to the
+bindings. This rule also applies inside a nested block. It does not apply to a
+non-terminal `$_`, an owner with any other sibling pattern, or `proof_let`.
+Those uses still match exactly one expression.
 
 Only exact `$_` has this built-in behavior. Names such as `__`, `___`, and
 `__x` are literal by default. Inline syntax such as `$__` or `$(__x:exp)` marks
@@ -828,6 +842,11 @@ Additional rules:
 - `__TARGET__` must occupy a whole expression position, such as a whole call
   argument, receiver, or block expression. If it appears only as a label or
   other non-expression value, no target subtree can be searched.
+- When terminal `__TARGET__` follows a continuation owner, as in
+  `let ...; __TARGET__`, `let mut ...; __TARGET__`, or
+  `guard ...; __TARGET__`, it selects the complete remaining candidate suffix.
+  That suffix is searched as an expression sequence without synthetic block
+  braces. An empty suffix is an empty sequence.
 - `__TARGET__` is reserved and must not be used as an metavar name.
 - Entries in `patterns` and `patterns-not` must not contain `__TARGET__` in a
   binding-capable position.

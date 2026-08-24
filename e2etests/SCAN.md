@@ -194,6 +194,37 @@ source:
 5 | }
 ```
 
+A terminal named expression metavar captures the complete continuation even
+when the owning statement is inside a nested block.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern 'wrapper({ let item = source(); $(body:exp) })' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
+2:3-6:5
+```
+
+A continuation pattern without an explicit block wrapper matches each empty,
+single-expression, and multi-expression block once. Each range includes the
+block braces.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern 'let value = load(); $(body:exp)' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
+10:11-10:33
+14:11-17:4
+21:11-25:4
+```
+
+A terminal ignore placeholder after a continuation-owning statement matches
+the complete suffix without binding it. Empty, single-expression, and
+multi-expression suffixes all match, and each range covers the complete
+`wrapper` block expression.
+
+```mooncram
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --output-json --pattern 'wrapper({ let value = load(); $_ })' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
+10:3-10:34
+14:3-17:5
+21:3-25:5
+```
+
 A repeated typed metavariable must bind to the same expression at every use.
 This matches `make() + make()` but not the following expression with different
 operands.

@@ -313,10 +313,12 @@ ellipsis 捕获。inside context 会像其他 binding 一样继承 `Multiple`；
 ellipsis 必须使用相同 kind。taint sink 和 sanitizer 可以在唯一的完整 argument
 或 receiver `__SOURCE__` target 前后放置 ellipsis。
 
-公开 matcher 和 query API 使用 `BoundValue` 表示捕获：普通捕获是
-`Single(Node)`，ellipsis 捕获是 `Multiple(Array[Node])`。
-`ExprMatch.bindings`、`ExprQuery::captures` 和 `ExprQuery::captures_from_cst`
-都返回这种表示。
+公开 matcher 和 query API 使用 `BoundValue` 表示捕获：普通节点捕获是
+`Single(Node)`，ellipsis 捕获是 `Multiple(Array[Node])`。捕获展开 continuation 的
+末尾有名 expression metavar 或特殊 target 在 suffix 只有一条语句时使用 `Single`，
+在 suffix 为空或包含多条语句时使用 `Multiple`。`ExprMatch.bindings`、
+`ExprQuery::captures` 和 `ExprQuery::captures_from_cst` 都返回这种表示。末尾的
+`$_` continuation 通配符不绑定，因此不会产生任何 `BoundValue`。
 
 ### 保留名称
 
@@ -387,7 +389,8 @@ patterns:
   - shape: foo($_)
 ```
 
-忽略占位符会匹配该位置上的任何内容。它不绑定值，重复出现的忽略占位符彼此独立：
+除下述末尾 continuation 形式外，忽略占位符只匹配所在单个位置上的任意内容。它不
+绑定值，重复出现的忽略占位符彼此独立：
 
 ```yaml
 patterns:
@@ -395,6 +398,13 @@ patterns:
 ```
 
 上面的例子可以匹配 `pair(left, right)`。
+
+当表达式序列恰好由一个 continuation owner 和末尾 `$_` 组成时，该占位符会匹配
+完整的剩余 suffix，即零个、一个或多个表达式。continuation owner 包括普通 `let`、
+`let mut`、局部函数定义、`letrec`、`guard` 和 `defer`。该占位符仍然不绑定，因此
+bindings 中不会出现 `$_` 或 `_`。这条规则同样适用于嵌套 block；它不适用于非末尾
+`$_`、带其他 sibling pattern 的 owner，也不适用于 `proof_let`。这些位置的 `$_`
+仍然只匹配一个表达式。
 
 只有精确的 `$_` 具有这种内置行为。`__`、`___` 和 `__x` 等名称默认是字面量。`$__` 或 `$(__x:exp)` 等内联语法会把它们标记为元变量。
 
@@ -669,6 +679,10 @@ patterns:
 - 每个 `inside-expr` 条目都必须在可绑定位置包含且只包含一个
   `__TARGET__`。
 - `__TARGET__` 必须占据一个完整表达式位置，例如完整调用参数、receiver 或块表达式。如果它只作为标签或其他非表达式值出现，就没有目标子树可供搜索。
+- 当末尾的 `__TARGET__` 位于 continuation owner 之后，例如
+  `let ...; __TARGET__`、`let mut ...; __TARGET__` 或
+  `guard ...; __TARGET__` 时，它会选择候选中完整的剩余 suffix。该 suffix
+  会作为不含合成块花括号的表达式序列进行搜索；空 suffix 表示空序列。
 - `__TARGET__` 是保留名称，不能用作内联元变量名。
 - `patterns` 和 `patterns-not` 条目不能在可绑定位置包含 `__TARGET__`。
 - 选中的 `inside-expr` 条目所声明的捕获在匹配内部 `patterns` 和
