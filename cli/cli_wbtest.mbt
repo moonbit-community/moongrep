@@ -1,11 +1,29 @@
 ///|
 fn expect_cli_usage(argv : Array[String], exit_code : Int) -> Unit raise {
   try parse_cli_command(argv) catch {
-    CliError::Usage(exit_code=found, ..) =>
-      inspect(found, content=exit_code.to_string())
+    CliError::Usage(..) as err =>
+      inspect(err.exit_code(), content=exit_code.to_string())
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected CLI usage error")
+  }
+}
+
+///|
+test "cli error categories have fixed exit codes and plain messages" {
+  let errors : Array[CliError] = [
+    Internal(message="message"),
+    Usage(message="message"),
+    DumpInput(message="message"),
+    RuleSource(message="message"),
+    RuleContent(message="message"),
+    ScanInput(message="message"),
+    Output(message="message"),
+  ]
+  let exit_codes = errors.map(error => error.exit_code())
+  debug_inspect(exit_codes, content="[1, 2, 3, 4, 5, 6, 7]")
+  for error in errors {
+    inspect("\{error}", content="message")
   }
 }
 

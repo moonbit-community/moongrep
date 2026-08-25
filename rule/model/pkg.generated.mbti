@@ -12,6 +12,7 @@ import {
 
 // Errors
 pub(all) suberror RuleLoadError {
+  NoRuleFiles(path~ : String)
   InvalidRule(path~ : String, info~ : String)
 } derive(@debug.Debug)
 pub impl Show for RuleLoadError

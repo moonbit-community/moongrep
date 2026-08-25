@@ -99,7 +99,7 @@ async fn render_scan_mode_command(
   if options.output_json {
     let warnings = render_scan_warnings(result.warnings)
     if warnings != "" {
-      @stdio.stderr.write(warnings + "\n")
+      invoke_scan_writer(write_scan_stderr, warnings + "\n")
     }
     render_directory_scan_json(result)
   } else {
@@ -127,7 +127,10 @@ async fn scan_events(
     scan_plan,
     options.verbose,
     receive,
-  )
+  ) catch {
+    CliError::Output(..) as err => raise err
+    err => raise CliError::ScanInput(message="\{err}")
+  }
 }
 
 ///|
@@ -135,9 +138,35 @@ async fn prepare_scan_rules(
   mode : ScanMode,
   options : CliOptions,
 ) -> Array[@rule_model.CompiledRule] {
-  let raw_rules = load_scan_rules(mode, options)
+  let builtin_rules = load_builtin_scan_rules(mode)
+  let raw_rules = builtin_rules.copy()
+  raw_rules.append(load_scan_rules(options))
   let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
-  @rule_compile.compile_rules(enabled_rules)
+  @rule_compile.compile_rules(enabled_rules) catch {
+    @rule_model.RuleLoadError::InvalidRule(..) as err =>
+      raise CliError::RuleContent(message="\{err}")
+    @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
+      raise CliError::RuleSource(message="\{err}")
+    err => raise err
+  }
+}
+
+///|
+fn load_builtin_scan_rules(
+  mode : ScanMode,
+) -> Array[@rule_model.RawRuleSpec] raise {
+  if mode is Scan {
+    return []
+  }
+  let rules = @rule_builtin.load_rules() catch {
+    err => raise CliError::Internal(message="\{err}")
+  }
+  ignore(
+    @rule_compile.compile_rules(rules) catch {
+      err => raise CliError::Internal(message="\{err}")
+    },
+  )
+  rules
 }
 
 ///|
@@ -307,23 +336,43 @@ fn source_context_for_location(
 
 ///|
 async fn load_scan_rules(
-  mode : ScanMode,
   options : CliOptions,
 ) -> Array[@rule_model.RawRuleSpec] {
   let raw_rules : Array[@rule_model.RawRuleSpec] = []
-  if mode is Lint {
-    raw_rules.append(@rule_builtin.load_rules())
-  }
   if options.rules_root is Some(rules_root) {
-    raw_rules.append(@rule_load.load_rules(rules_root))
+    raw_rules.append(load_rule_directory(rules_root))
   }
   if options.rule_file is Some(rule_file) {
-    raw_rules.push(@rule_load.load_rule(rule_file))
+    raw_rules.push(load_rule_file(rule_file))
   }
   for index in 0..<options.patterns.length() {
     raw_rules.push(anonymous_pattern_rule(options.patterns[index], index))
   }
   raw_rules
+}
+
+///|
+async fn load_rule_directory(
+  rules_root : String,
+) -> Array[@rule_model.RawRuleSpec] {
+  @rule_load.load_rules(rules_root) catch {
+    @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
+      raise CliError::RuleSource(message="\{err}")
+    @rule_model.RuleLoadError::InvalidRule(..) as err =>
+      raise CliError::RuleContent(message="\{err}")
+    err => raise CliError::RuleSource(message="\{err}")
+  }
+}
+
+///|
+async fn load_rule_file(rule_file : String) -> @rule_model.RawRuleSpec {
+  @rule_load.load_rule(rule_file) catch {
+    @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
+      raise CliError::RuleSource(message="\{err}")
+    @rule_model.RuleLoadError::InvalidRule(..) as err =>
+      raise CliError::RuleContent(message="\{err}")
+    err => raise CliError::RuleSource(message="\{err}")
+  }
 }
 
 ///|
@@ -361,7 +410,6 @@ fn ensure_exclude_rule_ids_exist(
     if !loaded.contains(rule_id) {
       raise CliError::Usage(
         message="unknown rule id in --exclude-rule: \{rule_id}",
-        exit_code=2,
       )
     }
   }

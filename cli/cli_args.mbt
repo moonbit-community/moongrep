@@ -1,8 +1,41 @@
 ///|
-/// CLI argument errors with the process exit code the frontend should use.
+/// Failures reported by the command-line frontend.
 pub(all) suberror CliError {
-  Usage(message~ : String, exit_code~ : Int)
+  Internal(message~ : String)
+  Usage(message~ : String)
+  DumpInput(message~ : String)
+  RuleSource(message~ : String)
+  RuleContent(message~ : String)
+  ScanInput(message~ : String)
+  Output(message~ : String)
 } derive(Debug)
+
+///|
+/// Returns the fixed process exit code for this failure category.
+pub fn CliError::exit_code(self : CliError) -> Int {
+  match self {
+    Internal(_) => 1
+    Usage(_) => 2
+    DumpInput(_) => 3
+    RuleSource(_) => 4
+    RuleContent(_) => 5
+    ScanInput(_) => 6
+    Output(_) => 7
+  }
+}
+
+///|
+pub impl Show for CliError with fn output(self, logger) {
+  match self {
+    Internal(message~) => logger.write_string(message)
+    Usage(message~) => logger.write_string(message)
+    DumpInput(message~) => logger.write_string(message)
+    RuleSource(message~) => logger.write_string(message)
+    RuleContent(message~) => logger.write_string(message)
+    ScanInput(message~) => logger.write_string(message)
+    Output(message~) => logger.write_string(message)
+  }
+}
 
 ///|
 /// Parsed command-line options for one scan target.
@@ -216,13 +249,9 @@ fn docs_cli_command(
     (true, Some(_)) =>
       raise CliError::Usage(
         message="docs --list cannot be combined with a document name",
-        exit_code=2,
       )
     (false, None) =>
-      raise CliError::Usage(
-        message="missing docs --list or document name",
-        exit_code=2,
-      )
+      raise CliError::Usage(message="missing docs --list or document name")
   }
 }
 
@@ -238,13 +267,9 @@ fn dump_cli_command(
     (Some(_), Some(_)) =>
       raise CliError::Usage(
         message="dump --impl cannot be combined with --expr",
-        exit_code=2,
       )
     (None, None) =>
-      raise CliError::Usage(
-        message="missing dump --impl or --expr",
-        exit_code=2,
-      )
+      raise CliError::Usage(message="missing dump --impl or --expr")
   }
 }
 
@@ -300,10 +325,7 @@ fn parse_scan_pattern_specs(
     let arg = argv[index]
     if arg == "--pattern" {
       if index + 1 >= argv.length() {
-        raise CliError::Usage(
-          message="missing value for --pattern",
-          exit_code=2,
-        )
+        raise CliError::Usage(message="missing value for --pattern")
       }
       patterns.push({
         shape: argv[index + 1],
@@ -322,7 +344,7 @@ fn parse_scan_pattern_specs(
       index += 1
     } else if arg == "--guard" {
       if index + 1 >= argv.length() {
-        raise CliError::Usage(message="missing value for --guard", exit_code=2)
+        raise CliError::Usage(message="missing value for --guard")
       }
       attach_scan_guard(
         patterns,
@@ -365,42 +387,32 @@ fn attach_scan_guard(
   } else {
     "duplicate --guard for anonymous --pattern"
   }
-  raise CliError::Usage(message~, exit_code=2)
+  raise CliError::Usage(message~)
 }
 
 ///|
 fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
   let docs = @yaml.Yaml::load_from_string(source) catch {
-    err =>
-      raise CliError::Usage(
-        message="invalid --guard YAML: \{Repr(err)}",
-        exit_code=2,
-      )
+    err => raise CliError::Usage(message="invalid --guard YAML: \{Repr(err)}")
   }
   if docs.length() != 1 {
     raise CliError::Usage(
       message="--guard must contain exactly one YAML document",
-      exit_code=2,
     )
   }
   guard docs[0] is Map(map) else {
-    raise CliError::Usage(message="--guard must be a YAML mapping", exit_code=2)
+    raise CliError::Usage(message="--guard must be a YAML mapping")
   }
   let guards : Map[String, String] = Map([])
   for key, value in map {
     if !key.has_prefix("$") || key.length() <= 1 {
       raise CliError::Usage(
         message="guard key \{key} must be a $-prefixed metavar name",
-        exit_code=2,
       )
     }
     match value {
       String(regex_source) => guards[key] = regex_source
-      _ =>
-        raise CliError::Usage(
-          message="--guard.\{key} must be a string",
-          exit_code=2,
-        )
+      _ => raise CliError::Usage(message="--guard.\{key} must be a string")
     }
   }
   guards
@@ -428,7 +440,7 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// Invoking `docs` or `dump` without any arguments prints that subcommand's
 /// help and exits successfully. Missing subcommands, other missing required
 /// arguments, unknown options, or more than one scan root raise
-/// `CliError::Usage` with exit code 2.
+/// `CliError::Usage`.
 pub fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = Map([]),
@@ -436,7 +448,7 @@ pub fn parse_cli_command(
   let matches = moongrep_command.parse(argv~, env~) catch {
     err => {
       let message = "\{err}"
-      raise CliError::Usage(message~, exit_code=2)
+      raise CliError::Usage(message~)
     }
   }
   match matches.subcommand {
@@ -446,6 +458,6 @@ pub fn parse_cli_command(
       ("lint", Some(scan_cli_options(lint_matches, env, argv)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
-    _ => raise CliError::Usage(message="missing required command", exit_code=2)
+    _ => raise CliError::Usage(message="missing required command")
   }
 }

@@ -50,6 +50,25 @@ test "model shows rule load error path and info" {
 }
 
 ///|
+test "model shows an empty rule directory as a source error" {
+  let error = RuleLoadError::NoRuleFiles(path="/tmp/rules")
+  inspect(error.to_string(), content="/tmp/rules: no YAML rule files found")
+}
+
+///|
+test "model wraps YAML parser errors with the rule path" {
+  try RawRuleSpec::from_str("broken.yaml", ".", "{") catch {
+    RuleLoadError::InvalidRule(path~, info~) => {
+      inspect(path, content="broken.yaml")
+      assert_true(info.contains("YamlError"))
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected invalid rule")
+  }
+}
+
+///|
 test "model parses structural rule and prefixes yaml id with rule directory" {
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/language/example.yaml",

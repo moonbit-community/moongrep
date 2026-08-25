@@ -439,13 +439,66 @@ async test "scan excludes configured rule ids before planning" {
 ///|
 async test "scan rejects unknown exclude rule ids" {
   try collect_directory_hits(Scan, unknown_exclude_rule_scan_options()) catch {
-    CliError::Usage(message~, exit_code=found) => {
-      assert_eq(found, 2)
+    CliError::Usage(message~) as err => {
+      assert_eq(err.exit_code(), 2)
       inspect(message, content="unknown rule id in --exclude-rule: missing")
     }
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected CLI usage error")
+  }
+}
+
+///|
+async test "scan classifies rule source, rule content, and scan input failures" {
+  try load_rule_directory("testdata/empty-rule-root") catch {
+    CliError::RuleSource(..) as err => assert_eq(err.exit_code(), 4)
+    err => fail("unexpected rule source error \{err}")
+  } noraise {
+    _ => fail("expected rule source error")
+  }
+  let invalid_pattern_options : CliOptions = {
+    rules_root: None,
+    rule_file: None,
+    patterns: [{ shape: "target(", guards: Map([]), match_mode: Default }],
+    scan_root: "testdata/custom-rules",
+    exclude_dirs: [],
+    exclude_rules: [],
+    verbose: false,
+    no_color: true,
+    output_json: false,
+  }
+  try collect_directory_hits(Scan, invalid_pattern_options) catch {
+    CliError::RuleContent(..) as err => assert_eq(err.exit_code(), 5)
+    err => fail("unexpected rule content error \{err}")
+  } noraise {
+    _ => fail("expected rule content error")
+  }
+  try load_rule_file("testdata/exit-codes/invalid.yaml") catch {
+    CliError::RuleContent(message~) as err => {
+      assert_eq(err.exit_code(), 5)
+      assert_true(message.has_prefix("testdata/exit-codes/invalid.yaml: "))
+    }
+    err => fail("unexpected YAML rule content error \{err}")
+  } noraise {
+    _ => fail("expected YAML rule content error")
+  }
+  let missing_scan_root_options : CliOptions = {
+    rules_root: Some("e2etests/rules/structural"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/does-not-exist",
+    exclude_dirs: [],
+    exclude_rules: [],
+    verbose: false,
+    no_color: true,
+    output_json: false,
+  }
+  try collect_directory_hits(Scan, missing_scan_root_options) catch {
+    CliError::ScanInput(..) as err => assert_eq(err.exit_code(), 6)
+    err => fail("unexpected scan input error \{err}")
+  } noraise {
+    _ => fail("expected scan input error")
   }
 }
 
