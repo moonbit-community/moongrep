@@ -16,6 +16,8 @@ import {
   "moonbitlang/core/list",
   "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
+  "moonbitlang/x/path",
+  "moonbitlang/x/unicode",
 }
 
 import {
