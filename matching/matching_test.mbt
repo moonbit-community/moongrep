@@ -284,6 +284,20 @@ test "constant metavars work in expressions and patterns" {
 }
 
 ///|
+test "constant metavars reuse captures across patterns and expressions" {
+  let compiled = test_compiled(
+    test_expr("match input { $(lit:const) => $(lit:const) }"),
+    constant_metavars=["lit"],
+  )
+  assert_true(
+    match_expr_pattern(compiled, test_expr("match input { 7 => 7 }")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, test_expr("match input { 7 => 8 }")) is Some(_),
+  )
+}
+
+///|
 test "argument metavars capture the complete argument kind" {
   let compiled = test_compiled(test_expr("sink($(item:arg))"), arg_metavars=[
     "item",
