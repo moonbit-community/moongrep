@@ -26,6 +26,7 @@ async fn main {
     )
     match command {
       ("scan", Some(options), None) => @cli.run_scan_command(options)
+      ("lint", Some(options), None) => @cli.run_lint_command(options)
       ("docs-list", None, None) | ("docs-show", None, Some(_)) =>
         write_cli_output(@cli.render_docs_command(command))
       ("dump-impl", None, Some(_)) | ("dump-expr", None, Some(_)) =>

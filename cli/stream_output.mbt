@@ -9,7 +9,26 @@ priv struct ScanOutputState {
 /// Match records are written to standard output. Verbose traversal messages
 /// and scan warnings are written to standard error.
 pub async fn run_scan_command(options : CliOptions) -> Unit {
-  run_scan_command_with_writers(options, write_scan_stdout, write_scan_stderr)
+  run_scan_mode_command_with_writers(
+    Scan,
+    options,
+    write_scan_stdout,
+    write_scan_stderr,
+  )
+}
+
+///|
+/// Lints source files with builtin rules and writes results as they are found.
+///
+/// Match records are written to standard output. Verbose traversal messages
+/// and scan warnings are written to standard error.
+pub async fn run_lint_command(options : CliOptions) -> Unit {
+  run_scan_mode_command_with_writers(
+    Lint,
+    options,
+    write_scan_stdout,
+    write_scan_stderr,
+  )
 }
 
 ///|
@@ -23,13 +42,14 @@ async fn write_scan_stderr(output : String) -> Unit {
 }
 
 ///|
-async fn run_scan_command_with_writers(
+async fn run_scan_mode_command_with_writers(
+  mode : ScanMode,
   options : CliOptions,
   stdout_writer : async (String) -> Unit,
   stderr_writer : async (String) -> Unit,
 ) -> Unit {
   let state : ScanOutputState = { hit_count: 0 }
-  scan_events(options, event => {
+  scan_events(mode, options, event => {
     write_stream_scan_event(event, options, state, stdout_writer, stderr_writer)
   })
   if state.hit_count == 0 && !options.output_json {

@@ -126,7 +126,6 @@ fn skip_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -142,7 +141,6 @@ fn exclude_dir_scan_options() -> CliOptions {
     exclude_dirs: ["ignored/", "./testdata/exclude-dirs/generated/"],
     exclude_rules: [],
     verbose: true,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -158,7 +156,6 @@ fn single_rule_file_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -180,7 +177,6 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -196,7 +192,6 @@ fn verbose_rules_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: true,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -212,7 +207,6 @@ fn block_prefilter_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -228,7 +222,6 @@ fn irrelevant_broken_block_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -244,7 +237,6 @@ fn matched_broken_block_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -260,7 +252,6 @@ fn exclude_rule_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: ["target"],
     verbose: true,
-    enable_builtin_rules: false,
     no_color: false,
     output_json: false,
   }
@@ -276,8 +267,22 @@ fn unknown_exclude_rule_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: ["missing"],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: false,
+    output_json: false,
+  }
+}
+
+///|
+fn builtin_api_options() -> CliOptions {
+  {
+    rules_root: None,
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/builtin-rules",
+    exclude_dirs: [],
+    exclude_rules: [],
+    verbose: false,
+    no_color: true,
     output_json: false,
   }
 }
@@ -299,7 +304,7 @@ fn string_array_contains(items : Array[String], expected : String) -> Bool {
 
 ///|
 async test "scan enforces moongrep skip structural and taint contract" {
-  let result = collect_directory_hits(skip_scan_options())
+  let result = collect_directory_hits(Scan, skip_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -318,8 +323,17 @@ async test "scan enforces moongrep skip structural and taint contract" {
 }
 
 ///|
+async test "scan and lint render APIs select their rule sources" {
+  let options = builtin_api_options()
+  inspect(render_scan_command(options), content="no match hits")
+  let lint_output = render_lint_command(options)
+  assert_true(lint_output.contains("rule: moonbitlang/inspect_number"))
+  assert_true(lint_output.contains("rule: moonbitlang/match_option"))
+}
+
+///|
 async test "scan excludes configured directory names" {
-  let result = collect_directory_hits(exclude_dir_scan_options())
+  let result = collect_directory_hits(Scan, exclude_dir_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(hit.finding.file)
@@ -341,7 +355,7 @@ async test "scan excludes configured directory names" {
 
 ///|
 async test "scan loads only the configured single rule file" {
-  let result = collect_directory_hits(single_rule_file_scan_options())
+  let result = collect_directory_hits(Scan, single_rule_file_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -351,7 +365,7 @@ async test "scan loads only the configured single rule file" {
 
 ///|
 async test "scan anonymous guarded pattern filters matches" {
-  let result = collect_directory_hits(guarded_cli_pattern_scan_options())
+  let result = collect_directory_hits(Scan, guarded_cli_pattern_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -361,7 +375,7 @@ async test "scan anonymous guarded pattern filters matches" {
 
 ///|
 async test "scan plan keeps block level prefilter distribution" {
-  let result = collect_directory_hits(block_prefilter_scan_options())
+  let result = collect_directory_hits(Scan, block_prefilter_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -371,7 +385,10 @@ async test "scan plan keeps block level prefilter distribution" {
 
 ///|
 async test "scan does not parse unmatched source blocks" {
-  let result = collect_directory_hits(irrelevant_broken_block_scan_options())
+  let result = collect_directory_hits(
+    Scan,
+    irrelevant_broken_block_scan_options(),
+  )
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -382,7 +399,7 @@ async test "scan does not parse unmatched source blocks" {
 
 ///|
 async test "scan isolates matching source block parse failures" {
-  let result = collect_directory_hits(matched_broken_block_scan_options())
+  let result = collect_directory_hits(Scan, matched_broken_block_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -401,7 +418,7 @@ async test "scan isolates matching source block parse failures" {
 
 ///|
 async test "scan excludes configured rule ids before planning" {
-  let result = collect_directory_hits(exclude_rule_scan_options())
+  let result = collect_directory_hits(Scan, exclude_rule_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -421,7 +438,7 @@ async test "scan excludes configured rule ids before planning" {
 
 ///|
 async test "scan rejects unknown exclude rule ids" {
-  try collect_directory_hits(unknown_exclude_rule_scan_options()) catch {
+  try collect_directory_hits(Scan, unknown_exclude_rule_scan_options()) catch {
     CliError::Usage(message~, exit_code=found) => {
       assert_eq(found, 2)
       inspect(message, content="unknown rule id in --exclude-rule: missing")
@@ -434,7 +451,7 @@ async test "scan rejects unknown exclude rule ids" {
 
 ///|
 async test "scan verbose lists loaded rule ids before traversal" {
-  let result = collect_directory_hits(verbose_rules_scan_options())
+  let result = collect_directory_hits(Scan, verbose_rules_scan_options())
   debug_inspect(
     result.scan_trace,
     content=(
