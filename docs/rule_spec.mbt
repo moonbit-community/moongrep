@@ -35,16 +35,34 @@ let _embed_rulespec_md : String =
   #|- The top-level YAML document must be a mapping.
   #|- Each rule file defines exactly one rule.
   #|
+  #|On Linux and macOS, rule discovery retains the supplied rules-root spelling and
+  #|uses the existing `/` string construction. On Windows, the rules root and a
+  #|single rule-file path are lexically normalized before filesystem access, and
+  #|recursive discovery joins entries with the native `\` separator. This is
+  #|lexical normalization and does not resolve symbolic links.
+  #|
   #|Rule ids are derived from the rule file directory and the YAML `id`:
   #|
   #|- take the rule file directory relative to the rules root
   #|- read the top-level `id` string from the YAML document
   #|- join the relative directory and `id` with `/`
   #|
+  #|On Linux and macOS, the relative directory uses the existing case-sensitive
+  #|string-prefix algorithm; path components such as `..` remain literal. On
+  #|Windows, the relative directory is computed with Windows path semantics.
+  #|Rules-root spelling is compared case-insensitively, but a rule path on another
+  #|drive, under another UNC server/share root, or outside the rules root through
+  #|`..` is rejected. Native `\` separators in the relative directory are converted
+  #|to `/` before the YAML `id` is appended.
+  #|
   #|For rule files directly under the rules root, the final rule id is just `id`.
   #|The rule filename does not contribute to the rule id. The YAML `id` must not be
   #|empty and must not contain `/`; directory ownership is encoded only by file
   #|location.
+  #|
+  #|When `--rule` selects one file, that file's containing directory is its rules
+  #|root, so its final rule id is the YAML `id`. Rule ids and YAML `id` values remain
+  #|case-sensitive on every platform, including Windows.
   #|
   #|Example:
   #|
