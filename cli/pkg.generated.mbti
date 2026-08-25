@@ -42,8 +42,8 @@ pub(all) struct CliOptions {
   rule_file : String?
   patterns : Array[@model.RulePatternSpec]
   scan_root : String
-  exclude_dirs : Array[String]
-  exclude_rules : Array[String]
+  excludes : Array[String]
+  disabled_rules : Array[String]
   verbose : Bool
   no_color : Bool
   output_json : Bool

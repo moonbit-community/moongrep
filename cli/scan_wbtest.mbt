@@ -123,8 +123,8 @@ fn skip_scan_options() -> CliOptions {
     rule_file: None,
     patterns: [],
     scan_root: "testdata/skip-structural/src",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -132,15 +132,32 @@ fn skip_scan_options() -> CliOptions {
 }
 
 ///|
-fn exclude_dir_scan_options() -> CliOptions {
+fn excluded_entry_scan_options() -> CliOptions {
   {
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
     scan_root: "testdata/exclude-dirs",
-    exclude_dirs: ["ignored/", "./testdata/exclude-dirs/generated/"],
-    exclude_rules: [],
+    excludes: [
+      "ignored/", "./testdata/exclude-dirs/generated/", "./testdata/exclude-dirs/excluded.mbt",
+    ],
+    disabled_rules: [],
     verbose: true,
+    no_color: false,
+    output_json: false,
+  }
+}
+
+///|
+fn excluded_scan_root_options() -> CliOptions {
+  {
+    rules_root: Some("e2etests/rules/structural"),
+    rule_file: None,
+    patterns: [],
+    scan_root: "testdata/exclude-dirs/hit.mbt",
+    excludes: ["hit.mbt"],
+    disabled_rules: [],
+    verbose: false,
     no_color: false,
     output_json: false,
   }
@@ -153,8 +170,8 @@ fn single_rule_file_scan_options() -> CliOptions {
     rule_file: Some("testdata/recursive-rule-discovery-rules/nested/b.yml"),
     patterns: [],
     scan_root: "testdata/recursive-rule-discovery-src",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -174,8 +191,8 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
       },
     ],
     scan_root: "testdata/guard",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -189,8 +206,8 @@ fn verbose_rules_scan_options() -> CliOptions {
     rule_file: None,
     patterns: [],
     scan_root: "testdata/recursive-rule-discovery-src",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: true,
     no_color: false,
     output_json: false,
@@ -204,8 +221,8 @@ fn block_prefilter_scan_options() -> CliOptions {
     rule_file: None,
     patterns: [],
     scan_root: "testdata/prefilter-impl",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -219,8 +236,8 @@ fn irrelevant_broken_block_scan_options() -> CliOptions {
     rule_file: None,
     patterns: [],
     scan_root: "testdata/prefilter-block/irrelevant-broken.mbt",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -234,8 +251,8 @@ fn matched_broken_block_scan_options() -> CliOptions {
     rule_file: None,
     patterns: [],
     scan_root: "testdata/prefilter-block/matched-broken.mbt",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -243,14 +260,14 @@ fn matched_broken_block_scan_options() -> CliOptions {
 }
 
 ///|
-fn exclude_rule_scan_options() -> CliOptions {
+fn disabled_rule_scan_options() -> CliOptions {
   {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
     scan_root: "testdata/prefilter-impl",
-    exclude_dirs: [],
-    exclude_rules: ["target"],
+    excludes: [],
+    disabled_rules: ["target"],
     verbose: true,
     no_color: false,
     output_json: false,
@@ -258,14 +275,14 @@ fn exclude_rule_scan_options() -> CliOptions {
 }
 
 ///|
-fn unknown_exclude_rule_scan_options() -> CliOptions {
+fn unknown_disabled_rule_scan_options() -> CliOptions {
   {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
     scan_root: "testdata/prefilter-impl",
-    exclude_dirs: [],
-    exclude_rules: ["missing"],
+    excludes: [],
+    disabled_rules: ["missing"],
     verbose: false,
     no_color: false,
     output_json: false,
@@ -279,8 +296,8 @@ fn builtin_api_options() -> CliOptions {
     rule_file: None,
     patterns: [],
     scan_root: "testdata/builtin-rules",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: true,
     output_json: false,
@@ -332,8 +349,8 @@ async test "scan and lint render APIs select their rule sources" {
 }
 
 ///|
-async test "scan excludes configured directory names" {
-  let result = collect_directory_hits(Scan, exclude_dir_scan_options())
+async test "scan excludes configured file and directory entries" {
+  let result = collect_directory_hits(Scan, excluded_entry_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(hit.finding.file)
@@ -351,6 +368,22 @@ async test "scan excludes configured directory names" {
       "moongrep scan: skipping testdata/exclude-dirs/generated",
     ),
   )
+  assert_true(
+    string_array_contains(
+      result.scan_trace,
+      "moongrep scan: skipping testdata/exclude-dirs/excluded.mbt",
+    ),
+  )
+}
+
+///|
+async test "scan does not apply excludes to the explicit scan root" {
+  let result = collect_directory_hits(Scan, excluded_scan_root_options())
+  let files : Array[String] = []
+  for hit in result.hits {
+    files.push(hit.finding.file)
+  }
+  debug_inspect(files, content="[\"testdata/exclude-dirs/hit.mbt\"]")
 }
 
 ///|
@@ -417,8 +450,8 @@ async test "scan isolates matching source block parse failures" {
 }
 
 ///|
-async test "scan excludes configured rule ids before planning" {
-  let result = collect_directory_hits(Scan, exclude_rule_scan_options())
+async test "scan disables configured rule ids before planning" {
+  let result = collect_directory_hits(Scan, disabled_rule_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -437,11 +470,11 @@ async test "scan excludes configured rule ids before planning" {
 }
 
 ///|
-async test "scan rejects unknown exclude rule ids" {
-  try collect_directory_hits(Scan, unknown_exclude_rule_scan_options()) catch {
+async test "scan rejects unknown disabled rule ids" {
+  try collect_directory_hits(Scan, unknown_disabled_rule_scan_options()) catch {
     CliError::Usage(message~) as err => {
       assert_eq(err.exit_code(), 2)
-      inspect(message, content="unknown rule id in --exclude-rule: missing")
+      inspect(message, content="unknown rule id in --disable: missing")
     }
     err => fail("unexpected error \{err}")
   } noraise {
@@ -462,8 +495,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     rule_file: None,
     patterns: [{ shape: "target(", guards: Map([]), match_mode: Default }],
     scan_root: "testdata/custom-rules",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: true,
     output_json: false,
@@ -488,8 +521,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     rule_file: None,
     patterns: [],
     scan_root: "testdata/does-not-exist",
-    exclude_dirs: [],
-    exclude_rules: [],
+    excludes: [],
+    disabled_rules: [],
     verbose: false,
     no_color: true,
     output_json: false,

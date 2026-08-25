@@ -44,8 +44,8 @@ pub(all) struct CliOptions {
   rule_file : String?
   patterns : Array[@rule_model.RulePatternSpec]
   scan_root : String
-  exclude_dirs : Array[String]
-  exclude_rules : Array[String]
+  excludes : Array[String]
+  disabled_rules : Array[String]
   verbose : Bool
   no_color : Bool
   output_json : Bool
@@ -113,12 +113,12 @@ fn scan_like_command(
         about="YAML guard map for the preceding anonymous pattern.",
       ),
       OptionArg(
-        "exclude-dir",
+        "exclude",
         action=Append,
-        about="Directory name or path to skip while recursively scanning. May be repeated.",
+        about="File or directory name or path to skip while recursively scanning. May be repeated.",
       ),
       OptionArg(
-        "exclude-rule",
+        "disable",
         action=Append,
         about="Rule id to disable after loading rules. May be repeated.",
       ),
@@ -203,7 +203,7 @@ fn all_cli_values(
 }
 
 ///|
-fn normalize_scan_exclude_dir(path : String) -> String {
+fn normalize_scan_exclude(path : String) -> String {
   let mut normalized = path
   while normalized.length() > 1 && normalized.has_suffix("/") {
     normalized = normalized[0:normalized.length() - 1].to_owned()
@@ -215,10 +215,10 @@ fn normalize_scan_exclude_dir(path : String) -> String {
 }
 
 ///|
-fn normalize_scan_exclude_dirs(paths : Array[String]) -> Array[String] {
+fn normalize_scan_excludes(paths : Array[String]) -> Array[String] {
   let normalized : Array[String] = []
   for path in paths {
-    normalized.push(normalize_scan_exclude_dir(path))
+    normalized.push(normalize_scan_exclude(path))
   }
   normalized
 }
@@ -293,10 +293,10 @@ fn scan_cli_options(
   } else {
     parsed_rules_root
   }
-  let exclude_dirs = normalize_scan_exclude_dirs(
-    all_cli_values(scan_matches.values, "exclude-dir"),
+  let excludes = normalize_scan_excludes(
+    all_cli_values(scan_matches.values, "exclude"),
   )
-  let exclude_rules = all_cli_values(scan_matches.values, "exclude-rule")
+  let disabled_rules = all_cli_values(scan_matches.values, "disable")
   let scan_root = if last_cli_value(scan_matches.values, "scan-root")
     is Some(path) {
     path
@@ -308,8 +308,8 @@ fn scan_cli_options(
     rule_file,
     patterns,
     scan_root,
-    exclude_dirs,
-    exclude_rules,
+    excludes,
+    disabled_rules,
     verbose,
     no_color,
     output_json,
@@ -431,14 +431,14 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// `--output-json` are optional.
 /// `lint` accepts the other scan options, enables builtin rules automatically,
 /// and defaults to scanning the current directory when no arguments are given.
-/// Each `--exclude-dir <dir>` skips one matching child directory name or path
-/// during recursive source scanning. Each `--exclude-rule <rule-id>` disables
-/// one loaded rule by exact rule id before matching. Both options may be
-/// repeated.
+/// Each `--exclude <name-or-path>` skips one matching child file or directory
+/// name or path during recursive source scanning. Each `--disable <rule-id>`
+/// disables one loaded rule by exact rule id before matching. Both options may
+/// be repeated.
 /// One optional scan-root positional may appear in the argument list. If the
 /// rules option or single rule option appears multiple times, the last value
-/// wins. Repeated patterns, exclude directories, and excluded rules are
-/// appended in order.
+/// wins. Repeated patterns, exclusions, and disabled rules are appended in
+/// order.
 /// Invoking `docs` or `dump` without any arguments prints that subcommand's
 /// help and exits successfully. Missing subcommands, other missing required
 /// arguments, unknown options, or more than one scan root raise

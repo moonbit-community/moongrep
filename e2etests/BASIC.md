@@ -81,15 +81,15 @@ Arguments:
   scan-root  Directory or .mbt file to scan.
 
 Options:
-  -h, --help                     Show help information.
-  --verbose                      Write loaded rule ids and traversal progress to stderr.
-  --output-json                  Write each match as one JSON record to stdout.
-  -r, --rules <rules>            Directory containing YAML rules.
-  --rule <rule>                  Single YAML rule file.
-  --pattern <pattern>            Anonymous structural pattern to match.
-  --guard <guard>                YAML guard map for the preceding anonymous pattern.
-  --exclude-dir <exclude-dir>    Directory name or path to skip while recursively scanning. May be repeated.
-  --exclude-rule <exclude-rule>  Rule id to disable after loading rules. May be repeated.
+  -h, --help           Show help information.
+  --verbose            Write loaded rule ids and traversal progress to stderr.
+  --output-json        Write each match as one JSON record to stdout.
+  -r, --rules <rules>  Directory containing YAML rules.
+  --rule <rule>        Single YAML rule file.
+  --pattern <pattern>  Anonymous structural pattern to match.
+  --guard <guard>      YAML guard map for the preceding anonymous pattern.
+  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.
+  --disable <disable>  Rule id to disable after loading rules. May be repeated.
 ```
 
 ## moongrep scan --help
@@ -107,15 +107,15 @@ Arguments:
   scan-root  Directory or .mbt file to scan.
 
 Options:
-  -h, --help                     Show help information.
-  --verbose                      Write loaded rule ids and traversal progress to stderr.
-  --output-json                  Write each match as one JSON record to stdout.
-  -r, --rules <rules>            Directory containing YAML rules. [default: ./.moongrep/rules]
-  --rule <rule>                  Single YAML rule file.
-  --pattern <pattern>            Anonymous structural pattern to match.
-  --guard <guard>                YAML guard map for the preceding anonymous pattern.
-  --exclude-dir <exclude-dir>    Directory name or path to skip while recursively scanning. May be repeated.
-  --exclude-rule <exclude-rule>  Rule id to disable after loading rules. May be repeated.
+  -h, --help           Show help information.
+  --verbose            Write loaded rule ids and traversal progress to stderr.
+  --output-json        Write each match as one JSON record to stdout.
+  -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]
+  --rule <rule>        Single YAML rule file.
+  --pattern <pattern>  Anonymous structural pattern to match.
+  --guard <guard>      YAML guard map for the preceding anonymous pattern.
+  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.
+  --disable <disable>  Rule id to disable after loading rules. May be repeated.
 ```
 
 ## moongrep lint builtin rules
@@ -171,15 +171,15 @@ Arguments:
   scan-root  Directory or .mbt file to scan.
 
 Options:
-  -h, --help                     Show help information.
-  --verbose                      Write loaded rule ids and traversal progress to stderr.
-  --output-json                  Write each match as one JSON record to stdout.
-  -r, --rules <rules>            Directory containing YAML rules. [default: ./.moongrep/rules]
-  --rule <rule>                  Single YAML rule file.
-  --pattern <pattern>            Anonymous structural pattern to match.
-  --guard <guard>                YAML guard map for the preceding anonymous pattern.
-  --exclude-dir <exclude-dir>    Directory name or path to skip while recursively scanning. May be repeated.
-  --exclude-rule <exclude-rule>  Rule id to disable after loading rules. May be repeated.
+  -h, --help           Show help information.
+  --verbose            Write loaded rule ids and traversal progress to stderr.
+  --output-json        Write each match as one JSON record to stdout.
+  -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]
+  --rule <rule>        Single YAML rule file.
+  --pattern <pattern>  Anonymous structural pattern to match.
+  --guard <guard>      YAML guard map for the preceding anonymous pattern.
+  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.
+  --disable <disable>  Rule id to disable after loading rules. May be repeated.
 [2]
 ```
 
