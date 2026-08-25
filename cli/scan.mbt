@@ -120,14 +120,8 @@ async fn scan_events(
       receive(Trace("moongrep scan: loaded rule \{rule.rule_id}"))
     }
   }
-  let exclude_dirs = normalize_scan_exclude_dirs(options.exclude_dirs)
-  scan_path(
-    options.scan_root,
-    exclude_dirs,
-    scan_plan,
-    options.verbose,
-    receive,
-  ) catch {
+  let excludes = normalize_scan_excludes(options.excludes)
+  scan_path(options.scan_root, excludes, scan_plan, options.verbose, receive) catch {
     CliError::Output(..) as err => raise err
     err => raise CliError::ScanInput(message="\{err}")
   }
@@ -141,7 +135,7 @@ async fn prepare_scan_rules(
   let builtin_rules = load_builtin_scan_rules(mode)
   let raw_rules = builtin_rules.copy()
   raw_rules.append(load_scan_rules(options))
-  let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
+  let enabled_rules = disable_scan_rules(raw_rules, options.disabled_rules)
   @rule_compile.compile_rules(enabled_rules) catch {
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
       raise CliError::RuleContent(message="\{err}")
@@ -376,21 +370,21 @@ async fn load_rule_file(rule_file : String) -> @rule_model.RawRuleSpec {
 }
 
 ///|
-fn exclude_scan_rules(
+fn disable_scan_rules(
   raw_rules : Array[@rule_model.RawRuleSpec],
-  exclude_rules : Array[String],
+  disabled_rules : Array[String],
 ) -> Array[@rule_model.RawRuleSpec] raise {
-  if exclude_rules.is_empty() {
+  if disabled_rules.is_empty() {
     return raw_rules
   }
-  ensure_exclude_rule_ids_exist(raw_rules, exclude_rules)
-  let excluded : Map[String, Bool] = Map([])
-  for rule_id in exclude_rules {
-    excluded[rule_id] = true
+  ensure_disabled_rule_ids_exist(raw_rules, disabled_rules)
+  let disabled : Map[String, Bool] = Map([])
+  for rule_id in disabled_rules {
+    disabled[rule_id] = true
   }
   let enabled : Array[@rule_model.RawRuleSpec] = []
   for raw in raw_rules {
-    if !excluded.contains(raw.rule_id) {
+    if !disabled.contains(raw.rule_id) {
       enabled.push(raw)
     }
   }
@@ -398,19 +392,17 @@ fn exclude_scan_rules(
 }
 
 ///|
-fn ensure_exclude_rule_ids_exist(
+fn ensure_disabled_rule_ids_exist(
   raw_rules : Array[@rule_model.RawRuleSpec],
-  exclude_rules : Array[String],
+  disabled_rules : Array[String],
 ) -> Unit raise {
   let loaded : Map[String, Bool] = Map([])
   for raw in raw_rules {
     loaded[raw.rule_id] = true
   }
-  for rule_id in exclude_rules {
+  for rule_id in disabled_rules {
     if !loaded.contains(rule_id) {
-      raise CliError::Usage(
-        message="unknown rule id in --exclude-rule: \{rule_id}",
-      )
+      raise CliError::Usage(message="unknown rule id in --disable: \{rule_id}")
     }
   }
 }
@@ -461,7 +453,7 @@ fn impl_moongrep_skip_attributes(
 ///|
 async fn scan_path(
   path : String,
-  exclude_dirs : Array[String],
+  excludes : Array[String],
   scan_plan : @rule_apply.ScanPlan,
   verbose : Bool,
   receive : async (ScanEvent) -> Unit,
@@ -472,8 +464,8 @@ async fn scan_path(
       let entries = @fs.readdir(path, sort=true)
       for entry in entries {
         let child_path = "\{path}/\{entry}"
-        if !should_skip_entry(child_path, entry, exclude_dirs) {
-          scan_path(child_path, exclude_dirs, scan_plan, verbose, receive)
+        if !should_skip_entry(child_path, entry, excludes) {
+          scan_path(child_path, excludes, scan_plan, verbose, receive)
         } else {
           emit_scan_trace(
             verbose,
@@ -577,7 +569,7 @@ async fn read_text_file(path : String) -> String {
 fn should_skip_entry(
   path : String,
   entry : String,
-  exclude_dirs : Array[String],
+  excludes : Array[String],
 ) -> Bool {
   // Skip dependency, build, and VCS directories that are noisy and are rarely
   // intended scan targets.
@@ -585,8 +577,8 @@ fn should_skip_entry(
   entry == "_build" ||
   entry == ".mooncakes" ||
   entry == "target" ||
-  exclude_dirs.contains(entry) ||
-  exclude_dirs.contains(normalize_scan_exclude_dir(path))
+  excludes.contains(entry) ||
+  excludes.contains(normalize_scan_exclude(path))
 }
 
 ///|

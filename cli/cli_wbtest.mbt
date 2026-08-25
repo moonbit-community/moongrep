@@ -234,16 +234,16 @@ test "cli args parse scan output json flag" {
 }
 
 ///|
-test "cli args parse repeated scan exclude dirs before scan root" {
+test "cli args parse repeated scan excludes before scan root" {
   match
     parse_cli_command([
-      "scan", "--rules", "custom-rules", "--exclude-dir", "./vendor/", "--exclude-dir=generated/",
+      "scan", "--rules", "custom-rules", "--exclude", "./vendor/", "--exclude=generated.mbt",
       "src",
     ]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
-      debug_inspect(options.exclude_dirs, content="[\"vendor\", \"generated\"]")
+      debug_inspect(options.excludes, content="[\"vendor\", \"generated.mbt\"]")
       assert_false(options.verbose)
     }
     _ => fail("unexpected command")
@@ -251,17 +251,17 @@ test "cli args parse repeated scan exclude dirs before scan root" {
 }
 
 ///|
-test "cli args parse repeated scan exclude rules before scan root" {
+test "cli args parse repeated scan disabled rules before scan root" {
   match
     parse_cli_command([
-      "scan", "--rules", "custom-rules", "--exclude-rule", "target", "--exclude-rule=other",
-      "--exclude-rule", "third", "--exclude-rule", "last", "src",
+      "scan", "--rules", "custom-rules", "--disable", "target", "--disable=other",
+      "--disable", "third", "--disable", "last", "src",
     ]) {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
       debug_inspect(
-        options.exclude_rules,
+        options.disabled_rules,
         content="[\"target\", \"other\", \"third\", \"last\"]",
       )
       assert_false(options.verbose)
@@ -410,13 +410,21 @@ test "cli args reject missing rules value" {
 }
 
 ///|
-test "cli args reject missing exclude option values" {
-  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude-dir"], 2)
-  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude-rule"], 2)
+test "cli args reject missing exclusion option values" {
+  expect_cli_usage(["scan", "--rules", "custom-rules", "--exclude"], 2)
+  expect_cli_usage(["scan", "--rules", "custom-rules", "--disable"], 2)
 }
 
 ///|
-test "cli args reject plural exclude rules option" {
+test "cli args reject legacy exclusion options" {
+  expect_cli_usage(
+    ["scan", "--rules", "custom-rules", "--exclude-dir", "vendor"],
+    2,
+  )
+  expect_cli_usage(
+    ["scan", "--rules", "custom-rules", "--exclude-rule", "target"],
+    2,
+  )
   expect_cli_usage(
     ["scan", "--rules", "custom-rules", "--exclude-rules", "target"],
     2,
@@ -424,17 +432,15 @@ test "cli args reject plural exclude rules option" {
 }
 
 ///|
-test "cli args reject multiple values after one exclude option" {
+test "cli args reject multiple values after one exclusion option" {
   expect_cli_usage(
     [
-      "scan", "--rules", "custom-rules", "src", "--exclude-dir", "vendor", "generated",
+      "scan", "--rules", "custom-rules", "src", "--exclude", "vendor", "generated",
     ],
     2,
   )
   expect_cli_usage(
-    [
-      "scan", "--rules", "custom-rules", "src", "--exclude-rule", "target", "other",
-    ],
+    ["scan", "--rules", "custom-rules", "src", "--disable", "target", "other"],
     2,
   )
 }
@@ -452,8 +458,8 @@ test "cli args parse lint with builtin rules and default scan root" {
       assert_true(options.rule_file is None)
       expect_no_patterns(options)
       inspect(options.scan_root, content=".")
-      assert_true(options.exclude_dirs.is_empty())
-      assert_true(options.exclude_rules.is_empty())
+      assert_true(options.excludes.is_empty())
+      assert_true(options.disabled_rules.is_empty())
       assert_false(options.verbose)
       assert_false(options.no_color)
       assert_false(options.output_json)
@@ -468,8 +474,8 @@ test "cli args parse lint scan options in addition to builtin rules" {
     parse_cli_command(
       [
         "lint", "--rules", "custom-rules", "--rule", "custom-rules/example.yaml",
-        "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}", "--exclude-dir",
-        "./vendor/", "--exclude-rule", "moonbitlang/match_option", "--verbose", "--output-json",
+        "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}", "--exclude",
+        "./vendor/", "--disable", "moonbitlang/match_option", "--verbose", "--output-json",
         "src",
       ],
       env={ "NO_COLOR": "1" },
@@ -481,9 +487,9 @@ test "cli args parse lint scan options in addition to builtin rules" {
       expect_pattern_shape(options, 0, "$(callee:id)()")
       expect_pattern_guard(options, 0, "$callee", "^safe_")
       inspect(options.scan_root, content="src")
-      debug_inspect(options.exclude_dirs, content="[\"vendor\"]")
+      debug_inspect(options.excludes, content="[\"vendor\"]")
       debug_inspect(
-        options.exclude_rules,
+        options.disabled_rules,
         content="[\"moonbitlang/match_option\"]",
       )
       assert_true(options.verbose)
