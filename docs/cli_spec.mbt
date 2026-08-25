@@ -87,8 +87,8 @@ let _embed_clispec_md : String =
   #|- `--rule <file>`: select one YAML rule file.
   #|- `--pattern <source>`: add one anonymous structural pattern.
   #|- `--guard <yaml>`: attach a YAML guard map to a preceding anonymous pattern.
-  #|- `--exclude-dir <name-or-path>`: skip matching traversal entries.
-  #|- `--exclude-rule <rule-id>`: disable an exact loaded rule id.
+  #|- `--exclude <name-or-path>`: skip matching file or directory entries.
+  #|- `--disable <rule-id>`: disable an exact loaded rule id.
   #|- `--verbose`: write rule-loading and traversal events to standard error.
   #|- `--output-json`: write findings as JSON Lines records.
   #|- `-h` or `--help`: print command help.
@@ -138,7 +138,7 @@ let _embed_clispec_md : String =
   #|- The last `--rules` or `-r` value wins.
   #|- The last `--rule` value wins.
   #|- Every `--pattern` is retained in order.
-  #|- Every `--exclude-dir` and `--exclude-rule` is retained in order.
+  #|- Every `--exclude` and `--disable` is retained in order.
   #|- Repeated Boolean flags are equivalent to one occurrence.
   #|
   #|Usage errors include multiple scan-root positionals, missing option values,
@@ -163,14 +163,14 @@ let _embed_clispec_md : String =
   #|valid, and how a guard matches are rule-compilation concerns specified by
   #|[RuleSpec.md](RuleSpec.md).
   #|
-  #|### Rule Exclusion
+  #|### Rule Disabling
   #|
-  #|All selected sources are loaded before `--exclude-rule` is applied. Each
-  #|excluded id is compared exactly against the combined loaded rule ids. Every
-  #|requested id must exist; the first unknown id is a usage error with status 2.
+  #|All selected sources are loaded before `--disable` is applied. Each disabled id
+  #|is compared exactly against the combined loaded rule ids. Every requested id
+  #|must exist; the first unknown id is a usage error with status 2.
   #|
-  #|All rules with an excluded id are removed before rule compilation and scan
-  #|planning. Repeated excluded ids are treated as one. Verbose loaded-rule events
+  #|All rules with a disabled id are removed before rule compilation and scan
+  #|planning. Repeated disabled ids are treated as one. Verbose loaded-rule events
   #|describe the rules that remain enabled.
   #|
   #|## File Traversal
@@ -209,12 +209,11 @@ let _embed_clispec_md : String =
   #|apply to children during traversal. An explicitly selected scan root is still
   #|inspected when its final path component has one of these names.
   #|
-  #|### `--exclude-dir`
+  #|### `--exclude`
   #|
-  #|Each `--exclude-dir` value is normalized by removing trailing `/` characters
-  #|while preserving a lone `/`, then removing every leading `./`. For example,
-  #|`./vendor/` becomes `vendor` and `./src/generated///` becomes
-  #|`src/generated`.
+  #|Each `--exclude` value is normalized by removing trailing `/` characters while
+  #|preserving a lone `/`, then removing every leading `./`. For example,
+  #|`./vendor/` becomes `vendor` and `./src/generated///` becomes `src/generated`.
   #|
   #|Before visiting a child, the normalized exclusions are compared exactly
   #|against both:
@@ -222,11 +221,14 @@ let _embed_clispec_md : String =
   #|- the child's entry name; and
   #|- the constructed child path after the same normalization.
   #|
-  #|Matching either complete string skips the entry. Comparison treats glob
-  #|characters and `..` literally, retains filesystem spelling, and preserves
-  #|case. Because entry-name matching is performed at every depth, excluding
-  #|`vendor` skips every child named `vendor`. A path such as `src/generated`
-  #|matches a child only when its constructed path has that exact spelling.
+  #|Matching either complete string skips the file or directory entry. Comparison
+  #|treats glob characters and `..` literally, retains filesystem spelling, and
+  #|preserves case. Because entry-name matching is performed at every depth,
+  #|excluding `vendor` skips every child named `vendor`, and excluding `generated.mbt`
+  #|skips every child file with that name. A path such as `src/generated` matches a
+  #|child only when its constructed path has that exact spelling. Exclusions apply
+  #|only to children discovered during directory traversal; an explicitly selected
+  #|scan root is still inspected.
   #|
   #|## Source Processing
   #|
@@ -487,7 +489,7 @@ let _embed_clispec_md : String =
   #|  is not a valid YAML string mapping;
   #|- combining mutually exclusive `docs` or `dump` arguments;
   #|- an unknown embedded document; and
-  #|- an unknown rule id requested by `--exclude-rule`.
+  #|- an unknown rule id requested by `--disable`.
   #|
   #|### Exit Status 3
   #|
