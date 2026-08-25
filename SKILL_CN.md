@@ -15,8 +15,8 @@ description: 使用 moongrep 对 MoonBit 源码进行结构化搜索和污点分
 moongrep lint
 ```
 
-`lint` 等价于 `scan --enable-builtin-rules`。它默认扫描当前目录，并接受
-`scan` 的其他选项，用于添加自定义规则、过滤结果或调整输出格式。
+`lint` 是加载内置规则的命令。它默认扫描当前目录，并接受 `scan` 的其他选项，
+用于添加自定义规则、过滤结果或调整输出格式。
 
 要进行结构化搜索，可以在 MoonBit 项目根目录运行 `scan` 命令。默认情况下，
 它会递归扫描，并跳过 Git 和 MoonBit 工具链生成的目录。使用 `--pattern`
