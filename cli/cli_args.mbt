@@ -123,7 +123,9 @@ fn scan_like_command(
         about="Rule id to disable after loading rules. May be repeated.",
       ),
     ],
-    positionals=[PositionArg("scan-root", about="Directory to scan.")],
+    positionals=[
+      PositionArg("scan-root", about="Directory or .mbt file to scan."),
+    ],
   )
 }
 

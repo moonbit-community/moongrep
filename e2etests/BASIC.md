@@ -78,7 +78,7 @@ Usage: moongrep lint [options] [scan-root]
 Scan MoonBit source files with embedded builtin rules.
 
 Arguments:
-  scan-root  Directory to scan.
+  scan-root  Directory or .mbt file to scan.
 
 Options:
   -h, --help                     Show help information.
@@ -104,7 +104,7 @@ Usage: moongrep scan [options] [scan-root]
 Scan MoonBit source files.
 
 Arguments:
-  scan-root  Directory to scan.
+  scan-root  Directory or .mbt file to scan.
 
 Options:
   -h, --help                     Show help information.
@@ -168,7 +168,7 @@ Usage: moongrep scan [options] [scan-root]
 Scan MoonBit source files.
 
 Arguments:
-  scan-root  Directory to scan.
+  scan-root  Directory or .mbt file to scan.
 
 Options:
   -h, --help                     Show help information.
