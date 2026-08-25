@@ -1448,6 +1448,45 @@ test "validate inside expr requires exactly one target" {
 }
 
 ///|
+test "validate inside expr counts only bindable target expressions" {
+  let pattern_only =
+    #|id: example
+    #|description: Pattern-only target spelling.
+    #|inside-expr:
+    #|  - shape: match input { __TARGET__ => body }
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  expect_compile_invalid(
+    pattern_only, "inside-expr[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+  let binder_only =
+    #|id: example
+    #|description: Binder-only target spelling.
+    #|inside-expr:
+    #|  - shape: let __TARGET__ = value; body
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  expect_compile_invalid(
+    binder_only, "inside-expr[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+  let pattern_and_expression =
+    #|id: example
+    #|description: One bindable target plus a pattern spelling.
+    #|inside-expr:
+    #|  - shape: match input { __TARGET__ => __TARGET__ }
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let rules = compile_one(pattern_and_expression)
+  match rules[0].definition {
+    Structural(rule) => assert_eq(rule.inside_expr.length(), 1)
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
 test "validate inside toplevel requires exactly one target" {
   let missing_target =
     #|id: example
@@ -1470,6 +1509,78 @@ test "validate inside toplevel requires exactly one target" {
     #|
   expect_compile_invalid(
     duplicate_target, "inside-toplevel[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+}
+
+///|
+test "validate inside toplevel counts only bindable target expressions" {
+  let binder_only =
+    #|id: example
+    #|description: Top-level binder-only target spelling.
+    #|inside-toplevel:
+    #|  - shape: let __TARGET__ = value
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  expect_compile_invalid(
+    binder_only, "inside-toplevel[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+  let binder_and_expression =
+    #|id: example
+    #|description: One bindable target plus a top-level binder spelling.
+    #|inside-toplevel:
+    #|  - shape: let __TARGET__ = __TARGET__
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let rules = compile_one(binder_and_expression)
+  match rules[0].definition {
+    Structural(rule) => assert_eq(rule.inside_toplevel.length(), 1)
+    Taint(_) => fail("expected structural rule")
+  }
+}
+
+///|
+test "validate ordinary patterns reject only bindable target expressions" {
+  let non_expression_names =
+    #|id: example
+    #|description: Non-expression target spellings are literal names.
+    #|patterns:
+    #|  - shape: match input { __TARGET__ => body }
+    #|patterns-not:
+    #|  - shape: call(__TARGET__=value)
+    #|
+  let rules = compile_one(non_expression_names)
+  match rules[0].definition {
+    Structural(rule) => {
+      assert_eq(rule.patterns.length(), 1)
+      assert_eq(rule.patterns_not.length(), 1)
+    }
+    Taint(_) => fail("expected structural rule")
+  }
+  let expression_target =
+    #|id: example
+    #|description: Bindable target spelling is reserved.
+    #|patterns:
+    #|  - shape: match input { value => __TARGET__ }
+    #|
+  expect_compile_invalid(
+    expression_target, "patterns[0].shape must not contain __TARGET__",
+  )
+}
+
+///|
+test "validate rejects standalone expression as inside toplevel shape" {
+  let source =
+    #|id: example
+    #|description: Expressions are not top-level items.
+    #|inside-toplevel:
+    #|  - shape: wrapper(__TARGET__)
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  expect_compile_invalid(
+    source, "inside-toplevel[0].shape is not a valid MoonBit top-level item",
   )
 }
 
