@@ -483,6 +483,9 @@ fn rule_id_from_path(
   rules_root : String,
   id : String,
 ) -> String raise {
+  if @path.sep == '\\' {
+    return windows_rule_id_from_path(path, rules_root, id)
+  }
   let relative = if rules_root == "" {
     path
   } else {
@@ -505,6 +508,35 @@ fn rule_id_from_path(
   match relative_without_suffix.rev_split_once("/") {
     None => id
     Some((directory, _file_stem)) => "\{directory.to_owned()}/\{id}"
+  }
+}
+
+///|
+fn windows_rule_id_from_path(
+  path : String,
+  rules_root : String,
+  id : String,
+) -> String raise {
+  let relative = @path.Path::relative(path, base=rules_root).to_string()
+  if @path.Path::is_absolute(relative) ||
+    relative == ".." ||
+    relative.has_prefix("..\\") {
+    raise invalid_rule(
+      path~,
+      info="rule path is outside rules root \{rules_root}",
+    )
+  }
+  let relative_without_suffix = if relative.has_suffix(".yaml") {
+    relative[0:relative.length() - 5].to_owned()
+  } else if relative.has_suffix(".yml") {
+    relative[0:relative.length() - 4].to_owned()
+  } else {
+    raise invalid_rule(path~, info="unsupported rule file suffix")
+  }
+  match relative_without_suffix.rev_split_once("\\") {
+    None => id
+    Some((directory, _file_stem)) =>
+      "\{directory.to_owned().replace_all(old="\\", new="/")}/\{id}"
   }
 }
 
