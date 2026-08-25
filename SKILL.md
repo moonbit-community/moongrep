@@ -227,7 +227,25 @@ exactly one of these mutually exclusive options.
 Invoking `moongrep dump` without arguments prints the `dump` help and exits
 successfully with code 0. Usage errors, such as combining `--impl` with
 `--expr`, print a message and exit with code 2. Parse or lexical failures print
-a message and exit with code 1.
+a message and exit with code 3.
+
+## Exit Status
+
+moongrep returns 0 for successful help, dump, finding, no-finding, and
+recoverable scan-warning outcomes. Failures use these fixed categories:
+
+| Code | Meaning |
+|---:|---|
+| 1 | Internal or unclassified error, including damaged builtin rules |
+| 2 | Command-line usage error |
+| 3 | Invalid `dump` input |
+| 4 | Missing, unreadable, incorrectly typed, or empty rule source |
+| 5 | Invalid YAML, rule schema, pattern, guard, or compiled rule content |
+| 6 | Missing or unreadable scan input |
+| 7 | Standard-output or standard-error write failure |
+
+No-match scans do not use grep-style status 1. Source parse warnings also keep
+status 0.
 
 ## Documentation
 
