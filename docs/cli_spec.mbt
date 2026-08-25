@@ -42,8 +42,7 @@ let _embed_clispec_md : String =
   #|
   #|moongrep provides four commands:
   #|
-  #|- `scan` scans MoonBit source with explicitly selected, default, or embedded
-  #|  rules.
+  #|- `scan` scans MoonBit source with explicitly selected or default rules.
   #|- `lint` scans MoonBit source with embedded builtin rules enabled by default.
   #|- `docs` lists or prints embedded documentation.
   #|- `dump` parses one MoonBit implementation item or expression and prints CST
@@ -94,8 +93,8 @@ let _embed_clispec_md : String =
   #|- `--output-json`: write findings as JSON Lines records.
   #|- `-h` or `--help`: print command help.
   #|
-  #|`scan` also accepts `--enable-builtin-rules`. `lint` always enables builtin
-  #|rules and reports `--enable-builtin-rules` as an unknown option.
+  #|`--enable-builtin-rules` is not accepted by either command. Embedded builtin
+  #|rules can only be selected through `lint`.
   #|
   #|Long options that take values accept both `--option value` and
   #|`--option=value`. Among these options, `--rules` also has a short form. The
@@ -115,16 +114,15 @@ let _embed_clispec_md : String =
   #|`scan` and `lint` may combine rule sources. Sources are loaded in this fixed
   #|category order, independent of where their options appeared:
   #|
-  #|1. embedded builtin rules, when enabled;
+  #|1. embedded builtin rules, for `lint`;
   #|2. the effective `--rules` directory, when present;
   #|3. the effective `--rule` file, when present;
   #|4. anonymous `--pattern` rules, in command-line order.
   #|
   #|For `scan`, `./.moongrep/rules` is the default rules directory when the command
-  #|does not include `--rules`, `--rule`, `--pattern`, or
-  #|`--enable-builtin-rules`. Specifying any of these sources replaces the default
-  #|directory. An explicit `--rules` directory combines with the other selected
-  #|sources.
+  #|does not include `--rules`, `--rule`, or `--pattern`. Specifying any of these
+  #|sources replaces the default directory. An explicit `--rules` directory
+  #|combines with the other selected sources.
   #|
   #|For `lint`, builtin rules are always the first source. Explicit `--rules`,
   #|`--rule`, and `--pattern` values add more sources after the builtin rules.

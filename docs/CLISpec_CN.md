@@ -35,7 +35,7 @@ moonrun path/to/moongrep.wasm -- <command> [arguments]
 
 moongrep 提供四个命令：
 
-- `scan` 使用显式选择、默认或内嵌规则扫描 MoonBit 源码。
+- `scan` 使用显式选择或默认规则扫描 MoonBit 源码。
 - `lint` 默认启用内嵌 builtin 规则扫描 MoonBit 源码。
 - `docs` 列出或打印内嵌文档。
 - `dump` 解析一个 MoonBit 实现项或表达式，并打印 CST 调试输出。
@@ -83,8 +83,8 @@ moongrep lint [options] [scan-root]
 - `--output-json`：以 JSON Lines 格式输出命中。
 - `-h` 或 `--help`：打印命令帮助。
 
-`scan` 还接受 `--enable-builtin-rules`。`lint` 始终启用 builtin 规则，并把
-`--enable-builtin-rules` 报告为未知选项。
+两个命令都不接受 `--enable-builtin-rules`。内嵌 builtin 规则只能通过 `lint`
+选择。
 
 带值的长选项同时接受 `--option value` 和 `--option=value`。其中，`--rules` 也有
 短形式。`NO_COLOR` 环境变量按下文规则控制颜色。
@@ -101,14 +101,14 @@ moongrep lint [options] [scan-root]
 `scan` 和 `lint` 可以组合规则来源。无论相关选项出现在什么位置，来源始终按以下
 类别顺序加载：
 
-1. 启用时的内嵌 builtin 规则；
+1. `lint` 使用的内嵌 builtin 规则；
 2. 存在时的有效 `--rules` 目录；
 3. 存在时的有效 `--rule` 文件；
 4. 按命令行顺序排列的匿名 `--pattern` 规则。
 
-对 `scan` 而言，命令未包含 `--rules`、`--rule`、`--pattern` 或
-`--enable-builtin-rules` 时，默认规则目录为 `./.moongrep/rules`。指定其中任一
-规则来源会替换默认目录。显式 `--rules` 目录会与选中的其他来源组合。
+对 `scan` 而言，命令未包含 `--rules`、`--rule` 或 `--pattern` 时，默认规则目录
+为 `./.moongrep/rules`。指定其中任一规则来源会替换默认目录。显式 `--rules`
+目录会与选中的其他来源组合。
 
 对 `lint` 而言，builtin 规则始终是第一个来源。显式 `--rules`、`--rule` 和
 `--pattern` 会在 builtin 规则之后添加更多来源。

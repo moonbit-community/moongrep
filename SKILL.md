@@ -16,8 +16,8 @@ To check the current MoonBit project with the embedded builtin rules, run:
 moongrep lint
 ```
 
-`lint` is equivalent to `scan --enable-builtin-rules`. It defaults to the
-current directory and accepts the other `scan` options for adding custom rules,
+`lint` is the command that loads embedded builtin rules. It defaults to the
+current directory and accepts the `scan` options for adding custom rules,
 filtering findings, or changing the output format.
 
 For structural search, run the `scan` command from the root of a MoonBit
