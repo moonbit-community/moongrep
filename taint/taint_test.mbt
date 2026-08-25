@@ -501,7 +501,7 @@ test "taint engine analyzes sinks inside labelled blocks" {
     #|  }
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
 }
 
 ///|
@@ -518,7 +518,7 @@ test "taint engine propagates labelled block completion and break values" {
     #|  sink(broken)
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="2")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 2)
 }
 
 ///|
@@ -532,7 +532,7 @@ test "taint engine resumes after a matching labelled block break" {
     #|  sink(get_user_input())
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
 }
 
 ///|
@@ -547,7 +547,7 @@ test "taint engine propagates outer breaks through nested loops" {
     #|  }
     #|}
     #|
-  inspect(analyze_call_source_sink(for_source).findings.length(), content="0")
+  assert_eq(analyze_call_source_sink(for_source).findings.length(), 0)
   let foreach_source =
     #|fn sample {
     #|  outer~: {
@@ -558,10 +558,7 @@ test "taint engine propagates outer breaks through nested loops" {
     #|  }
     #|}
     #|
-  inspect(
-    analyze_call_source_sink(foreach_source).findings.length(),
-    content="0",
-  )
+  assert_eq(analyze_call_source_sink(foreach_source).findings.length(), 0)
 }
 
 ///|
@@ -576,7 +573,7 @@ test "taint engine propagates outer continues through nested loops" {
     #|  }
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="0")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 0)
 }
 
 ///|
@@ -594,7 +591,7 @@ test "taint engine consumes unlabelled and current-label continues" {
     #|  sink(get_user_input())
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
 }
 
 ///|
@@ -607,7 +604,7 @@ test "taint engine preserves matching labelled loop break values" {
     #|  sink(value)
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
 }
 
 ///|
@@ -620,7 +617,7 @@ test "taint engine normalizes transparent control labels" {
     #|  sink(value)
     #|}
     #|
-  inspect(analyze_call_source_sink(source).findings.length(), content="1")
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
 }
 
 ///|

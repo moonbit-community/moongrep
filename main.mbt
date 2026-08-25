@@ -20,7 +20,8 @@ async fn write_raw_cli_output(output : String) -> Unit {
 ///|
 async fn write_cli_output(output : String) -> Unit {
   write_raw_cli_output(output) catch {
-    err => raise @cli.CliError::Output(message="\{err}")
+    @os_error.OSError(_) as err => raise @cli.CliError::Output(message="\{err}")
+    err => raise err
   }
 }
 
@@ -28,7 +29,8 @@ async fn write_cli_output(output : String) -> Unit {
 async fn exit_with_cli_error(error : @cli.CliError) -> Unit {
   let exit_code = error.exit_code()
   write_raw_cli_output("\{error}") catch {
-    _ => runtime_exit(7)
+    @os_error.OSError(_) => runtime_exit(7)
+    err => raise err
   }
   runtime_exit(exit_code)
 }

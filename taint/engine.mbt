@@ -49,25 +49,26 @@ fn flow_result(
 
 ///|
 fn control_label_name(node : @untyped_cst.CstNode) -> String? {
-  let label = match node_child(node, "label") {
-    Some(label) => label
-    None =>
-      match @cst.raw_child(node, "label") {
-        Some(label) => label
-        None => return None
-      }
+  let label = if node_child(node, "label") is Some(label) {
+    label
+  } else if @cst.raw_child(node, "label") is Some(label) {
+    label
+  } else {
+    return None
   }
-  match node_label_name(label) {
-    Some(name) => Some(name)
-    None => @cst.raw_child(label, "name_value").bind(@cst.normalized_name)
+  if node_label_name(label) is Some(name) {
+    Some(name)
+  } else {
+    @cst.raw_child(label, "name_value").bind(@cst.normalized_name)
   }
 }
 
 ///|
 fn control_targets_loop(target : String?, loop_label : String?) -> Bool {
-  match target {
-    None => true
-    Some(target) => loop_label == Some(target)
+  if target is Some(target) {
+    loop_label == Some(target)
+  } else {
+    true
   }
 }
 
