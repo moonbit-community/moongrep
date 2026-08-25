@@ -142,10 +142,11 @@ positive / negative pattern。
 - `target_metavar = Some("__TARGET__")`
 - `source_metavar = None`
 
-每个备选项都必须包含恰好一个由 `count_supported_name_in_node` 统计到的
-`__TARGET__` 名称。
-运行时 matcher 只会在完整表达式位置特殊处理 target/source metavar，因此修改 supported-name
-统计时必须同时检查 `matching` 行为。
+每个备选项都必须包含恰好一个由
+`count_bindable_expr_identifier_in_node` 统计到的完整表达式标识符位置
+`__TARGET__`。这与运行时 matcher 分派特殊表达式元变量的位置相同。
+Pattern variable、binder、label 和其他字面名称节点不计入其中。更广义的
+`count_supported_name_in_node` 仍用于 `__SOURCE__` 校验。
 
 选中的 inside 备选项中声明的 metavar 在匹配目标表达式时可见。内部的
 `patterns` 和 `patterns-not` 必须重复相同 inline 形式才能复用该绑定。
@@ -153,8 +154,8 @@ positive / negative pattern。
 捕获。`ensure_inherited_inside_context_metavar_forms_for_all` 同时检查跨备选项
 可用性和 kind 一致性。内部未引用的捕获保持分支局部，不要求一致。
 
-普通 `patterns` 和 `patterns-not` 会在 inside context 之后独立编译。它们不能包含
-`__TARGET__`。
+普通 `patterns` 和 `patterns-not` 会在 inside context 之后独立编译。它们不能在完整表达式位置包含
+`__TARGET__`；非表达式字面名称中的相同拼写仍按字面处理。
 
 ## Guard
 

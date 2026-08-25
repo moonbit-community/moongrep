@@ -101,7 +101,7 @@ fn compile_structural_rule(
       path, context, outer_context, compiled_shape, outer_shapes,
     )
     let cst = compiled_shape.cst
-    if count_supported_name_in_node(cst, "__TARGET__") != 0 {
+    if count_bindable_expr_identifier_in_node(cst, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context}.shape must not contain __TARGET__",
@@ -134,7 +134,7 @@ fn compile_structural_rule(
       path, context, outer_context, compiled_shape, outer_shapes,
     )
     let cst = compiled_shape.cst
-    if count_supported_name_in_node(cst, "__TARGET__") != 0 {
+    if count_bindable_expr_identifier_in_node(cst, "__TARGET__") != 0 {
       raise RuleLoadError::InvalidRule(
         path~,
         info="\{context}.shape must not contain __TARGET__",
@@ -195,7 +195,7 @@ fn compile_inside_context_patterns(
     } else {
       []
     }
-    let target_count = count_supported_name_in_node(cst, "__TARGET__")
+    let target_count = count_bindable_expr_identifier_in_node(cst, "__TARGET__")
     if target_count != 1 {
       raise RuleLoadError::InvalidRule(
         path~,

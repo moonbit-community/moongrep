@@ -161,10 +161,12 @@ Each inside-context shape is compiled as a normal pattern with:
 - `target_metavar = Some("__TARGET__")`
 - `source_metavar = None`
 
-Every alternative must contain exactly one `__TARGET__` name as counted by
-`count_supported_name_in_node`. The runtime matcher only treats target/source
-metavars specially in whole expression positions, so changes to supported-name
-counting must be checked against `matching` behavior.
+Every alternative must contain exactly one `__TARGET__` in a complete
+expression-identifier position as counted by
+`count_bindable_expr_identifier_in_node`. This is the same position where the
+runtime matcher dispatches a special expression metavar. Pattern variables,
+binders, labels, and other literal name nodes do not count. The broader
+`count_supported_name_in_node` remains in use for `__SOURCE__` validation.
 
 Metavars declared by the selected inside alternative are visible during
 target-expression matching. Inner `patterns` and `patterns-not` must repeat the
@@ -175,7 +177,8 @@ cross-alternative availability and kind consistency. Captures not referenced
 by inner patterns remain branch-local and need not agree.
 
 Normal `patterns` and `patterns-not` are compiled independently after the
-inside context. They must not contain `__TARGET__`.
+inside context. They must not contain `__TARGET__` in a complete expression
+position; the same spelling in a non-expression literal name remains literal.
 
 ## Guards
 
