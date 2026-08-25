@@ -102,8 +102,16 @@ Long options that take values accept both `--option value` and
 traversed recursively. A regular target is scanned when its path ends in
 lowercase `.mbt`.
 
-Rendered child paths and finding locations retain the path spelling supplied
-by the user.
+On Linux and macOS, the scanner retains the supplied scan-root spelling and
+constructs child paths with `/`, as described by the traversal rules below.
+
+On Windows, the scan root is lexically normalized before any filesystem
+operation. Both `/` and `\` are accepted as separators; repeated separators and
+`.` / `..` components are normalized with Windows path rules. Child paths are
+joined with the native separator. The normalized native path is used for
+filesystem access and for finding locations, warnings, verbose events, and
+JSON output, so rendered paths use `\`. Normalization does not call `realpath`
+and does not turn a relative scan root into an absolute path.
 
 ### Rule Sources and Ordering
 
@@ -122,6 +130,11 @@ combines with the other selected sources.
 
 For `lint`, builtin rules are always the first source. Explicit `--rules`,
 `--rule`, and `--pattern` values add more sources after the builtin rules.
+
+On Windows, effective `--rules` and `--rule` paths are lexically normalized
+before filesystem access. Recursive rule discovery uses native path joins, and
+the containing directory of a single `--rule` file is computed with Windows
+path rules. Linux and macOS retain the existing `/`-based path construction.
 
 Rule-directory discovery, rule ids, YAML validation, source ordering within a
 rule directory, and matcher compilation are specified by
@@ -162,8 +175,9 @@ valid, and how a guard matches are rule-compilation concerns specified by
 ### Rule Disabling
 
 All selected sources are loaded before `--disable` is applied. Each disabled id
-is compared exactly against the combined loaded rule ids. Every requested id
-must exist; the first unknown id is a usage error with status 2.
+is compared exactly and case-sensitively against the combined loaded rule ids
+on every platform. Every requested id must exist; the first unknown id is a
+usage error with status 2.
 
 All rules with a disabled id are removed before rule compilation and scan
 planning. Repeated disabled ids are treated as one. Verbose loaded-rule events
@@ -175,6 +189,7 @@ describe the rules that remain enabled.
 
 For a directory target, moongrep examines child entries recursively. It parses
 regular files whose path ends in lowercase `.mbt` and ignores other entries.
+The suffix test is case-sensitive on every platform.
 
 A missing or unreadable target is a runtime failure. An existing regular file
 whose path has another suffix completes successfully with no findings.
@@ -201,30 +216,45 @@ depth:
 - `.mooncakes`
 - `target`
 
-The comparison uses the complete, case-sensitive entry name. These exclusions
-apply to children during traversal. An explicitly selected scan root is still
-inspected when its final path component has one of these names.
+The complete entry name is compared case-sensitively on Linux and macOS. On
+Windows only, it is compared case-insensitively with per-character Unicode
+lowercase mapping. These exclusions apply to children during traversal. An
+explicitly selected scan root is still inspected when its final path component
+has one of these names.
 
 ### `--exclude`
 
-Each `--exclude` value is normalized by removing trailing `/` characters while
-preserving a lone `/`, then removing every leading `./`. For example,
-`./vendor/` becomes `vendor` and `./src/generated///` becomes `src/generated`.
+On Linux and macOS, each `--exclude` value is normalized by removing trailing
+`/` characters while preserving a lone `/`, then removing every leading `./`.
+For example, `./vendor/` becomes `vendor` and `./src/generated///` becomes
+`src/generated`. Other components, including `..`, remain literal.
 
-Before visiting a child, the normalized exclusions are compared exactly
+On Windows, both `/` and `\` are accepted, repeated separators are collapsed,
+and `.` / `..` components are normalized with Windows path rules. Non-root
+trailing separators are removed, while roots such as `C:\` and
+`\\server\share\` retain their trailing separator. An empty exclusion remains
+empty.
+
+Before visiting a child, each complete normalized exclusion is compared
 against both:
 
 - the child's entry name; and
 - the constructed child path after the same normalization.
 
-Matching either complete string skips the file or directory entry. Comparison
-treats glob characters and `..` literally, retains filesystem spelling, and
-preserves case. Because entry-name matching is performed at every depth,
-excluding `vendor` skips every child named `vendor`, and excluding `generated.mbt`
-skips every child file with that name. A path such as `src/generated` matches a
-child only when its constructed path has that exact spelling. Exclusions apply
-only to children discovered during directory traversal; an explicitly selected
-scan root is still inspected.
+Matching either complete string skips the file or directory entry. Linux and
+macOS comparisons preserve case and filesystem spelling. Windows comparisons
+are case-insensitive using the same per-character Unicode lowercase mapping as
+Windows path comparison. Glob characters are ordinary characters on every
+platform.
+
+Because entry-name matching is performed at every depth, excluding `vendor`
+skips every matching child name, and excluding `generated.mbt` skips every
+matching child file name. A path such as `src/generated` matches only a child
+whose constructed path equals that path under the platform comparison rules.
+An absolute exclusion matches only an absolute constructed child path; a
+relative scan root is not resolved merely to match an absolute exclusion.
+Exclusions apply only to children discovered during directory traversal; an
+explicitly selected scan root is still inspected.
 
 ## Source Processing
 
