@@ -133,14 +133,27 @@ fn skip_scan_options() -> CliOptions {
 
 ///|
 fn excluded_entry_scan_options() -> CliOptions {
+  let (rules_root, scan_root, excludes) = if scan_uses_windows_paths() {
+    (
+      ".\\e2etests\\rules/structural\\.",
+      ".\\testdata/exclude-dirs\\.",
+      ["IGNORED\\", ".\\testdata/exclude-dirs\\GENERATED\\\\", "EXCLUDED.MBT"],
+    )
+  } else {
+    (
+      "e2etests/rules/structural",
+      "testdata/exclude-dirs",
+      [
+        "ignored/", "./testdata/exclude-dirs/generated/", "./testdata/exclude-dirs/excluded.mbt",
+      ],
+    )
+  }
   {
-    rules_root: Some("e2etests/rules/structural"),
+    rules_root: Some(rules_root),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/exclude-dirs",
-    excludes: [
-      "ignored/", "./testdata/exclude-dirs/generated/", "./testdata/exclude-dirs/excluded.mbt",
-    ],
+    scan_root,
+    excludes,
     disabled_rules: [],
     verbose: true,
     no_color: false,
@@ -332,9 +345,11 @@ async test "scan enforces moongrep skip structural and taint contract" {
   )
   inspect(
     render_scan_warnings(result.warnings),
-    content=(
-      #|warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
-      #|warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+    content=native_scan_test_path(
+      (
+        #|warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+        #|warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+      ),
     ),
   )
 }
@@ -355,23 +370,32 @@ async test "scan excludes configured file and directory entries" {
   for hit in result.hits {
     summaries.push(hit.finding.file)
   }
-  debug_inspect(summaries, content="[\"testdata/exclude-dirs/hit.mbt\"]")
+  debug_inspect(
+    summaries,
+    content=native_scan_test_debug_text("[\"testdata/exclude-dirs/hit.mbt\"]"),
+  )
   assert_true(
     string_array_contains(
       result.scan_trace,
-      "moongrep scan: skipping testdata/exclude-dirs/ignored",
+      native_scan_test_path(
+        "moongrep scan: skipping testdata/exclude-dirs/ignored",
+      ),
     ),
   )
   assert_true(
     string_array_contains(
       result.scan_trace,
-      "moongrep scan: skipping testdata/exclude-dirs/generated",
+      native_scan_test_path(
+        "moongrep scan: skipping testdata/exclude-dirs/generated",
+      ),
     ),
   )
   assert_true(
     string_array_contains(
       result.scan_trace,
-      "moongrep scan: skipping testdata/exclude-dirs/excluded.mbt",
+      native_scan_test_path(
+        "moongrep scan: skipping testdata/exclude-dirs/excluded.mbt",
+      ),
     ),
   )
 }
@@ -383,7 +407,10 @@ async test "scan does not apply excludes to the explicit scan root" {
   for hit in result.hits {
     files.push(hit.finding.file)
   }
-  debug_inspect(files, content="[\"testdata/exclude-dirs/hit.mbt\"]")
+  debug_inspect(
+    files,
+    content=native_scan_test_debug_text("[\"testdata/exclude-dirs/hit.mbt\"]"),
+  )
 }
 
 ///|
@@ -444,7 +471,9 @@ async test "scan isolates matching source block parse failures" {
   assert_true(skipped.block_start_line == Some(5))
   assert_true(
     render_scan_warning(Parse(skipped)).has_prefix(
-      "warning: skipping testdata/prefilter-block/matched-broken.mbt block starting at line 5: parse failed due to ",
+      native_scan_test_path(
+        "warning: skipping testdata/prefilter-block/matched-broken.mbt block starting at line 5: parse failed due to ",
+      ),
     ),
   )
 }
@@ -459,12 +488,14 @@ async test "scan disables configured rule ids before planning" {
   debug_inspect(summaries, content="[\"other:6\"]")
   debug_inspect(
     result.scan_trace,
-    content=(
-      #|[
-      #|  "moongrep scan: loaded rule other",
-      #|  "moongrep scan: entering testdata/prefilter-impl",
-      #|  "moongrep scan: file testdata/prefilter-impl/hits.mbt",
-      #|]
+    content=native_scan_test_debug_text(
+      (
+        #|[
+        #|  "moongrep scan: loaded rule other",
+        #|  "moongrep scan: entering testdata/prefilter-impl",
+        #|  "moongrep scan: file testdata/prefilter-impl/hits.mbt",
+        #|]
+      ),
     ),
   )
 }
@@ -479,6 +510,18 @@ async test "scan rejects unknown disabled rule ids" {
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected CLI usage error")
+  }
+}
+
+///|
+async test "scan keeps rule disabling case sensitive on every host" {
+  let rules = load_rule_directory("e2etests/rules/prefilter")
+  try disable_scan_rules(rules, ["TARGET"]) catch {
+    CliError::Usage(message~) =>
+      inspect(message, content="unknown rule id in --disable: TARGET")
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected case-mismatched rule id rejection")
   }
 }
 
@@ -510,7 +553,11 @@ async test "scan classifies rule source, rule content, and scan input failures" 
   try load_rule_file("testdata/exit-codes/invalid.yaml") catch {
     CliError::RuleContent(message~) as err => {
       assert_eq(err.exit_code(), 5)
-      assert_true(message.has_prefix("testdata/exit-codes/invalid.yaml: "))
+      assert_true(
+        message.has_prefix(
+          native_scan_test_path("testdata/exit-codes/invalid.yaml: "),
+        ),
+      )
     }
     err => fail("unexpected YAML rule content error \{err}")
   } noraise {
@@ -540,13 +587,24 @@ async test "scan verbose lists loaded rule ids before traversal" {
   let result = collect_directory_hits(Scan, verbose_rules_scan_options())
   debug_inspect(
     result.scan_trace,
-    content=(
-      #|[
-      #|  "moongrep scan: loaded rule example",
-      #|  "moongrep scan: loaded rule nested/example",
-      #|  "moongrep scan: entering testdata/recursive-rule-discovery-src",
-      #|  "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
-      #|]
-    ),
+    content=if scan_uses_windows_paths() {
+      (
+        #|[
+        #|  "moongrep scan: loaded rule example",
+        #|  "moongrep scan: loaded rule nested/example",
+        #|  "moongrep scan: entering testdata\\recursive-rule-discovery-src",
+        #|  "moongrep scan: file testdata\\recursive-rule-discovery-src\\hits.mbt",
+        #|]
+      )
+    } else {
+      (
+        #|[
+        #|  "moongrep scan: loaded rule example",
+        #|  "moongrep scan: loaded rule nested/example",
+        #|  "moongrep scan: entering testdata/recursive-rule-discovery-src",
+        #|  "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
+        #|]
+      )
+    },
   )
 }
