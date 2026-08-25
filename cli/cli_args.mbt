@@ -203,27 +203,6 @@ fn all_cli_values(
 }
 
 ///|
-fn normalize_scan_exclude(path : String) -> String {
-  let mut normalized = path
-  while normalized.length() > 1 && normalized.has_suffix("/") {
-    normalized = normalized[0:normalized.length() - 1].to_owned()
-  }
-  while normalized.has_prefix("./") {
-    normalized = normalized[2:].to_owned()
-  }
-  normalized
-}
-
-///|
-fn normalize_scan_excludes(paths : Array[String]) -> Array[String] {
-  let normalized : Array[String] = []
-  for path in paths {
-    normalized.push(normalize_scan_exclude(path))
-  }
-  normalized
-}
-
-///|
 fn cli_flag_enabled(flags : Map[String, Bool], name : String) -> Bool {
   match flags.get(name) {
     Some(true) => true

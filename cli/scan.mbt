@@ -121,7 +121,8 @@ async fn scan_events(
     }
   }
   let excludes = normalize_scan_excludes(options.excludes)
-  scan_path(options.scan_root, excludes, scan_plan, options.verbose, receive) catch {
+  let scan_root = normalize_scan_root(options.scan_root)
+  scan_path(scan_root, excludes, scan_plan, options.verbose, receive) catch {
     CliError::Output(..) as err => raise err
     err => raise CliError::ScanInput(message="\{err}")
   }
@@ -463,7 +464,7 @@ async fn scan_path(
       emit_scan_trace(verbose, receive, "moongrep scan: entering \{path}")
       let entries = @fs.readdir(path, sort=true)
       for entry in entries {
-        let child_path = "\{path}/\{entry}"
+        let child_path = join_scan_path(path, entry)
         if !should_skip_entry(child_path, entry, excludes) {
           scan_path(child_path, excludes, scan_plan, verbose, receive)
         } else {
@@ -573,12 +574,20 @@ fn should_skip_entry(
 ) -> Bool {
   // Skip dependency, build, and VCS directories that are noisy and are rarely
   // intended scan targets.
-  entry == ".git" ||
-  entry == "_build" ||
-  entry == ".mooncakes" ||
-  entry == "target" ||
-  excludes.contains(entry) ||
-  excludes.contains(normalize_scan_exclude(path))
+  if scan_path_matches(entry, ".git") ||
+    scan_path_matches(entry, "_build") ||
+    scan_path_matches(entry, ".mooncakes") ||
+    scan_path_matches(entry, "target") {
+    return true
+  }
+  let normalized_path = normalize_scan_exclude(path)
+  for exclude in excludes {
+    if scan_path_matches(exclude, entry) ||
+      scan_path_matches(exclude, normalized_path) {
+      return true
+    }
+  }
+  false
 }
 
 ///|
