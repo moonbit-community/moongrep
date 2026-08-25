@@ -441,9 +441,22 @@ let _embed_clispec_md : String =
   #|Providing both `--impl` and `--expr` is a usage error with status 2. Invoking
   #|`dump` without either option prints help and exits with status 0. Lexical or
   #|parse diagnostics, recovery nodes, and an `--impl` result containing zero or
-  #|multiple top-level items exit with status 1.
+  #|multiple top-level items exit with status 3.
   #|
   #|## Diagnostics and Exit Status
+  #|
+  #|moongrep uses one fixed status for each actionable failure category:
+  #|
+  #|| Status | Category |
+  #||---:|---|
+  #|| 0 | Success |
+  #|| 1 | Internal or otherwise unclassified failure |
+  #|| 2 | Command-line usage failure |
+  #|| 3 | Invalid `dump` input |
+  #|| 4 | Rule-source failure |
+  #|| 5 | Invalid rule content |
+  #|| 6 | Scan-input failure |
+  #|| 7 | Output failure |
   #|
   #|### Exit Status 0
   #|
@@ -460,17 +473,9 @@ let _embed_clispec_md : String =
   #|
   #|### Exit Status 1
   #|
-  #|Status 1 means a selected operation failed while loading, parsing, compiling,
-  #|or executing input. It includes:
-  #|
-  #|- invalid `dump` source or an invalid number of `--impl` top-level items;
-  #|- rule file discovery, reading, YAML parsing, validation, or compilation
-  #|  failures;
-  #|- invalid anonymous-pattern or guard matcher compilation; and
-  #|- scan-target filesystem, file-reading, or other runtime failures.
-  #|
-  #|A MoonBit source parse failure encountered during scanning is a warning and
-  #|returns status 0.
+  #|Status 1 is reserved for internal failures. It includes a damaged embedded
+  #|builtin rule, an unreachable command state, and any unexpected error that has
+  #|not been assigned to another category.
   #|
   #|### Exit Status 2
   #|
@@ -483,6 +488,40 @@ let _embed_clispec_md : String =
   #|- combining mutually exclusive `docs` or `dump` arguments;
   #|- an unknown embedded document; and
   #|- an unknown rule id requested by `--exclude-rule`.
+  #|
+  #|### Exit Status 3
+  #|
+  #|Status 3 means `dump` received invalid MoonBit input. Lexical or syntax
+  #|diagnostics, recovery nodes, and an `--impl` result containing anything other
+  #|than one top-level item use this status.
+  #|
+  #|### Exit Status 4
+  #|
+  #|Status 4 means a requested rule source could not be used. It covers a missing,
+  #|unreadable, or incorrectly typed rule path, directory traversal or rule-file
+  #|reading failures, and a rule directory containing no YAML files.
+  #|
+  #|### Exit Status 5
+  #|
+  #|Status 5 means rule content is invalid. It covers YAML parsing, schema and
+  #|duplicate-id validation, and pattern or guard validation and compilation. This
+  #|status also applies to invalid anonymous command-line patterns. A failure in
+  #|the embedded builtin rules instead uses status 1.
+  #|
+  #|### Exit Status 6
+  #|
+  #|Status 6 means scan input could not be read. It covers a missing scan root,
+  #|directory traversal failures, and MoonBit source-file reading failures. A
+  #|MoonBit source parse failure encountered during scanning remains a warning and
+  #|returns status 0.
+  #|
+  #|### Exit Status 7
+  #|
+  #|Status 7 means writing standard output or standard error failed, including a
+  #|broken pipe. If writing an original failure diagnostic also fails, status 7
+  #|takes precedence over that failure's normal status. Findings already written
+  #|by a streaming scan are not withdrawn when a later write or scan-input failure
+  #|occurs.
   #|
 
 ///|
