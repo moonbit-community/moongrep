@@ -832,9 +832,10 @@ fn same_metavariable_qualified_prefix(
     return false
   }
   let candidate_dot = last_separator(candidate)
-  match candidate_dot {
-    Some(right) => candidate[:right + 1] == pattern_prefix
-    None => false
+  if candidate_dot is Some(right) {
+    candidate[:right + 1] == pattern_prefix
+  } else {
+    false
   }
 }
 

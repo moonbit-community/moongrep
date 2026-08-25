@@ -355,14 +355,11 @@ pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
         return None
       }
       package_name = Some(name)
+    } else if package_name is Some(package_value) {
+      groups.push("@\{package_value}.\{name}")
+      package_name = None
     } else {
-      match package_name {
-        Some(package_value) => {
-          groups.push("@\{package_value}.\{name}")
-          package_name = None
-        }
-        None => groups.push(name)
-      }
+      groups.push(name)
     }
   }
   guard package_name is None && !groups.is_empty() else { return None }
