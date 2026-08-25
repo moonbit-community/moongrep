@@ -60,11 +60,11 @@ $ moonrun "$TESTDIR"/moongrep.wasm -- docs CLISpec | grep -E '^# Command-Line In
 ## Diagnostics and Exit Status
 ```
 
-Running bare `lint` from a fixture directory produces the same output as
-enabling builtin rules explicitly through `scan`.
+Running bare `lint` from a fixture directory produces the same output as an
+explicit current-directory lint target.
 
 ```mooncram
-$ cd "$TESTDIR"/../testdata/builtin-rules && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- scan --enable-builtin-rules) <(moonrun "$TESTDIR"/moongrep.wasm -- lint)
+$ cd "$TESTDIR"/../testdata/builtin-rules && diff -u <(moonrun "$TESTDIR"/moongrep.wasm -- lint) <(moonrun "$TESTDIR"/moongrep.wasm -- lint .)
 ```
 
 ## moongrep lint --help
@@ -109,7 +109,6 @@ Arguments:
 Options:
   -h, --help                     Show help information.
   --verbose                      Write loaded rule ids and traversal progress to stderr.
-  --enable-builtin-rules         Enable embedded builtin rules.
   --output-json                  Write each match as one JSON record to stdout.
   -r, --rules <rules>            Directory containing YAML rules. [default: ./.moongrep/rules]
   --rule <rule>                  Single YAML rule file.
@@ -119,14 +118,14 @@ Options:
   --exclude-rule <exclude-rule>  Rule id to disable after loading rules. May be repeated.
 ```
 
-## moongrep scan --enable-builtin-rules
+## moongrep lint builtin rules
 
-Enabling builtin rules without a separate rule directory reports every
-embedded rule that matches the fixture. The default human-readable output
-includes locations, rule metadata, and source context.
+Linting without a separate rule directory reports every embedded rule that
+matches the fixture. The default human-readable output includes locations,
+rule metadata, and source context.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --enable-builtin-rules testdata/builtin-rules
+$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- lint testdata/builtin-rules
 testdata/builtin-rules/hit.mbt:3:3-3:26
 rule: moonbitlang/inspect_number
 description:
@@ -153,6 +152,35 @@ source:
  8 >     },
  9 |   )
 10 | }
+```
+
+## moongrep scan rejects the removed builtin option
+
+Builtin rules are only available through `lint`. The former scan option is an
+unknown option and returns exit status 2.
+
+```mooncram
+$ moonrun "$TESTDIR"/moongrep.wasm -- scan --enable-builtin-rules
+error: unexpected argument '--enable-builtin-rules' found
+
+Usage: moongrep scan [options] [scan-root]
+
+Scan MoonBit source files.
+
+Arguments:
+  scan-root  Directory to scan.
+
+Options:
+  -h, --help                     Show help information.
+  --verbose                      Write loaded rule ids and traversal progress to stderr.
+  --output-json                  Write each match as one JSON record to stdout.
+  -r, --rules <rules>            Directory containing YAML rules. [default: ./.moongrep/rules]
+  --rule <rule>                  Single YAML rule file.
+  --pattern <pattern>            Anonymous structural pattern to match.
+  --guard <guard>                YAML guard map for the preceding anonymous pattern.
+  --exclude-dir <exclude-dir>    Directory name or path to skip while recursively scanning. May be repeated.
+  --exclude-rule <exclude-rule>  Rule id to disable after loading rules. May be repeated.
+[2]
 ```
 
 ## moongrep dump --help
