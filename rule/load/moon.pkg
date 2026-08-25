@@ -2,6 +2,7 @@ import {
   "moonbit-community/moongrep/rule/model",
   "moonbitlang/async/fs",
   "moonbitlang/async/io",
+  "moonbitlang/x/path",
 }
 
 import {
