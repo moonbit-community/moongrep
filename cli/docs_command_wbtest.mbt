@@ -21,9 +21,19 @@ test "docs show returns CLI specification body" {
 ///|
 test "docs show rejects unknown document name" {
   try render_doc_body("MissingDoc") catch {
-    CliError::Usage(exit_code~, ..) => assert_eq(exit_code, 2)
+    CliError::Usage(..) as err => assert_eq(err.exit_code(), 2)
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected docs usage error")
+  }
+}
+
+///|
+test "docs rejects unreachable command state as internal" {
+  try render_docs_command(("scan", None, None)) catch {
+    CliError::Internal(..) as err => assert_eq(err.exit_code(), 1)
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected internal CLI error")
   }
 }

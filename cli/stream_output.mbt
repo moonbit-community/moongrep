@@ -42,6 +42,17 @@ async fn write_scan_stderr(output : String) -> Unit {
 }
 
 ///|
+async fn invoke_scan_writer(
+  writer : async (String) -> Unit,
+  output : String,
+) -> Unit {
+  writer(output) catch {
+    CliError::Output(..) as err => raise err
+    err => raise CliError::Output(message="\{err}")
+  }
+}
+
+///|
 async fn run_scan_mode_command_with_writers(
   mode : ScanMode,
   options : CliOptions,
@@ -53,7 +64,7 @@ async fn run_scan_mode_command_with_writers(
     write_stream_scan_event(event, options, state, stdout_writer, stderr_writer)
   })
   if state.hit_count == 0 && !options.output_json {
-    stdout_writer("no match hits\n")
+    invoke_scan_writer(stdout_writer, "no match hits\n")
   }
 }
 
@@ -66,8 +77,9 @@ async fn write_stream_scan_event(
   stderr_writer : async (String) -> Unit,
 ) -> Unit {
   match event {
-    Trace(message) => stderr_writer(message + "\n")
-    Warning(warning) => stderr_writer(render_scan_warning(warning) + "\n")
+    Trace(message) => invoke_scan_writer(stderr_writer, message + "\n")
+    Warning(warning) =>
+      invoke_scan_writer(stderr_writer, render_scan_warning(warning) + "\n")
     Hit(hit) => {
       let rendered = if options.output_json {
         render_scan_hit_json(hit)
@@ -79,7 +91,7 @@ async fn write_stream_scan_event(
       } else {
         ""
       }
-      stdout_writer(separator + rendered + "\n")
+      invoke_scan_writer(stdout_writer, separator + rendered + "\n")
       state.hit_count += 1
     }
   }

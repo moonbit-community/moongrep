@@ -278,6 +278,26 @@ async test "stream no-match output depends on format" {
 }
 
 ///|
+async test "stream writer failures are output errors" {
+  try
+    run_scan_mode_command_with_writers(
+      Scan,
+      no_match_stream_options(false),
+      _ => fail("injected writer failure"),
+      _ => (),
+    )
+  catch {
+    CliError::Output(message~) as err => {
+      assert_eq(err.exit_code(), 7)
+      assert_true(message.contains("injected writer failure"))
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected output error")
+  }
+}
+
+///|
 async test "stream diagnostics are written only to stderr" {
   let stdout_chunks : Array[String] = []
   let stderr_chunks : Array[String] = []

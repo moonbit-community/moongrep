@@ -5,7 +5,7 @@ pub fn render_dump_command(
   match command {
     ("dump-impl", None, Some(source)) => render_dump_impl_debug(source)
     ("dump-expr", None, Some(source)) => render_dump_expr_debug(source)
-    _ => fail("invalid dump command")
+    _ => raise CliError::Internal(message="invalid dump command")
   }
 }
 
@@ -24,22 +24,19 @@ fn parse_dump_impl(source : String) -> @untyped_cst.CstNode raise {
   let parsed = @untyped_cst.parse_structure(source, name="dump --impl")
   let reports = parsed.diagnostics_view().to_owned()
   if !reports.is_empty() {
-    raise CliError::Usage(
+    raise CliError::DumpInput(
       message="dump --impl parse failed: \{compact_reports(reports)}",
-      exit_code=1,
     )
   }
   if @cst.first_recovery_node(parsed.root()) is Some(_) {
-    raise CliError::Usage(
+    raise CliError::DumpInput(
       message="dump --impl parse failed: incomplete recovered CST node",
-      exit_code=1,
     )
   }
   let nodes = @cst.toplevel_nodes(parsed.root())
   if nodes.length() != 1 {
-    raise CliError::Usage(
+    raise CliError::DumpInput(
       message="dump --impl expects exactly one top-level item",
-      exit_code=1,
     )
   }
   nodes[0]
@@ -50,15 +47,13 @@ fn parse_dump_expr(source : String) -> @untyped_cst.CstNode raise {
   let parsed = @untyped_cst.parse_expression(source, name="dump --expr")
   let reports = parsed.diagnostics_view().to_owned()
   if !reports.is_empty() {
-    raise CliError::Usage(
+    raise CliError::DumpInput(
       message="dump --expr parse failed: \{compact_reports(reports)}",
-      exit_code=1,
     )
   }
   if @cst.first_recovery_node(parsed.root()) is Some(_) {
-    raise CliError::Usage(
+    raise CliError::DumpInput(
       message="dump --expr parse failed: incomplete recovered CST node",
-      exit_code=1,
     )
   }
   @cst.expression_root(parsed.root())

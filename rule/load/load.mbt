@@ -9,10 +9,7 @@ using @model {type RawRuleSpec, type RuleLoadError}
 pub async fn load_rules(rules_root : String) -> Array[RawRuleSpec] {
   let files = collect_rule_files(rules_root)
   if files.is_empty() {
-    raise RuleLoadError::InvalidRule(
-      path=rules_root,
-      info="no YAML rule files found",
-    )
+    raise RuleLoadError::NoRuleFiles(path=rules_root)
   }
   let rules : Array[RawRuleSpec] = []
   for file in files {

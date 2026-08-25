@@ -25,8 +25,16 @@ pub fn runtime_cli_args(Array[String]) -> Array[String]
 
 // Errors
 pub(all) suberror CliError {
-  Usage(message~ : String, exit_code~ : Int)
+  Internal(message~ : String)
+  Usage(message~ : String)
+  DumpInput(message~ : String)
+  RuleSource(message~ : String)
+  RuleContent(message~ : String)
+  ScanInput(message~ : String)
+  Output(message~ : String)
 } derive(@debug.Debug)
+pub fn CliError::exit_code(Self) -> Int
+pub impl Show for CliError
 
 // Types and methods
 pub(all) struct CliOptions {

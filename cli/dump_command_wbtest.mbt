@@ -21,7 +21,7 @@ test "dump expr renders untyped CST debug output" {
 ///|
 test "dump impl rejects empty source" {
   try render_dump_command(("dump-impl", None, Some(""))) catch {
-    CliError::Usage(exit_code~, ..) => assert_eq(exit_code, 1)
+    CliError::DumpInput(..) as err => assert_eq(err.exit_code(), 3)
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected dump parse error")

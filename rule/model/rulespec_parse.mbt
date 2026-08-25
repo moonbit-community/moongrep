@@ -14,7 +14,9 @@ pub fn RawRuleSpec::from_str(
   rules_root : String,
   source : String,
 ) -> RawRuleSpec raise {
-  let docs = @yaml.Yaml::load_from_string(source)
+  let docs = @yaml.Yaml::load_from_string(source) catch {
+    err => raise invalid_rule(path~, info="\{Repr(err)}")
+  }
   if docs.length() != 1 {
     raise invalid_rule(
       path~,
