@@ -125,8 +125,8 @@ let _embed_rulespec_md : String =
   #|top-level declaration, package fragment, or import list.
   #|
   #|Each `inside-toplevel` shape is parsed as one top-level item, such as a
-  #|function, top-level `let`, `test`, method `impl`, view, or top-level expression.
-  #|It is one item and cannot represent a whole file or import list.
+  #|function, top-level `let`, top-level `const`, `test`, method `impl`, or view. It
+  #|is one item and cannot represent a whole file or import list.
   #|
   #|Shapes are structural:
   #|
@@ -613,11 +613,12 @@ let _embed_rulespec_md : String =
   #|
   #|```yaml
   #|patterns:
-  #|  - shape: match input { $(lit:const) => lit }
+  #|  - shape: match input { $(lit:const) => $(lit:const) }
   #|```
   #|
-  #|The inner body references the outer constant capture with the plain payload
-  #|name, `lit`.
+  #|The body repeats the complete `$(lit:const)` metavar syntax to reuse the
+  #|pattern capture. Every repeated capture must repeat its metavar syntax; a plain
+  #|`lit` is a literal identifier.
   #|
   #|### `arg`
   #|
@@ -747,7 +748,7 @@ let _embed_rulespec_md : String =
   #|
   #|Structural rules are applied to expression subtrees collected from source
   #|files. Currently, structural matching searches expression bodies from top-level
-  #|expressions, functions, methods, top-level `let` definitions, tests, and views.
+  #|functions, methods, top-level `let` and `const` definitions, tests, and views.
   #|
   #|Each visited expression is checked against each structural rule. For one
   #|visited expression and one rule:
@@ -1048,8 +1049,8 @@ let _embed_rulespec_md : String =
   #|### Taint Semantics
   #|
   #|Taint analysis is intraprocedural. It currently analyzes function bodies and
-  #|method bodies. Top-level lets, tests, views, top-level expressions, and
-  #|declarations without bodies are not taint-analyzed.
+  #|method bodies. Top-level lets, consts, tests, views, and declarations without
+  #|bodies are not taint-analyzed.
   #|
   #|For one taint rule:
   #|

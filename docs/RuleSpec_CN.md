@@ -95,7 +95,7 @@ Taint `sources`、`sinks` 和 `sanitizers` 同样使用 `shape` 键。这些字�
 普通 `shape` 必须是一个单独的 MoonBit 表达式片段。每个
 `inside-toplevel` 条目的 `shape` 必须且只能是一个 MoonBit 顶层项。
 
-有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `inside-expr` shape 不表示整个文件、顶层声明、包片段或 import 列表。每个 `inside-toplevel` shape 可以是一个函数、顶层 `let`、`test`、方法 `impl`、view 或顶层表达式。它只能表示一个顶层项，不能表示整个文件或 import 列表。
+有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `inside-expr` shape 不表示整个文件、顶层声明、包片段或 import 列表。每个 `inside-toplevel` shape 可以是一个函数、顶层 `let`、顶层 `const`、`test`、方法 `impl` 或 view。它只能表示一个顶层项，不能表示整个文件或 import 列表。
 
 shape 是结构性的：
 
@@ -496,10 +496,10 @@ x + x
 
 ```yaml
 patterns:
-  - shape: match input { $(lit:const) => lit }
+  - shape: match input { $(lit:const) => $(lit:const) }
 ```
 
-内部 body 通过普通 payload 名称 `lit` 引用外层常量捕获。
+body 通过重复完整的 `$(lit:const)` 元变量语法复用 pattern 捕获。每次复用捕获都必须重复元变量语法；普通的 `lit` 是字面标识符。
 
 ### `arg`
 
@@ -611,7 +611,7 @@ patterns:
   - shape: $(expr:exp) == $(expr:exp)
 ```
 
-结构规则会应用到从源文件收集到的表达式子树。目前，结构匹配会搜索顶层表达式、函数、方法、顶层 `let` 定义、测试和 view 中的表达式主体。
+结构规则会应用到从源文件收集到的表达式子树。目前，结构匹配会搜索函数、方法、顶层 `let` 和 `const` 定义、测试及 view 中的表达式主体。
 
 每个被访问的表达式都会被每条结构规则检查。对于一个被访问表达式和一条规则：
 
@@ -854,7 +854,7 @@ taint:
 
 ### 污点语义
 
-污点分析是过程内分析。它目前分析函数体和方法体。顶层 let、测试、view、顶层表达式以及没有 body 的声明不会进行污点分析。
+污点分析是过程内分析。它目前分析函数体和方法体。顶层 let、const、测试、view 以及没有 body 的声明不会进行污点分析。
 
 对于一条污点规则：
 

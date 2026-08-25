@@ -1608,6 +1608,25 @@ test "inside toplevel keeps non-function defaults exact" {
 }
 
 ///|
+test "inside toplevel matches top-level const initializers" {
+  let rule_source =
+    #|id: example
+    #|description: Exact top-level const context.
+    #|inside-toplevel:
+    #|  - shape: const MATCHED = __TARGET__
+    #|patterns:
+    #|  - shape: marker()
+    #|
+  let source =
+    #|const MATCHED = wrapper(marker())
+    #|const OTHER = wrapper(marker())
+    #|
+  let hits = apply_structural_rule_findings(source, rule_source)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].loc.start.lnum, 1)
+}
+
+///|
 test "inside toplevel with only patterns-not reports clean top-level let" {
   let rule_source =
     #|id: example
