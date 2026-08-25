@@ -146,6 +146,76 @@ test "model derives nested yml rule id from yaml id" {
 }
 
 ///|
+test "model keeps POSIX rule path prefix and dotdot semantics" {
+  if @path.sep == '/' {
+    let rule = RawRuleSpec::from_str(
+      "/tmp/rules/nested/../outside.yaml",
+      "/tmp/rules",
+      valid_structural_rule_source(),
+    )
+    inspect(rule.rule_id, content="nested/../example")
+    try
+      RawRuleSpec::from_str(
+        "/TMP/rules/example.yaml",
+        "/tmp/rules",
+        valid_structural_rule_source(),
+      )
+    catch {
+      RuleLoadError::InvalidRule(path=_, info~) =>
+        inspect(info, content="rule path is outside rules root /tmp/rules")
+      err => fail("unexpected error \{err}")
+    } noraise {
+      _ => fail("expected case-sensitive POSIX root rejection")
+    }
+  }
+}
+
+///|
+test "model derives Windows drive and UNC rule ids with slash separators" {
+  if @path.sep == '\\' {
+    let source =
+      #|id: ExampleCase
+      #|description: Example.
+      #|patterns:
+      #|  - shape: target()
+      #|
+    let drive_rule = RawRuleSpec::from_str(
+      "C:\\Rules\\Nested\\rule.yaml", "c:\\rules", source,
+    )
+    inspect(drive_rule.rule_id, content="Nested/ExampleCase")
+    let unc_rule = RawRuleSpec::from_str(
+      "\\\\Server\\Share\\Rules\\Deep\\rule.yml", "\\\\server\\share\\rules", source,
+    )
+    inspect(unc_rule.rule_id, content="Deep/ExampleCase")
+  }
+}
+
+///|
+test "model rejects Windows rule paths outside drive or UNC roots" {
+  if @path.sep == '\\' {
+    let cases = [
+      ("D:\\Rules\\rule.yaml", "C:\\Rules"),
+      ("\\\\server\\other-share\\rules\\rule.yaml", "\\\\server\\share\\rules"),
+      ("C:\\Rules\\..\\outside\\rule.yaml", "C:\\Rules"),
+    ]
+    for item in cases {
+      let (path, rules_root) = item
+      try
+        RawRuleSpec::from_str(path, rules_root, valid_structural_rule_source())
+      catch {
+        RuleLoadError::InvalidRule(path=actual, info~) => {
+          inspect(actual, content=path)
+          inspect(info, content="rule path is outside rules root \{rules_root}")
+        }
+        err => fail("unexpected error \{err}")
+      } noraise {
+        _ => fail("expected Windows cross-root rejection")
+      }
+    }
+  }
+}
+
+///|
 test "model parses taint rule and defaults sanitizers to empty" {
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/taint/user-input.yaml",
