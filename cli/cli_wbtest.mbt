@@ -66,7 +66,6 @@ test "cli args use default rules root" {
       assert_true(options.rule_file is None)
       expect_no_patterns(options)
       inspect(options.scan_root, content=".")
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -124,7 +123,6 @@ test "cli args parse rules root and default scan root" {
       expect_no_patterns(options)
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
       assert_false(options.no_color)
       assert_false(options.output_json)
     }
@@ -170,7 +168,6 @@ test "cli args parse single rule file and default scan root" {
       expect_no_patterns(options)
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -184,7 +181,6 @@ test "cli args parse explicit scan root" {
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -199,7 +195,6 @@ test "cli args parse scan verbose flag" {
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_true(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -232,7 +227,6 @@ test "cli args parse repeated scan exclude dirs before scan root" {
       inspect(options.scan_root, content="src")
       debug_inspect(options.exclude_dirs, content="[\"vendor\", \"generated\"]")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -253,7 +247,6 @@ test "cli args parse repeated scan exclude rules before scan root" {
         content="[\"target\", \"other\", \"third\", \"last\"]",
       )
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -275,7 +268,6 @@ test "cli args parse argparse option input forms" {
       expect_no_patterns(options)
       inspect(options.scan_root, content=".")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected inline command")
   }
@@ -285,7 +277,6 @@ test "cli args parse argparse option input forms" {
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected short command")
   }
@@ -302,7 +293,6 @@ test "cli args keep the last rules option" {
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -323,7 +313,6 @@ test "cli args parse anonymous patterns without rules root" {
       assert_eq(options.patterns[1].guards.length(), 0)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }
@@ -433,22 +422,14 @@ test "cli args reject multiple values after one exclude option" {
 }
 
 ///|
-test "cli args parse builtin rules flag without rules root" {
-  match parse_cli_command(["scan", "--enable-builtin-rules", "src"]) {
-    ("scan", Some(options), None) => {
-      assert_true(options.rules_root is None)
-      expect_no_patterns(options)
-      inspect(options.scan_root, content="src")
-      assert_true(options.enable_builtin_rules)
-    }
-    _ => fail("unexpected command")
-  }
+test "cli args reject scan builtin rules flag" {
+  expect_cli_usage(["scan", "--enable-builtin-rules", "src"], 2)
 }
 
 ///|
 test "cli args parse lint with builtin rules and default scan root" {
   match parse_cli_command(["lint"]) {
-    ("scan", Some(options), None) => {
+    ("lint", Some(options), None) => {
       assert_true(options.rules_root is None)
       assert_true(options.rule_file is None)
       expect_no_patterns(options)
@@ -456,7 +437,6 @@ test "cli args parse lint with builtin rules and default scan root" {
       assert_true(options.exclude_dirs.is_empty())
       assert_true(options.exclude_rules.is_empty())
       assert_false(options.verbose)
-      assert_true(options.enable_builtin_rules)
       assert_false(options.no_color)
       assert_false(options.output_json)
     }
@@ -476,7 +456,7 @@ test "cli args parse lint scan options in addition to builtin rules" {
       ],
       env={ "NO_COLOR": "1" },
     ) {
-    ("scan", Some(options), None) => {
+    ("lint", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       expect_rule_file(options, "custom-rules/example.yaml")
       assert_eq(options.patterns.length(), 1)
@@ -489,7 +469,6 @@ test "cli args parse lint scan options in addition to builtin rules" {
         content="[\"moonbitlang/match_option\"]",
       )
       assert_true(options.verbose)
-      assert_true(options.enable_builtin_rules)
       assert_true(options.no_color)
       assert_true(options.output_json)
     }
@@ -514,6 +493,7 @@ test "cli args render argparse help" {
   assert_false(lint_help.contains("--enable-builtin-rules"))
   assert_false(lint_help.contains("[default: ./.moongrep/rules]"))
   let scan_help = scan_command.render_help()
+  assert_false(scan_help.contains("--enable-builtin-rules"))
   assert_true(scan_help.contains("[default: ./.moongrep/rules]"))
 }
 
@@ -528,7 +508,6 @@ test "cli args from runtime drop executable name" {
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
       assert_false(options.verbose)
-      assert_false(options.enable_builtin_rules)
     }
     _ => fail("unexpected command")
   }

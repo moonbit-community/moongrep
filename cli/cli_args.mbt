@@ -14,7 +14,6 @@ pub(all) struct CliOptions {
   exclude_dirs : Array[String]
   exclude_rules : Array[String]
   verbose : Bool
-  enable_builtin_rules : Bool
   no_color : Bool
   output_json : Bool
 }
@@ -35,7 +34,6 @@ let default_rules_root : String = "./.moongrep/rules"
 fn scan_like_command(
   name : StringView,
   about : StringView,
-  include_enable_builtin_rules : Bool,
   default_rules_root_enabled : Bool,
   arg_required_else_help : Bool,
 ) -> @argparse.Command {
@@ -46,15 +44,6 @@ fn scan_like_command(
       about="Write loaded rule ids and traversal progress to stderr.",
     ),
   ]
-  if include_enable_builtin_rules {
-    flags.push(
-      FlagArg(
-        "enable-builtin-rules",
-        long="enable-builtin-rules",
-        about="Enable embedded builtin rules.",
-      ),
-    )
-  }
   flags.push(
     FlagArg(
       "output-json",
@@ -107,13 +96,12 @@ fn scan_like_command(
 
 ///|
 let scan_command : @argparse.Command = scan_like_command(
-  "scan", "Scan MoonBit source files.", true, true, false,
+  "scan", "Scan MoonBit source files.", true, false,
 )
 
 ///|
 let lint_command : @argparse.Command = scan_like_command(
   "lint", "Scan MoonBit source files with embedded builtin rules.", false, false,
-  false,
 )
 
 ///|
@@ -265,18 +253,15 @@ fn scan_cli_options(
   scan_matches : @argparse.Matches,
   env : Map[String, String],
   argv : Array[String],
-  enable_builtin_rules_by_default~ : Bool,
 ) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
-  let enable_builtin_rules = enable_builtin_rules_by_default ||
-    cli_flag_enabled(scan_matches.flags, "enable-builtin-rules")
   let output_json = cli_flag_enabled(scan_matches.flags, "output-json")
   let no_color = no_color_enabled(env)
   let parsed_rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
   let patterns = parse_scan_pattern_specs(argv)
   let rules_root = if scan_matches.sources.get("rules") is Some(Default) &&
-    (rule_file is Some(_) || !patterns.is_empty() || enable_builtin_rules) {
+    (rule_file is Some(_) || !patterns.is_empty()) {
     None
   } else {
     parsed_rules_root
@@ -285,15 +270,6 @@ fn scan_cli_options(
     all_cli_values(scan_matches.values, "exclude-dir"),
   )
   let exclude_rules = all_cli_values(scan_matches.values, "exclude-rule")
-  if rules_root is None &&
-    rule_file is None &&
-    patterns.is_empty() &&
-    !enable_builtin_rules {
-    raise CliError::Usage(
-      message="missing required --rules, --rule, --pattern, or --enable-builtin-rules",
-      exit_code=2,
-    )
-  }
   let scan_root = if last_cli_value(scan_matches.values, "scan-root")
     is Some(path) {
     path
@@ -308,7 +284,6 @@ fn scan_cli_options(
     exclude_dirs,
     exclude_rules,
     verbose,
-    enable_builtin_rules,
     no_color,
     output_json,
   }
@@ -438,8 +413,8 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// `--rules <rules-root>`, `--rules=<rules-root>`, and `-r <rules-root>` select
 /// a rules directory. When no rule source is given, the rules directory
 /// defaults to `./.moongrep/rules`. An explicit `--rule <rule-file>`, at least
-/// one `--pattern <pattern>`, or `--enable-builtin-rules` suppresses that
-/// default. `--verbose` and `--output-json` are optional.
+/// one `--pattern <pattern>` suppresses that default. `--verbose` and
+/// `--output-json` are optional.
 /// `lint` accepts the other scan options, enables builtin rules automatically,
 /// and defaults to scanning the current directory when no arguments are given.
 /// Each `--exclude-dir <dir>` skips one matching child directory name or path
@@ -466,31 +441,9 @@ pub fn parse_cli_command(
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      (
-        "scan",
-        Some(
-          scan_cli_options(
-            scan_matches,
-            env,
-            argv,
-            enable_builtin_rules_by_default=false,
-          ),
-        ),
-        None,
-      )
+      ("scan", Some(scan_cli_options(scan_matches, env, argv)), None)
     Some(("lint", lint_matches)) =>
-      (
-        "scan",
-        Some(
-          scan_cli_options(
-            lint_matches,
-            env,
-            argv,
-            enable_builtin_rules_by_default=true,
-          ),
-        ),
-        None,
-      )
+      ("lint", Some(scan_cli_options(lint_matches, env, argv)), None)
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise CliError::Usage(message="missing required command", exit_code=2)

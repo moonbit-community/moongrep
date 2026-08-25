@@ -8,7 +8,6 @@ fn stream_event_scan_options() -> CliOptions {
     exclude_dirs: ["ignored"],
     exclude_rules: [],
     verbose: true,
-    enable_builtin_rules: false,
     no_color: true,
     output_json: false,
   }
@@ -24,7 +23,6 @@ fn stream_order_scan_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: true,
     output_json: false,
   }
@@ -40,7 +38,6 @@ fn no_match_stream_options(output_json : Bool) -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: false,
-    enable_builtin_rules: false,
     no_color: true,
     output_json,
   }
@@ -56,7 +53,6 @@ fn parse_warning_stream_options() -> CliOptions {
     exclude_dirs: [],
     exclude_rules: [],
     verbose: true,
-    enable_builtin_rules: false,
     no_color: true,
     output_json: false,
   }
@@ -76,7 +72,6 @@ fn stream_options_with_format(
     exclude_dirs: options.exclude_dirs,
     exclude_rules: options.exclude_rules,
     verbose,
-    enable_builtin_rules: options.enable_builtin_rules,
     no_color: true,
     output_json,
   }
@@ -105,7 +100,7 @@ fn string_index_containing(items : Array[String], needle : String) -> Int {
 ///|
 async test "scan events stream before visiting later files" {
   let events : Array[String] = []
-  scan_events(stream_event_scan_options(), event => {
+  scan_events(Scan, stream_event_scan_options(), event => {
     events.push(scan_event_summary(event))
   })
   debug_inspect(
@@ -164,7 +159,7 @@ async test "scan events stream before visiting later files" {
 async test "stream order is DFS and buffered compatibility order is sorted" {
   let streamed_files : Array[String] = []
   let options = stream_order_scan_options()
-  scan_events(options, event => {
+  scan_events(Scan, options, event => {
     if event is Hit(hit) {
       streamed_files.push(hit.finding.file)
     }
@@ -175,7 +170,7 @@ async test "stream order is DFS and buffered compatibility order is sorted" {
       #|["testdata/stream-order/a/hit.mbt", "testdata/stream-order/a.mbt"]
     ),
   )
-  let buffered = collect_directory_hits(options)
+  let buffered = collect_directory_hits(Scan, options)
   let buffered_files : Array[String] = []
   for hit in buffered.hits {
     buffered_files.push(hit.finding.file)
@@ -192,7 +187,8 @@ async test "stream order is DFS and buffered compatibility order is sorted" {
 async test "human stream writes one complete chunk per hit" {
   let stdout_chunks : Array[String] = []
   let stderr_chunks : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     stream_order_scan_options(),
     output => stdout_chunks.push(output),
     output => stderr_chunks.push(output),
@@ -216,7 +212,8 @@ async test "stream writer is awaited before traversal resumes" {
     true,
     false,
   )
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     options,
     output => {
       let file = if output.contains("a/hit.mbt") { "nested" } else { "flat" }
@@ -239,7 +236,8 @@ async test "stream writer is awaited before traversal resumes" {
 async test "JSON stream writes one parseable line per hit" {
   let stdout_chunks : Array[String] = []
   let stderr_chunks : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     stream_options_with_format(stream_order_scan_options(), false, true),
     output => stdout_chunks.push(output),
     output => stderr_chunks.push(output),
@@ -259,7 +257,8 @@ async test "JSON stream writes one parseable line per hit" {
 async test "stream no-match output depends on format" {
   let human_stdout : Array[String] = []
   let human_stderr : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     no_match_stream_options(false),
     output => human_stdout.push(output),
     output => human_stderr.push(output),
@@ -268,7 +267,8 @@ async test "stream no-match output depends on format" {
   assert_true(human_stderr.is_empty())
   let json_stdout : Array[String] = []
   let json_stderr : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     no_match_stream_options(true),
     output => json_stdout.push(output),
     output => json_stderr.push(output),
@@ -281,7 +281,8 @@ async test "stream no-match output depends on format" {
 async test "stream diagnostics are written only to stderr" {
   let stdout_chunks : Array[String] = []
   let stderr_chunks : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     parse_warning_stream_options(),
     output => stdout_chunks.push(output),
     output => stderr_chunks.push(output),
@@ -306,7 +307,8 @@ async test "stream diagnostics are written only to stderr" {
 async test "skip payload warnings keep streaming and JSON stdout clean" {
   let human_stdout : Array[String] = []
   let human_stderr : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     stream_options_with_format(skip_scan_options(), false, false),
     output => human_stdout.push(output),
     output => human_stderr.push(output),
@@ -324,7 +326,8 @@ async test "skip payload warnings keep streaming and JSON stdout clean" {
   )
   let json_stdout : Array[String] = []
   let json_stderr : Array[String] = []
-  run_scan_command_with_writers(
+  run_scan_mode_command_with_writers(
+    Scan,
     stream_options_with_format(skip_scan_options(), false, true),
     output => json_stdout.push(output),
     output => json_stderr.push(output),

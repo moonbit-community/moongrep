@@ -53,6 +53,12 @@ priv enum ScanEvent {
 }
 
 ///|
+priv enum ScanMode {
+  Scan
+  Lint
+}
+
+///|
 priv struct BufferedScanHit {
   hit : ScanHit
   ordinal : Int
@@ -71,7 +77,25 @@ priv struct BufferedScanWarning {
 /// warnings-first layout. The executable uses `run_scan_command` so matches
 /// can be written as soon as they are found.
 pub async fn render_scan_command(options : CliOptions) -> String {
-  let result = collect_directory_hits(options)
+  render_scan_mode_command(Scan, options)
+}
+
+///|
+/// Runs a lint scan and renders its command-line output into one buffered
+/// string.
+///
+/// Builtin rules are loaded before any rule sources in `options`. This API has
+/// the same buffered output behavior as `render_scan_command`.
+pub async fn render_lint_command(options : CliOptions) -> String {
+  render_scan_mode_command(Lint, options)
+}
+
+///|
+async fn render_scan_mode_command(
+  mode : ScanMode,
+  options : CliOptions,
+) -> String {
+  let result = collect_directory_hits(mode, options)
   if options.output_json {
     let warnings = render_scan_warnings(result.warnings)
     if warnings != "" {
@@ -85,10 +109,11 @@ pub async fn render_scan_command(options : CliOptions) -> String {
 
 ///|
 async fn scan_events(
+  mode : ScanMode,
   options : CliOptions,
   receive : async (ScanEvent) -> Unit,
 ) -> Unit {
-  let compiled_rules = prepare_scan_rules(options)
+  let compiled_rules = prepare_scan_rules(mode, options)
   let scan_plan = @rule_apply.ScanPlan::from_rules(compiled_rules)
   if options.verbose {
     for rule in compiled_rules {
@@ -107,19 +132,23 @@ async fn scan_events(
 
 ///|
 async fn prepare_scan_rules(
+  mode : ScanMode,
   options : CliOptions,
 ) -> Array[@rule_model.CompiledRule] {
-  let raw_rules = load_scan_rules(options)
+  let raw_rules = load_scan_rules(mode, options)
   let enabled_rules = exclude_scan_rules(raw_rules, options.exclude_rules)
   @rule_compile.compile_rules(enabled_rules)
 }
 
 ///|
-async fn collect_directory_hits(options : CliOptions) -> DirectoryScanResult {
+async fn collect_directory_hits(
+  mode : ScanMode,
+  options : CliOptions,
+) -> DirectoryScanResult {
   let scan_trace : Array[String] = []
   let buffered_hits : Array[BufferedScanHit] = []
   let buffered_warnings : Array[BufferedScanWarning] = []
-  scan_events(options, event => {
+  scan_events(mode, options, event => {
     match event {
       Trace(message) => scan_trace.push(message)
       Warning(warning) =>
@@ -278,10 +307,11 @@ fn source_context_for_location(
 
 ///|
 async fn load_scan_rules(
+  mode : ScanMode,
   options : CliOptions,
 ) -> Array[@rule_model.RawRuleSpec] {
   let raw_rules : Array[@rule_model.RawRuleSpec] = []
-  if options.enable_builtin_rules {
+  if mode is Lint {
     raw_rules.append(@rule_builtin.load_rules())
   }
   if options.rules_root is Some(rules_root) {
