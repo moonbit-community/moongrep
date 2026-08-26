@@ -5,7 +5,7 @@ the stable rule order, each selected report range, and the explanatory
 diagnostic shown with each match.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- lint testdata/builtin-rules-all
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint testdata/builtin-rules-all
 testdata/builtin-rules-all/catch_all.mbt:3:3-5:4
 rule: moonbitlang/catch_all
 description:
@@ -144,7 +144,7 @@ record preserves the rule description, report range, matched source, and
 annotated source context from the human-readable result.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- lint --output-json testdata/builtin-rules-all
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --output-json testdata/builtin-rules-all
 {"file":"testdata/builtin-rules-all/catch_all.mbt","rule_id":"moonbitlang/catch_all","description":"Single catch arm handles every error, which can hide unexpected failures.\nPrefer matching only the specific error cases that can be recovered from.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"try risky() catch {\n    _ => recover()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"async fn catches_everything(_) -> Unit {","is_match":false},{"line":3,"text":"  try risky() catch {","is_match":true},{"line":4,"text":"    _ => recover()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
 {"file":"testdata/builtin-rules-all/match_option.mbt","rule_id":"moonbitlang/match_option","description":"Found an Option value handled with match over Some and None.\nPrefer if + is for simple Option checks.","range":{"start":{"line":3,"column":3},"end":{"line":11,"column":4}},"matched_source":"match value {\n    Some(inner) => {\n      let prepared = prepare(inner)\n      let validated = validate(prepared)\n      let normalized = normalize(validated)\n      finish(normalized)\n    }\n    None => false\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn option_match(value : Int?) -> Bool {","is_match":false},{"line":3,"text":"  match value {","is_match":true},{"line":4,"text":"    Some(inner) => {","is_match":true},{"line":5,"text":"      let prepared = prepare(inner)","is_match":true},{"line":6,"text":"      let validated = validate(prepared)","is_match":true},{"line":7,"text":"      let normalized = normalize(validated)","is_match":true},{"line":8,"text":"      finish(normalized)","is_match":true},{"line":9,"text":"    }","is_match":true},{"line":10,"text":"    None => false","is_match":true},{"line":11,"text":"  }","is_match":true},{"line":12,"text":"}","is_match":false}]}
 {"file":"testdata/builtin-rules-all/inspect_number.mbt","rule_id":"moonbitlang/inspect_number","description":"Found inspect() snapshots whose expected value is a plain number.\nPrefer numeric assertions for numeric checks.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":26}},"matched_source":"inspect(1, content=\"1\")","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn number_snapshot() -> Unit {","is_match":false},{"line":3,"text":"  inspect(1, content=\"1\")","is_match":true},{"line":4,"text":"}","is_match":false}]}
@@ -163,7 +163,7 @@ This focused fixture checks several async signatures and includes a synchronous
 function with the same catch expression to make sure it is not reported.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- lint --output-json testdata/builtin-catch-all-variants | sed -n 's/.*"rule_id":"\([^"]*\)".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*/\1 \2:\3/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --output-json testdata/builtin-catch-all-variants | sed -n 's/.*"rule_id":"\([^"]*\)".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*/\1 \2:\3/p'
 moonbitlang/catch_all 3:3
 moonbitlang/catch_all 7:3
 moonbitlang/catch_all 11:3
@@ -177,7 +177,7 @@ values using `+`, `-`, `*`, or `/`, including both operand orders supported for
 commutative operators and compound expressions in the other operand.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- lint --output-json testdata/builtin-simplifiable-assignment-variants/positive.mbt | sed -n 's#.*"rule_id":"moonbitlang/simplifiable_assignment".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*"matched_source":"\([^"]*\)".*#\1:\2 \3#p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --output-json testdata/builtin-simplifiable-assignment-variants/positive.mbt | sed -n 's#.*"rule_id":"moonbitlang/simplifiable_assignment".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*"matched_source":"\([^"]*\)".*#\1:\2 \3#p'
 14:3 add_left = add_left + step * 2
 16:3 add_right = step * 2 + add_right
 18:3 subtract = subtract - step
@@ -204,6 +204,42 @@ indexed targets, different field receivers or indexed collections, reversed
 this rule.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- lint --output-json testdata/builtin-simplifiable-assignment-variants/negative.mbt | sed -n 's#"rule_id":"moonbitlang/simplifiable_assignment"#&#p' | wc -l
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --output-json testdata/builtin-simplifiable-assignment-variants/negative.mbt | sed -n 's#"rule_id":"moonbitlang/simplifiable_assignment"#&#p' | wc -l
 0
+```
+
+## moongrep lint builtin rules
+
+Linting without a separate rule directory reports every embedded rule that
+matches the fixture. The default human-readable output includes locations,
+rule metadata, and source context.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint testdata/builtin-rules
+testdata/builtin-rules/hit.mbt:3:3-3:26
+rule: moonbitlang/inspect_number
+description:
+  Found inspect() snapshots whose expected value is a plain number.
+  Prefer numeric assertions for numeric checks.
+source:
+1 | ///|
+2 | fn has_builtin_hits(value : Int?) -> Unit {
+3 >   inspect(1, content="1")
+4 |   assert_true(
+5 |     match value {
+
+testdata/builtin-rules/hit.mbt:5:5-8:6
+rule: moonbitlang/match_option
+description:
+  Found an Option value handled with match over Some and None.
+  Prefer if + is for simple Option checks.
+source:
+ 3 |   inspect(1, content="1")
+ 4 |   assert_true(
+ 5 >     match value {
+ 6 >       Some(inner) => inner > 0
+ 7 >       None => false
+ 8 >     },
+ 9 |   )
+10 | }
 ```
