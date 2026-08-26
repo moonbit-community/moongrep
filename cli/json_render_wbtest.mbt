@@ -57,7 +57,7 @@ test "json scan finding uses the compact range schema" {
 }
 
 ///|
-test "matched source follows multiline UTF-16 locations" {
+test "matched source follows multiline Unicode code point locations" {
   let source =
     #|fn sample {
     #|  😀 target(
@@ -68,7 +68,7 @@ test "matched source follows multiline UTF-16 locations" {
   inspect(
     matched_source_for_location(
       cache_source_lines(source),
-      render_test_location(2, 6, 4, 4),
+      render_test_location(2, 5, 4, 4),
     ),
     content=(
       #|target(

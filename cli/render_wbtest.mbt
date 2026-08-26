@@ -113,8 +113,8 @@ test "matched expression highlighting follows multiline location columns" {
 }
 
 ///|
-test "matched expression highlighting uses UTF-16 location offsets" {
-  let match_loc = render_test_location(7, 6, 7, 14)
+test "matched expression highlighting uses Unicode code point columns" {
+  let match_loc = render_test_location(7, 5, 7, 13)
   inspect(
     render_source_context_line(
       { line_number: 7, text: "  \u{1f600} target()", is_match: true },
