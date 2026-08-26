@@ -310,7 +310,7 @@ A standalone ellipsis is an expression position rather than an item inside an
 ordered CST list, so it is rejected during rule validation.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 $$$items: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [5]
 ```
@@ -319,19 +319,19 @@ Grouping parentheses do not make their single contents a replaceable ordered
 list. Bare, typed, and nested grouped ellipses are rejected.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '($$$items)' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '($$$items)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 ($$$items): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [5]
 ```
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '($$$(values:exp))' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '($$$(values:exp))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 ($$$(values:exp)): patterns[0].shape uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item
 [5]
 ```
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '(($$$items))' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '(($$$items))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 (($$$items)): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [5]
 ```
@@ -340,7 +340,7 @@ Embedding an ellipsis inside a larger arithmetic expression also makes it only
 part of a list item and is invalid.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'wrap($$$items + 1)' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'wrap($$$items + 1)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 wrap($$$items + 1): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [5]
 ```
@@ -349,7 +349,7 @@ A labelled argument value is not an unnamed argument item. An ellipsis cannot
 be used as only the value of that labelled argument.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'sink(label=$$$items)' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'sink(label=$$$items)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 sink(label=$$$items): patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [5]
 ```
@@ -358,7 +358,7 @@ The final expression of a block is not a replaceable statement sequence. A
 bare ellipsis in that position must therefore be rejected.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'if condition { $$$items }' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'if condition { $$$items }' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 if condition { $$$items }: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
 [5]
 ```
@@ -368,7 +368,7 @@ Malformed spellings and unsupported kinds are rejected.
 An ellipsis needs either a name or the explicit anonymous spelling `$$$_`.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$)' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 inspect($$$): patterns[0].shape has invalid metavar syntax $$; use explicit typed syntax like $(value:exp)
 [5]
 ```
@@ -377,7 +377,7 @@ Parenthesized ellipsis syntax must include a kind after the name; an untyped
 `$$$(items)` form is not accepted.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$(items))' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$(items))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 inspect($$$(items)): patterns[0].shape has invalid metavar syntax $$$(items); use explicit typed syntax like $(value:exp)
 [5]
 ```
@@ -386,7 +386,7 @@ Typed ellipses validate their kind names and report an unsupported kind before
 the scan starts.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$(items:unknown))' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$(items:unknown))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 inspect($$$(items:unknown)): patterns[0].shape contains unsupported ellipsis metavar kind unknown
 [5]
 ```
@@ -397,7 +397,7 @@ A call argument list cannot contain a `type` ellipsis because its items are
 arguments, not types.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'sink($$$(items:type))' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'sink($$$(items:type))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 sink($$$(items:type)): patterns[0].shape uses ellipsis kind type in an incompatible ordered-list item position
 [5]
 ```
@@ -406,7 +406,7 @@ A function parameter list cannot contain an `exp` ellipsis because parameters
 are not expression items.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'fn($$$(items:exp)) { body }' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'fn($$$(items:exp)) { body }' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 fn($$$(items:exp)) { body }: patterns[0].shape uses ellipsis kind exp in an incompatible ordered-list item position
 [5]
 ```
@@ -415,7 +415,7 @@ An array pattern list likewise rejects an `exp` ellipsis and requires a pattern
 compatible kind.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'match input { [$$$(items:exp)] => body }' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'match input { [$$$(items:exp)] => body }' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 match input { [$$$(items:exp)] => body }: patterns[0].shape uses ellipsis kind exp in an incompatible ordered-list item position
 [5]
 ```
@@ -426,7 +426,7 @@ One name cannot refer to both a single-node metavariable and an ellipsis
 sequence within the same rule.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'pair($items, [$$$items])' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'pair($items, [$$$items])' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 pair($items, [$$$items]): patterns[0].shape cannot use items as both an ellipsis metavar and a single-node metavar
 [5]
 ```
@@ -434,7 +434,7 @@ pair($items, [$$$items]): patterns[0].shape cannot use items as both an ellipsis
 Repeated declarations of a named ellipsis must use the same kind.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'pair([$$$(items:exp)], [$$$(items:id)])' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'pair([$$$(items:exp)], [$$$(items:id)])' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 pair([$$$(items:exp)], [$$$(items:id)]): patterns[0].shape declares ellipsis metavar items as multiple metavar kinds
 [5]
 ```
@@ -443,7 +443,7 @@ pair([$$$(items:exp)], [$$$(items:id)]): patterns[0].shape declares ellipsis met
 cannot be declared as an ellipsis name.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$__TARGET__)' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$__TARGET__)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 inspect($$$__TARGET__): patterns[0] cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal
 [5]
 ```
@@ -452,7 +452,7 @@ inspect($$$__TARGET__): patterns[0] cannot declare metavar __TARGET__ because it
 same reason.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$__SOURCE__)' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$__SOURCE__)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 inspect($$$__SOURCE__): patterns[0] cannot declare metavar __SOURCE__ because it is reserved for taint source targets
 [5]
 ```
@@ -461,7 +461,7 @@ Regex guards operate on single captured nodes, not ordered node sequences, so
 they cannot refer to an ellipsis metavariable.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$args)' --guard '{$args: ".+"}' testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$args)' --guard '{$args: ".+"}' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 inspect($$$args): patterns[0].guard.$args cannot reference ellipsis metavar args
 [5]
 ```
@@ -472,7 +472,7 @@ Reusing an inherited ellipsis with a different typed kind would change its
 capture contract and is rejected while loading the rule.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-kind.yaml testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-kind.yaml testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 testdata/ellipsis/invalid/inside-kind.yaml: patterns[0] cannot use inherited inside-expr[0] ellipsis metavar items with a different kind
 [5]
 ```
@@ -481,7 +481,7 @@ An inherited ellipsis also cannot be narrowed to a single-node metavariable in
 the target pattern.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-single.yaml testdata/ellipsis/sample.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-single.yaml testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 testdata/ellipsis/invalid/inside-single.yaml: patterns[0] cannot use inherited inside-expr[0] ellipsis metavar items as exp
 [5]
 ```
