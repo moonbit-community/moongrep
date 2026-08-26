@@ -6,7 +6,7 @@ The top-level help introduces the command, lists every subcommand, and shows
 the global help option.
 
 ```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- help
+$ moonrun "$TESTDIR/moongrep.wasm" -- help
 Usage: moongrep <command>
 
 Scan MoonBit source files with structural and taint rules.
@@ -27,7 +27,7 @@ Options:
 The docs registry lists the English rule and CLI specifications in that order.
 
 ```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- docs --list
+$ moonrun "$TESTDIR/moongrep.wasm" -- docs --list
 RuleSpec	YAML rule keys, validation, and matcher semantics.
 CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
 ```
@@ -37,7 +37,7 @@ CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
 The lint help lists the options accepted by `lint`.
 
 ```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- lint --help
+$ moonrun "$TESTDIR/moongrep.wasm" -- lint --help
 Usage: moongrep lint [options] [scan-root]
 
 Scan MoonBit source files with embedded builtin rules.
@@ -63,7 +63,7 @@ The scan help documents the scan root together with every rule source,
 filtering, output, and traversal option accepted by the scanner.
 
 ```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- scan --help
+$ moonrun "$TESTDIR/moongrep.wasm" -- scan --help
 Usage: moongrep scan [options] [scan-root]
 
 Scan MoonBit source files.
@@ -89,7 +89,7 @@ The dump help exposes separate inputs for parsing a top-level implementation
 item and a single expression.
 
 ```mooncram
-$ moonrun "$TESTDIR"/moongrep.wasm -- dump --help
+$ moonrun "$TESTDIR/moongrep.wasm" -- dump --help
 Usage: moongrep dump [options]
 
 Parse a MoonBit impl or expression and print untyped CST debug output.
