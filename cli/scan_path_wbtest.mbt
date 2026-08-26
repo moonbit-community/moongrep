@@ -8,15 +8,6 @@ fn native_scan_test_path(path : String) -> String {
 }
 
 ///|
-fn native_scan_test_debug_text(text : String) -> String {
-  if scan_uses_windows_paths() {
-    text.replace_all(old="/", new="\\\\")
-  } else {
-    text
-  }
-}
-
-///|
 test "scan path helpers follow the host path flavor" {
   if scan_uses_windows_paths() {
     inspect(

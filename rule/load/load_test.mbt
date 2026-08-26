@@ -8,15 +8,6 @@ fn native_rule_test_path(path : String) -> String {
 }
 
 ///|
-fn native_rule_test_debug_text(text : String) -> String {
-  if @path.sep == '\\' {
-    text.replace_all(old="/", new="\\\\")
-  } else {
-    text
-  }
-}
-
-///|
 async test "load single rule file derives rule id from yaml id" {
   let rule_file = if @path.sep == '\\' {
     ".\\testdata/recursive-rule-discovery-rules\\nested\\.\\b.yml"
@@ -47,16 +38,11 @@ async test "load rule directory normalizes traversal paths and keeps slash ids" 
     ids.push(rule.rule_id)
     paths.push(rule.path)
   }
-  debug_inspect(ids, content="[\"example\", \"nested/example\"]")
-  debug_inspect(
-    paths,
-    content=native_rule_test_debug_text(
-      (
-        #|[
-        #|  "testdata/recursive-rule-discovery-rules/a.yaml",
-        #|  "testdata/recursive-rule-discovery-rules/nested/b.yml",
-        #|]
-      ),
+  assert_eq(ids, ["example", "nested/example"])
+  assert_eq(paths, [
+    native_rule_test_path("testdata/recursive-rule-discovery-rules/a.yaml"),
+    native_rule_test_path(
+      "testdata/recursive-rule-discovery-rules/nested/b.yml",
     ),
-  )
+  ])
 }
