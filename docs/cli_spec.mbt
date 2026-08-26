@@ -361,8 +361,10 @@ let _embed_clispec_md : String =
   #|remaining description line is indented by two spaces. An empty description
   #|still produces one indented empty line.
   #|
-  #|Locations use 1-based line and UTF-16 column numbers. The start is inclusive
-  #|and the end is exclusive.
+  #|Locations use 1-based line and Unicode code point column numbers. A non-BMP
+  #|character such as an emoji counts as one column. Combining marks count as
+  #|separate columns rather than being grouped into grapheme clusters. The start is
+  #|inclusive and the end is exclusive.
   #|
   #|### Source Context and Long Matches
   #|
@@ -415,8 +417,9 @@ let _embed_clispec_md : String =
   #|
   #|### Coordinates and Source Text
   #|
-  #|JSON range coordinates are the same 1-based UTF-16 coordinates used by human
-  #|output. `range.start` is inclusive and `range.end` is exclusive.
+  #|JSON range coordinates use the same 1-based Unicode code point columns as human
+  #|output, including the non-BMP and combining-mark rules above. `range.start` is
+  #|inclusive and `range.end` is exclusive.
   #|
   #|`matched_source` is the exact source slice covered by that range.
   #|`source_context` contains the same two-line-before and two-line-after window
