@@ -307,15 +307,16 @@ found. Human mode writes `no match hits` for a scan with zero findings. JSON
 mode leaves standard output empty for the same scan.
 
 Help, embedded documentation, and dump output are also written to standard
-output. Command-line usage diagnostics, unknown-document diagnostics, dump
-parse diagnostics, and propagated rule-loading, rule-compilation, filesystem,
-or other runtime diagnostics are rendered as ordinary command text on standard
-output by the current native and WebAssembly frontends.
+output.
 
 ### Standard Error and Verbose Events
 
-Scan parse warnings and invalid-`#moongrep.skip` warnings are always written to
-standard error. `--verbose` adds these standard-error events:
+Every failure diagnostic that terminates the command with a nonzero status is
+written to standard error. This includes command-line usage, unknown-document,
+dump parse, rule-loading, rule-compilation, filesystem, output, and unexpected
+runtime diagnostics. Scan parse warnings and invalid-`#moongrep.skip` warnings
+are also always written to standard error. `--verbose` adds these standard-error
+events:
 
 - `moongrep scan: loaded rule <id>` for each enabled compiled rule, before
   traversal starts;
@@ -549,7 +550,8 @@ returns status 0.
 ### Exit Status 7
 
 Status 7 means writing standard output or standard error failed, including a
-broken pipe. If writing an original failure diagnostic also fails, status 7
-takes precedence over that failure's normal status. Findings already written
-by a streaming scan are not withdrawn when a later write or scan-input failure
-occurs.
+broken pipe. If writing an original failure diagnostic to standard error also
+fails, status 7 takes precedence over that failure's normal status and the
+frontend does not retry the diagnostic on standard output. Findings already
+written by a streaming scan are not withdrawn when a later write or scan-input
+failure occurs.
