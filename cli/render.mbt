@@ -151,30 +151,17 @@ fn render_highlighted_match_text(
   line : SourceContextLine,
   match_loc : @basic.Location,
 ) -> String {
-  let raw_start = if line.line_number == match_loc.start.lnum {
-    match_loc.start.column() - 1
+  let start = if line.line_number == match_loc.start.lnum {
+    utf16_index_for_unicode_column(line.text[:], match_loc.start.column())
   } else {
     0
   }
   let raw_end = if line.line_number == match_loc.end.lnum {
-    match_loc.end.column() - 1
+    utf16_index_for_unicode_column(line.text[:], match_loc.end.column())
   } else {
     line.text.length()
   }
-  let start = if raw_start < 0 {
-    0
-  } else if raw_start > line.text.length() {
-    line.text.length()
-  } else {
-    raw_start
-  }
-  let end = if raw_end < start {
-    start
-  } else if raw_end > line.text.length() {
-    line.text.length()
-  } else {
-    raw_end
-  }
+  let end = if raw_end < start { start } else { raw_end }
   if start == end {
     line.text
   } else {

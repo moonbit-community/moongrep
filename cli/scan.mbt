@@ -240,13 +240,13 @@ fn make_scan_hit(
 }
 
 ///|
-fn clamp_source_index(index : Int, length : Int) -> Int {
-  if index < 0 {
+fn utf16_index_for_unicode_column(line : StringView, column : Int) -> Int {
+  if column <= 1 {
     0
-  } else if index > length {
-    length
-  } else {
+  } else if line.offset_of_nth_char(column - 1) is Some(index) {
     index
+  } else {
+    line.length()
   }
 }
 
@@ -276,11 +276,11 @@ fn matched_source_for_location(
   }
   let start_line = source_lines.lines[loc.start.lnum - 1]
   let end_line = source_lines.lines[loc.end.lnum - 1]
-  let start_index = clamp_source_index(
-    loc.start.column() - 1,
-    start_line.length(),
+  let start_index = utf16_index_for_unicode_column(
+    start_line,
+    loc.start.column(),
   )
-  let end_index = clamp_source_index(loc.end.column() - 1, end_line.length())
+  let end_index = utf16_index_for_unicode_column(end_line, loc.end.column())
   if loc.start.lnum == loc.end.lnum {
     if end_index < start_index {
       ""
