@@ -44,9 +44,9 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
   testing, so when your changes indeed change the behavior of the code, you
   should run `moon test --update` to update the snapshot.
 
-- Run `bash scripts/e2e.sh test` to check the e2etest suite. 
+- Run `node scripts/e2e.mjs test` to check the e2etest suite.
 
-- Run `bash scripts/e2e.sh update --replace -y` to update the e2etest cram snapshots when the
+- Run `node scripts/e2e.mjs update --replace -y` to update the e2etest cram snapshots when the
   expected output changes.
 
 - You can run `moon check` to check the code is linted correctly.

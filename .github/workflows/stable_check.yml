@@ -44,25 +44,4 @@ jobs:
         run: moon test --target all
 
       - name: e2e test
-        if: runner.os != 'Windows'
-        shell: bash
-        run: bash scripts/e2e.sh test
-
-      - name: Windows wasm CLI smoke test
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          moon build --release --target wasm
-          $env:NO_COLOR = '1'
-          $artifact = Join-Path $PWD "_build\wasm\release\build\moongrep.wasm"
-          $output = @(& moonrun $artifact -- scan --rules '.\e2etests\rules\structural' --exclude 'IGNORED\' --exclude '.\testdata\exclude-dirs\GENERATED\' --exclude 'EXCLUDED.MBT' '.\testdata\exclude-dirs')
-          if ($LASTEXITCODE -ne 0) {
-            $output | ForEach-Object { Write-Output $_ }
-            throw "moongrep smoke test failed with exit code $LASTEXITCODE"
-          }
-          $output | ForEach-Object { Write-Output $_ }
-          $findings = @($output | Where-Object { $_ -match '\.mbt:\d+:\d+-\d+:\d+$' })
-          $expected = 'testdata\exclude-dirs\hit.mbt:1:13-1:21'
-          if ($findings.Count -ne 1 -or $findings[0] -ne $expected) {
-            throw "expected only '$expected', got: $($findings -join '; ')"
-          }
+        run: node scripts/e2e.mjs test
