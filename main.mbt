@@ -7,7 +7,7 @@ fn runtime_exit(code : Int) -> Unit = "wasi_snapshot_preview1" "proc_exit"
 extern "c" fn runtime_exit(code : Int) -> Unit = "exit"
 
 ///|
-async fn write_raw_cli_output(output : String) -> Unit {
+async fn write_raw_cli_stdout(output : String) -> Unit {
   if output != "" {
     if output.strip_suffix("\n") is Some(_) {
       @stdio.stdout.write(output)
@@ -18,8 +18,19 @@ async fn write_raw_cli_output(output : String) -> Unit {
 }
 
 ///|
-async fn write_cli_output(output : String) -> Unit {
-  write_raw_cli_output(output) catch {
+async fn write_raw_cli_stderr(output : String) -> Unit {
+  if output != "" {
+    if output.strip_suffix("\n") is Some(_) {
+      @stdio.stderr.write(output)
+    } else {
+      @stdio.stderr.write(output + "\n")
+    }
+  }
+}
+
+///|
+async fn write_cli_stdout(output : String) -> Unit {
+  write_raw_cli_stdout(output) catch {
     @os_error.OSError(_) as err => raise @cli.CliError::Output(message="\{err}")
     err => raise err
   }
@@ -28,7 +39,7 @@ async fn write_cli_output(output : String) -> Unit {
 ///|
 async fn exit_with_cli_error(error : @cli.CliError) -> Unit {
   let exit_code = error.exit_code()
-  write_raw_cli_output("\{error}") catch {
+  write_raw_cli_stderr("\{error}") catch {
     @os_error.OSError(_) => runtime_exit(7)
     err => raise err
   }
@@ -45,9 +56,9 @@ async fn run_cli() -> Unit {
     ("scan", Some(options), None) => @cli.run_scan_command(options)
     ("lint", Some(options), None) => @cli.run_lint_command(options)
     ("docs-list", None, None) | ("docs-show", None, Some(_)) =>
-      write_cli_output(@cli.render_docs_command(command))
+      write_cli_stdout(@cli.render_docs_command(command))
     ("dump-impl", None, Some(_)) | ("dump-expr", None, Some(_)) =>
-      write_cli_output(@cli.render_dump_command(command))
+      write_cli_stdout(@cli.render_dump_command(command))
     _ => raise @cli.CliError::Internal(message="invalid CLI command")
   }
 }

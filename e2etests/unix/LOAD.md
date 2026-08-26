@@ -47,7 +47,7 @@ An existing rule directory with no YAML files is rejected before scanning and
 returns rule-source status 4 with a direct diagnostic.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/recursive-rule-discovery-src
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/recursive-rule-discovery-src 2>&1 >/dev/null
 testdata/empty-rule-root: no YAML rule files found
 [4]
 ```

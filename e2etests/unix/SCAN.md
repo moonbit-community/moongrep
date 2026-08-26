@@ -441,7 +441,7 @@ A disabled id must refer to a loaded rule. An unknown id is a command-line
 error and returns exit status 2.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules e2etests/rules/prefilter --disable missing testdata/prefilter-impl
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules e2etests/rules/prefilter --disable missing testdata/prefilter-impl 2>&1 >/dev/null
 unknown rule id in --disable: missing
 [2]
 ```
