@@ -21,7 +21,7 @@ test "cli error categories have fixed exit codes and plain messages" {
     Output(message="message"),
   ]
   let exit_codes = errors.map(error => error.exit_code())
-  debug_inspect(exit_codes, content="[1, 2, 3, 4, 5, 6, 7]")
+  assert_eq(exit_codes, [1, 2, 3, 4, 5, 6, 7])
   for error in errors {
     inspect("\{error}", content="message")
   }
@@ -243,7 +243,7 @@ test "cli args parse repeated scan excludes before scan root" {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
-      debug_inspect(options.excludes, content="[\"vendor\", \"generated.mbt\"]")
+      assert_eq(options.excludes, ["vendor", "generated.mbt"])
       assert_false(options.verbose)
     }
     _ => fail("unexpected command")
@@ -260,10 +260,7 @@ test "cli args parse repeated scan disabled rules before scan root" {
     ("scan", Some(options), None) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
-      debug_inspect(
-        options.disabled_rules,
-        content="[\"target\", \"other\", \"third\", \"last\"]",
-      )
+      assert_eq(options.disabled_rules, ["target", "other", "third", "last"])
       assert_false(options.verbose)
     }
     _ => fail("unexpected command")
@@ -487,11 +484,8 @@ test "cli args parse lint scan options in addition to builtin rules" {
       expect_pattern_shape(options, 0, "$(callee:id)()")
       expect_pattern_guard(options, 0, "$callee", "^safe_")
       inspect(options.scan_root, content="src")
-      debug_inspect(options.excludes, content="[\"vendor\"]")
-      debug_inspect(
-        options.disabled_rules,
-        content="[\"moonbitlang/match_option\"]",
-      )
+      assert_eq(options.excludes, ["vendor"])
+      assert_eq(options.disabled_rules, ["moonbitlang/match_option"])
       assert_true(options.verbose)
       assert_true(options.no_color)
       assert_true(options.output_json)

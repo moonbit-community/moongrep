@@ -339,10 +339,7 @@ async test "scan enforces moongrep skip structural and taint contract" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(
-    summaries,
-    content="[\"structural:9\", \"structural:21\", \"taint:28\"]",
-  )
+  assert_eq(summaries, ["structural:9", "structural:21", "taint:28"])
   inspect(
     render_scan_warnings(result.warnings),
     content=native_scan_test_path(
@@ -370,10 +367,7 @@ async test "scan excludes configured file and directory entries" {
   for hit in result.hits {
     summaries.push(hit.finding.file)
   }
-  debug_inspect(
-    summaries,
-    content=native_scan_test_debug_text("[\"testdata/exclude-dirs/hit.mbt\"]"),
-  )
+  assert_eq(summaries, [native_scan_test_path("testdata/exclude-dirs/hit.mbt")])
   assert_true(
     string_array_contains(
       result.scan_trace,
@@ -407,10 +401,7 @@ async test "scan does not apply excludes to the explicit scan root" {
   for hit in result.hits {
     files.push(hit.finding.file)
   }
-  debug_inspect(
-    files,
-    content=native_scan_test_debug_text("[\"testdata/exclude-dirs/hit.mbt\"]"),
-  )
+  assert_eq(files, [native_scan_test_path("testdata/exclude-dirs/hit.mbt")])
 }
 
 ///|
@@ -420,7 +411,7 @@ async test "scan loads only the configured single rule file" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"example:4\"]")
+  assert_eq(summaries, ["example:4"])
 }
 
 ///|
@@ -430,7 +421,7 @@ async test "scan anonymous guarded pattern filters matches" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"$(callee:id)($(value:const)):2\"]")
+  assert_eq(summaries, ["$(callee:id)($(value:const)):2"])
 }
 
 ///|
@@ -440,7 +431,7 @@ async test "scan plan keeps block level prefilter distribution" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"target:2\", \"other:6\"]")
+  assert_eq(summaries, ["target:2", "other:6"])
 }
 
 ///|
@@ -453,7 +444,7 @@ async test "scan does not parse unmatched source blocks" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"target:6\"]")
+  assert_eq(summaries, ["target:6"])
   assert_true(result.warnings.is_empty())
 }
 
@@ -464,7 +455,7 @@ async test "scan isolates matching source block parse failures" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"other:3\", \"target:10\"]")
+  assert_eq(summaries, ["other:3", "target:10"])
   guard result.warnings is [Parse(skipped)] else {
     fail("expected one skipped source block")
   }
@@ -485,19 +476,14 @@ async test "scan disables configured rule ids before planning" {
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
-  debug_inspect(summaries, content="[\"other:6\"]")
-  debug_inspect(
-    result.scan_trace,
-    content=native_scan_test_debug_text(
-      (
-        #|[
-        #|  "moongrep scan: loaded rule other",
-        #|  "moongrep scan: entering testdata/prefilter-impl",
-        #|  "moongrep scan: file testdata/prefilter-impl/hits.mbt",
-        #|]
-      ),
+  assert_eq(summaries, ["other:6"])
+  assert_eq(result.scan_trace, [
+    "moongrep scan: loaded rule other",
+    native_scan_test_path("moongrep scan: entering testdata/prefilter-impl"),
+    native_scan_test_path(
+      "moongrep scan: file testdata/prefilter-impl/hits.mbt",
     ),
-  )
+  ])
 }
 
 ///|
@@ -585,26 +571,14 @@ async test "scan classifies rule source, rule content, and scan input failures" 
 ///|
 async test "scan verbose lists loaded rule ids before traversal" {
   let result = collect_directory_hits(Scan, verbose_rules_scan_options())
-  debug_inspect(
-    result.scan_trace,
-    content=if scan_uses_windows_paths() {
-      (
-        #|[
-        #|  "moongrep scan: loaded rule example",
-        #|  "moongrep scan: loaded rule nested/example",
-        #|  "moongrep scan: entering testdata\\recursive-rule-discovery-src",
-        #|  "moongrep scan: file testdata\\recursive-rule-discovery-src\\hits.mbt",
-        #|]
-      )
-    } else {
-      (
-        #|[
-        #|  "moongrep scan: loaded rule example",
-        #|  "moongrep scan: loaded rule nested/example",
-        #|  "moongrep scan: entering testdata/recursive-rule-discovery-src",
-        #|  "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
-        #|]
-      )
-    },
-  )
+  assert_eq(result.scan_trace, [
+    "moongrep scan: loaded rule example",
+    "moongrep scan: loaded rule nested/example",
+    native_scan_test_path(
+      "moongrep scan: entering testdata/recursive-rule-discovery-src",
+    ),
+    native_scan_test_path(
+      "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
+    ),
+  ])
 }
