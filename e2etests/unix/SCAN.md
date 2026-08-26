@@ -68,6 +68,17 @@ source:
 3 | }
 ```
 
+## Known non-BMP source crash
+
+This is an intentionally failing regression test. The current implementation
+crashes while extracting the matched source because the range ends on a line
+containing non-BMP characters. Once that crash is fixed, the scan should
+complete successfully.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'let $(name:id) = $(value:exp)' testdata/scan-non-bmp/tmp.mbt > /dev/null
+```
+
 ## Source-level structural suppression
 
 A bare `#moongrep.skip` suppresses every structural rule in its function while
