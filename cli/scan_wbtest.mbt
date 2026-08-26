@@ -318,6 +318,27 @@ fn builtin_api_options() -> CliOptions {
 }
 
 ///|
+fn non_bmp_scan_options() -> CliOptions {
+  {
+    rules_root: None,
+    rule_file: None,
+    patterns: [
+      {
+        shape: "let $(name:id) = $(value:exp)",
+        guards: Map([]),
+        match_mode: Default,
+      },
+    ],
+    scan_root: "testdata/scan-non-bmp/single.mbt",
+    excludes: [],
+    disabled_rules: [],
+    verbose: false,
+    no_color: false,
+    output_json: false,
+  }
+}
+
+///|
 fn scan_hit_line_summary(hit : ScanHit) -> String {
   "\{hit.finding.rule_id}:\{hit.finding.loc.start.lnum}"
 }
@@ -358,6 +379,34 @@ async test "scan and lint render APIs select their rule sources" {
   let lint_output = render_lint_command(options)
   assert_true(lint_output.contains("rule: moonbitlang/inspect_number"))
   assert_true(lint_output.contains("rule: moonbitlang/match_option"))
+}
+
+///|
+async test "scan renders non-BMP matches with Unicode code point columns" {
+  let result = collect_directory_hits(Scan, non_bmp_scan_options())
+  guard result.hits is [hit, ..] else { fail("expected a non-BMP scan hit") }
+  inspect(
+    format_location(hit.finding.file, hit.finding.loc),
+    content=native_scan_test_path("testdata/scan-non-bmp/single.mbt:3:3-3:23"),
+  )
+  inspect(hit.matched_source, content="let str = \"Hello🤣🤣🤣\"")
+  assert_true(
+    render_scan_hit(hit).contains(
+      "3 |   \u{1b}[93mlet str = \"Hello🤣🤣🤣\"\u{1b}[39m",
+    ),
+  )
+  let json_output = render_scan_hit_json(hit)
+  ignore(@json.parse(json_output))
+  assert_true(
+    json_output.contains(
+      "\"range\":{\"start\":{\"line\":3,\"column\":3},\"end\":{\"line\":3,\"column\":23}}",
+    ),
+  )
+  assert_true(
+    json_output.contains(
+      "\"matched_source\":\"let str = \\\"Hello🤣🤣🤣\\\"\"",
+    ),
+  )
 }
 
 ///|

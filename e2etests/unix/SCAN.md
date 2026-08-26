@@ -68,12 +68,10 @@ source:
 3 | }
 ```
 
-## Known non-BMP source crash
+## Non-BMP source
 
-This is an intentionally failing regression test. The current implementation
-crashes while extracting the matched source because the range ends on a line
-containing non-BMP characters. Once that crash is fixed, the scan should
-complete successfully.
+Scanning a match whose range ends on a line containing non-BMP characters
+completes successfully.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'let $(name:id) = $(value:exp)' testdata/scan-non-bmp/tmp.mbt > /dev/null
