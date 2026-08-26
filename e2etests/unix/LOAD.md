@@ -5,7 +5,7 @@ keep their declared id, while rules below a subdirectory receive the relative
 directory prefix, so both structural and taint matches are reported here.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/recursive-rule-discovery-rules testdata/recursive-rule-discovery-src
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/recursive-rule-discovery-rules testdata/recursive-rule-discovery-src
 testdata/recursive-rule-discovery-src/hits.mbt:2:14-2:28
 rule: example
 description:
@@ -31,7 +31,7 @@ Loading one YAML file with `--rule` runs only that rule and keeps its declared
 id without the directory-derived prefix.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rule testdata/recursive-rule-discovery-rules/nested/b.yml testdata/recursive-rule-discovery-src
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/recursive-rule-discovery-rules/nested/b.yml testdata/recursive-rule-discovery-src
 testdata/recursive-rule-discovery-src/hits.mbt:4:8-4:9
 rule: example
 description:
@@ -47,7 +47,7 @@ An existing rule directory with no YAML files is rejected before scanning and
 returns rule-source status 4 with a direct diagnostic.
 
 ```mooncram
-$ cd "$TESTDIR"/.. && moonrun "$TESTDIR"/moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/recursive-rule-discovery-src
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/recursive-rule-discovery-src
 testdata/empty-rule-root: no YAML rule files found
 [4]
 ```
