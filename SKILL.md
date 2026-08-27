@@ -239,8 +239,8 @@ recoverable scan-warning outcomes. Failures use these fixed categories:
 | 1 | Internal or unclassified error, including damaged builtin rules |
 | 2 | Command-line usage error |
 | 3 | Invalid `dump` input |
-| 4 | Missing, unreadable, incorrectly typed, or empty rule source |
-| 5 | Invalid YAML, rule schema, pattern, guard, or compiled rule content |
+| 4 | Missing, unreadable, or incorrectly typed rule source, or a rule directory containing no `.yaml` or `.yml` files |
+| 5 | Blank or invalid YAML, rule schema, pattern, guard, or compiled rule content |
 | 6 | Missing or unreadable scan input |
 | 7 | Standard-output or standard-error write failure |
 
