@@ -6,10 +6,12 @@ callers, not for rule authors.
 
 ## Match State
 
-`match_expr_pattern` starts with a fresh `HashMap[String, BoundValue]`.
-`match_expr_pattern_with_bindings` copies the caller-supplied map before
-matching. Failed matches may leave partial captures in that local copy. The
-caller's map remains unchanged.
+`match_expr_pattern` converts its raw node to an expression candidate and
+delegates to `match_expr_pattern_candidate`. The candidate entry point starts
+with a fresh `HashMap[String, BoundValue]`.
+`match_expr_pattern_candidate_with_bindings` copies the caller-supplied map
+before matching. Failed matches may leave partial captures in that local copy.
+The caller's map remains unchanged.
 
 `match_expr_pattern_candidate` and
 `match_expr_pattern_candidate_with_bindings` apply the same state rules to
@@ -171,7 +173,9 @@ placeholder names:
 
 When adding support for a new CST node:
 
-1. add or adjust the root `match_expr` branch
+1. check whether the generic `structural_match` fallback in `match_node`
+   already handles the node; add or adjust specialized dispatch only when the
+   node needs special matching semantics
 2. add helper matchers for child structures when needed
 3. update repeated-capture equality if the node can be bound by a metavar
 4. update prefilter literal collection so rules remain searchable

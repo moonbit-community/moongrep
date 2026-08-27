@@ -5,9 +5,11 @@
 
 ## 匹配状态
 
-`match_expr_pattern` 会从一个新的 `HashMap[String, BoundValue]` 开始。
-`match_expr_pattern_with_bindings` 会在匹配前复制调用方传入的 map。失败的匹配可能在这个本地副本里留下部分捕获。
-调用方的 map 保持不变。
+`match_expr_pattern` 会先把原始节点转换为 expression candidate，再委托给
+`match_expr_pattern_candidate`。candidate 入口会从一个新的
+`HashMap[String, BoundValue]` 开始。
+`match_expr_pattern_candidate_with_bindings` 会在匹配前复制调用方传入的 map。
+失败的匹配可能在这个本地副本里留下部分捕获。调用方的 map 保持不变。
 
 `match_expr_pattern_candidate` 和
 `match_expr_pattern_candidate_with_bindings` 对 `Direct(CstNode)` 与
@@ -141,7 +143,8 @@ direct 候选。`proof_let` 不是 continuation owner，仍可独立匹配。
 
 新增 CST 节点支持时：
 
-1. 新增或调整根级 `match_expr` 分支
+1. 先确认 `match_node` 的通用 `structural_match` 回退是否已经能够处理该节点；只有
+   节点需要特殊匹配语义时，才新增或调整专用分派
 2. 必要时为子结构添加辅助 matcher
 3. 如果该节点可以被 metavar 绑定，更新重复捕获相等性
 4. 更新 prefilter 的字面量收集，保证规则可搜索
