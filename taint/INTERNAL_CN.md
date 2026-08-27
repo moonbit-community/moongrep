@@ -14,8 +14,8 @@ analyzer 及其调用方的维护者，不面向规则作者。
 
 只有函数形态的顶层节点是可执行的：
 
-- 带 `DeclBody` 的 `TopFuncDef`
-- 带 `DeclBody` 的 `TopImpl`
+- 带 `body` child 的 `Impl_Function`
+- 嵌套 `method` declaration 带 `body` child 的 `Impl_ImplMethod`
 
 没有 body 的声明、顶层表达式、测试、类型定义、trait 以及其他 `Impl` 形式都会抛出
 `TaintAnalysisError::UnsupportedFunctionLike`。规则应用层在扫描文件时会有意捕获并忽略该错误。
