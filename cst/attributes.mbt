@@ -34,33 +34,3 @@ pub fn attributes(node : @untyped_cst.CstNode) -> Array[AttributeInfo] {
   }
   result
 }
-
-///|
-pub fn has_bare_attribute(
-  node : @untyped_cst.CstNode,
-  qualifier : String,
-  name : String,
-) -> Bool {
-  for attribute in attributes(node) {
-    if attribute.qualifier == Some(qualifier) &&
-      attribute.name == name &&
-      attribute.raw_payload == "" {
-      return true
-    }
-  }
-  false
-}
-
-///|
-pub fn attribute_payload(
-  node : @untyped_cst.CstNode,
-  qualifier : String,
-  name : String,
-) -> String? {
-  for attribute in attributes(node) {
-    if attribute.qualifier == Some(qualifier) && attribute.name == name {
-      return Some(attribute.raw_payload)
-    }
-  }
-  None
-}
