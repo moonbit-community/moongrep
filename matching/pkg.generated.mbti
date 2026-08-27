@@ -9,15 +9,11 @@ import {
 }
 
 // Values
-pub fn expr_matches(@untyped_cst.CstNode, @untyped_cst.CstNode) -> Bool
-
 pub fn match_expr_pattern(CompiledExprPattern, @untyped_cst.CstNode) -> ExprMatch?
 
 pub fn match_expr_pattern_candidate(CompiledExprPattern, @cst.ExprMatchCandidate) -> ExprMatch?
 
 pub fn match_expr_pattern_candidate_with_bindings(CompiledExprPattern, @cst.ExprMatchCandidate, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
-
-pub fn match_expr_pattern_with_bindings(CompiledExprPattern, @untyped_cst.CstNode, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
 
 // Errors
 

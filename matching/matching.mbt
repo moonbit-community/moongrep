@@ -1,45 +1,10 @@
 ///|
-/// Returns whether `candidate` has the same semantic CST shape as `pattern`.
-pub fn expr_matches(
-  pattern : @untyped_cst.CstNode,
-  candidate : @untyped_cst.CstNode,
-) -> Bool {
-  let compiled : CompiledExprPattern = {
-    cst: pattern,
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields: [],
-  }
-  match_expr_pattern(compiled, candidate) is Some(_)
-}
-
-///|
 /// Attempts one root-level match of `compiled.cst` against `candidate`.
 pub fn match_expr_pattern(
   compiled : CompiledExprPattern,
   candidate : @untyped_cst.CstNode,
 ) -> ExprMatch? {
   match_expr_pattern_candidate(compiled, match_candidate_from_node(candidate))
-}
-
-///|
-/// Matches with a copied caller-supplied binding context.
-pub fn match_expr_pattern_with_bindings(
-  compiled : CompiledExprPattern,
-  candidate : @untyped_cst.CstNode,
-  initial_bindings : @hashmap.HashMap[String, BoundValue],
-) -> ExprMatch? {
-  match_expr_pattern_candidate_with_bindings(
-    compiled,
-    match_candidate_from_node(candidate),
-    initial_bindings,
-  )
 }
 
 ///|
