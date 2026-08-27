@@ -291,7 +291,9 @@ moongrep会为同名的所有出现位置推导出单一 kind。只出现在表�
 `$$$name` 捕获 untyped CST 有序列表中零个或多个连续 sibling；
 `$$$(name:kind)` 使用 `exp`、`id`、`const`、`arg`、`pat` 或 `type`
 约束捕获到的每一项。裸命名 ellipsis 的 kind 是 `AnyItem`；如果同名位置中还存在
-typed occurrence，则由 typed occurrence 决定所有裸 occurrence 的 kind。
+typed occurrence，则由 typed occurrence 决定所有裸 occurrence 的 kind。`type`
+元变量的名称必须以大写字母开头，例如 `$(T:type)` 或 `$$$(Types:type)`；类型位置会
+拒绝小写名称和匿名名称。
 
 ```yaml
 patterns:
@@ -317,10 +319,11 @@ positional argument。`pat` 用于 pattern 列表项，`type` 用于类型列表
 
 同名 ellipsis 重复出现时，捕获数组长度必须相同，且节点在忽略源码位置后结构相等。
 普通元变量与 ellipsis 不能共用名称，冲突的显式 kind 会被拒绝。`$$$_` 和
-`$$$(_:kind)` 不绑定，且每个 occurrence 都是独立通配符。guard 不能引用
-ellipsis 捕获。inside context 会像其他 binding 一样继承 `Multiple`；内部重复的
-ellipsis 必须使用相同 kind。taint sink 和 sanitizer 可以在唯一的完整 argument
-或 receiver `__SOURCE__` target 前后放置 ellipsis。
+`$$$(_:kind)` 在类型位置之外不绑定，且每个 occurrence 都是独立通配符。类型列表
+不接受 `$$$_` 或 `$$$(_:type)`；请使用 `$$$(Types:type)` 这类大写命名形式。
+guard 不能引用 ellipsis 捕获。inside context 会像其他 binding 一样继承
+`Multiple`；内部重复的 ellipsis 必须使用相同 kind。taint sink 和 sanitizer
+可以在唯一的完整 argument 或 receiver `__SOURCE__` target 前后放置 ellipsis。
 
 公开 matcher 和 query API 使用 `BoundValue` 表示捕获：普通节点捕获是
 `Single(Node)`，ellipsis 捕获是 `Multiple(Array[Node])`。捕获展开 continuation 的

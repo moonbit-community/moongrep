@@ -361,7 +361,9 @@ are rejected as using an unsupported key.
 list. `$$$(name:kind)` applies one of `exp`, `id`, `const`, `arg`, `pat`, or
 `type` to every captured item. A bare named ellipsis has kind `AnyItem`; if the
 same name also has a typed occurrence, that occurrence determines the kind for
-all bare occurrences.
+all bare occurrences. A `type` metavar name must start with an uppercase letter,
+for example `$(T:type)` or `$$$(Types:type)`; lowercase and anonymous names are
+rejected in type positions.
 
 ```yaml
 patterns:
@@ -394,10 +396,12 @@ Repeating a named ellipsis requires the captured arrays to have equal lengths
 and structurally equal nodes after source locations are ignored. A name cannot
 be shared by a normal metavar and an ellipsis, and conflicting explicit kinds
 are rejected. `$$$_` and `$$$(_:kind)` do not bind and each occurrence is an
-independent wildcard. Guards cannot reference ellipsis captures. Inside-context
-bindings inherit `Multiple` values just like other bindings; a repeated inner
-ellipsis must use the same kind. Taint sink and sanitizer shapes may place
-ellipses around their single whole-argument or receiver `__SOURCE__` target.
+independent wildcard outside type positions. Neither `$$$_` nor `$$$(_:type)`
+is valid in a type list; use a named uppercase form such as `$$$(Types:type)`.
+Guards cannot reference ellipsis captures. Inside-context bindings inherit
+`Multiple` values just like other bindings; a repeated inner ellipsis must use
+the same kind. Taint sink and sanitizer shapes may place ellipses around their
+single whole-argument or receiver `__SOURCE__` target.
 
 The public matcher and query APIs expose captures as `BoundValue`. Ordinary
 node captures are `Single(Node)`. Ellipsis captures are
