@@ -30,7 +30,7 @@ let _embed_rulespec_md : String =
   #|- Other files are ignored.
   #|- Discovered rule files are processed in sorted order.
   #|- Symlinked rule directories are followed.
-  #|- An empty rules root is invalid.
+  #|- A rules root with no discovered rule files is invalid.
   #|- Each rule file must contain exactly one YAML document.
   #|- The top-level YAML document must be a mapping.
   #|- Each rule file defines exactly one rule.
