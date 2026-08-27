@@ -84,7 +84,8 @@ let _embed_clispec_md : String =
   #|Both commands accept:
   #|
   #|- `-r <dir>` or `--rules <dir>`: select a directory containing YAML rules.
-  #|- `--rule <file>`: select one YAML rule file.
+  #|- `--rule <file>`: select one YAML rule file whose path ends in lowercase
+  #|  `.yaml` or `.yml`.
   #|- `--pattern <source>`: add one anonymous structural pattern.
   #|- `--guard <yaml>`: attach a YAML guard map to a preceding anonymous pattern.
   #|- `--exclude <name-or-path>`: skip matching file or directory entries.
@@ -134,6 +135,10 @@ let _embed_clispec_md : String =
   #|
   #|For `lint`, builtin rules are always the first source. Explicit `--rules`,
   #|`--rule`, and `--pattern` values add more sources after the builtin rules.
+  #|
+  #|The suffix check for a single `--rule` file is case-sensitive on every
+  #|platform. A readable file with any other suffix is rejected as invalid rule
+  #|content and uses exit status 5.
   #|
   #|On Windows, effective `--rules` and `--rule` paths are lexically normalized
   #|before filesystem access. Recursive rule discovery uses native path joins, and
@@ -540,9 +545,10 @@ let _embed_clispec_md : String =
   #|### Exit Status 5
   #|
   #|Status 5 means rule content is invalid. It covers YAML parsing, schema and
-  #|duplicate-id validation, and pattern or guard validation and compilation. This
-  #|status also applies to invalid anonymous command-line patterns. A failure in
-  #|the embedded builtin rules instead uses status 1.
+  #|duplicate-id validation, an unsupported single-file `--rule` suffix, and pattern
+  #|or guard validation and compilation. This status also applies to invalid
+  #|anonymous command-line patterns. A failure in the embedded builtin rules instead
+  #|uses status 1.
   #|
   #|### Exit Status 6
   #|

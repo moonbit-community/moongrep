@@ -74,7 +74,7 @@ moongrep lint [options] [scan-root]
 两个命令都接受：
 
 - `-r <dir>` 或 `--rules <dir>`：选择包含 YAML 规则的目录。
-- `--rule <file>`：选择一个 YAML 规则文件。
+- `--rule <file>`：选择一个路径以小写 `.yaml` 或 `.yml` 结尾的 YAML 规则文件。
 - `--pattern <source>`：添加一个匿名结构模式。
 - `--guard <yaml>`：为前面的匿名模式附加 YAML guard 映射。
 - `--exclude <name-or-path>`：跳过匹配的文件或目录条目。
@@ -119,6 +119,9 @@ JSON 输出都使用同一个规范化原生路径，因此渲染路径使用 `\
 
 对 `lint` 而言，builtin 规则始终是第一个来源。显式 `--rules`、`--rule` 和
 `--pattern` 会在 builtin 规则之后添加更多来源。
+
+单个 `--rule` 文件的后缀判断在所有平台上都区分大小写。可读文件使用其他后缀时，
+会作为无效规则内容被拒绝，并使用退出状态 5。
 
 在 Windows 上，有效的 `--rules` 和 `--rule` 路径会在文件系统访问前进行词法
 规范化。递归规则发现使用原生路径连接；单个 `--rule` 文件的所在目录按 Windows
@@ -466,9 +469,9 @@ moongrep 为每个可处置的失败类别使用固定状态码：
 
 ### 退出状态 5
 
-状态 5 表示规则内容无效，包括 YAML 解析、schema 与重复 id 校验，以及 pattern
-或 guard 校验和编译失败。无效的命令行匿名 pattern 也使用该状态码。内嵌
-builtin 规则自身失败时改用状态 1。
+状态 5 表示规则内容无效，包括 YAML 解析、schema 与重复 id 校验、单文件
+`--rule` 使用不支持的后缀，以及 pattern 或 guard 校验和编译失败。无效的命令行
+匿名 pattern 也使用该状态码。内嵌 builtin 规则自身失败时改用状态 1。
 
 ### 退出状态 6
 

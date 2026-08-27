@@ -240,7 +240,7 @@ recoverable scan-warning outcomes. Failures use these fixed categories:
 | 2 | Command-line usage error |
 | 3 | Invalid `dump` input |
 | 4 | Missing, unreadable, or incorrectly typed rule source, or a rule directory containing no `.yaml` or `.yml` files |
-| 5 | Blank or invalid YAML, rule schema, pattern, guard, or compiled rule content |
+| 5 | Blank or invalid YAML, an unsupported single-file `--rule` suffix, or invalid rule schema, pattern, guard, or compiled rule content |
 | 6 | Missing or unreadable scan input |
 | 7 | Standard-output or standard-error write failure |
 

@@ -25,9 +25,9 @@ let _embed_rulespec_md : String =
   #|
   #|A rules root is a directory containing YAML rule files.
   #|
-  #|- Files ending in `.yaml` or `.yml` are discovered recursively below the rules
-  #|  root.
-  #|- Other files are ignored.
+  #|- Files ending in the exact lowercase suffix `.yaml` or `.yml` are discovered
+  #|  recursively below the rules root. Suffix checks are case-sensitive.
+  #|- Other files are ignored during directory discovery.
   #|- Discovered rule files are processed in sorted order.
   #|- Symlinked rule directories are followed.
   #|- A rules root with no discovered rule files is invalid.
@@ -60,8 +60,10 @@ let _embed_rulespec_md : String =
   #|empty and must not contain `/`; directory ownership is encoded only by file
   #|location.
   #|
-  #|When `--rule` selects one file, that file's containing directory is its rules
-  #|root, so its final rule id is the YAML `id`. Rule ids and YAML `id` values remain
+  #|When `--rule` selects one file, its path must also end in the exact lowercase
+  #|suffix `.yaml` or `.yml`. Unlike directory discovery, an unsupported suffix is
+  #|rejected rather than ignored. The file's containing directory is its rules root,
+  #|so its final rule id is the YAML `id`. Rule ids and YAML `id` values remain
   #|case-sensitive on every platform, including Windows.
   #|
   #|Example:
@@ -1106,6 +1108,8 @@ let _embed_rulespec_md : String =
   #|A rule set or rule file is rejected when any of these conditions occurs:
   #|
   #|- the rules root contains no `.yaml` or `.yml` files
+  #|- a file selected directly with `--rule` does not have the exact lowercase
+  #|  `.yaml` or `.yml` suffix
   #|- a rule file contains zero YAML documents or more than one YAML document
   #|- the top-level YAML document is not a mapping
   #|- an unsupported key appears at the top level, inside `taint`, or inside a
