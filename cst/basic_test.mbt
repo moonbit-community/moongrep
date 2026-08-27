@@ -81,11 +81,10 @@ test "constructor identities retain every qualifier" {
 test "qualified attributes expose metadata" {
   let root = @untyped_cst.parse_structure("#moongrep.skip\nfn f {}").root()
   let item = toplevel_nodes(root)[0]
-  assert_true(has_bare_attribute(item, "moongrep", "skip"))
-  debug_inspect(
-    attribute_payload(item, "moongrep", "skip"),
-    content="Some(\"\")",
-  )
+  guard attributes(item) is [attribute] else { fail("expected one attribute") }
+  assert_eq(attribute.qualifier, Some("moongrep"))
+  assert_eq(attribute.name, "skip")
+  assert_eq(attribute.raw_payload, "")
 }
 
 ///|

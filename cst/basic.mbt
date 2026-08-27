@@ -48,51 +48,6 @@ pub fn is_syntax_kind(kind : @untyped_cst.NodeKind) -> Bool {
 }
 
 ///|
-pub fn is_list_kind(kind : @untyped_cst.NodeKind) -> Bool {
-  match kind {
-    @untyped_cst.List_ArgumentList
-    | @untyped_cst.List_ParameterList
-    | @untyped_cst.List_TraitMethodParameterList
-    | @untyped_cst.List_TypeDeclParameterList
-    | @untyped_cst.List_TypeVarBinderList
-    | @untyped_cst.List_ConstructorParameterList
-    | @untyped_cst.List_TupleStructTypeList
-    | @untyped_cst.List_StructFieldList
-    | @untyped_cst.List_TraitMethodList
-    | @untyped_cst.List_RecordFieldList
-    | @untyped_cst.List_MapFieldList
-    | @untyped_cst.List_BlockStatementList
-    | @untyped_cst.List_ContinueArgumentList
-    | @untyped_cst.List_TupleElementList
-    | @untyped_cst.List_TupleTypeList
-    | @untyped_cst.List_ArrayElementList
-    | @untyped_cst.List_TypeArgumentList
-    | @untyped_cst.List_TuplePatternList
-    | @untyped_cst.List_ConstructorPatternArgumentList
-    | @untyped_cst.List_LexTopPatternList
-    | @untyped_cst.List_ArrayPatternList
-    | @untyped_cst.List_RecordPatternFieldList
-    | @untyped_cst.List_MapPatternFieldList
-    | @untyped_cst.List_WhereFieldList
-    | @untyped_cst.List_ObjectFieldList
-    | @untyped_cst.List_ConstructorList
-    | @untyped_cst.List_UsingItemList
-    | @untyped_cst.List_ImportPackageList
-    | @untyped_cst.List_ExtendItemList
-    | @untyped_cst.List_DerivingList
-    | @untyped_cst.List_MatchCaseList
-    | @untyped_cst.List_LexCaseList
-    | @untyped_cst.List_LexScanCaseList
-    | @untyped_cst.List_RegexBindingList
-    | @untyped_cst.List_LexPatternList
-    | @untyped_cst.List_ForBindingList
-    | @untyped_cst.List_ForEachBindingList
-    | @untyped_cst.List_WithBindingList => true
-    _ => false
-  }
-}
-
-///|
 fn is_pure_punctuation_kind(kind : @untyped_cst.NodeKind) -> Bool {
   match kind {
     @untyped_cst.Syntax_Delimiter
@@ -267,20 +222,6 @@ pub fn child(
 }
 
 ///|
-pub fn children(
-  node : @untyped_cst.CstNode,
-  label : String,
-) -> Array[@untyped_cst.CstNode] {
-  let result : Array[@untyped_cst.CstNode] = []
-  for entry in semantic_children(node) {
-    if entry.0 == Some(label) {
-      result.push(entry.1)
-    }
-  }
-  result
-}
-
-///|
 pub fn items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
   let result : Array[@untyped_cst.CstNode] = []
   for entry in semantic_children(node) {
@@ -289,14 +230,6 @@ pub fn items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
     }
   }
   result
-}
-
-///|
-pub fn first_child(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
-  match semantic_children(node) {
-    [(_, first), ..] => Some(first)
-    [] => None
-  }
 }
 
 ///|

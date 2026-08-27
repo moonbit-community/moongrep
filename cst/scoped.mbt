@@ -1,7 +1,7 @@
 ///|
 /// An expression together with names introduced between an outer context and
 /// that expression.
-pub(all) struct ScopedExprNode {
+priv struct ScopedExprNode {
   expr : @untyped_cst.CstNode
   shadowed_names : Array[String]
 }
@@ -28,88 +28,6 @@ pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
   NodeVisitReturn
-}
-
-///|
-pub fn collect_scoped_exprs(
-  expr : @untyped_cst.CstNode,
-  output : Array[ScopedExprNode],
-) -> Unit {
-  visit_scoped_exprs(expr, fn(item) {
-    output.push(item)
-    NodeVisitContinue
-  })
-}
-
-///|
-pub fn collect_scoped_expr_roots(
-  root : @untyped_cst.CstNode,
-  output : Array[ScopedExprNode],
-) -> Unit {
-  visit_scoped_expr_roots(root, fn(item) {
-    output.push(item)
-    NodeVisitContinue
-  })
-}
-
-///|
-pub fn visit_scoped_exprs(
-  expr : @untyped_cst.CstNode,
-  visitor : (ScopedExprNode) -> NodeVisitAction,
-) -> Unit {
-  ignore(visit_expr_with_shadow(expr, [], visitor))
-}
-
-///|
-pub fn visit_scoped_expr_roots(
-  root : @untyped_cst.CstNode,
-  visitor : (ScopedExprNode) -> NodeVisitAction,
-) -> Unit {
-  ignore(visit_roots_with_shadow(root, [], visitor))
-}
-
-///|
-pub fn visit_scoped_expr_children(
-  expr : @untyped_cst.CstNode,
-  shadowed : Array[String],
-  visitor : (ScopedExprNode) -> Unit,
-) -> Unit {
-  ignore(
-    visit_expr_children(expr, shadowed, fn(item) {
-      visitor(item)
-      NodeVisitPrune
-    }),
-  )
-}
-
-///|
-pub fn collect_scoped_expr_match_candidates(
-  expr : @untyped_cst.CstNode,
-  output : Array[ScopedExprMatchCandidate],
-) -> Unit {
-  visit_scoped_expr_match_candidates(expr, fn(item) {
-    output.push(item)
-    NodeVisitContinue
-  })
-}
-
-///|
-pub fn collect_scoped_expr_match_candidate_roots(
-  root : @untyped_cst.CstNode,
-  output : Array[ScopedExprMatchCandidate],
-) -> Unit {
-  visit_scoped_expr_match_candidate_roots(root, fn(item) {
-    output.push(item)
-    NodeVisitContinue
-  })
-}
-
-///|
-pub fn visit_scoped_expr_match_candidates(
-  expr : @untyped_cst.CstNode,
-  visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
-) -> Unit {
-  ignore(visit_match_candidate_from_node(expr, [], visitor))
 }
 
 ///|

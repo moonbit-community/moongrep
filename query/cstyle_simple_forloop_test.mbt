@@ -50,14 +50,15 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
 ///|
 fn query_contains_unshadowed(cst : @untyped_cst.CstNode, name : String) -> Bool {
   let mut found = false
-  @cst.visit_scoped_expr_roots(cst, fn(item) {
-    if !found &&
-      !item.shadowed_names.contains(name) &&
-      @cst.normalized_expr_identifier_name(item.expr) == Some(name) {
-      found = true
-      @cst.NodeVisitReturn
-    } else {
-      @cst.NodeVisitContinue
+  @cst.visit_scoped_expr_match_candidate_roots(cst, fn(item) {
+    match item.candidate {
+      @cst.Direct(expr) if !found &&
+        !item.shadowed_names.contains(name) &&
+        @cst.normalized_expr_identifier_name(expr) == Some(name) => {
+        found = true
+        @cst.NodeVisitReturn
+      }
+      _ => @cst.NodeVisitContinue
     }
   })
   found

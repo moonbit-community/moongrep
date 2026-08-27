@@ -7,16 +7,34 @@ fn scoped_names_at_call(
   if !parsed.diagnostics_view().is_empty() {
     fail("unexpected parse diagnostics for `\{source}`")
   }
-  let scoped : Array[ScopedExprNode] = []
-  collect_scoped_exprs(expression_root(parsed.root()), scoped)
-  for item in scoped {
-    if item.expr.kind is @untyped_cst.Expr_Apply &&
-      raw_child(item.expr, "func").bind(normalized_expr_identifier_name) ==
-      Some(callee) {
-      return Some(item.shadowed_names)
-    }
-  }
-  None
+  let mut result : Array[String]? = None
+  visit_scoped_expr_match_candidate(
+    Direct(expression_root(parsed.root())),
+    [],
+    fn(item) {
+      match item.candidate {
+        Direct(expr) if expr.kind is @untyped_cst.Expr_Apply &&
+          raw_child(expr, "func").bind(normalized_expr_identifier_name) ==
+          Some(callee) => {
+          result = Some(item.shadowed_names)
+          NodeVisitReturn
+        }
+        _ => NodeVisitContinue
+      }
+    },
+  )
+  result
+}
+
+///|
+fn collect_scoped_expr_match_candidate_roots_for_test(
+  root : @untyped_cst.CstNode,
+  output : Array[ScopedExprMatchCandidate],
+) -> Unit {
+  visit_scoped_expr_match_candidate_roots(root, fn(item) {
+    output.push(item)
+    NodeVisitContinue
+  })
 }
 
 ///|
@@ -141,7 +159,7 @@ test "try, lex, regex, and quantifier binders shadow nested expressions" {
 ///|
 test "function bodies are sequences while nested blocks stay direct" {
   let plain : Array[ScopedExprMatchCandidate] = []
-  collect_scoped_expr_match_candidate_roots(
+  collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { first(); second() }"),
     plain,
   )
@@ -154,7 +172,7 @@ test "function bodies are sequences while nested blocks stay direct" {
     0,
   )
   let nested : Array[ScopedExprMatchCandidate] = []
-  collect_scoped_expr_match_candidate_roots(
+  collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { { first(); second() } }"),
     nested,
   )
@@ -175,7 +193,7 @@ test "function bodies are sequences while nested blocks stay direct" {
 test "continuation owners expose suffixes instead of header-only candidates" {
   let source = "fn sample { before(); let mut value = source(); body(value); defer cleanup(); after(); proof_let witness = fact(); finish(witness) }"
   let candidates : Array[ScopedExprMatchCandidate] = []
-  collect_scoped_expr_match_candidate_roots(
+  collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure(source),
     candidates,
   )
@@ -211,7 +229,7 @@ test "continuation owners expose suffixes instead of header-only candidates" {
 ///|
 test "sequence continuations apply bindings to later candidates" {
   let candidates : Array[ScopedExprMatchCandidate] = []
-  collect_scoped_expr_match_candidate_roots(
+  collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { let value = source(); target(value) }"),
     candidates,
   )
