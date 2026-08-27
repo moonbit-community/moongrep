@@ -14,13 +14,6 @@ priv enum ScanWarning {
 }
 
 ///|
-priv struct DirectoryScanResult {
-  scan_trace : Array[String]
-  hits : Array[ScanHit]
-  warnings : Array[ScanWarning]
-}
-
-///|
 priv struct ScanHit {
   finding : @rule_model.RuleFinding
   matched_source : String
@@ -56,55 +49,6 @@ priv enum ScanEvent {
 priv enum ScanMode {
   Scan
   Lint
-}
-
-///|
-priv struct BufferedScanHit {
-  hit : ScanHit
-  ordinal : Int
-}
-
-///|
-priv struct BufferedScanWarning {
-  warning : ScanWarning
-  ordinal : Int
-}
-
-///|
-/// Runs a scan and renders its command-line output into one buffered string.
-///
-/// This compatibility API retains the historical file sorting and
-/// warnings-first layout. The executable uses `run_scan_command` so matches
-/// can be written as soon as they are found.
-pub async fn render_scan_command(options : CliOptions) -> String {
-  render_scan_mode_command(Scan, options)
-}
-
-///|
-/// Runs a lint scan and renders its command-line output into one buffered
-/// string.
-///
-/// Builtin rules are loaded before any rule sources in `options`. This API has
-/// the same buffered output behavior as `render_scan_command`.
-pub async fn render_lint_command(options : CliOptions) -> String {
-  render_scan_mode_command(Lint, options)
-}
-
-///|
-async fn render_scan_mode_command(
-  mode : ScanMode,
-  options : CliOptions,
-) -> String {
-  let result = collect_directory_hits(mode, options)
-  if options.output_json {
-    let warnings = render_scan_warnings(result.warnings)
-    if warnings != "" {
-      invoke_scan_writer(write_scan_stderr, warnings + "\n")
-    }
-    render_directory_scan_json(result)
-  } else {
-    render_directory_scan_result(result, no_color=options.no_color)
-  }
 }
 
 ///|
@@ -162,69 +106,6 @@ fn load_builtin_scan_rules(
     },
   )
   rules
-}
-
-///|
-async fn collect_directory_hits(
-  mode : ScanMode,
-  options : CliOptions,
-) -> DirectoryScanResult {
-  let scan_trace : Array[String] = []
-  let buffered_hits : Array[BufferedScanHit] = []
-  let buffered_warnings : Array[BufferedScanWarning] = []
-  scan_events(mode, options, event => {
-    match event {
-      Trace(message) => scan_trace.push(message)
-      Warning(warning) =>
-        buffered_warnings.push({ warning, ordinal: buffered_warnings.length() })
-      Hit(hit) => buffered_hits.push({ hit, ordinal: buffered_hits.length() })
-    }
-  })
-  buffered_hits.sort_by(compare_buffered_scan_hits)
-  buffered_warnings.sort_by(compare_buffered_scan_warnings)
-  let hits : Array[ScanHit] = []
-  for buffered in buffered_hits {
-    hits.push(buffered.hit)
-  }
-  let warnings : Array[ScanWarning] = []
-  for buffered in buffered_warnings {
-    warnings.push(buffered.warning)
-  }
-  { scan_trace, hits, warnings }
-}
-
-///|
-fn compare_buffered_scan_hits(
-  left : BufferedScanHit,
-  right : BufferedScanHit,
-) -> Int {
-  let file_order = left.hit.finding.file.compare(right.hit.finding.file)
-  if file_order == 0 {
-    left.ordinal.compare(right.ordinal)
-  } else {
-    file_order
-  }
-}
-
-///|
-fn ScanWarning::file(self : ScanWarning) -> String {
-  match self {
-    Parse(warning) => warning.file
-    InvalidMoongrepSkipPayload(file, _) => file
-  }
-}
-
-///|
-fn compare_buffered_scan_warnings(
-  left : BufferedScanWarning,
-  right : BufferedScanWarning,
-) -> Int {
-  let file_order = left.warning.file().compare(right.warning.file())
-  if file_order == 0 {
-    left.ordinal.compare(right.ordinal)
-  } else {
-    file_order
-  }
 }
 
 ///|

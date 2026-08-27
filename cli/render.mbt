@@ -1,40 +1,4 @@
 ///|
-// Renders warnings first and match hits second so scan diagnostics never hide
-// successful findings from other files.
-fn render_directory_scan_result(
-  result : DirectoryScanResult,
-  no_color? : Bool = false,
-) -> String {
-  let sections : Array[String] = []
-  if result.scan_trace.length() > 0 {
-    sections.push(result.scan_trace.join("\n"))
-  }
-  let warnings = render_scan_warnings(result.warnings)
-  if warnings != "" {
-    sections.push(warnings)
-  }
-  if result.hits.length() == 0 {
-    sections.push("no match hits")
-  } else {
-    let rendered_hits : Array[String] = []
-    for hit in result.hits {
-      rendered_hits.push(render_scan_hit(hit, no_color~))
-    }
-    sections.push(rendered_hits.join("\n\n"))
-  }
-  sections.join("\n\n")
-}
-
-///|
-fn render_scan_warnings(scan_warnings : Array[ScanWarning]) -> String {
-  let rendered : Array[String] = []
-  for warning in scan_warnings {
-    rendered.push(render_scan_warning(warning))
-  }
-  rendered.join("\n")
-}
-
-///|
 fn render_scan_warning(warning : ScanWarning) -> String {
   match warning {
     Parse(parse_warning) =>
