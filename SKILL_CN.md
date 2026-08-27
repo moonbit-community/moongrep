@@ -190,7 +190,7 @@ moongrep dump (--impl <impl> | --expr <expr>)
 | 2 | 命令行用法错误 |
 | 3 | 无效 `dump` 输入 |
 | 4 | 规则来源不存在、不可读或类型错误，或规则目录不包含 `.yaml` 或 `.yml` 文件 |
-| 5 | YAML 为空白或无效，或规则 schema、pattern、guard、编译后的规则内容无效 |
+| 5 | YAML 为空白或无效、单文件 `--rule` 后缀不受支持，或规则 schema、pattern、guard、编译后的规则内容无效 |
 | 6 | 扫描输入不存在或不可读 |
 | 7 | 标准输出或标准错误写入失败 |
 
