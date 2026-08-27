@@ -51,6 +51,14 @@ fn test_compiled(
 }
 
 ///|
+fn expr_matches(
+  pattern : @untyped_cst.CstNode,
+  candidate : @untyped_cst.CstNode,
+) -> Bool {
+  match_expr_pattern(test_compiled(pattern), candidate) is Some(_)
+}
+
+///|
 fn test_candidate(source : String) -> @cst.ExprMatchCandidate raise {
   let node = test_expr(source)
   if node.kind is @untyped_cst.Expression {
@@ -928,9 +936,9 @@ test "caller bindings are copied and repeated values ignore locations" {
   ])
   let initial : @hashmap.HashMap[String, BoundValue] = HashMap([])
   initial["existing"] = Single(test_expr("kept"))
-  guard match_expr_pattern_with_bindings(
+  guard match_expr_pattern_candidate_with_bindings(
       compiled,
-      test_expr("pair(item, item)", name="candidate-locations"),
+      @cst.Direct(test_expr("pair(item, item)", name="candidate-locations")),
       initial,
     )
     is Some(result) else {
