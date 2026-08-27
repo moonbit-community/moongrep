@@ -15,8 +15,8 @@ The package analyzes one parser `Impl` at a time through:
 
 Only function-like top-level nodes are executable:
 
-- `TopFuncDef` with `DeclBody`
-- `TopImpl` with `DeclBody`
+- `Impl_Function` with a `body` child
+- `Impl_ImplMethod` whose nested `method` declaration has a `body` child
 
 Declarations without bodies, top-level expressions, tests, type definitions,
 traits, and other `Impl` forms raise

@@ -487,7 +487,7 @@ for i = 0; j < n; i = i + 1 {
 
 ### `const`
 
-`const` 元变量捕获解析后的 MoonBit 常量。在表达式位置，它匹配 `Expr::Constant`；在 pattern 位置，它匹配 `Pattern::Constant`。
+`const` 元变量捕获解析后的 MoonBit 常量。在表达式位置，它匹配 `Expr_Constant`；在 pattern 位置，它匹配 `Pattern_Constant`。
 
 常量比较使用 parser CST 中的常量种类和保留的源码拼写；它不会进行类型检查，也不会归一化等值常量。例如，`1000` 和 `1_000` 不一定被视为同一个常量。
 

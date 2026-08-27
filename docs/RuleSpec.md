@@ -603,7 +603,7 @@ Qualified constructor identities include their extra info, such as `@pkg.Ctor`,
 ### `const`
 
 A `const` metavar captures a parsed MoonBit constant. In expression position,
-it matches `Expr::Constant`; in pattern position, it matches `Pattern::Constant`.
+it matches `Expr_Constant`; in pattern position, it matches `Pattern_Constant`.
 It compares the parser CST constant kind and preserved source spelling; it does
 not type-check or normalize equivalent values. For example, `1000` and `1_000`
 do not necessarily compare as the same constant.
