@@ -65,15 +65,3 @@ fn json_scan_finding(hit : ScanHit) -> JsonScanFinding {
 fn render_scan_hit_json(hit : ScanHit) -> String {
   ToJson::to_json(json_scan_finding(hit)).stringify()
 }
-
-///|
-// JSON stdout is finding-only: scan trace, scan warnings, and the human
-// no-match summary are omitted so every non-empty line is a machine-readable
-// finding record. Scan warnings are written separately to stderr.
-fn render_directory_scan_json(result : DirectoryScanResult) -> String {
-  let records : Array[String] = []
-  for hit in result.hits {
-    records.push(render_scan_hit_json(hit))
-  }
-  records.join("\n")
-}

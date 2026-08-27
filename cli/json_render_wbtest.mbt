@@ -77,33 +77,3 @@ test "matched source follows multiline Unicode code point locations" {
     ),
   )
 }
-
-///|
-test "json directory output contains only one line per finding" {
-  inspect(
-    render_directory_scan_json({
-      scan_trace: ["trace"],
-      hits: [],
-      warnings: [
-        Parse({
-          file: "bad.mbt",
-          block_start_line: None,
-          reason: "parse failed",
-        }),
-      ],
-    }),
-    content="",
-  )
-  let rendered = render_directory_scan_json({
-    scan_trace: ["trace"],
-    hits: [render_test_hit(3, 3), render_test_hit(8, 8)],
-    warnings: [
-      Parse({ file: "bad.mbt", block_start_line: None, reason: "parse failed" }),
-    ],
-  })
-  let records = rendered.split("\n").to_array()
-  assert_eq(records.length(), 2)
-  for record in records {
-    ignore(@json.parse(record))
-  }
-}

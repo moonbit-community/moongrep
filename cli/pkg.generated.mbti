@@ -13,10 +13,6 @@ pub fn render_docs_command((String, CliOptions?, String?)) -> String raise
 
 pub fn render_dump_command((String, CliOptions?, String?)) -> String raise
 
-pub async fn render_lint_command(CliOptions) -> String
-
-pub async fn render_scan_command(CliOptions) -> String
-
 pub async fn run_lint_command(CliOptions) -> Unit
 
 pub async fn run_scan_command(CliOptions) -> Unit

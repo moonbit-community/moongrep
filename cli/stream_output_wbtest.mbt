@@ -81,7 +81,8 @@ fn stream_options_with_format(
 fn scan_event_summary(event : ScanEvent) -> String {
   match event {
     Trace(message) => "trace:\{message}"
-    Warning(warning) => "warning:\{warning.file()}"
+    Warning(Parse(warning)) => "warning:\{warning.file}"
+    Warning(InvalidMoongrepSkipPayload(file, _)) => "warning:\{file}"
     Hit(hit) =>
       "hit:\{hit.finding.file}:\{hit.finding.rule_id}:\{hit.finding.loc.start.lnum}"
   }
@@ -185,7 +186,7 @@ async test "scan events stream before visiting later files" {
 }
 
 ///|
-async test "stream order is DFS and buffered compatibility order is sorted" {
+async test "stream order follows DFS traversal" {
   let streamed_files : Array[String] = []
   let options = stream_order_scan_options()
   scan_events(Scan, options, event => {
@@ -196,15 +197,6 @@ async test "stream order is DFS and buffered compatibility order is sorted" {
   assert_eq(streamed_files, [
     native_scan_test_path("testdata/stream-order/a/hit.mbt"),
     native_scan_test_path("testdata/stream-order/a.mbt"),
-  ])
-  let buffered = collect_directory_hits(Scan, options)
-  let buffered_files : Array[String] = []
-  for hit in buffered.hits {
-    buffered_files.push(hit.finding.file)
-  }
-  assert_eq(buffered_files, [
-    native_scan_test_path("testdata/stream-order/a.mbt"),
-    native_scan_test_path("testdata/stream-order/a/hit.mbt"),
   ])
 }
 
@@ -406,50 +398,4 @@ async test "skip payload warnings keep streaming and JSON stdout clean" {
     ignore(@json.parse(record))
   }
   assert_true(json_stderr == human_stderr)
-}
-
-///|
-async test "buffered renderer keeps warnings before sorted hits" {
-  let output = render_scan_command(
-    stream_options_with_format(parse_warning_stream_options(), false, false),
-  )
-  assert_true(
-    output.has_prefix(
-      native_scan_test_path(
-        "warning: skipping testdata/parse-warning/bad.mbt: parse failed",
-      ),
-    ),
-  )
-  let warning = string_index_containing(
-    output.split("\n").map(view => view.to_owned()).to_array(),
-    "warning: skipping",
-  )
-  let hit = string_index_containing(
-    output.split("\n").map(view => view.to_owned()).to_array(),
-    native_scan_test_path("testdata/parse-warning/hit.mbt:1:13-1:21"),
-  )
-  assert_true(warning >= 0 && warning < hit)
-}
-
-///|
-async test "buffered renderer sorts skip warnings before hits" {
-  let output = render_scan_command(
-    stream_options_with_format(skip_scan_options(), false, false),
-  )
-  assert_true(
-    output.has_prefix(
-      native_scan_test_path(
-        "warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip\nwarning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip",
-      ),
-    ),
-  )
-  let warning = string_index_containing(
-    output.split("\n").map(view => view.to_owned()).to_array(),
-    "#moongrep.skip does not accept a payload",
-  )
-  let hit = string_index_containing(
-    output.split("\n").map(view => view.to_owned()).to_array(),
-    native_scan_test_path("testdata/skip-structural/src/hit.mbt:9:3-9:11"),
-  )
-  assert_true(warning >= 0 && warning < hit)
 }

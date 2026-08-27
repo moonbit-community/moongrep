@@ -339,6 +339,31 @@ fn non_bmp_scan_options() -> CliOptions {
 }
 
 ///|
+priv struct CapturedScanEvents {
+  traces : Array[String]
+  hits : Array[ScanHit]
+  warnings : Array[ScanWarning]
+}
+
+///|
+async fn capture_scan_events(
+  mode : ScanMode,
+  options : CliOptions,
+) -> CapturedScanEvents {
+  let traces : Array[String] = []
+  let hits : Array[ScanHit] = []
+  let warnings : Array[ScanWarning] = []
+  scan_events(mode, options, event => {
+    match event {
+      Trace(message) => traces.push(message)
+      Warning(warning) => warnings.push(warning)
+      Hit(hit) => hits.push(hit)
+    }
+  })
+  { traces, hits, warnings }
+}
+
+///|
 fn scan_hit_line_summary(hit : ScanHit) -> String {
   "\{hit.finding.rule_id}:\{hit.finding.loc.start.lnum}"
 }
@@ -355,14 +380,18 @@ fn string_array_contains(items : Array[String], expected : String) -> Bool {
 
 ///|
 async test "scan enforces moongrep skip structural and taint contract" {
-  let result = collect_directory_hits(Scan, skip_scan_options())
+  let result = capture_scan_events(Scan, skip_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
   assert_eq(summaries, ["structural:9", "structural:21", "taint:28"])
+  let rendered_warnings : Array[String] = []
+  for warning in result.warnings {
+    rendered_warnings.push(render_scan_warning(warning))
+  }
   inspect(
-    render_scan_warnings(result.warnings),
+    rendered_warnings.join("\n"),
     content=native_scan_test_path(
       (
         #|warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
@@ -373,17 +402,35 @@ async test "scan enforces moongrep skip structural and taint contract" {
 }
 
 ///|
-async test "scan and lint render APIs select their rule sources" {
+async test "scan and lint streaming modes select their rule sources" {
   let options = builtin_api_options()
-  inspect(render_scan_command(options), content="no match hits")
-  let lint_output = render_lint_command(options)
+  let scan_stdout : Array[String] = []
+  let scan_stderr : Array[String] = []
+  run_scan_mode_command_with_writers(
+    Scan,
+    options,
+    output => scan_stdout.push(output),
+    output => scan_stderr.push(output),
+  )
+  inspect(scan_stdout.join(""), content="no match hits\n")
+  assert_true(scan_stderr.is_empty())
+  let lint_stdout : Array[String] = []
+  let lint_stderr : Array[String] = []
+  run_scan_mode_command_with_writers(
+    Lint,
+    options,
+    output => lint_stdout.push(output),
+    output => lint_stderr.push(output),
+  )
+  let lint_output = lint_stdout.join("")
   assert_true(lint_output.contains("rule: moonbitlang/inspect_number"))
   assert_true(lint_output.contains("rule: moonbitlang/match_option"))
+  assert_true(lint_stderr.is_empty())
 }
 
 ///|
 async test "scan renders non-BMP matches with Unicode code point columns" {
-  let result = collect_directory_hits(Scan, non_bmp_scan_options())
+  let result = capture_scan_events(Scan, non_bmp_scan_options())
   guard result.hits is [hit, ..] else { fail("expected a non-BMP scan hit") }
   inspect(
     format_location(hit.finding.file, hit.finding.loc),
@@ -411,7 +458,7 @@ async test "scan renders non-BMP matches with Unicode code point columns" {
 
 ///|
 async test "scan excludes configured file and directory entries" {
-  let result = collect_directory_hits(Scan, excluded_entry_scan_options())
+  let result = capture_scan_events(Scan, excluded_entry_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(hit.finding.file)
@@ -419,7 +466,7 @@ async test "scan excludes configured file and directory entries" {
   assert_eq(summaries, [native_scan_test_path("testdata/exclude-dirs/hit.mbt")])
   assert_true(
     string_array_contains(
-      result.scan_trace,
+      result.traces,
       native_scan_test_path(
         "moongrep scan: skipping testdata/exclude-dirs/ignored",
       ),
@@ -427,7 +474,7 @@ async test "scan excludes configured file and directory entries" {
   )
   assert_true(
     string_array_contains(
-      result.scan_trace,
+      result.traces,
       native_scan_test_path(
         "moongrep scan: skipping testdata/exclude-dirs/generated",
       ),
@@ -435,7 +482,7 @@ async test "scan excludes configured file and directory entries" {
   )
   assert_true(
     string_array_contains(
-      result.scan_trace,
+      result.traces,
       native_scan_test_path(
         "moongrep scan: skipping testdata/exclude-dirs/excluded.mbt",
       ),
@@ -445,7 +492,7 @@ async test "scan excludes configured file and directory entries" {
 
 ///|
 async test "scan does not apply excludes to the explicit scan root" {
-  let result = collect_directory_hits(Scan, excluded_scan_root_options())
+  let result = capture_scan_events(Scan, excluded_scan_root_options())
   let files : Array[String] = []
   for hit in result.hits {
     files.push(hit.finding.file)
@@ -455,7 +502,7 @@ async test "scan does not apply excludes to the explicit scan root" {
 
 ///|
 async test "scan loads only the configured single rule file" {
-  let result = collect_directory_hits(Scan, single_rule_file_scan_options())
+  let result = capture_scan_events(Scan, single_rule_file_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -465,7 +512,7 @@ async test "scan loads only the configured single rule file" {
 
 ///|
 async test "scan anonymous guarded pattern filters matches" {
-  let result = collect_directory_hits(Scan, guarded_cli_pattern_scan_options())
+  let result = capture_scan_events(Scan, guarded_cli_pattern_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -475,7 +522,7 @@ async test "scan anonymous guarded pattern filters matches" {
 
 ///|
 async test "scan plan keeps block level prefilter distribution" {
-  let result = collect_directory_hits(Scan, block_prefilter_scan_options())
+  let result = capture_scan_events(Scan, block_prefilter_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -485,10 +532,7 @@ async test "scan plan keeps block level prefilter distribution" {
 
 ///|
 async test "scan does not parse unmatched source blocks" {
-  let result = collect_directory_hits(
-    Scan,
-    irrelevant_broken_block_scan_options(),
-  )
+  let result = capture_scan_events(Scan, irrelevant_broken_block_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -499,7 +543,7 @@ async test "scan does not parse unmatched source blocks" {
 
 ///|
 async test "scan isolates matching source block parse failures" {
-  let result = collect_directory_hits(Scan, matched_broken_block_scan_options())
+  let result = capture_scan_events(Scan, matched_broken_block_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
@@ -520,13 +564,13 @@ async test "scan isolates matching source block parse failures" {
 
 ///|
 async test "scan disables configured rule ids before planning" {
-  let result = collect_directory_hits(Scan, disabled_rule_scan_options())
+  let result = capture_scan_events(Scan, disabled_rule_scan_options())
   let summaries : Array[String] = []
   for hit in result.hits {
     summaries.push(scan_hit_line_summary(hit))
   }
   assert_eq(summaries, ["other:6"])
-  assert_eq(result.scan_trace, [
+  assert_eq(result.traces, [
     "moongrep scan: loaded rule other",
     native_scan_test_path("moongrep scan: entering testdata/prefilter-impl"),
     native_scan_test_path(
@@ -537,7 +581,7 @@ async test "scan disables configured rule ids before planning" {
 
 ///|
 async test "scan rejects unknown disabled rule ids" {
-  try collect_directory_hits(Scan, unknown_disabled_rule_scan_options()) catch {
+  try capture_scan_events(Scan, unknown_disabled_rule_scan_options()) catch {
     CliError::Usage(message~) as err => {
       assert_eq(err.exit_code(), 2)
       inspect(message, content="unknown rule id in --disable: missing")
@@ -579,7 +623,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     no_color: true,
     output_json: false,
   }
-  try collect_directory_hits(Scan, invalid_pattern_options) catch {
+  try capture_scan_events(Scan, invalid_pattern_options) catch {
     CliError::RuleContent(..) as err => assert_eq(err.exit_code(), 5)
     err => fail("unexpected rule content error \{err}")
   } noraise {
@@ -609,7 +653,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     no_color: true,
     output_json: false,
   }
-  try collect_directory_hits(Scan, missing_scan_root_options) catch {
+  try capture_scan_events(Scan, missing_scan_root_options) catch {
     CliError::ScanInput(..) as err => assert_eq(err.exit_code(), 6)
     err => fail("unexpected scan input error \{err}")
   } noraise {
@@ -619,8 +663,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
 
 ///|
 async test "scan verbose lists loaded rule ids before traversal" {
-  let result = collect_directory_hits(Scan, verbose_rules_scan_options())
-  assert_eq(result.scan_trace, [
+  let result = capture_scan_events(Scan, verbose_rules_scan_options())
+  assert_eq(result.traces, [
     "moongrep scan: loaded rule example",
     "moongrep scan: loaded rule nested/example",
     native_scan_test_path(
