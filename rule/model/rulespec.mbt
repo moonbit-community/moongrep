@@ -3,6 +3,9 @@
 pub(all) suberror RuleLoadError {
   /// No YAML rule files were found below `path`.
   NoRuleFiles(path~ : String)
+  /// The rule pattern at `path` cannot be compiled. `shape` is the original
+  /// pattern text and `info` explains why it is invalid.
+  InvalidPattern(path~ : String, shape~ : String, info~ : String)
   /// The rule set or rule at `path` is malformed, conflicts with another rule,
   /// or cannot be represented by runtime CST matching. `path` may be the rules
   /// root for directory-level failures. `info` is written for rule authors.
@@ -16,11 +19,36 @@ pub impl Show for RuleLoadError with fn output(self, logger) {
       logger.write_string(path)
       logger.write_string(": no YAML rule files found")
     }
+    InvalidPattern(path~, shape~, info~) => {
+      logger.write_string(path)
+      logger.write_string(":\n  pattern:")
+      let normalized_shape = normalize_rule_pattern_shape(shape)
+      if normalized_shape != "" {
+        for line in normalized_shape.split("\n") {
+          logger.write_string("\n    ")
+          logger.write_string(line.to_owned())
+        }
+      }
+      logger.write_string("\n  reason: ")
+      logger.write_string(info)
+    }
     InvalidRule(path~, info~) => {
       logger.write_string(path)
       logger.write_string(": ")
       logger.write_string(info)
     }
+  }
+}
+
+///|
+fn normalize_rule_pattern_shape(shape : String) -> String {
+  let normalized = shape
+    .replace_all(old="\r\n", new="\n")
+    .replace_all(old="\r", new="\n")
+  if normalized.has_suffix("\n") {
+    normalized[:normalized.length() - 1].to_owned()
+  } else {
+    normalized
   }
 }
 

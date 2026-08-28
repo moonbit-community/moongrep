@@ -13,11 +13,131 @@ fn compile_one(source : String) -> Array[CompiledRule] raise {
 ///|
 fn expect_compile_invalid(source : String, expected : String) -> Unit raise {
   try ignore(compile_one(source)) catch {
+    RuleLoadError::InvalidPattern(path=_, shape=_, info~) =>
+      inspect(info, content=expected)
     RuleLoadError::InvalidRule(path=_, info~) => inspect(info, content=expected)
     _ => fail("expected RuleLoadError")
   } noraise {
     _ => fail("expected compile failure")
   }
+}
+
+///|
+fn expect_compile_invalid_pattern(
+  source : String,
+  expected_shape : String,
+  expected_info : String,
+) -> Unit raise {
+  try ignore(compile_one(source)) catch {
+    RuleLoadError::InvalidPattern(path~, shape~, info~) => {
+      inspect(path, content="/tmp/rules/example.yaml")
+      inspect(shape, content=expected_shape)
+      inspect(info, content=expected_info)
+    }
+    _ => fail("expected InvalidPattern")
+  } noraise {
+    _ => fail("expected invalid pattern")
+  }
+}
+
+///|
+fn expect_compile_invalid_rule(
+  source : String,
+  expected_info : String,
+) -> Unit raise {
+  try ignore(compile_one(source)) catch {
+    RuleLoadError::InvalidRule(path~, info~) => {
+      inspect(path, content="/tmp/rules/example.yaml")
+      inspect(info, content=expected_info)
+    }
+    _ => fail("expected InvalidRule")
+  } noraise {
+    _ => fail("expected invalid rule")
+  }
+}
+
+///|
+test "validate reports invalid pattern shape and info for every clause kind" {
+  let pattern_source =
+    #|id: pattern
+    #|description: Invalid pattern.
+    #|patterns:
+    #|  - shape: wrap($$$items + 1)
+    #|
+  expect_compile_invalid_pattern(
+    pattern_source, "wrap($$$items + 1)", "the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
+  )
+  let negative_source =
+    #|id: negative
+    #|description: Invalid negative pattern.
+    #|patterns:
+    #|  - shape: target()
+    #|patterns-not:
+    #|  - shape: __TARGET__
+    #|
+  expect_compile_invalid_pattern(
+    negative_source, "__TARGET__", "the pattern must not contain __TARGET__",
+  )
+  let inside_expr_source =
+    #|id: inside-expr
+    #|description: Invalid expression context.
+    #|inside-expr:
+    #|  - shape: wrapper()
+    #|patterns:
+    #|  - shape: target()
+    #|
+  expect_compile_invalid_pattern(
+    inside_expr_source, "wrapper()", "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
+  )
+  let inside_toplevel_source =
+    #|id: inside-toplevel
+    #|description: Invalid top-level context.
+    #|inside-toplevel:
+    #|  - shape: marker()
+    #|patterns:
+    #|  - shape: target()
+    #|
+  expect_compile_invalid_pattern(
+    inside_toplevel_source, "marker()", "the pattern is not a valid MoonBit top-level item",
+  )
+  let taint_source =
+    #|id: taint-source
+    #|description: Invalid taint source.
+    #|taint:
+    #|  sources:
+    #|    - shape: source(__SOURCE__)
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|
+  expect_compile_invalid_pattern(
+    taint_source, "source(__SOURCE__)", "the pattern must not contain __SOURCE__",
+  )
+  let taint_sink =
+    #|id: taint-sink
+    #|description: Invalid taint sink.
+    #|taint:
+    #|  sources:
+    #|    - shape: source()
+    #|  sinks:
+    #|    - shape: sink(wrap(__SOURCE__))
+    #|
+  expect_compile_invalid_pattern(
+    taint_sink, "sink(wrap(__SOURCE__))", "the pattern must place __SOURCE__ as the whole receiver or argument value",
+  )
+  let taint_sanitizer =
+    #|id: taint-sanitizer
+    #|description: Invalid taint sanitizer.
+    #|taint:
+    #|  sources:
+    #|    - shape: source()
+    #|  sinks:
+    #|    - shape: sink(__SOURCE__)
+    #|  sanitizers:
+    #|    - shape: __SOURCE__
+    #|
+  expect_compile_invalid_pattern(
+    taint_sanitizer, "__SOURCE__", "the pattern must be a call expression",
+  )
 }
 
 ///|
@@ -84,7 +204,7 @@ test "validate rejects ellipsis outside a complete list item" {
     #|  - shape: $$$items
     #|
   expect_compile_invalid(
-    root, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
+    root, "the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
   )
   let source =
     #|id: example
@@ -93,7 +213,7 @@ test "validate rejects ellipsis outside a complete list item" {
     #|  - shape: wrap($$$items + 1)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
+    source, "the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
   )
 }
 
@@ -106,7 +226,7 @@ test "validate rejects ellipsis inside grouping parentheses" {
     #|  - shape: ($$$items)
     #|
   expect_compile_invalid(
-    grouped_bare, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
+    grouped_bare, "the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
   )
   let grouped_typed =
     #|id: grouped-typed
@@ -115,7 +235,7 @@ test "validate rejects ellipsis inside grouping parentheses" {
     #|  - shape: ($$$(values:exp))
     #|
   expect_compile_invalid(
-    grouped_typed, "patterns[0].shape uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item",
+    grouped_typed, "the pattern uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item",
   )
   let nested =
     #|id: nested-group
@@ -124,7 +244,7 @@ test "validate rejects ellipsis inside grouping parentheses" {
     #|  - shape: (($$$items))
     #|
   expect_compile_invalid(
-    nested, "patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item",
+    nested, "the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
   )
   let grouped_pattern_item =
     #|id: grouped-pattern-item
@@ -133,7 +253,7 @@ test "validate rejects ellipsis inside grouping parentheses" {
     #|  - shape: match input { (($$$(patterns:pat)), tail) => body }
     #|
   expect_compile_invalid(
-    grouped_pattern_item, "patterns[0].shape uses ellipsis metavar $$$(patterns:pat) outside a complete ordered CST list item",
+    grouped_pattern_item, "the pattern uses ellipsis metavar $$$(patterns:pat) outside a complete ordered CST list item",
   )
   let grouped_type_item =
     #|id: grouped-type-item
@@ -143,7 +263,7 @@ test "validate rejects ellipsis inside grouping parentheses" {
     #|      let value : (($$$(Types:type)), Bool) = input
     #|
   expect_compile_invalid(
-    grouped_type_item, "patterns[0].shape uses ellipsis metavar $$$(Types:type) outside a complete ordered CST list item",
+    grouped_type_item, "the pattern uses ellipsis metavar $$$(Types:type) outside a complete ordered CST list item",
   )
 }
 
@@ -185,7 +305,7 @@ test "validate rejects ellipsis guards" {
     #|    guard:
     #|      $args: .+
     #|
-  expect_compile_invalid(
+  expect_compile_invalid_rule(
     source, "patterns[0].guard.$args cannot reference ellipsis metavar args",
   )
 }
@@ -199,7 +319,7 @@ test "validate rejects conflicting and mixed ellipsis declarations" {
     #|  - shape: pair([$$$(items:exp)], [$$$(items:id)])
     #|
   expect_compile_invalid(
-    conflicting, "patterns[0].shape declares ellipsis metavar items as multiple metavar kinds",
+    conflicting, "the pattern declares ellipsis metavar items as multiple metavar kinds",
   )
   let mixed =
     #|id: example
@@ -208,7 +328,7 @@ test "validate rejects conflicting and mixed ellipsis declarations" {
     #|  - shape: pair($items, [$$$items])
     #|
   expect_compile_invalid(
-    mixed, "patterns[0].shape cannot use items as both an ellipsis metavar and a single-node metavar",
+    mixed, "the pattern cannot use items as both an ellipsis metavar and a single-node metavar",
   )
 }
 
@@ -221,7 +341,7 @@ test "validate rejects ellipsis kinds incompatible with their list slots" {
     #|  - shape: fn($$$(params:exp)) { body }
     #|
   expect_compile_invalid(
-    parameter, "patterns[0].shape uses ellipsis kind exp in an incompatible ordered-list item position",
+    parameter, "the pattern uses ellipsis kind exp in an incompatible ordered-list item position",
   )
   let argument =
     #|id: example
@@ -230,7 +350,7 @@ test "validate rejects ellipsis kinds incompatible with their list slots" {
     #|  - shape: sink($$$(values:pat))
     #|
   expect_compile_invalid(
-    argument, "patterns[0].shape uses ellipsis kind pat in an incompatible ordered-list item position",
+    argument, "the pattern uses ellipsis kind pat in an incompatible ordered-list item position",
   )
 }
 
@@ -283,7 +403,7 @@ test "validate rejects reserved target and source metavar names" {
     #|  - shape: $(__TARGET__:exp)
     #|
   expect_compile_invalid(
-    target_source, "patterns[0] cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
+    target_source, "the pattern cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
   )
   let source_source =
     #|id: example
@@ -292,7 +412,7 @@ test "validate rejects reserved target and source metavar names" {
     #|  - shape: $(__SOURCE__:exp)
     #|
   expect_compile_invalid(
-    source_source, "patterns[0] cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
+    source_source, "the pattern cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
   )
 }
 
@@ -305,7 +425,7 @@ test "validate rejects legacy metavar syntax" {
     #|  - shape: $exp:value
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses legacy metavar syntax $exp:value; use $(value:exp)",
+    source, "the pattern uses legacy metavar syntax $exp:value; use $(value:exp)",
   )
 }
 
@@ -378,7 +498,7 @@ test "validate rejects bare dollar metavar syntax" {
     #|patterns:
     #|  - shape: $
     #|
-  expect_compile_invalid(source, "patterns[0].shape has lexical errors")
+  expect_compile_invalid(source, "the pattern has lexical errors")
 }
 
 ///|
@@ -471,7 +591,7 @@ test "validate rejects ambiguous bare pattern metavars" {
     #|  - shape: match input { $item => body }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
+    source, "the pattern cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
   )
 }
 
@@ -487,7 +607,7 @@ test "validate keeps nested match patterns ambiguous inside foreach" {
     #|      }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape cannot infer kind for bare metavar $pattern in a pattern variable position; use explicit typed syntax like $(pattern:id), $(pattern:const), or $(pattern:pat)",
+    source, "the pattern cannot infer kind for bare metavar $pattern in a pattern variable position; use explicit typed syntax like $(pattern:id), $(pattern:const), or $(pattern:pat)",
   )
 }
 
@@ -500,7 +620,7 @@ test "validate rejects ambiguous bare pattern metavars with expression reuse" {
     #|  - shape: match input { $item => $item }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
+    source, "the pattern cannot infer kind for bare metavar $item in a pattern variable position; use explicit typed syntax like $(item:id), $(item:const), or $(item:pat)",
   )
 }
 
@@ -543,7 +663,7 @@ test "validate rejects explicit kind incompatible with bare occurrences" {
     #|  - shape: match input { $item => $(item:exp) }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $(item:exp) outside a bare expression position",
+    source, "the pattern uses $(item:exp) outside a bare expression position",
   )
 }
 
@@ -556,7 +676,7 @@ test "validate rejects pattern metavar kind conflicts" {
     #|  - shape: match input { $(item:pat) => $(item:id) }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar item as multiple metavar kinds",
+    source, "the pattern declares metavar item as multiple metavar kinds",
   )
 }
 
@@ -569,7 +689,7 @@ test "validate rejects pattern metavar outside bare pattern position" {
     #|  - shape: $(value:pat) + 1
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $(value:pat) outside a bare pattern position",
+    source, "the pattern uses $(value:pat) outside a bare pattern position",
   )
 }
 
@@ -582,7 +702,7 @@ test "validate rejects expr metavar outside bare expression position" {
     #|  - shape: match input { $(item:exp) => item }
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $(item:exp) outside a bare expression position",
+    source, "the pattern uses $(item:exp) outside a bare expression position",
   )
 }
 
@@ -595,7 +715,7 @@ test "validate rejects metavar kind conflicts" {
     #|  - shape: $(value:exp) + $(value:id)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+    source, "the pattern declares metavar value as multiple metavar kinds",
   )
 }
 
@@ -684,7 +804,7 @@ test "validate keeps the uppercase requirement for type metavar names" {
     #|      let value : $(foo:type) = input
     #|
   expect_compile_invalid(
-    lowercase, "patterns[0].shape is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
+    lowercase, "the pattern is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
   )
   let keyword =
     #|id: keyword
@@ -694,7 +814,7 @@ test "validate keeps the uppercase requirement for type metavar names" {
     #|      let value : $(for:type) = input
     #|
   expect_compile_invalid(
-    keyword, "patterns[0].shape is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
+    keyword, "the pattern is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
   )
   let ellipsis =
     #|id: ellipsis
@@ -704,7 +824,7 @@ test "validate keeps the uppercase requirement for type metavar names" {
     #|      let value : ($$$(types:type), Bool) = input
     #|
   expect_compile_invalid(
-    ellipsis, "patterns[0].shape is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
+    ellipsis, "the pattern is not a valid MoonBit expression: Unexpected token id (lowercase start), you may expect type.",
   )
 }
 
@@ -747,7 +867,7 @@ test "validate rejects type metavar outside whole type positions" {
     #|  - shape: $(T:type) + 1
     #|
   expect_compile_invalid(
-    expr_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+    expr_source, "the pattern uses $(T:type) outside a whole type position",
   )
   let arg_source =
     #|id: example
@@ -756,7 +876,7 @@ test "validate rejects type metavar outside whole type positions" {
     #|  - shape: sink($(T:type))
     #|
   expect_compile_invalid(
-    arg_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+    arg_source, "the pattern uses $(T:type) outside a whole type position",
   )
   let pattern_source =
     #|id: example
@@ -765,7 +885,7 @@ test "validate rejects type metavar outside whole type positions" {
     #|  - shape: match input { $(T:type) => body }
     #|
   expect_compile_invalid(
-    pattern_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+    pattern_source, "the pattern uses $(T:type) outside a whole type position",
   )
   let label_source =
     #|id: example
@@ -774,7 +894,7 @@ test "validate rejects type metavar outside whole type positions" {
     #|  - shape: sink($(T:type)=value)
     #|
   expect_compile_invalid(
-    label_source, "patterns[0].shape is not a valid MoonBit expression: Unexpected uppercase identifier $(T:type), expected lowercase identifier.",
+    label_source, "the pattern is not a valid MoonBit expression: Unexpected uppercase identifier $(T:type), expected lowercase identifier.",
   )
   let constructor_source =
     #|id: example
@@ -783,7 +903,7 @@ test "validate rejects type metavar outside whole type positions" {
     #|  - shape: $(T:type)(value)
     #|
   expect_compile_invalid(
-    constructor_source, "patterns[0].shape uses $(T:type) outside a whole type position",
+    constructor_source, "the pattern uses $(T:type) outside a whole type position",
   )
 }
 
@@ -813,7 +933,7 @@ test "validate rejects type metavar kind conflicts" {
     #|      let value : $(T:type) = $(T:exp)
     #|
   expect_compile_invalid(
-    exp_source, "patterns[0].shape uses $(T:exp) outside a bare expression position",
+    exp_source, "the pattern uses $(T:exp) outside a bare expression position",
   )
   let id_source =
     #|id: example
@@ -823,7 +943,7 @@ test "validate rejects type metavar kind conflicts" {
     #|      let $(T:id) : $(T:type) = input
     #|
   expect_compile_invalid(
-    id_source, "patterns[0].shape declares metavar T as multiple metavar kinds",
+    id_source, "the pattern declares metavar T as multiple metavar kinds",
   )
   let const_source =
     #|id: example
@@ -833,7 +953,7 @@ test "validate rejects type metavar kind conflicts" {
     #|      let value : $(T:type) = $(T:const)
     #|
   expect_compile_invalid(
-    const_source, "patterns[0].shape uses $(T:const) outside a constant expression or pattern position",
+    const_source, "the pattern uses $(T:const) outside a constant expression or pattern position",
   )
   let arg_source =
     #|id: example
@@ -843,7 +963,7 @@ test "validate rejects type metavar kind conflicts" {
     #|      let value : $(T:type) = sink($(T:arg))
     #|
   expect_compile_invalid(
-    arg_source, "patterns[0].shape uses $(T:arg) outside a bare argument position",
+    arg_source, "the pattern uses $(T:arg) outside a bare argument position",
   )
   let pat_source =
     #|id: example
@@ -853,7 +973,7 @@ test "validate rejects type metavar kind conflicts" {
     #|      let value : $(T:type) = match input { $(T:pat) => body }
     #|
   expect_compile_invalid(
-    pat_source, "patterns[0].shape uses $(T:pat) outside a bare pattern position",
+    pat_source, "the pattern uses $(T:pat) outside a bare pattern position",
   )
 }
 
@@ -868,7 +988,7 @@ test "validate rejects inherited type metavar kind mismatch" {
     #|patterns:
     #|  - shape: target($T)
     #|
-  expect_compile_invalid(
+  expect_compile_invalid_rule(
     source, "patterns[0] cannot use inherited inside-expr[0] metavar T as id because it was declared as type",
   )
 }
@@ -939,7 +1059,7 @@ test "validate rejects constant metavar kind conflicts" {
     #|  - shape: $(value:const) + $(value:exp)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+    source, "the pattern declares metavar value as multiple metavar kinds",
   )
 }
 
@@ -952,7 +1072,7 @@ test "validate rejects argument metavar kind conflicts" {
     #|  - shape: sink($(value:arg), $(value:exp))
     #|
   expect_compile_invalid(
-    exp_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+    exp_source, "the pattern declares metavar value as multiple metavar kinds",
   )
   let id_source =
     #|id: example
@@ -961,7 +1081,7 @@ test "validate rejects argument metavar kind conflicts" {
     #|  - shape: sink($(value:arg), $(value:id))
     #|
   expect_compile_invalid(
-    id_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+    id_source, "the pattern declares metavar value as multiple metavar kinds",
   )
   let const_source =
     #|id: example
@@ -970,7 +1090,7 @@ test "validate rejects argument metavar kind conflicts" {
     #|  - shape: sink($(value:arg), $(value:const))
     #|
   expect_compile_invalid(
-    const_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+    const_source, "the pattern declares metavar value as multiple metavar kinds",
   )
   let pat_source =
     #|id: example
@@ -979,7 +1099,7 @@ test "validate rejects argument metavar kind conflicts" {
     #|  - shape: sink($(value:arg), match input { $(value:pat) => ok })
     #|
   expect_compile_invalid(
-    pat_source, "patterns[0].shape declares metavar value as multiple metavar kinds",
+    pat_source, "the pattern declares metavar value as multiple metavar kinds",
   )
 }
 
@@ -992,7 +1112,7 @@ test "validate rejects argument metavars outside bare argument position" {
     #|  - shape: $(value:arg)
     #|
   expect_compile_invalid(
-    root_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+    root_source, "the pattern uses $(value:arg) outside a bare argument position",
   )
   let labelled_value_source =
     #|id: example
@@ -1001,7 +1121,7 @@ test "validate rejects argument metavars outside bare argument position" {
     #|  - shape: sink(label=$(value:arg))
     #|
   expect_compile_invalid(
-    labelled_value_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+    labelled_value_source, "the pattern uses $(value:arg) outside a bare argument position",
   )
   let nested_source =
     #|id: example
@@ -1010,7 +1130,7 @@ test "validate rejects argument metavars outside bare argument position" {
     #|  - shape: sink($(value:arg) + 1)
     #|
   expect_compile_invalid(
-    nested_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+    nested_source, "the pattern uses $(value:arg) outside a bare argument position",
   )
   let pattern_source =
     #|id: example
@@ -1019,7 +1139,7 @@ test "validate rejects argument metavars outside bare argument position" {
     #|  - shape: match input { $(value:arg) => body }
     #|
   expect_compile_invalid(
-    pattern_source, "patterns[0].shape uses $(value:arg) outside a bare argument position",
+    pattern_source, "the pattern uses $(value:arg) outside a bare argument position",
   )
 }
 
@@ -1032,7 +1152,7 @@ test "validate rejects const metavar in labels" {
     #|  - shape: sink($(value:const)=actual)
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $(value:const) outside a constant expression or pattern position",
+    source, "the pattern uses $(value:const) outside a constant expression or pattern position",
   )
 }
 
@@ -1045,7 +1165,7 @@ test "validate rejects const metavar in qualified identifiers" {
     #|  - shape: "@pkg.$(value:const)"
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $(value:const) in an unsupported qualified identifier position",
+    source, "the pattern uses $(value:const) in an unsupported qualified identifier position",
   )
 }
 
@@ -1058,7 +1178,7 @@ test "validate rejects const metavar in ordinary binders" {
     #|  - shape: let mut $(value:const) = 1
     #|
   expect_compile_invalid(
-    source, "patterns[0].shape uses $(value:const) outside a constant expression or pattern position",
+    source, "the pattern uses $(value:const) outside a constant expression or pattern position",
   )
 }
 
@@ -1201,7 +1321,7 @@ test "validate rejects partial mode for non-function top-level shapes" {
     #|  - shape: call()
     #|
   expect_compile_invalid(
-    source, "inside-toplevel[0].match-mode partial is only supported for function definition shapes",
+    source, "the pattern uses match-mode partial, which is only supported for function definition shapes",
   )
 }
 
@@ -1345,9 +1465,7 @@ test "validate rejects target placeholder in patterns-not" {
     #|patterns-not:
     #|  - shape: __TARGET__
     #|
-  expect_compile_invalid(
-    source, "patterns-not[0].shape must not contain __TARGET__",
-  )
+  expect_compile_invalid(source, "the pattern must not contain __TARGET__")
 }
 
 ///|
@@ -1443,7 +1561,7 @@ test "validate inside expr requires exactly one target" {
     #|  - shape: x
     #|
   expect_compile_invalid(
-    source, "inside-expr[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    source, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }
 
@@ -1458,7 +1576,7 @@ test "validate inside expr counts only bindable target expressions" {
     #|  - shape: marker()
     #|
   expect_compile_invalid(
-    pattern_only, "inside-expr[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    pattern_only, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let binder_only =
     #|id: example
@@ -1469,7 +1587,7 @@ test "validate inside expr counts only bindable target expressions" {
     #|  - shape: marker()
     #|
   expect_compile_invalid(
-    binder_only, "inside-expr[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    binder_only, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let pattern_and_expression =
     #|id: example
@@ -1497,7 +1615,7 @@ test "validate inside toplevel requires exactly one target" {
     #|  - shape: x
     #|
   expect_compile_invalid(
-    missing_target, "inside-toplevel[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    missing_target, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let duplicate_target =
     #|id: example
@@ -1508,7 +1626,7 @@ test "validate inside toplevel requires exactly one target" {
     #|  - shape: x
     #|
   expect_compile_invalid(
-    duplicate_target, "inside-toplevel[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    duplicate_target, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }
 
@@ -1523,7 +1641,7 @@ test "validate inside toplevel counts only bindable target expressions" {
     #|  - shape: marker()
     #|
   expect_compile_invalid(
-    binder_only, "inside-toplevel[0].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+    binder_only, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let binder_and_expression =
     #|id: example
@@ -1565,7 +1683,7 @@ test "validate ordinary patterns reject only bindable target expressions" {
     #|  - shape: match input { value => __TARGET__ }
     #|
   expect_compile_invalid(
-    expression_target, "patterns[0].shape must not contain __TARGET__",
+    expression_target, "the pattern must not contain __TARGET__",
   )
 }
 
@@ -1580,7 +1698,7 @@ test "validate rejects standalone expression as inside toplevel shape" {
     #|  - shape: marker()
     #|
   expect_compile_invalid(
-    source, "inside-toplevel[0].shape is not a valid MoonBit top-level item",
+    source, "the pattern is not a valid MoonBit top-level item",
   )
 }
 
@@ -1595,7 +1713,7 @@ test "validate taint source placeholder placement" {
     #|  sinks:
     #|    - shape: sink(__SOURCE__)
     #|
-  expect_compile_invalid(source, "taint.sources[0] must not contain __SOURCE__")
+  expect_compile_invalid(source, "the pattern must not contain __SOURCE__")
 }
 
 ///|
@@ -1610,7 +1728,7 @@ test "validate taint sink requires whole source target" {
     #|    - shape: sink(wrap(__SOURCE__))
     #|
   expect_compile_invalid(
-    source, "taint.sinks[0].shape must place __SOURCE__ as the whole receiver or argument value",
+    source, "the pattern must place __SOURCE__ as the whole receiver or argument value",
   )
 }
 
@@ -1982,7 +2100,7 @@ test "validate allows unreferenced outer captures to differ by alternative" {
 }
 
 ///|
-test "validate indexes target errors in later outer alternatives" {
+test "validate reports target error shape from later outer alternatives" {
   let source =
     #|id: example
     #|description: Missing target in second context.
@@ -1992,8 +2110,8 @@ test "validate indexes target errors in later outer alternatives" {
     #|patterns:
     #|  - shape: target()
     #|
-  expect_compile_invalid(
-    source, "inside-expr[1].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+  expect_compile_invalid_pattern(
+    source, "container(no_target)", "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let toplevel_source =
     #|id: example
@@ -2004,7 +2122,7 @@ test "validate indexes target errors in later outer alternatives" {
     #|patterns:
     #|  - shape: target()
     #|
-  expect_compile_invalid(
-    toplevel_source, "inside-toplevel[1].shape must contain exactly one __TARGET__ placeholder in a supported expression position",
+  expect_compile_invalid_pattern(
+    toplevel_source, "let value = pair(__TARGET__, __TARGET__)", "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }

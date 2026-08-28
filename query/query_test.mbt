@@ -539,7 +539,7 @@ test "query raises parse error when relevant source is invalid" {
 ///|
 test "query raises when pattern is invalid" {
   try ExprQuery::ExprQuery("target(") catch {
-    err => assert_true("\{Repr(err)}".contains("InvalidRule"))
+    err => assert_true("\{Repr(err)}".contains("InvalidPattern"))
   } noraise {
     _ => fail("expected invalid pattern")
   }

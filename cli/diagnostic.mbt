@@ -4,14 +4,48 @@ fn format_cli_diagnostic(
   source : String?,
   reason : String?,
   help : String?,
+  pattern? : String,
 ) -> String {
   let output = StringBuilder()
   output.write_string("error: ")
   output.write_string(summary)
   append_cli_diagnostic_field(output, "source", source)
+  append_cli_diagnostic_pattern(output, pattern)
   append_cli_diagnostic_field(output, "reason", reason)
   append_cli_diagnostic_field(output, "help", help)
   output.to_string()
+}
+
+///|
+fn append_cli_diagnostic_pattern(
+  output : StringBuilder,
+  value : String?,
+) -> Unit {
+  match value {
+    Some(text) => {
+      let normalized = normalize_cli_diagnostic_pattern(text)
+      output.write_string("\n  pattern:")
+      if normalized != "" {
+        for line in normalized.split("\n") {
+          output.write_string("\n    ")
+          output.write_string(line.to_owned())
+        }
+      }
+    }
+    _ => ()
+  }
+}
+
+///|
+fn normalize_cli_diagnostic_pattern(value : String) -> String {
+  let normalized = value
+    .replace_all(old="\r\n", new="\n")
+    .replace_all(old="\r", new="\n")
+  if normalized.has_suffix("\n") {
+    normalized[:normalized.length() - 1].to_owned()
+  } else {
+    normalized
+  }
 }
 
 ///|
@@ -221,9 +255,44 @@ fn new_invalid_rule_error(path : String, reason : String) -> CliError {
 }
 
 ///|
+fn new_invalid_pattern_error(
+  path : String,
+  shape : String,
+  reason : String,
+) -> CliError {
+  RuleContent(
+    message=format_cli_diagnostic(
+      "invalid rule",
+      Some(path),
+      Some(reason),
+      Some("fix the rule and try again"),
+      pattern=shape,
+    ),
+  )
+}
+
+///|
+fn new_invalid_anonymous_pattern_error(
+  shape : String,
+  reason : String,
+) -> CliError {
+  RuleContent(
+    message=format_cli_diagnostic(
+      "invalid anonymous pattern",
+      Some("--pattern"),
+      Some(reason),
+      Some("fix the pattern passed to --pattern and try again"),
+      pattern=shape,
+    ),
+  )
+}
+
+///|
 fn new_rule_load_error(error : @rule_model.RuleLoadError) -> CliError {
   match error {
     NoRuleFiles(path~) => new_empty_rule_directory_error(path)
+    InvalidPattern(path~, shape~, info~) =>
+      new_invalid_pattern_error(path, shape, info)
     InvalidRule(path~, info~) => new_invalid_rule_error(path, info)
   }
 }
@@ -248,16 +317,15 @@ fn new_compiled_rule_error(
 ) -> CliError {
   match error {
     NoRuleFiles(path~) => new_empty_rule_directory_error(path)
+    InvalidPattern(path~, shape~, info~) =>
+      if is_anonymous_pattern_source(path, patterns) {
+        new_invalid_anonymous_pattern_error(shape, info)
+      } else {
+        new_invalid_pattern_error(path, shape, info)
+      }
     InvalidRule(path~, info~) =>
       if is_anonymous_pattern_source(path, patterns) {
-        RuleContent(
-          message=format_cli_diagnostic(
-            "invalid anonymous pattern",
-            Some("--pattern \{path}"),
-            Some(info),
-            Some("fix the pattern passed to --pattern and try again"),
-          ),
-        )
+        new_invalid_anonymous_pattern_error(path, info)
       } else {
         new_invalid_rule_error(path, info)
       }

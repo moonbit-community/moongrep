@@ -12,8 +12,7 @@ priv enum EllipsisItemSlot {
 
 ///|
 fn compile_ellipsis_occurrences(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   occurrences : Array[ShapeMetavarOccurrence],
   contexts : Array[MetavarOccurrenceContext],
   collections : MetavarCollections,
@@ -23,24 +22,21 @@ fn compile_ellipsis_occurrences(
     match occurrences[index].syntax {
       Ellipsis(name, explicit_kind) => {
         guard contexts[index].ellipsis_slot is Some(_) else {
-          raise RuleLoadError::InvalidRule(
-            path~,
-            info="\{shape_context_name(context)} uses ellipsis metavar \{occurrences[index].raw} outside a complete ordered CST list item",
+          raise context.invalid_pattern(
+            "the pattern uses ellipsis metavar \{occurrences[index].raw} outside a complete ordered CST list item",
           )
         }
         if name != "_" {
-          validate_declared_metavar(path, context, name, true)
+          validate_declared_metavar(context, name, true)
           if collection_kind(collections, name) is Some(_) {
-            raise RuleLoadError::InvalidRule(
-              path~,
-              info="\{shape_context_name(context)} cannot use \{name} as both an ellipsis metavar and a single-node metavar",
+            raise context.invalid_pattern(
+              "the pattern cannot use \{name} as both an ellipsis metavar and a single-node metavar",
             )
           }
           if explicit_kind is Some(kind) {
             if explicit_kinds.get(name) is Some(previous) && previous != kind {
-              raise RuleLoadError::InvalidRule(
-                path~,
-                info="\{shape_context_name(context)} declares ellipsis metavar \{name} as multiple metavar kinds",
+              raise context.invalid_pattern(
+                "the pattern declares ellipsis metavar \{name} as multiple metavar kinds",
               )
             }
             explicit_kinds[name] = kind
@@ -61,9 +57,8 @@ fn compile_ellipsis_occurrences(
         }
         guard contexts[index].ellipsis_slot is Some(slot) else { continue }
         if !ellipsis_kind_allowed_in_slot(kind, slot) {
-          raise RuleLoadError::InvalidRule(
-            path~,
-            info="\{shape_context_name(context)} uses ellipsis kind \{ellipsis_kind_text(kind)} in an incompatible ordered-list item position",
+          raise context.invalid_pattern(
+            "the pattern uses ellipsis kind \{ellipsis_kind_text(kind)} in an incompatible ordered-list item position",
           )
         }
         if name != "_" && !ellipsis_metavars_contain(result, name) {
@@ -78,8 +73,7 @@ fn compile_ellipsis_occurrences(
 
 ///|
 fn parse_ellipsis_syntax(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   raw : String,
 ) -> (String, @matching.EllipsisMetavarKind?)? raise {
   if !raw.has_prefix("$$$") {
@@ -92,7 +86,7 @@ fn parse_ellipsis_syntax(
         let name = raw[4:index].trim().to_owned()
         let kind_text = raw[index + 1:end].trim().to_owned()
         guard name.length() > 0 else { return None }
-        return Some((name, Some(parse_ellipsis_kind(path, context, kind_text))))
+        return Some((name, Some(parse_ellipsis_kind(context, kind_text))))
       }
     }
     None
@@ -105,8 +99,7 @@ fn parse_ellipsis_syntax(
 
 ///|
 fn parse_ellipsis_kind(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   raw : String,
 ) -> @matching.EllipsisMetavarKind raise {
   match raw {
@@ -117,9 +110,8 @@ fn parse_ellipsis_kind(
     "pat" => PatItem
     "type" => TypeItem
     _ =>
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{shape_context_name(context)} contains unsupported ellipsis metavar kind \{raw}",
+      raise context.invalid_pattern(
+        "the pattern contains unsupported ellipsis metavar kind \{raw}",
       )
   }
 }

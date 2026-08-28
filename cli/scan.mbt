@@ -86,6 +86,8 @@ async fn prepare_scan_rules(
   raw_rules.append(load_scan_rules(options))
   let enabled_rules = disable_scan_rules(raw_rules, options.disabled_rules)
   @rule_compile.compile_rules(enabled_rules) catch {
+    @rule_model.RuleLoadError::InvalidPattern(..) as err =>
+      raise new_compiled_rule_error(err, options.patterns)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
       raise new_compiled_rule_error(err, options.patterns)
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
@@ -238,6 +240,8 @@ async fn load_rule_directory(
   @rule_load.load_rules(rules_root) catch {
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
       raise new_rule_load_error(err)
+    @rule_model.RuleLoadError::InvalidPattern(..) as err =>
+      raise new_rule_load_error(err)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
       raise new_rule_load_error(err)
     @os_error.OSError(_) as err =>
@@ -253,6 +257,8 @@ async fn load_rule_directory(
 async fn load_rule_file(rule_file : String) -> @rule_model.RawRuleSpec {
   @rule_load.load_rule(rule_file) catch {
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
+      raise new_rule_load_error(err)
+    @rule_model.RuleLoadError::InvalidPattern(..) as err =>
       raise new_rule_load_error(err)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
       raise new_rule_load_error(err)

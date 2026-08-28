@@ -50,6 +50,53 @@ test "model shows rule load error path and info" {
 }
 
 ///|
+test "model shows invalid pattern fields in separate blocks" {
+  let error = RuleLoadError::InvalidPattern(
+    path="/tmp/rules/example.yaml",
+    shape="wrap($$$items + 1)",
+    info="the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
+  )
+  match error {
+    InvalidPattern(path~, shape~, info~) => {
+      inspect(path, content="/tmp/rules/example.yaml")
+      inspect(shape, content="wrap($$$items + 1)")
+      inspect(
+        info,
+        content="the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
+      )
+    }
+    _ => fail("expected InvalidPattern")
+  }
+  inspect(
+    error.to_string(),
+    content=(
+      #|/tmp/rules/example.yaml:
+      #|  pattern:
+      #|    wrap($$$items + 1)
+      #|  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
+    ),
+  )
+}
+
+///|
+test "model shows multiline invalid pattern shape with relative indentation" {
+  let error = RuleLoadError::InvalidPattern(
+    path="rules/example.yaml",
+    shape="match value {\r\n  Some(item) => item\r\n\r\n  None => 0\r\n}\r\n",
+    info="the pattern is not valid",
+  )
+  let expected = "rules/example.yaml:\n" +
+    "  pattern:\n" +
+    "    match value {\n" +
+    "      Some(item) => item\n" +
+    "    \n" +
+    "      None => 0\n" +
+    "    }\n" +
+    "  reason: the pattern is not valid"
+  inspect(error.to_string(), content=expected)
+}
+
+///|
 test "model shows an empty rule directory as a source error" {
   let error = RuleLoadError::NoRuleFiles(path="/tmp/rules")
   inspect(error.to_string(), content="/tmp/rules: no YAML rule files found")

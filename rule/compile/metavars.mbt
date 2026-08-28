@@ -44,29 +44,22 @@ priv struct MetavarCollections {
 }
 
 ///|
-fn compile_metavar_shape(
-  path : String,
-  context : String,
-  source : String,
-) -> MetavarShape raise {
-  let (cst, occurrences) = parse_shape(path, context, source)
-  compile_prepared_metavar_shape(path, context, cst, occurrences)
+fn compile_metavar_shape(context : PatternCompileContext) -> MetavarShape raise {
+  let (cst, occurrences) = parse_shape(context)
+  compile_prepared_metavar_shape(context, cst, occurrences)
 }
 
 ///|
 fn compile_toplevel_metavar_shape(
-  path : String,
-  context : String,
-  source : String,
+  context : PatternCompileContext,
 ) -> MetavarShape raise {
-  let (cst, occurrences) = parse_toplevel_shape(path, context, source)
-  compile_prepared_metavar_shape(path, context, cst, occurrences)
+  let (cst, occurrences) = parse_toplevel_shape(context)
+  compile_prepared_metavar_shape(context, cst, occurrences)
 }
 
 ///|
 fn compile_prepared_metavar_shape(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   cst : @untyped_cst.CstNode,
   occurrences : Array[ShapeMetavarOccurrence],
 ) -> MetavarShape raise {
@@ -80,30 +73,28 @@ fn compile_prepared_metavar_shape(
   }
   let contexts : Array[MetavarOccurrenceContext] = []
   for occurrence in occurrences {
-    contexts.push(
-      find_metavar_occurrence_context(path, context, cst, occurrence),
-    )
+    contexts.push(find_metavar_occurrence_context(context, cst, occurrence))
   }
   for index in 0..<occurrences.length() {
     match occurrences[index].syntax {
       Explicit(kind, name) => {
-        validate_single_metavar_kind(path, context, kind)
-        validate_declared_metavar(path, context, name, true)
+        validate_single_metavar_kind(context, kind)
+        validate_declared_metavar(context, name, true)
         if occurrence_rejected_by_original_identifier_case(
             kind,
             occurrences[index],
           ) {
-          reject_metavar_position(path, context, kind, name, contexts[index])
+          reject_metavar_position(context, kind, name, contexts[index])
         }
-        validate_metavar_position(path, context, kind, name, contexts[index])
-        register_metavar_kind(path, context, collections, kind, name)
+        validate_metavar_position(context, kind, name, contexts[index])
+        register_metavar_kind(context, collections, kind, name)
       }
       _ => ()
     }
   }
-  infer_bare_metavar_kinds(path, context, occurrences, contexts, collections)
+  infer_bare_metavar_kinds(context, occurrences, contexts, collections)
   let ellipsis_metavars = compile_ellipsis_occurrences(
-    path, context, occurrences, contexts, collections,
+    context, occurrences, contexts, collections,
   )
   preserve_toplevel_identifier_order(cst, collections.identifier)
   {
@@ -197,17 +188,15 @@ fn single_metavar_source_name(raw : String) -> String? {
 ///|
 fn parse_metavar(
   raw : String,
-  path : String,
-  context : String,
+  context : PatternCompileContext,
 ) -> MetavarSyntax? raise {
   if raw.has_prefix("$$$") || raw == "$_" || !raw.has_prefix("$") {
     return None
   }
   if !raw.has_prefix("$(") || !raw.has_suffix(")") {
     if raw.length() <= 1 {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{shape_context_name(context)} has invalid metavar \{raw}; use explicit typed syntax like $(value:exp)",
+      raise context.invalid_pattern(
+        "the pattern has invalid metavar \{raw}; use explicit typed syntax like $(value:exp)",
       )
     }
     return Some(Bare(raw[1:].to_owned()))
@@ -223,16 +212,14 @@ fn parse_metavar(
       )
     }
   }
-  raise RuleLoadError::InvalidRule(
-    path~,
-    info="\{shape_context_name(context)} has invalid metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
+  raise context.invalid_pattern(
+    "the pattern has invalid metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
   )
 }
 
 ///|
 fn find_metavar_occurrence_context(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   root : @untyped_cst.CstNode,
   occurrence : ShapeMetavarOccurrence,
 ) -> MetavarOccurrenceContext raise {
@@ -262,9 +249,8 @@ fn find_metavar_occurrence_context(
       found
     }
   } else {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} cannot locate metavar \{occurrence.raw} in parsed CST",
+    raise context.invalid_pattern(
+      "the pattern cannot locate metavar \{occurrence.raw} in parsed CST",
     )
   }
 }
@@ -570,8 +556,7 @@ fn first_cst_pattern_child(
 
 ///|
 fn validate_single_metavar_kind(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   kind : String,
 ) -> Unit raise {
   if kind != "exp" &&
@@ -580,17 +565,15 @@ fn validate_single_metavar_kind(
     kind != "arg" &&
     kind != "type" &&
     kind != "pat" {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} contains unsupported metavar kind \{kind}",
+    raise context.invalid_pattern(
+      "the pattern contains unsupported metavar kind \{kind}",
     )
   }
 }
 
 ///|
 fn validate_metavar_position(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   kind : String,
   name : String,
   occurrence : MetavarOccurrenceContext,
@@ -610,50 +593,47 @@ fn validate_metavar_position(
     _ => false
   }
   if !valid {
-    reject_metavar_position(path, context, kind, name, occurrence)
+    reject_metavar_position(context, kind, name, occurrence)
   }
 }
 
 ///|
 fn reject_metavar_position(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   kind : String,
   name : String,
   occurrence : MetavarOccurrenceContext,
 ) -> Unit raise {
   let text = metavar_text(kind, name)
   let info = if kind == "exp" {
-    "\{shape_context_name(context)} uses \{text} outside a bare expression position"
+    "the pattern uses \{text} outside a bare expression position"
   } else if kind == "pat" {
-    "\{shape_context_name(context)} uses \{text} outside a bare pattern position"
+    "the pattern uses \{text} outside a bare pattern position"
   } else if kind == "arg" {
-    "\{shape_context_name(context)} uses \{text} outside a bare argument position"
+    "the pattern uses \{text} outside a bare argument position"
   } else if kind == "type" {
-    "\{shape_context_name(context)} uses \{text} outside a whole type position"
+    "the pattern uses \{text} outside a whole type position"
   } else if kind == "id" {
-    "\{shape_context_name(context)} uses \{text} outside an identifier position"
+    "the pattern uses \{text} outside an identifier position"
   } else if occurrence.qualified_identifier {
-    "\{shape_context_name(context)} uses \{text} in an unsupported qualified identifier position"
+    "the pattern uses \{text} in an unsupported qualified identifier position"
   } else {
-    "\{shape_context_name(context)} uses \{text} outside a constant expression or pattern position"
+    "the pattern uses \{text} outside a constant expression or pattern position"
   }
-  raise RuleLoadError::InvalidRule(path~, info~)
+  raise context.invalid_pattern(info)
 }
 
 ///|
 fn register_metavar_kind(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   collections : MetavarCollections,
   kind : String,
   name : String,
 ) -> Unit raise {
   let existing = collection_kind(collections, name)
   if existing is Some(previous) && previous != kind {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{shape_context_name(context)} declares metavar \{name} as multiple metavar kinds",
+    raise context.invalid_pattern(
+      "the pattern declares metavar \{name} as multiple metavar kinds",
     )
   }
   let target = match kind {
@@ -689,8 +669,7 @@ fn collection_kind(collections : MetavarCollections, name : String) -> String? {
 
 ///|
 fn infer_bare_metavar_kinds(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   occurrences : Array[ShapeMetavarOccurrence],
   contexts : Array[MetavarOccurrenceContext],
   collections : MetavarCollections,
@@ -700,12 +679,11 @@ fn infer_bare_metavar_kinds(
       Bare(name) if contexts[index].position == PatternPosition &&
         collection_kind(collections, name) is None =>
         if contexts[index].binder_only_pattern {
-          validate_declared_metavar(path, context, name, true)
-          register_metavar_kind(path, context, collections, "id", name)
+          validate_declared_metavar(context, name, true)
+          register_metavar_kind(context, collections, "id", name)
         } else {
-          raise RuleLoadError::InvalidRule(
-            path~,
-            info="\{shape_context_name(context)} cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
+          raise context.invalid_pattern(
+            "the pattern cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
           )
         }
       _ => ()
@@ -715,7 +693,7 @@ fn infer_bare_metavar_kinds(
     for index in 0..<occurrences.length() {
       match occurrences[index].syntax {
         Bare(name) if contexts[index].position == position => {
-          validate_declared_metavar(path, context, name, true)
+          validate_declared_metavar(context, name, true)
           let inferred = match position {
             IdentifierPosition => "id"
             TypePosition => "type"
@@ -723,12 +701,11 @@ fn infer_bare_metavar_kinds(
             PatternPosition => abort("unreachable")
           }
           if collection_kind(collections, name) is None {
-            register_metavar_kind(path, context, collections, inferred, name)
+            register_metavar_kind(context, collections, inferred, name)
           } else if position == TypePosition &&
             collection_kind(collections, name) != Some("type") {
-            raise RuleLoadError::InvalidRule(
-              path~,
-              info="\{shape_context_name(context)} declares metavar \{name} as multiple metavar kinds",
+            raise context.invalid_pattern(
+              "the pattern declares metavar \{name} as multiple metavar kinds",
             )
           }
         }
@@ -740,12 +717,11 @@ fn infer_bare_metavar_kinds(
     match occurrences[index].syntax {
       Bare(name) => {
         guard collection_kind(collections, name) is Some(kind) else {
-          raise RuleLoadError::InvalidRule(
-            path~,
-            info="\{shape_context_name(context)} cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
+          raise context.invalid_pattern(
+            "the pattern cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
           )
         }
-        validate_metavar_position(path, context, kind, name, contexts[index])
+        validate_metavar_position(context, kind, name, contexts[index])
       }
       _ => ()
     }

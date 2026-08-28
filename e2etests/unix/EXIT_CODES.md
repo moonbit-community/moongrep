@@ -69,8 +69,10 @@ An invalid anonymous pattern is a rule-content error with status 5.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt 2>&1 > /dev/null
 error: invalid anonymous pattern
-  source: --pattern $$$items
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    $$$items
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
