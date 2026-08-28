@@ -669,8 +669,10 @@ async test "scan classifies rule source, rule content, and scan input failures" 
         message,
         content=(
           #|error: invalid anonymous pattern
-          #|  source: --pattern target(
-          #|  reason: patterns[0].shape is not a valid MoonBit expression: Unexpected end of file, missing simple expression here.
+          #|  source: --pattern
+          #|  pattern:
+          #|    target(
+          #|  reason: the pattern is not a valid MoonBit expression: Unexpected end of file, missing simple expression here.
           #|  help: fix the pattern passed to --pattern and try again
         ),
       )

@@ -13,6 +13,7 @@ import {
 // Errors
 pub(all) suberror RuleLoadError {
   NoRuleFiles(path~ : String)
+  InvalidPattern(path~ : String, shape~ : String, info~ : String)
   InvalidRule(path~ : String, info~ : String)
 } derive(@debug.Debug)
 pub impl Show for RuleLoadError

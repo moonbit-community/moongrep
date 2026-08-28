@@ -94,23 +94,27 @@ fn compile_structural_rule(
   }
   let patterns : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns.length() {
-    let context = "patterns[\{index}]"
     let pattern = spec.patterns[index]
-    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
+    let context = pattern_compile_context(
+      path,
+      "patterns[\{index}]",
+      pattern.shape,
+    )
+    let compiled_shape = compile_metavar_shape(context)
     ensure_inherited_inside_context_metavar_forms_for_all(
-      path, context, outer_context, compiled_shape, outer_shapes,
+      path,
+      context.location,
+      outer_context,
+      compiled_shape,
+      outer_shapes,
     )
     let cst = compiled_shape.cst
     if count_bindable_expr_identifier_in_node(cst, "__TARGET__") != 0 {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context}.shape must not contain __TARGET__",
-      )
+      raise context.invalid_pattern("the pattern must not contain __TARGET__")
     }
     patterns.push(
       compile_pattern_with_effective_metavars(
         pattern,
-        path,
         context,
         cst,
         compiled_shape.expr_metavars,
@@ -127,23 +131,27 @@ fn compile_structural_rule(
   }
   let patterns_not : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns_not.length() {
-    let context = "patterns-not[\{index}]"
     let pattern = spec.patterns_not[index]
-    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
+    let context = pattern_compile_context(
+      path,
+      "patterns-not[\{index}]",
+      pattern.shape,
+    )
+    let compiled_shape = compile_metavar_shape(context)
     ensure_inherited_inside_context_metavar_forms_for_all(
-      path, context, outer_context, compiled_shape, outer_shapes,
+      path,
+      context.location,
+      outer_context,
+      compiled_shape,
+      outer_shapes,
     )
     let cst = compiled_shape.cst
     if count_bindable_expr_identifier_in_node(cst, "__TARGET__") != 0 {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context}.shape must not contain __TARGET__",
-      )
+      raise context.invalid_pattern("the pattern must not contain __TARGET__")
     }
     patterns_not.push(
       compile_pattern_with_effective_metavars(
         pattern,
-        path,
         context,
         cst,
         compiled_shape.expr_metavars,
@@ -171,43 +179,40 @@ fn compile_structural_rule(
 fn compile_inside_context_patterns(
   path : String,
   patterns : Array[RulePatternSpec],
-  context : String,
+  clause : String,
   is_toplevel~ : Bool,
 ) -> (Array[CompiledRulePattern], Array[MetavarShape]) raise {
   let compiled_patterns : Array[CompiledRulePattern] = []
   let compiled_shapes : Array[MetavarShape] = []
   for index in 0..<patterns.length() {
     let pattern = patterns[index]
-    let item_context = "\{context}[\{index}]"
+    let context = pattern_compile_context(
+      path,
+      "\{clause}[\{index}]",
+      pattern.shape,
+    )
     let compiled_shape = if is_toplevel {
-      compile_toplevel_metavar_shape(path, item_context, pattern.shape)
+      compile_toplevel_metavar_shape(context)
     } else {
-      compile_metavar_shape(path, item_context, pattern.shape)
+      compile_metavar_shape(context)
     }
     let cst = compiled_shape.cst
     let ignored_fields = if is_toplevel {
-      inside_toplevel_ignored_fields(
-        path,
-        item_context,
-        pattern.match_mode,
-        cst,
-      )
+      inside_toplevel_ignored_fields(context, pattern.match_mode, cst)
     } else {
       []
     }
     let target_count = count_bindable_expr_identifier_in_node(cst, "__TARGET__")
     if target_count != 1 {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{shape_context_name(item_context)} must contain exactly one __TARGET__ placeholder in a supported expression position",
+      raise context.invalid_pattern(
+        "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
       )
     }
     compiled_patterns.push(
       compile_pattern(
         pattern,
         compiled_shape,
-        path,
-        item_context,
+        context,
         target_metavar=Some("__TARGET__"),
         source_metavar=None,
         ignored_fields~,
@@ -220,8 +225,7 @@ fn compile_inside_context_patterns(
 
 ///|
 fn inside_toplevel_ignored_fields(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   match_mode : InsideToplevelMatchMode,
   cst : @untyped_cst.CstNode,
 ) -> Array[@matching.IgnoredPatternField] raise {
@@ -232,9 +236,8 @@ fn inside_toplevel_ignored_fields(
       if cst.kind is @untyped_cst.Impl_Function {
         true
       } else {
-        raise RuleLoadError::InvalidRule(
-          path~,
-          info="\{context}.match-mode partial is only supported for function definition shapes",
+        raise context.invalid_pattern(
+          "the pattern uses match-mode partial, which is only supported for function definition shapes",
         )
       }
   }
@@ -307,22 +310,22 @@ fn compile_taint_rule(
 ) -> CompiledTaintRule raise {
   let sources : Array[CompiledTaintSource] = []
   for index in 0..<spec.sources.length() {
-    let context = "taint.sources[\{index}]"
     let pattern = spec.sources[index]
-    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
+    let context = pattern_compile_context(
+      path,
+      "taint.sources[\{index}]",
+      pattern.shape,
+    )
+    let compiled_shape = compile_metavar_shape(context)
     let cst = compiled_shape.cst
-    ensure_taint_call_shape(path, context, cst)
+    ensure_taint_call_shape(context, cst)
     if count_supported_name_in_node(cst, "__SOURCE__") != 0 {
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context} must not contain __SOURCE__",
-      )
+      raise context.invalid_pattern("the pattern must not contain __SOURCE__")
     }
     sources.push({
       pattern: compile_pattern(
         pattern,
         compiled_shape,
-        path,
         context,
         target_metavar=None,
         source_metavar=None,
@@ -331,19 +334,22 @@ fn compile_taint_rule(
   }
   let sinks : Array[CompiledTaintSink] = []
   for index in 0..<spec.sinks.length() {
-    let context = "taint.sinks[\{index}]"
     let pattern = spec.sinks[index]
-    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
+    let context = pattern_compile_context(
+      path,
+      "taint.sinks[\{index}]",
+      pattern.shape,
+    )
+    let compiled_shape = compile_metavar_shape(context)
     let cst = compiled_shape.cst
-    ensure_taint_call_shape(path, context, cst)
+    ensure_taint_call_shape(context, cst)
     // `__SOURCE__` must be captured as a whole argument or receiver so the
     // lowering layer can read or kill a concrete taint path.
-    let target = require_source_target(path, context, cst)
+    let target = require_source_target(context, cst)
     sinks.push({
       pattern: compile_pattern(
         pattern,
         compiled_shape,
-        path,
         context,
         target_metavar=None,
         source_metavar=Some("__SOURCE__"),
@@ -353,19 +359,22 @@ fn compile_taint_rule(
   }
   let sanitizers : Array[CompiledTaintSanitizer] = []
   for index in 0..<spec.sanitizers.length() {
-    let context = "taint.sanitizers[\{index}]"
     let pattern = spec.sanitizers[index]
-    let compiled_shape = compile_metavar_shape(path, context, pattern.shape)
+    let context = pattern_compile_context(
+      path,
+      "taint.sanitizers[\{index}]",
+      pattern.shape,
+    )
+    let compiled_shape = compile_metavar_shape(context)
     let cst = compiled_shape.cst
-    ensure_taint_call_shape(path, context, cst)
+    ensure_taint_call_shape(context, cst)
     // Sanitizers share the same target restrictions as sinks because both
     // operate on one concrete call value.
-    let target = require_source_target(path, context, cst)
+    let target = require_source_target(context, cst)
     sanitizers.push({
       pattern: compile_pattern(
         pattern,
         compiled_shape,
-        path,
         context,
         target_metavar=None,
         source_metavar=Some("__SOURCE__"),
@@ -380,15 +389,13 @@ fn compile_taint_rule(
 fn compile_pattern(
   pattern : RulePatternSpec,
   compiled_shape : MetavarShape,
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   target_metavar~ : String?,
   source_metavar~ : String?,
   ignored_fields? : Array[@matching.IgnoredPatternField] = [],
 ) -> CompiledRulePattern raise {
   compile_pattern_with_effective_metavars(
     pattern,
-    path,
     context,
     compiled_shape.cst,
     compiled_shape.expr_metavars,
@@ -407,8 +414,7 @@ fn compile_pattern(
 ///|
 fn compile_pattern_with_effective_metavars(
   pattern : RulePatternSpec,
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   cst : @untyped_cst.CstNode,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
@@ -423,7 +429,6 @@ fn compile_pattern_with_effective_metavars(
 ) -> CompiledRulePattern raise {
   let guards = compile_guards(
     pattern.guards,
-    path,
     context,
     expr_metavars,
     identifier_metavars,
@@ -451,8 +456,7 @@ fn compile_pattern_with_effective_metavars(
 ///|
 fn compile_guards(
   raw_guards : Map[String, String],
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   expr_metavars : Array[String],
   identifier_metavars : Array[String],
   constant_metavars : Array[String],
@@ -463,16 +467,16 @@ fn compile_guards(
 ) -> Array[CompiledRuleGuard] raise {
   let guards : Array[CompiledRuleGuard] = []
   for raw_name, regex_source in raw_guards {
-    let name = guard_metavar_name(path, context, raw_name)
+    let name = guard_metavar_name(context, raw_name)
     let capture_kind = guard_capture_kind(
-      path, context, raw_name, name, expr_metavars, identifier_metavars, constant_metavars,
+      context, raw_name, name, expr_metavars, identifier_metavars, constant_metavars,
       arg_metavars, type_metavars, pattern_metavars, ellipsis_metavars,
     )
     let regex = Regex::Regex(regex_source) catch {
       _ =>
         raise RuleLoadError::InvalidRule(
-          path~,
-          info="\{context}.guard.\{raw_name} has invalid regex",
+          path=context.path,
+          info="\{context.location}.guard.\{raw_name} has invalid regex",
         )
     }
     guards.push({ name, capture_kind, regex_source, regex, })
@@ -482,14 +486,13 @@ fn compile_guards(
 
 ///|
 fn guard_metavar_name(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   raw_name : String,
 ) -> String raise {
   if !raw_name.has_prefix("$") || raw_name.length() <= 1 {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} must be a $-prefixed metavar name",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} must be a $-prefixed metavar name",
     )
   }
   raw_name[1:].to_owned()
@@ -497,8 +500,7 @@ fn guard_metavar_name(
 
 ///|
 fn guard_capture_kind(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   raw_name : String,
   name : String,
   expr_metavars : Array[String],
@@ -515,33 +517,33 @@ fn guard_capture_kind(
     ConstantGuard
   } else if array_contains(expr_metavars, name) {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} cannot reference exp metavar \{name}",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} cannot reference exp metavar \{name}",
     )
   } else if array_contains(arg_metavars, name) {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} cannot reference arg metavar \{name}",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} cannot reference arg metavar \{name}",
     )
   } else if array_contains(type_metavars, name) {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} cannot reference type metavar \{name}",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} cannot reference type metavar \{name}",
     )
   } else if array_contains(pattern_metavars, name) {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} cannot reference pat metavar \{name}",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} cannot reference pat metavar \{name}",
     )
   } else if ellipsis_metavars_contain(ellipsis_metavars, name) {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} cannot reference ellipsis metavar \{name}",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} cannot reference ellipsis metavar \{name}",
     )
   } else {
     raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.guard.\{raw_name} references unknown metavar",
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} references unknown metavar",
     )
   }
 }
@@ -562,25 +564,21 @@ fn ensure_unique_rule_ids(raw_rules : Array[RawRuleSpec]) -> Unit raise {
 
 ///|
 fn validate_declared_metavar(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   name : String,
   reserve_source : Bool,
 ) -> Unit raise {
   if is_builtin_ignore_metavar_name(name) {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context} cannot declare metavar \{name} because it is a built-in ignore placeholder",
+    raise context.invalid_pattern(
+      "the pattern cannot declare metavar \{name} because it is a built-in ignore placeholder",
     )
   } else if name == "__TARGET__" {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context} cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
+    raise context.invalid_pattern(
+      "the pattern cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
     )
   } else if reserve_source && name == "__SOURCE__" {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context} cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
+    raise context.invalid_pattern(
+      "the pattern cannot declare metavar __SOURCE__ because it is reserved for taint source targets",
     )
   }
 }
@@ -1011,39 +1009,31 @@ fn ensure_not_inherited_as_other_kind(
 
 ///|
 fn ensure_taint_call_shape(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   cst : @untyped_cst.CstNode,
 ) -> Unit raise {
   match cst.kind {
     @untyped_cst.Expr_Apply | @untyped_cst.Expr_DotApply => ()
-    _ =>
-      raise RuleLoadError::InvalidRule(
-        path~,
-        info="\{context}.shape must be a call expression",
-      )
+    _ => raise context.invalid_pattern("the pattern must be a call expression")
   }
 }
 
 ///|
 fn require_source_target(
-  path : String,
-  context : String,
+  context : PatternCompileContext,
   cst : @untyped_cst.CstNode,
 ) -> TaintTarget raise {
   let count = count_supported_name_in_node(cst, "__SOURCE__")
   if count != 1 {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.shape must contain exactly one __SOURCE__ placeholder",
+    raise context.invalid_pattern(
+      "the pattern must contain exactly one __SOURCE__ placeholder",
     )
   }
   if whole_source_target(cst) is Some(target) {
     target
   } else {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="\{context}.shape must place __SOURCE__ as the whole receiver or argument value",
+    raise context.invalid_pattern(
+      "the pattern must place __SOURCE__ as the whole receiver or argument value",
     )
   }
 }

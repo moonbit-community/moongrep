@@ -312,8 +312,10 @@ ordered CST list, so it is rejected during rule validation.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern $$$items
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    $$$items
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -324,8 +326,10 @@ list. Bare, typed, and nested grouped ellipses are rejected.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '($$$items)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern ($$$items)
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    ($$$items)
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -333,8 +337,10 @@ error: invalid anonymous pattern
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '($$$(values:exp))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern ($$$(values:exp))
-  reason: patterns[0].shape uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    ($$$(values:exp))
+  reason: the pattern uses ellipsis metavar $$$(values:exp) outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -342,8 +348,10 @@ error: invalid anonymous pattern
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '(($$$items))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern (($$$items))
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    (($$$items))
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -354,8 +362,10 @@ part of a list item and is invalid.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'wrap($$$items + 1)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern wrap($$$items + 1)
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    wrap($$$items + 1)
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -366,8 +376,10 @@ be used as only the value of that labelled argument.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'sink(label=$$$items)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern sink(label=$$$items)
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    sink(label=$$$items)
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -378,8 +390,10 @@ bare ellipsis in that position must therefore be rejected.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'if condition { $$$items }' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern if condition { $$$items }
-  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  source: --pattern
+  pattern:
+    if condition { $$$items }
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -391,8 +405,10 @@ An ellipsis needs either a name or the explicit anonymous spelling `$$$_`.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern inspect($$$)
-  reason: patterns[0].shape has invalid metavar syntax $$; use explicit typed syntax like $(value:exp)
+  source: --pattern
+  pattern:
+    inspect($$$)
+  reason: the pattern has invalid metavar syntax $$; use explicit typed syntax like $(value:exp)
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -403,8 +419,10 @@ Parenthesized ellipsis syntax must include a kind after the name; an untyped
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$(items))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern inspect($$$(items))
-  reason: patterns[0].shape has invalid metavar syntax $$$(items); use explicit typed syntax like $(value:exp)
+  source: --pattern
+  pattern:
+    inspect($$$(items))
+  reason: the pattern has invalid metavar syntax $$$(items); use explicit typed syntax like $(value:exp)
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -415,8 +433,10 @@ the scan starts.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$(items:unknown))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern inspect($$$(items:unknown))
-  reason: patterns[0].shape contains unsupported ellipsis metavar kind unknown
+  source: --pattern
+  pattern:
+    inspect($$$(items:unknown))
+  reason: the pattern contains unsupported ellipsis metavar kind unknown
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -429,8 +449,10 @@ arguments, not types.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'sink($$$(items:type))' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern sink($$$(items:type))
-  reason: patterns[0].shape uses ellipsis kind type in an incompatible ordered-list item position
+  source: --pattern
+  pattern:
+    sink($$$(items:type))
+  reason: the pattern uses ellipsis kind type in an incompatible ordered-list item position
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -441,8 +463,10 @@ are not expression items.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'fn($$$(items:exp)) { body }' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern fn($$$(items:exp)) { body }
-  reason: patterns[0].shape uses ellipsis kind exp in an incompatible ordered-list item position
+  source: --pattern
+  pattern:
+    fn($$$(items:exp)) { body }
+  reason: the pattern uses ellipsis kind exp in an incompatible ordered-list item position
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -453,8 +477,10 @@ compatible kind.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'match input { [$$$(items:exp)] => body }' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern match input { [$$$(items:exp)] => body }
-  reason: patterns[0].shape uses ellipsis kind exp in an incompatible ordered-list item position
+  source: --pattern
+  pattern:
+    match input { [$$$(items:exp)] => body }
+  reason: the pattern uses ellipsis kind exp in an incompatible ordered-list item position
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -467,8 +493,10 @@ sequence within the same rule.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'pair($items, [$$$items])' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern pair($items, [$$$items])
-  reason: patterns[0].shape cannot use items as both an ellipsis metavar and a single-node metavar
+  source: --pattern
+  pattern:
+    pair($items, [$$$items])
+  reason: the pattern cannot use items as both an ellipsis metavar and a single-node metavar
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -478,8 +506,10 @@ Repeated declarations of a named ellipsis must use the same kind.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'pair([$$$(items:exp)], [$$$(items:id)])' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern pair([$$$(items:exp)], [$$$(items:id)])
-  reason: patterns[0].shape declares ellipsis metavar items as multiple metavar kinds
+  source: --pattern
+  pattern:
+    pair([$$$(items:exp)], [$$$(items:id)])
+  reason: the pattern declares ellipsis metavar items as multiple metavar kinds
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -490,8 +520,10 @@ cannot be declared as an ellipsis name.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$__TARGET__)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern inspect($$$__TARGET__)
-  reason: patterns[0] cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal
+  source: --pattern
+  pattern:
+    inspect($$$__TARGET__)
+  reason: the pattern cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -502,8 +534,10 @@ same reason.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$__SOURCE__)' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern inspect($$$__SOURCE__)
-  reason: patterns[0] cannot declare metavar __SOURCE__ because it is reserved for taint source targets
+  source: --pattern
+  pattern:
+    inspect($$$__SOURCE__)
+  reason: the pattern cannot declare metavar __SOURCE__ because it is reserved for taint source targets
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -514,9 +548,28 @@ they cannot refer to an ellipsis metavariable.
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'inspect($$$args)' --guard '{$args: ".+"}' testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid anonymous pattern
-  source: --pattern inspect($$$args)
+  source: --pattern
+  pattern:
+    inspect($$$args)
   reason: patterns[0].guard.$args cannot reference ellipsis metavar args
   help: fix the pattern passed to --pattern and try again
+[5]
+```
+
+A file-backed multiline shape is displayed separately from the rule source.
+Its relative indentation is preserved without an extra line for the block
+scalar's trailing newline.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/shape.yaml testdata/ellipsis/sample.mbt 2>&1 >/dev/null
+error: invalid rule
+  source: testdata/ellipsis/invalid/shape.yaml
+  pattern:
+    wrap(
+      $$$items + 1
+    )
+  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
+  help: fix the rule and try again
 [5]
 ```
 

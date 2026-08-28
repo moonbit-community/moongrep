@@ -1,0 +1,7 @@
+id: invalid-shape
+description: Invalid multiline pattern shape.
+patterns:
+  - shape: |
+      wrap(
+        $$$items + 1
+      )

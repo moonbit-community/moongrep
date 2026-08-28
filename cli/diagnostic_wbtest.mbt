@@ -79,6 +79,79 @@ test "diagnostic formatter omits empty optional fields and trailing newline" {
 }
 
 ///|
+test "diagnostic formatter preserves multiline pattern layout" {
+  let rendered = format_cli_diagnostic(
+    "invalid rule",
+    Some("rules/example.yaml"),
+    Some("the pattern is not valid"),
+    Some("fix the rule and try again"),
+    pattern="first\r\n  second\r\rthird\r\n",
+  )
+  inspect(
+    rendered,
+    content="error: invalid rule\n  source: rules/example.yaml\n  pattern:\n    first\n      second\n    \n    third\n  reason: the pattern is not valid\n  help: fix the rule and try again",
+  )
+  assert_false(rendered.contains("\r"))
+  assert_false(rendered.contains("third\n    \n  reason"))
+  inspect(
+    format_cli_diagnostic("summary", None, None, None, pattern=""),
+    content="error: summary\n  pattern:",
+  )
+  inspect(
+    format_cli_diagnostic(
+      "summary",
+      None,
+      Some("reason"),
+      None,
+      pattern="first\n\n",
+    ),
+    content="error: summary\n  pattern:\n    first\n    \n  reason: reason",
+  )
+}
+
+///|
+test "rule pattern diagnostics keep source and shape separate" {
+  let file_error = new_rule_load_error(
+    @rule_model.InvalidPattern(
+      path="rules/example.yaml",
+      shape="wrap($$$items + 1)",
+      info="the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
+    ),
+  )
+  assert_eq(file_error.exit_code(), 5)
+  inspect(
+    "\{file_error}",
+    content=(
+      #|error: invalid rule
+      #|  source: rules/example.yaml
+      #|  pattern:
+      #|    wrap($$$items + 1)
+      #|  reason: the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item
+      #|  help: fix the rule and try again
+    ),
+  )
+  let shape = "$(name:id)()"
+  let anonymous_error = new_compiled_rule_error(
+    @rule_model.InvalidRule(
+      path=shape,
+      info="patterns[0].guard.$name has invalid regex",
+    ),
+    [{ shape, guards: Map([]), match_mode: Default, }],
+  )
+  inspect(
+    "\{anonymous_error}",
+    content=(
+      #|error: invalid anonymous pattern
+      #|  source: --pattern
+      #|  pattern:
+      #|    $(name:id)()
+      #|  reason: patterns[0].guard.$name has invalid regex
+      #|  help: fix the pattern passed to --pattern and try again
+    ),
+  )
+}
+
+///|
 test "plain messages gain an error prefix" {
   inspect(
     "\{CliError::Usage(message="plain message")}",

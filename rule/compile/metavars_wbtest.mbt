@@ -1,7 +1,9 @@
 ///|
 fn compile_toplevel_shape_for_test(source : String) -> MetavarShape raise {
   compile_toplevel_metavar_shape(
-    "/tmp/rules/example.yaml", "inside-toplevel", source,
+    pattern_compile_context(
+      "/tmp/rules/example.yaml", "inside-toplevel[0]", source,
+    ),
   )
 }
 
