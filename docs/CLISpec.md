@@ -484,6 +484,29 @@ multiple top-level items exit with status 3.
 
 moongrep uses one fixed status for each actionable failure category:
 
+Fatal diagnostics for statuses 1 through 7 use this human-readable layout:
+
+```text
+error: <summary>
+  source: <relevant path or input>
+  reason: <specific reason>
+  help: <actionable suggestion>
+```
+
+The `source`, `reason`, and `help` lines are omitted when they have no content.
+The diagnostic formatter does not include a trailing newline; the output layer
+writes one newline when it emits the diagnostic. Diagnostics are plain English
+text without color.
+
+Argument-parser diagnostics that already contain an `error:` line, a `Usage:`
+section, and an optional `tip:` retain that complete layout. Scan warnings keep
+their existing `warning:` format and do not use the fatal-diagnostic layout.
+
+Fatal diagnostic wording and optional detail lines are not a machine-readable
+interface and may evolve. Callers should use the exit status to distinguish
+failure categories. Finding output, including JSON Lines records, never carries
+fatal diagnostics; failures remain on standard error.
+
 | Status | Category |
 |---:|---|
 | 0 | Success |
