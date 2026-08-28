@@ -29,9 +29,18 @@ async fn write_raw_cli_stderr(output : String) -> Unit {
 }
 
 ///|
+#warnings("-alert_internal")
+fn cli_errno_reason(errno : Int) -> String {
+  @os_error.errno_to_string(errno)
+}
+
+///|
 async fn write_cli_stdout(output : String) -> Unit {
   write_raw_cli_stdout(output) catch {
-    @os_error.OSError(_) as err => raise @cli.CliError::Output(message="\{err}")
+    @os_error.OSError(errno, ..) =>
+      raise @cli.CliError::Output(
+        message="standard output: \{cli_errno_reason(errno)}",
+      )
     err => raise err
   }
 }

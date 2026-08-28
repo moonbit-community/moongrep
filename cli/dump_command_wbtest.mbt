@@ -21,7 +21,40 @@ test "dump expr renders untyped CST debug output" {
 ///|
 test "dump impl rejects empty source" {
   try render_dump_command(("dump-impl", None, Some(""))) catch {
-    CliError::DumpInput(..) as err => assert_eq(err.exit_code(), 3)
+    CliError::DumpInput(message~) as err => {
+      assert_eq(err.exit_code(), 3)
+      inspect(
+        message,
+        content=(
+          #|error: could not parse dump input
+          #|  source: dump --impl
+          #|  reason: expected exactly one top-level item
+          #|  help: provide exactly one valid MoonBit top-level item
+        ),
+      )
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected dump parse error")
+  }
+}
+
+///|
+test "dump expr keeps the compact parser reason" {
+  try render_dump_command(("dump-expr", None, Some("value +"))) catch {
+    CliError::DumpInput(message~) as err => {
+      assert_eq(err.exit_code(), 3)
+      inspect(
+        message,
+        content=(
+          #|error: could not parse dump input
+          #|  source: dump --expr
+          #|  reason: Unexpected end of file, missing simple expression here.
+          #|  help: provide one valid MoonBit expression
+        ),
+      )
+      assert_false(message.contains("value +"))
+    }
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected dump parse error")

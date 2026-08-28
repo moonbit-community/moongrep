@@ -584,7 +584,14 @@ async test "scan rejects unknown disabled rule ids" {
   try capture_scan_events(Scan, unknown_disabled_rule_scan_options()) catch {
     CliError::Usage(message~) as err => {
       assert_eq(err.exit_code(), 2)
-      inspect(message, content="unknown rule id in --disable: missing")
+      inspect(
+        message,
+        content=(
+          #|error: unknown rule id in --disable
+          #|  source: missing
+          #|  help: use the exact id of a loaded rule
+        ),
+      )
     }
     err => fail("unexpected error \{err}")
   } noraise {
@@ -597,7 +604,14 @@ async test "scan keeps rule disabling case sensitive on every host" {
   let rules = load_rule_directory("e2etests/rules/prefilter")
   try disable_scan_rules(rules, ["TARGET"]) catch {
     CliError::Usage(message~) =>
-      inspect(message, content="unknown rule id in --disable: TARGET")
+      inspect(
+        message,
+        content=(
+          #|error: unknown rule id in --disable
+          #|  source: TARGET
+          #|  help: use the exact id of a loaded rule
+        ),
+      )
     err => fail("unexpected error \{err}")
   } noraise {
     _ => fail("expected case-mismatched rule id rejection")
@@ -606,8 +620,33 @@ async test "scan keeps rule disabling case sensitive on every host" {
 
 ///|
 async test "scan classifies rule source, rule content, and scan input failures" {
+  try load_rule_directory("testdata/missing-rule-root") catch {
+    CliError::RuleSource(message~) as err => {
+      assert_eq(err.exit_code(), 4)
+      assert_true(message.contains("error: could not read rule directory"))
+      assert_true(message.contains("testdata/missing-rule-root"))
+      assert_false(message.contains("OSError"))
+      assert_false(message.contains("@fs."))
+    }
+    err => fail("unexpected missing rule source error \{err}")
+  } noraise {
+    _ => fail("expected missing rule source error")
+  }
   try load_rule_directory("testdata/empty-rule-root") catch {
-    CliError::RuleSource(..) as err => assert_eq(err.exit_code(), 4)
+    CliError::RuleSource(message~) as err => {
+      assert_eq(err.exit_code(), 4)
+      inspect(
+        message,
+        content=native_scan_test_path(
+          (
+            #|error: no rules found
+            #|  source: testdata/empty-rule-root
+            #|  reason: the directory contains no YAML rule files
+            #|  help: add a .yaml or .yml rule file or choose another --rules directory
+          ),
+        ),
+      )
+    }
     err => fail("unexpected rule source error \{err}")
   } noraise {
     _ => fail("expected rule source error")
@@ -624,7 +663,19 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     output_json: false,
   }
   try capture_scan_events(Scan, invalid_pattern_options) catch {
-    CliError::RuleContent(..) as err => assert_eq(err.exit_code(), 5)
+    CliError::RuleContent(message~) as err => {
+      assert_eq(err.exit_code(), 5)
+      inspect(
+        message,
+        content=(
+          #|error: invalid anonymous pattern
+          #|  source: --pattern target(
+          #|  reason: patterns[0].shape is not a valid MoonBit expression: Unexpected end of file, missing simple expression here.
+          #|  help: fix the pattern passed to --pattern and try again
+        ),
+      )
+      assert_false(message.contains("RuleLoadError"))
+    }
     err => fail("unexpected rule content error \{err}")
   } noraise {
     _ => fail("expected rule content error")
@@ -632,11 +683,18 @@ async test "scan classifies rule source, rule content, and scan input failures" 
   try load_rule_file("testdata/exit-codes/invalid.yaml") catch {
     CliError::RuleContent(message~) as err => {
       assert_eq(err.exit_code(), 5)
-      assert_true(
-        message.has_prefix(
-          native_scan_test_path("testdata/exit-codes/invalid.yaml: "),
+      inspect(
+        message,
+        content=native_scan_test_path(
+          (
+            #|error: invalid rule
+            #|  source: testdata/exit-codes/invalid.yaml
+            #|  reason: line 2, column 1: while parsing a node, did not find expected node content
+            #|  help: fix the rule and try again
+          ),
         ),
       )
+      assert_false(message.contains("YamlError"))
     }
     err => fail("unexpected YAML rule content error \{err}")
   } noraise {
@@ -654,7 +712,15 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     output_json: false,
   }
   try capture_scan_events(Scan, missing_scan_root_options) catch {
-    CliError::ScanInput(..) as err => assert_eq(err.exit_code(), 6)
+    CliError::ScanInput(message~) as err => {
+      assert_eq(err.exit_code(), 6)
+      assert_true(message.contains("error: could not access scan path"))
+      assert_true(
+        message.contains(native_scan_test_path("testdata/does-not-exist")),
+      )
+      assert_false(message.contains("OSError"))
+      assert_false(message.contains("@fs."))
+    }
     err => fail("unexpected scan input error \{err}")
   } noraise {
     _ => fail("expected scan input error")

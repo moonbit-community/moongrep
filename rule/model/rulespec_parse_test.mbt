@@ -60,7 +60,11 @@ test "model wraps YAML parser errors with the rule path" {
   try RawRuleSpec::from_str("broken.yaml", ".", "{") catch {
     RuleLoadError::InvalidRule(path~, info~) => {
       inspect(path, content="broken.yaml")
-      assert_true(info.contains("YamlError"))
+      inspect(
+        info,
+        content="line 2, column 1: while parsing a node, did not find expected node content",
+      )
+      assert_false(info.contains("YamlError"))
     }
     err => fail("unexpected error \{err}")
   } noraise {
