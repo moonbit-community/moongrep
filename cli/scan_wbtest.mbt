@@ -360,7 +360,7 @@ async fn capture_scan_events(
       Hit(hit) => hits.push(hit)
     }
   })
-  { traces, hits, warnings }
+  { traces, hits, warnings, }
 }
 
 ///|
@@ -615,7 +615,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
   let invalid_pattern_options : CliOptions = {
     rules_root: None,
     rule_file: None,
-    patterns: [{ shape: "target(", guards: Map([]), match_mode: Default }],
+    patterns: [{ shape: "target(", guards: Map([]), match_mode: Default, }],
     scan_root: "testdata/custom-rules",
     excludes: [],
     disabled_rules: [],

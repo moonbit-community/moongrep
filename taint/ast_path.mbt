@@ -95,11 +95,11 @@ fn paths_from_parameter_list(
         if @cst.raw_child(parameter, "pattern") is Some(pattern) {
           let roots = pattern_bound_roots(pattern)
           for root in roots {
-            paths.push({ root, segments: [] })
+            paths.push({ root, segments: [], })
           }
         } else if @cst.name_node(parameter).bind(@cst.normalized_name)
           is Some(name) {
-          paths.push({ root: name, segments: [] })
+          paths.push({ root: name, segments: [], })
         }
     }
   }
@@ -114,7 +114,7 @@ fn storage_path_from_assignment(
     @untyped_cst.Expr_Assign =>
       @cst.raw_child(assignment, "semantic_name")
       .bind(@cst.normalized_name)
-      .map(root => { root, segments: [] })
+      .map(root => { root, segments: [], })
     @untyped_cst.Expr_Mutate =>
       match
         (
@@ -136,7 +136,7 @@ fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
   match expr.kind {
     @untyped_cst.Expr_Ident =>
       if @cst.normalized_expr_identifier_name(expr) is Some(name) {
-        Some({ root: name, segments: [] })
+        Some({ root: name, segments: [], })
       } else {
         None
       }
@@ -195,7 +195,7 @@ fn append_path_segment(
 ) -> StoragePath {
   let segments = copy_segments(path.segments)
   segments.push(segment)
-  { root: path.root, segments }
+  { root: path.root, segments, }
 }
 
 ///|

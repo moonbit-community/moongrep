@@ -67,7 +67,7 @@ fn compile_ellipsis_occurrences(
           )
         }
         if name != "_" && !ellipsis_metavars_contain(result, name) {
-          result.push({ name, kind })
+          result.push({ name, kind, })
         }
       }
       _ => ()

@@ -139,7 +139,7 @@ fn cache_source_lines(source : String) -> SourceLines {
   } else {
     lines.length()
   }
-  { lines, line_count }
+  { lines, line_count, }
 }
 
 ///|
@@ -191,7 +191,7 @@ fn source_context_for_location(
     loc.end.lnum <= 0 ||
     loc.end.lnum < loc.start.lnum ||
     loc.start.lnum > source_lines.line_count {
-    return { lines: [] }
+    return { lines: [], }
   }
   let start_line = if loc.start.lnum > 2 { loc.start.lnum - 2 } else { 1 }
   let end_line = if loc.end.lnum + 2 < source_lines.line_count {
@@ -329,7 +329,7 @@ fn impl_moongrep_skip_attributes(
       }
     }
   }
-  { skip_structural, invalid_payload_locations }
+  { skip_structural, invalid_payload_locations, }
 }
 
 ///|

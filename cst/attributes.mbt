@@ -17,7 +17,7 @@ pub fn attribute_info(node : @untyped_cst.CstNode) -> AttributeInfo? {
   let raw_payload = raw_child(node, "raw_payload")
     .bind(string_payload)
     .unwrap_or("")
-  Some({ qualifier, name, raw_payload, node })
+  Some({ qualifier, name, raw_payload, node, })
 }
 
 ///|

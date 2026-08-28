@@ -13,9 +13,9 @@ fn ellipsis_placeholder(
   guard matching_parse_ellipsis_syntax(raw) is Some(parsed) else { return None }
   let (name, raw_kind) = parsed
   if name == "_" {
-    Some({ name, kind: raw_kind.unwrap_or(AnyItem) })
+    Some({ name, kind: raw_kind.unwrap_or(AnyItem), })
   } else if compiled_ellipsis_metavar(compiled, name) is Some(metavar) {
-    Some({ name, kind: metavar.kind })
+    Some({ name, kind: metavar.kind, })
   } else {
     None
   }

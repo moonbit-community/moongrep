@@ -381,7 +381,7 @@ test "ignore placeholder does not create a binding" {
 ///|
 test "ellipsis captures ordered argument spans including empty spans" {
   let compiled = test_compiled(test_expr("call($$$items, tail)"), ellipsis_metavars=[
-    { name: "items", kind: AnyItem },
+    { name: "items", kind: AnyItem, },
   ])
   guard match_expr_pattern(compiled, test_expr("call(1, label=x, tail)"))
     is Some(result) else {
@@ -397,7 +397,7 @@ test "ellipsis captures ordered argument spans including empty spans" {
 ///|
 test "typed ellipsis constrains every captured item" {
   let compiled = test_compiled(test_expr("call($$$(values:const))"), ellipsis_metavars=[
-    { name: "values", kind: ConstItem },
+    { name: "values", kind: ConstItem, },
   ])
   assert_true(
     match_expr_pattern(compiled, test_expr("call(1, \"two\")")) is Some(_),
@@ -912,7 +912,7 @@ test "ignored top-level fields implement partial matching" {
       "semantic_type_name", "async", "params", "quantifier", "clause", "vis", "attrs",
       "where_clause",
     ] {
-    ignored.push({ parent_kind: function_kind, child_name: name })
+    ignored.push({ parent_kind: function_kind, child_name: name, })
   }
   let compiled = test_compiled(pattern, ignored_fields=ignored)
   let candidate = test_impl(

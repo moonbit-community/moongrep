@@ -62,7 +62,7 @@ pub fn ScanPlan::from_rules(rules : Array[CompiledRule]) -> ScanPlan {
         })
     }
   }
-  { structural_entries, taint_entries }
+  { structural_entries, taint_entries, }
 }
 
 ///|
@@ -83,7 +83,7 @@ pub fn ScanPlan::filter_source(
       taint_entries.push(entry)
     }
   }
-  { structural_entries, taint_entries }
+  { structural_entries, taint_entries, }
 }
 
 ///|

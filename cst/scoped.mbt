@@ -162,7 +162,7 @@ fn visit_match_candidate_with_shadow(
   shadowed : Array[String],
   visitor : (ScopedExprMatchCandidate) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  match visitor({ candidate, shadowed_names: copy_names(shadowed) }) {
+  match visitor({ candidate, shadowed_names: copy_names(shadowed), }) {
     NodeVisitPrune => NodeVisitPrune
     NodeVisitReturn => NodeVisitReturn
     NodeVisitContinue =>
@@ -350,7 +350,7 @@ fn visit_expr_with_shadow(
   shadowed : Array[String],
   visitor : (ScopedExprNode) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  match visitor({ expr, shadowed_names: copy_names(shadowed) }) {
+  match visitor({ expr, shadowed_names: copy_names(shadowed), }) {
     NodeVisitPrune => NodeVisitPrune
     NodeVisitReturn => NodeVisitReturn
     NodeVisitContinue => visit_expr_children(expr, shadowed, visitor)
