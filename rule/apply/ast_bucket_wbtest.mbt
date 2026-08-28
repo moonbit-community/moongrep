@@ -59,7 +59,7 @@ fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
     ignored_fields: [],
   }
   {
-    source: { shape, guards: Map([]), match_mode: Default },
+    source: { shape, guards: Map([]), match_mode: Default, },
     compiled,
     guards: [],
   }

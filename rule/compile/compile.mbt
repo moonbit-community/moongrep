@@ -269,7 +269,7 @@ fn add_ignored_field_if_absent(
   child_name : String,
 ) -> Unit {
   if @cst.child(node, child_name) is None {
-    ignored.push({ parent_kind, child_name })
+    ignored.push({ parent_kind, child_name, })
   }
 }
 
@@ -282,7 +282,7 @@ fn add_ignored_field_if_default_bool(
 ) -> Unit {
   match @cst.raw_child(node, child_name) {
     Some(value) if @cst.bool_payload(value) == Some(false) =>
-      ignored.push({ parent_kind, child_name })
+      ignored.push({ parent_kind, child_name, })
     _ => ()
   }
 }
@@ -295,7 +295,7 @@ fn add_ignored_visibility_if_default(
 ) -> Unit {
   match @cst.raw_child(node, "vis") {
     Some(value) if value.kind is @untyped_cst.Visibility_Default =>
-      ignored.push({ parent_kind, child_name: "vis" })
+      ignored.push({ parent_kind, child_name: "vis", })
     _ => ()
   }
 }
@@ -373,7 +373,7 @@ fn compile_taint_rule(
       target,
     })
   }
-  { sources, sinks, sanitizers }
+  { sources, sinks, sanitizers, }
 }
 
 ///|
@@ -445,7 +445,7 @@ fn compile_pattern_with_effective_metavars(
     source_metavar,
     ignored_fields,
   }
-  { source: pattern, compiled, guards }
+  { source: pattern, compiled, guards, }
 }
 
 ///|
@@ -475,7 +475,7 @@ fn compile_guards(
           info="\{context}.guard.\{raw_name} has invalid regex",
         )
     }
-    guards.push({ name, capture_kind, regex_source, regex })
+    guards.push({ name, capture_kind, regex_source, regex, })
   }
   guards
 }

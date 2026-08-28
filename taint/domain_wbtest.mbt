@@ -1,16 +1,16 @@
 ///|
 fn test_path(root : String, segments : Array[PathSegment]) -> StoragePath {
-  { root, segments }
+  { root, segments, }
 }
 
 ///|
 fn test_origin(id : String) -> TaintOrigin {
-  { rule_id: "test", origin_id: id, site: Synthetic(id), note: None }
+  { rule_id: "test", origin_id: id, site: Synthetic(id), note: None, }
 }
 
 ///|
 fn single_tree(id : String) -> TaintTree {
-  [{ path: [], origins: [test_origin(id)] }]
+  [{ path: [], origins: [test_origin(id)], }]
 }
 
 ///|

@@ -358,7 +358,7 @@ fn attach_scan_guard(
     index -= 1
     if !has_guard[index] {
       let shape = patterns[index].shape
-      patterns[index] = { shape, guards, match_mode: Default }
+      patterns[index] = { shape, guards, match_mode: Default, }
       has_guard[index] = true
       return
     }

@@ -28,7 +28,7 @@ pub fn ExprQuery::ExprQuery(pattern : String) -> ExprQuery raise {
       guard structural.patterns.length() == 1 else {
         fail("expected one compiled structural pattern")
       }
-      { rule, pattern: structural.patterns[0] }
+      { rule, pattern: structural.patterns[0], }
     }
     Taint(_) => fail("expected anonymous pattern to compile as structural rule")
   }
@@ -86,7 +86,7 @@ fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
     definition: Structural({
       inside_expr: [],
       inside_toplevel: [],
-      patterns: [{ shape: pattern, guards: Map([]), match_mode: Default }],
+      patterns: [{ shape: pattern, guards: Map([]), match_mode: Default, }],
       patterns_not: [],
       patterns_not_mode: PruneOnNegative,
     }),

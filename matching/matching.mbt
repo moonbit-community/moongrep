@@ -42,7 +42,7 @@ pub fn match_expr_pattern_candidate_with_bindings(
         match_node(pattern, node, compiled, bindings)
       }
       if matched {
-        Some({ root: node, bindings, loc: node.loc })
+        Some({ root: node, bindings, loc: node.loc, })
       } else {
         None
       }
@@ -55,7 +55,7 @@ pub fn match_expr_pattern_candidate_with_bindings(
           [_] => first.loc
           [] => first.loc
         }
-        Some({ root: first, bindings, loc })
+        Some({ root: first, bindings, loc, })
       } else {
         None
       }

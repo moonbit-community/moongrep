@@ -12,7 +12,7 @@ fn render_test_location(
       bol: 0,
       cnum: start_column - 1,
     },
-    end: { fname: "test.mbt", lnum: end_line, bol: 0, cnum: end_column - 1 },
+    end: { fname: "test.mbt", lnum: end_line, bol: 0, cnum: end_column - 1, },
   }
 }
 
@@ -36,7 +36,7 @@ fn render_test_hit(start_line : Int, end_line : Int) -> ScanHit {
       loc: render_test_location(start_line, 1, end_line, end_text.length() + 1),
     },
     matched_source: "line \{start_line}",
-    source_context: { lines: context_lines },
+    source_context: { lines: context_lines, },
   }
 }
 
@@ -45,7 +45,7 @@ async test "matched source line prefix is not dimmed" {
   let match_loc = render_test_location(12, 13, 12, 21)
   inspect(
     render_source_context_line(
-      { line_number: 12, text: "let value = target()", is_match: true },
+      { line_number: 12, text: "let value = target()", is_match: true, },
       match_loc,
       2,
     ),
@@ -61,8 +61,8 @@ async test "matched source line prefix is not dimmed" {
 
 ///|
 test "source context honors no color rendering" {
-  let context_line = { line_number: 1, text: "fn sample {", is_match: false }
-  let match_line = { line_number: 3, text: "  target()", is_match: true }
+  let context_line = { line_number: 1, text: "fn sample {", is_match: false, }
+  let match_line = { line_number: 3, text: "  target()", is_match: true, }
   let match_loc = render_test_location(3, 3, 3, 11)
   inspect(
     render_source_context_line(context_line, match_loc, 1, no_color=true),
@@ -88,7 +88,7 @@ test "matched expression highlighting follows multiline location columns" {
   let match_loc = render_test_location(3, 3, 5, 4)
   inspect(
     render_source_context_line(
-      { line_number: 3, text: "  match value {", is_match: true },
+      { line_number: 3, text: "  match value {", is_match: true, },
       match_loc,
       1,
     ),
@@ -96,7 +96,7 @@ test "matched expression highlighting follows multiline location columns" {
   )
   inspect(
     render_source_context_line(
-      { line_number: 4, text: "    Some(_) => true", is_match: true },
+      { line_number: 4, text: "    Some(_) => true", is_match: true, },
       match_loc,
       1,
     ),
@@ -104,7 +104,7 @@ test "matched expression highlighting follows multiline location columns" {
   )
   inspect(
     render_source_context_line(
-      { line_number: 5, text: "  } trailing", is_match: true },
+      { line_number: 5, text: "  } trailing", is_match: true, },
       match_loc,
       1,
     ),
@@ -117,7 +117,7 @@ test "matched expression highlighting uses Unicode code point columns" {
   let match_loc = render_test_location(7, 5, 7, 13)
   inspect(
     render_source_context_line(
-      { line_number: 7, text: "  \u{1f600} target()", is_match: true },
+      { line_number: 7, text: "  \u{1f600} target()", is_match: true, },
       match_loc,
       1,
     ),

@@ -90,5 +90,5 @@ fn SourceBlock::rebase_finding(
   self : SourceBlock,
   finding : @rule_model.RuleFinding,
 ) -> @rule_model.RuleFinding {
-  { ..finding, loc: self.rebase_location(finding.loc) }
+  { ..finding, loc: self.rebase_location(finding.loc), }
 }

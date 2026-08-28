@@ -30,8 +30,8 @@ priv struct JsonScanFinding {
 ///|
 fn json_scan_range(loc : @basic.Location) -> JsonScanRange {
   {
-    start: { line: loc.start.lnum, column: loc.start.column() },
-    end: { line: loc.end.lnum, column: loc.end.column() },
+    start: { line: loc.start.lnum, column: loc.start.column(), },
+    end: { line: loc.end.lnum, column: loc.end.column(), },
   }
 }
 

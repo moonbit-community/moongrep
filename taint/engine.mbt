@@ -35,7 +35,7 @@ priv struct ConditionEval {
 
 ///|
 fn normal_result(state : TaintState, value : TaintTree) -> EvalResult {
-  { state, value, flow: FlowNormal }
+  { state, value, flow: FlowNormal, }
 }
 
 ///|
@@ -44,7 +44,7 @@ fn flow_result(
   state : TaintState,
   value : TaintTree,
 ) -> EvalResult {
-  { state, value, flow }
+  { state, value, flow, }
 }
 
 ///|
@@ -92,7 +92,7 @@ fn analyze_single_function_like(
             note,
           }
           state = state_write_path(state, path, [
-            { path: [], origins: [origin] },
+            { path: [], origins: [origin], },
           ])
         }
       CallReturn(_, _, _, _) => ()
@@ -969,7 +969,7 @@ fn eval_arguments(
       )
     }
   }
-  { state: current, arguments, flow: FlowNormal, value: [] }
+  { state: current, arguments, flow: FlowNormal, value: [], }
 }
 
 ///|
@@ -1217,7 +1217,7 @@ fn push_sink_finding_if_tainted(
 ) -> Unit {
   let origins = origins_from_tree(taint)
   if origins.length() > 0 {
-    findings.push({ rule_id, sink_id, sink_loc: loc, sink_site: site, origins })
+    findings.push({ rule_id, sink_id, sink_loc: loc, sink_site: site, origins, })
   }
 }
 
@@ -1240,7 +1240,7 @@ fn fresh_source_tree(
   site : ValueSite,
   path : Array[PathSegment],
 ) -> TaintTree {
-  [{ path, origins: [{ rule_id, origin_id, site, note }] }]
+  [{ path, origins: [{ rule_id, origin_id, site, note, }], }]
 }
 
 ///|
@@ -1385,7 +1385,7 @@ fn restore_result_scoped_roots(
 fn clean_bind_roots(state : TaintState, roots : Array[String]) -> TaintState {
   let mut next = state
   for root in roots {
-    next = state_write_path(next, { root, segments: [] }, [])
+    next = state_write_path(next, { root, segments: [], }, [])
   }
   next
 }
@@ -1560,7 +1560,7 @@ fn bind_binder(
   state : TaintState,
 ) -> TaintState {
   if node_binder_name(binder) is Some(name) {
-    state_write_path(state, { root: name, segments: [] }, value)
+    state_write_path(state, { root: name, segments: [], }, value)
   } else {
     state
   }

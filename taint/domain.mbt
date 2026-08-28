@@ -14,7 +14,7 @@ priv struct TaintState {
 
 ///|
 fn empty_state() -> TaintState {
-  { entries: [] }
+  { entries: [], }
 }
 
 ///|
@@ -188,7 +188,7 @@ fn merge_relative_entry(
       return
     }
   }
-  tree.push({ path: copy_segments(path), origins: copy_origins(origins) })
+  tree.push({ path: copy_segments(path), origins: copy_origins(origins), })
 }
 
 ///|
@@ -201,14 +201,14 @@ fn merge_state_entry(
   for index in 0..<entries.length() {
     if storage_path_key(entries[index].path) == key {
       entries[index] = {
-        path: { root: path.root, segments: copy_segments(path.segments) },
+        path: { root: path.root, segments: copy_segments(path.segments), },
         origins: merge_origin_lists(entries[index].origins, origins),
       }
       return
     }
   }
   entries.push({
-    path: { root: path.root, segments: copy_segments(path.segments) },
+    path: { root: path.root, segments: copy_segments(path.segments), },
     origins: copy_origins(origins),
   })
 }
@@ -263,7 +263,7 @@ fn state_kill_path(state : TaintState, path : StoragePath) -> TaintState {
       kept.push(entry)
     }
   }
-  { entries: kept }
+  { entries: kept, }
 }
 
 ///|
@@ -280,7 +280,7 @@ fn state_write_path(
   for entry in value {
     merge_state_entry(
       entries,
-      { root: path.root, segments: append_segments(path.segments, entry.path) },
+      { root: path.root, segments: append_segments(path.segments, entry.path), },
       entry.origins,
     )
   }

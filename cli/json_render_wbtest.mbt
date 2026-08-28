@@ -11,9 +11,9 @@ test "json scan finding uses the agent record schema" {
     matched_source: "target()",
     source_context: {
       lines: [
-        { line_number: 2, text: "fn sample {", is_match: false },
-        { line_number: 3, text: "  target()", is_match: true },
-        { line_number: 4, text: "}", is_match: false },
+        { line_number: 2, text: "fn sample {", is_match: false, },
+        { line_number: 3, text: "  target()", is_match: true, },
+        { line_number: 4, text: "}", is_match: false, },
       ],
     },
   }

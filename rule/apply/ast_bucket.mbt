@@ -192,7 +192,7 @@ fn ExprPatternBuckets::from_patterns(
   let keyed : Array[KeyedCompiledRulePatterns] = []
   let sequence : Array[IndexedCompiledRulePattern] = []
   for index in 0..<patterns.length() {
-    let indexed = { pattern_index: index, pattern: patterns[index] }
+    let indexed = { pattern_index: index, pattern: patterns[index], }
     if compiled_pattern_matches_sequence(patterns[index]) {
       sequence.push(indexed)
     }
@@ -203,7 +203,7 @@ fn ExprPatternBuckets::from_patterns(
       wildcard.push(indexed)
     }
   }
-  { wildcard, keyed, sequence }
+  { wildcard, keyed, sequence, }
 }
 
 ///|
@@ -232,7 +232,7 @@ fn push_keyed_pattern(
       return
     }
   }
-  keyed.push({ key, patterns: [indexed] })
+  keyed.push({ key, patterns: [indexed], })
 }
 
 ///|

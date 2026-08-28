@@ -92,7 +92,7 @@ fn transfer_compiled_taint_call(
     }
   }
   if matched {
-    Some({ return_taint, killed_paths, findings })
+    Some({ return_taint, killed_paths, findings, })
   } else {
     None
   }
@@ -161,7 +161,7 @@ fn target_value(call : @taint.CallInfo, target : TaintTarget) -> TargetValue? {
       }
     PositionalArg(index) =>
       if call_argument_at(call.arguments, index) is Some(arg) {
-        Some({ loc: arg.loc, site: arg.site, path: arg.path, taint: arg.taint })
+        Some({ loc: arg.loc, site: arg.site, path: arg.path, taint: arg.taint, })
       } else {
         None
       }

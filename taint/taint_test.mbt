@@ -1,6 +1,6 @@
 ///|
 test "taint package exposes public path and site models" {
-  let path : StoragePath = { root: "input", segments: [Field("body")] }
+  let path : StoragePath = { root: "input", segments: [Field("body")], }
   let site = ValueSite::Path(path)
   match site {
     Path(found) => inspect(found.root, content="input")
@@ -61,7 +61,7 @@ fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
       ],
     })
   }
-  Some({ return_taint: [], killed_paths: [], findings })
+  Some({ return_taint: [], killed_paths: [], findings, })
 }
 
 ///|
@@ -90,12 +90,12 @@ fn analyze_single_entry_sink(
   source : String,
   root : String,
 ) -> AnalysisResult raise {
-  let path : StoragePath = { root, segments: [] }
+  let path : StoragePath = { root, segments: [], }
   let node = parse_single_impl(source)
   analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(path, "entry:\{root}", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
 }
@@ -111,7 +111,7 @@ fn analyze_call_source_sink(source : String) -> AnalysisResult raise {
         CallReturn(CalleeName("get_user_inputs"), "source:many", None, []),
       ],
       call_models=[
-        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
       ],
     ),
   )
@@ -244,7 +244,7 @@ test "taint engine writes and clears fields without changing siblings" {
         EntryPath(sibling_path, "entry:sibling", None),
       ],
       call_models=[
-        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
       ],
     ),
   )
@@ -318,12 +318,12 @@ test "taint engine reports entry parameter source reaching sink argument" {
     #|  sink(input)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -339,13 +339,13 @@ test "taint engine sanitizer kills argument path before later sink" {
     #|  sink(input)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sanitize"), effects: [KillArg(0)] },
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sanitize"), effects: [KillArg(0)], },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 0)
@@ -359,7 +359,7 @@ test "taint engine reports tainted receiver reaching method sink" {
     #|  clean.sink()
     #|}
     #|
-  let receiver_path : StoragePath = { root: "receiver", segments: [] }
+  let receiver_path : StoragePath = { root: "receiver", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
@@ -381,12 +381,12 @@ test "taint engine analyzes impl method bodies" {
     #|  sink(receiver)
     #|}
     #|
-  let receiver_path : StoragePath = { root: "receiver", segments: [] }
+  let receiver_path : StoragePath = { root: "receiver", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(receiver_path, "entry:receiver", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   inspect(result.function_name, content="output")
@@ -426,7 +426,7 @@ test "taint engine keeps field paths precise" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(secret_path, "entry:secret", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -442,12 +442,12 @@ test "taint engine projects tuple element taint through let binding" {
     #|  sink(pair.1)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -462,12 +462,12 @@ test "taint engine joins branch states before following sink" {
     #|  sink(x)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -481,12 +481,12 @@ test "taint engine does not continue sequence after return" {
     #|  sink(input)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 0)
@@ -627,12 +627,12 @@ test "taint engine propagates unknown call argument taint to return by default" 
     #|  sink(wrap(input))
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -645,14 +645,14 @@ test "taint engine can disable unknown call return propagation" {
     #|  sink(wrap(input))
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(
       sources=[EntryPath(input_path, "entry:input", None)],
       call_models=[
-        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
       ],
       unknown_call_policy=NoEffect,
     ),
@@ -667,12 +667,12 @@ test "taint engine treats reverse pipe as argument zero" {
     #|  sink <| input
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -688,12 +688,12 @@ test "taint engine analyzes normal match cases after early-return cases" {
     #|  }
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -710,12 +710,12 @@ test "taint engine binds raised value in catch pattern" {
     #|  }
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -728,12 +728,12 @@ test "taint engine does not execute call transfer after argument return" {
     #|  sink(input, { return input })
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [] }
+  let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)] },
+      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
     ]),
   )
   assert_eq(result.findings.length(), 0)

@@ -59,7 +59,7 @@ async fn run_scan_mode_command_with_writers(
   stdout_writer : async (String) -> Unit,
   stderr_writer : async (String) -> Unit,
 ) -> Unit {
-  let state : ScanOutputState = { hit_count: 0 }
+  let state : ScanOutputState = { hit_count: 0, }
   scan_events(mode, options, event => {
     write_stream_scan_event(event, options, state, stdout_writer, stderr_writer)
   })

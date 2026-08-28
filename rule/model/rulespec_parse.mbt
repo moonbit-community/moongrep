@@ -157,7 +157,7 @@ fn expect_structural_rule(
   let patterns_not_mode = expect_patterns_not_mode(
     inside_expr, inside_toplevel, patterns, patterns_not,
   )
-  { inside_expr, inside_toplevel, patterns, patterns_not, patterns_not_mode }
+  { inside_expr, inside_toplevel, patterns, patterns_not, patterns_not_mode, }
 }
 
 ///|
@@ -263,7 +263,7 @@ fn expect_taint_rule(
       )
     Some(_) => raise invalid_rule(path~, info="sanitizers must be an array")
   }
-  { sources, sinks, sanitizers }
+  { sources, sinks, sanitizers, }
 }
 
 ///|
@@ -321,7 +321,7 @@ fn parse_rule_clause_map(
   let match_mode = parse_inside_toplevel_match_mode(
     clause_map, path, clause_context,
   )
-  { shape, guards, match_mode }
+  { shape, guards, match_mode, }
 }
 
 ///|
