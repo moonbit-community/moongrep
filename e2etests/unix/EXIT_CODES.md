@@ -36,7 +36,9 @@ exposes the diagnostic from standard error.
 
 ```mooncram
 $ moonrun "$TESTDIR"/../moongrep.wasm -- docs MissingDoc 2>&1 > /dev/null
-unknown document: MissingDoc
+error: unknown document
+  source: MissingDoc
+  help: run `moongrep docs --list` to list embedded documents
 [2]
 ```
 
@@ -44,7 +46,10 @@ Invalid dump input uses status 3.
 
 ```mooncram
 $ moonrun "$TESTDIR"/../moongrep.wasm -- dump --expr 'value +' 2>&1 > /dev/null
-dump --expr parse failed: Unexpected end of file, missing simple expression here.
+error: could not parse dump input
+  source: dump --expr
+  reason: Unexpected end of file, missing simple expression here.
+  help: provide one valid MoonBit expression
 [3]
 ```
 
@@ -52,7 +57,10 @@ An empty rule directory is a rule-source error with status 4.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/custom-rules 2>&1 > /dev/null
-testdata/empty-rule-root: no YAML rule files found
+error: no rules found
+  source: testdata/empty-rule-root
+  reason: the directory contains no YAML rule files
+  help: add a .yaml or .yml rule file or choose another --rules directory
 [4]
 ```
 
@@ -60,7 +68,10 @@ An invalid anonymous pattern is a rule-content error with status 5.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt 2>&1 > /dev/null
-$$$items: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+error: invalid anonymous pattern
+  source: --pattern $$$items
+  reason: patterns[0].shape uses ellipsis metavar $$$items outside a complete ordered CST list item
+  help: fix the pattern passed to --pattern and try again
 [5]
 ```
 
@@ -68,10 +79,10 @@ Malformed rule YAML is in the same rule-content category.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/exit-codes/invalid.yaml testdata/custom-rules 2>&1 > /dev/null
-testdata/exit-codes/invalid.yaml: YamlError(
-  mark={ index: 2, line: 2, col: 0 },
-  info="while parsing a node, did not find expected node content",
-)
+error: invalid rule
+  source: testdata/exit-codes/invalid.yaml
+  reason: line 2, column 1: while parsing a node, did not find expected node content
+  help: fix the rule and try again
 [5]
 ```
 
@@ -79,7 +90,10 @@ A missing scan root is a scan-input error with status 6.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules e2etests/rules/structural testdata/does-not-exist 2>&1 > /dev/null
-OSError("@fs.kind(): \"testdata/does-not-exist\": No such file or directory")
+error: could not access scan path
+  source: testdata/does-not-exist
+  reason: No such file or directory
+  help: check that the scan path exists and is readable
 [6]
 ```
 
@@ -87,6 +101,9 @@ A broken standard-output pipe takes precedence and uses status 7.
 
 ```mooncram
 $ bash -o pipefail -c 'moonrun "$1"/../moongrep.wasm -- docs CLISpec | head -n 0' _ "$TESTDIR" 2>&1 >/dev/null
-OSError("@stdio.Output::write(): Broken pipe")
+error: could not write output
+  source: standard output
+  reason: Broken pipe
+  help: check the output destination or downstream command
 [7]
 ```

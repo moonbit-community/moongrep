@@ -68,7 +68,11 @@ async fn scan_events(
   let scan_root = normalize_scan_root(options.scan_root)
   scan_path(scan_root, excludes, scan_plan, options.verbose, receive) catch {
     CliError::Output(..) as err => raise err
-    err => raise CliError::ScanInput(message="\{err}")
+    CliError::ScanInput(..) as err => raise err
+    CliError::Internal(..) as err => raise err
+    @os_error.OSError(_) as err =>
+      raise new_scan_input_os_error(scan_root, "access scan input", err)
+    err => raise new_internal_error("scan failed: \{err}")
   }
 }
 
@@ -83,10 +87,10 @@ async fn prepare_scan_rules(
   let enabled_rules = disable_scan_rules(raw_rules, options.disabled_rules)
   @rule_compile.compile_rules(enabled_rules) catch {
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
-      raise CliError::RuleContent(message="\{err}")
+      raise new_compiled_rule_error(err, options.patterns)
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
-      raise CliError::RuleSource(message="\{err}")
-    err => raise err
+      raise new_rule_load_error(err)
+    err => raise new_internal_error("rule compilation failed: \{err}")
   }
 }
 
@@ -98,11 +102,11 @@ fn load_builtin_scan_rules(
     return []
   }
   let rules = @rule_builtin.load_rules() catch {
-    err => raise CliError::Internal(message="\{err}")
+    err => raise new_internal_error("could not load builtin rules: \{err}")
   }
   ignore(
     @rule_compile.compile_rules(rules) catch {
-      err => raise CliError::Internal(message="\{err}")
+      err => raise new_internal_error("builtin rule compilation failed: \{err}")
     },
   )
   rules
@@ -233,10 +237,15 @@ async fn load_rule_directory(
 ) -> Array[@rule_model.RawRuleSpec] {
   @rule_load.load_rules(rules_root) catch {
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
-      raise CliError::RuleSource(message="\{err}")
+      raise new_rule_load_error(err)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
-      raise CliError::RuleContent(message="\{err}")
-    err => raise CliError::RuleSource(message="\{err}")
+      raise new_rule_load_error(err)
+    @os_error.OSError(_) as err =>
+      raise new_rule_source_os_error(rules_root, "read rule directory", err)
+    err =>
+      raise new_internal_error(
+        "could not load rule directory \{rules_root}: \{err}",
+      )
   }
 }
 
@@ -244,10 +253,13 @@ async fn load_rule_directory(
 async fn load_rule_file(rule_file : String) -> @rule_model.RawRuleSpec {
   @rule_load.load_rule(rule_file) catch {
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
-      raise CliError::RuleSource(message="\{err}")
+      raise new_rule_load_error(err)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
-      raise CliError::RuleContent(message="\{err}")
-    err => raise CliError::RuleSource(message="\{err}")
+      raise new_rule_load_error(err)
+    @os_error.OSError(_) as err =>
+      raise new_rule_source_os_error(rule_file, "read rule file", err)
+    err =>
+      raise new_internal_error("could not load rule file \{rule_file}: \{err}")
   }
 }
 
@@ -284,7 +296,7 @@ fn ensure_disabled_rule_ids_exist(
   }
   for rule_id in disabled_rules {
     if !loaded.contains(rule_id) {
-      raise CliError::Usage(message="unknown rule id in --disable: \{rule_id}")
+      raise new_unknown_disabled_rule_error(rule_id)
     }
   }
 }
@@ -340,10 +352,19 @@ async fn scan_path(
   verbose : Bool,
   receive : async (ScanEvent) -> Unit,
 ) -> Unit {
-  match @fs.kind(path) {
+  let kind = @fs.kind(path) catch {
+    @os_error.OSError(_) as err =>
+      raise new_scan_input_os_error(path, "access scan path", err)
+    err => raise new_scan_input_error(path, "access scan path", "\{err}")
+  }
+  match kind {
     Directory => {
       emit_scan_trace(verbose, receive, "moongrep scan: entering \{path}")
-      let entries = @fs.readdir(path, sort=true)
+      let entries = @fs.readdir(path, sort=true) catch {
+        @os_error.OSError(_) as err =>
+          raise new_scan_input_os_error(path, "read scan directory", err)
+        err => raise new_scan_input_error(path, "read scan directory", "\{err}")
+      }
       for entry in entries {
         let child_path = join_scan_path(path, entry)
         if !should_skip_entry(child_path, entry, excludes) {
@@ -444,7 +465,11 @@ async fn emit_scan_trace(
 
 ///|
 async fn read_text_file(path : String) -> String {
-  @fs.read_file(path).text()
+  @fs.read_file(path).text() catch {
+    @os_error.OSError(_) as err =>
+      raise new_scan_input_os_error(path, "read source file", err)
+    err => raise new_scan_input_error(path, "read source file", "\{err}")
+  }
 }
 
 ///|

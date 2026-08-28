@@ -18,7 +18,7 @@ fn render_doc_body(name : String) -> String raise {
     let (_, _, body) = @docs.docs[index]
     body
   } else {
-    raise CliError::Usage(message="unknown document: \{name}")
+    raise new_unknown_document_error(name)
   }
 }
 
@@ -29,6 +29,6 @@ pub fn render_docs_command(
   match command {
     ("docs-list", None, None) => render_docs_list()
     ("docs-show", None, Some(name)) => render_doc_body(name)
-    _ => raise CliError::Internal(message="expected docs command")
+    _ => raise new_internal_error("expected docs command")
   }
 }

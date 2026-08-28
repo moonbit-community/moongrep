@@ -26,15 +26,7 @@ pub fn CliError::exit_code(self : CliError) -> Int {
 
 ///|
 pub impl Show for CliError with fn output(self, logger) {
-  match self {
-    Internal(message~) => logger.write_string(message)
-    Usage(message~) => logger.write_string(message)
-    DumpInput(message~) => logger.write_string(message)
-    RuleSource(message~) => logger.write_string(message)
-    RuleContent(message~) => logger.write_string(message)
-    ScanInput(message~) => logger.write_string(message)
-    Output(message~) => logger.write_string(message)
-  }
+  logger.write_string(render_cli_error(self))
 }
 
 ///|
@@ -368,32 +360,31 @@ fn attach_scan_guard(
   } else {
     "duplicate --guard for anonymous --pattern"
   }
-  raise CliError::Usage(message~)
+  raise new_guard_placement_error(message)
 }
 
 ///|
 fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
   let docs = @yaml.Yaml::load_from_string(source) catch {
-    err => raise CliError::Usage(message="invalid --guard YAML: \{Repr(err)}")
+    @yaml.YamlError::YamlError(..) as err => raise new_yaml_guard_error(err)
   }
   if docs.length() != 1 {
-    raise CliError::Usage(
-      message="--guard must contain exactly one YAML document",
-    )
+    raise new_guard_error("--guard", "must contain exactly one YAML document")
   }
   guard docs[0] is Map(map) else {
-    raise CliError::Usage(message="--guard must be a YAML mapping")
+    raise new_guard_error("--guard", "must be a YAML mapping")
   }
   let guards : Map[String, String] = Map([])
   for key, value in map {
     if !key.has_prefix("$") || key.length() <= 1 {
-      raise CliError::Usage(
-        message="guard key \{key} must be a $-prefixed metavar name",
+      raise new_guard_error(
+        "--guard",
+        "key \{key} must be a $-prefixed capture name",
       )
     }
     match value {
       String(regex_source) => guards[key] = regex_source
-      _ => raise CliError::Usage(message="--guard.\{key} must be a string")
+      _ => raise new_guard_error("--guard", "value for \{key} must be a string")
     }
   }
   guards

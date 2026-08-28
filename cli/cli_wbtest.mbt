@@ -10,7 +10,7 @@ fn expect_cli_usage(argv : Array[String], exit_code : Int) -> Unit raise {
 }
 
 ///|
-test "cli error categories have fixed exit codes and plain messages" {
+test "cli error categories have fixed exit codes" {
   let errors : Array[CliError] = [
     Internal(message="message"),
     Usage(message="message"),
@@ -22,8 +22,28 @@ test "cli error categories have fixed exit codes and plain messages" {
   ]
   let exit_codes = errors.map(error => error.exit_code())
   assert_eq(exit_codes, [1, 2, 3, 4, 5, 6, 7])
-  for error in errors {
-    inspect("\{error}", content="message")
+}
+
+///|
+test "cli args describe malformed guard YAML without debug constructors" {
+  try
+    parse_cli_command(["scan", "--pattern", "target()", "--guard", "{", "src"])
+  catch {
+    CliError::Usage(message~) => {
+      inspect(
+        message,
+        content=(
+          #|error: invalid --guard
+          #|  source: --guard
+          #|  reason: line 2, column 1: while parsing a node, did not find expected node content
+          #|  help: pass one YAML mapping from $-prefixed capture names to regex strings
+        ),
+      )
+      assert_false(message.contains("YamlError"))
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected invalid guard")
   }
 }
 

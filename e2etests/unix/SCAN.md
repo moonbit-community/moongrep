@@ -442,7 +442,9 @@ error and returns exit status 2.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules e2etests/rules/prefilter --disable missing testdata/prefilter-impl 2>&1 >/dev/null
-unknown rule id in --disable: missing
+error: unknown rule id in --disable
+  source: missing
+  help: use the exact id of a loaded rule
 [2]
 ```
 
