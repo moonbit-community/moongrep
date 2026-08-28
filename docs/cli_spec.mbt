@@ -493,11 +493,23 @@ let _embed_clispec_md : String =
   #|```text
   #|error: <summary>
   #|  source: <relevant path or input>
+  #|  pattern:
+  #|    <pattern line 1>
+  #|    <pattern line 2>
   #|  reason: <specific reason>
   #|  help: <actionable suggestion>
   #|```
   #|
   #|The `source`, `reason`, and `help` lines are omitted when they have no content.
+  #|The `pattern` block is included only when the diagnostic is associated with a
+  #|pattern. Each pattern line is indented by four spaces. Relative indentation and
+  #|internal blank lines are preserved after CRLF and CR line endings are normalized
+  #|to LF. One trailing line ending is ignored. An explicitly empty pattern still
+  #|prints the `pattern:` label.
+  #|
+  #|For an anonymous `--pattern` rule, `source` is `--pattern`; the input appears
+  #|only in the `pattern` block.
+  #|
   #|The diagnostic formatter does not include a trailing newline; the output layer
   #|writes one newline when it emits the diagnostic. Diagnostics are plain English
   #|text without color.

@@ -422,12 +422,23 @@ moongrep 为每个可处置的失败类别使用固定状态码：
 ```text
 error: <摘要>
   source: <相关路径或输入>
+  pattern:
+    <pattern 第 1 行>
+    <pattern 第 2 行>
   reason: <具体原因>
   help: <可执行建议>
 ```
 
-`source`、`reason` 和 `help` 没有内容时会被省略。诊断格式化器本身不包含末尾
-换行；输出层在写出诊断时添加一个换行。诊断使用无颜色的英文纯文本。
+`source`、`reason` 和 `help` 没有内容时会被省略。只有诊断关联了 pattern 时才
+显示 `pattern` 区块。pattern 的每一行增加四个空格，同时保留原有的相对缩进和
+内部空行。CRLF 和 CR 换行会先统一为 LF，并忽略一个末尾换行。显式的空 pattern
+仍会显示 `pattern:` 标签。
+
+对于匿名 `--pattern` 规则，`source` 显示为 `--pattern`；输入内容只出现在
+`pattern` 区块中。
+
+诊断格式化器本身不包含末尾换行；输出层在写出诊断时添加一个换行。诊断使用无
+颜色的英文纯文本。
 
 参数解析器已经生成的 `error:` 行、`Usage:` 区块和可选 `tip:` 会保持完整布局。
 扫描 warning 继续使用现有 `warning:` 格式，不采用致命诊断布局。
