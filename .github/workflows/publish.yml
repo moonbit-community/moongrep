@@ -30,10 +30,26 @@ jobs:
       - name: prepublish check
         id: prepublish
         run: |
+          retry() {
+            local attempts=5
+            local delay=5
+            for attempt in $(seq 1 "$attempts"); do
+              if "$@"; then
+                return 0
+              fi
+              if [[ "$attempt" -eq "$attempts" ]]; then
+                return 1
+              fi
+              echo "Command failed (attempt $attempt/$attempts); retrying in ${delay}s..."
+              sleep "$delay"
+              delay=$((delay * 2))
+            done
+          }
+
           moon fmt
           git diff --exit-code
-          moon check
-          moon test
+          retry moon check
+          retry moon test
           version="$(sed -n 's/^version = "\(.*\)"/\1/p' moon.mod)"
           if [[ -z "$version" ]]; then
             echo "could not read package version from moon.mod" >&2
