@@ -31,6 +31,8 @@ test "scan path helpers follow the host path flavor" {
     inspect(normalize_scan_exclude(".\\src\\*.mbt\\"), content="src\\*.mbt")
     assert_true(scan_path_matches("VENDOR\\ÜBER", "vendor\\über"))
     assert_true(should_skip_entry("root\\.GIT", ".GIT", []))
+    assert_true(should_skip_entry("root\\.xx", ".xx", []))
+    assert_true(should_skip_entry("root\\NODE_MODULES", "NODE_MODULES", []))
     assert_false(
       should_skip_entry("relative\\file.mbt", "file.mbt", [
         "C:\\relative\\file.mbt",
@@ -48,7 +50,10 @@ test "scan path helpers follow the host path flavor" {
     inspect(normalize_scan_exclude(""), content="")
     inspect(normalize_scan_exclude("./src/*.mbt/"), content="src/*.mbt")
     assert_false(scan_path_matches("VENDOR/ÜBER", "vendor/über"))
-    assert_false(should_skip_entry("root/.GIT", ".GIT", []))
+    assert_true(should_skip_entry("root/.GIT", ".GIT", []))
+    assert_true(should_skip_entry("root/.xx", ".xx", []))
+    assert_true(should_skip_entry("root/node_modules", "node_modules", []))
+    assert_false(should_skip_entry("root/NODE_MODULES", "NODE_MODULES", []))
     assert_false(
       should_skip_entry("relative/file.mbt", "file.mbt", ["/relative/file.mbt"]),
     )

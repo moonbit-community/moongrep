@@ -217,19 +217,19 @@ let _embed_clispec_md : String =
   #|
   #|### Default Directory Exclusions
   #|
-  #|When considering a child entry, moongrep skips these exact names at every
-  #|depth:
+  #|When considering a child entry, moongrep applies these default exclusions at
+  #|every depth:
   #|
-  #|- `.git`
+  #|- every name beginning with `.`
   #|- `_build`
-  #|- `.mooncakes`
+  #|- `node_modules`
   #|- `target`
   #|
-  #|The complete entry name is compared case-sensitively on Linux and macOS. On
-  #|Windows only, it is compared case-insensitively with per-character Unicode
-  #|lowercase mapping. These exclusions apply to children during traversal. An
-  #|explicitly selected scan root is still inspected when its final path component
-  #|has one of these names.
+  #|The leading-dot check is case-independent. The complete exact names are
+  #|compared case-sensitively on Linux and macOS. On Windows only, they are compared
+  #|case-insensitively with per-character Unicode lowercase mapping. These
+  #|exclusions apply to children during traversal. An explicitly selected scan root
+  #|is still inspected when its final path component matches one of these rules.
   #|
   #|### `--exclude`
   #|
