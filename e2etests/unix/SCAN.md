@@ -14,8 +14,9 @@ source:
 ```
 
 The scanner ignores common repository and build directories by default. The
-fixture creates matching files under `.git`, `_build`, `.mooncakes`, and
-`target`, but only the source file at the scan root is reported.
+fixture creates matching files under the hidden directories `.git`,
+`.mooncakes`, and `.xx`, as well as `_build`, `node_modules`, and `target`, but
+only the source file at the scan root is reported.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && sh testdata/skip-dirs/run.sh "$TESTDIR"/../moongrep.wasm

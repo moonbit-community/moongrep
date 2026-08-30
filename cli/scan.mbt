@@ -484,11 +484,11 @@ fn should_skip_entry(
   entry : String,
   excludes : Array[String],
 ) -> Bool {
-  // Skip dependency, build, and VCS directories that are noisy and are rarely
-  // intended scan targets.
-  if scan_path_matches(entry, ".git") ||
+  // Skip hidden entries plus dependency and build directories that are noisy
+  // and are rarely intended scan targets.
+  if entry.has_prefix(".") ||
     scan_path_matches(entry, "_build") ||
-    scan_path_matches(entry, ".mooncakes") ||
+    scan_path_matches(entry, "node_modules") ||
     scan_path_matches(entry, "target") {
     return true
   }
