@@ -1,0 +1,5 @@
+id: ignored
+description: |
+  This rule must not load.
+patterns:
+  - shape: target(
