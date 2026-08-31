@@ -6,3 +6,7 @@ import {
   "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
 }
+
+import {
+  "moonbitlang/core/bench",
+} for "wbtest"
