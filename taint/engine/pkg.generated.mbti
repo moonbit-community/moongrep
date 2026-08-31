@@ -12,8 +12,6 @@ import {
 // Values
 pub fn analyze_function_like(@untyped_cst.CstNode, @model.TaintSpec) -> AnalysisResult raise
 
-pub fn analyze_function_like_multi(@untyped_cst.CstNode, Array[@model.TaintSpec]) -> Array[AnalysisResult] raise
-
 // Errors
 pub suberror TaintAnalysisError {
   UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)

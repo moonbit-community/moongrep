@@ -30,5 +30,4 @@ pub using @engine {
   type TaintAnalysisError,
   type AnalysisResult,
   analyze_function_like,
-  analyze_function_like_multi,
 }

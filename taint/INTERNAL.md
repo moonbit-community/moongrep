@@ -20,10 +20,9 @@ Dependencies point from `engine` to `model` to `domain`; `engine` also imports
 `domain` directly. The facade imports all three packages. None of the three
 subpackages imports the facade or a higher layer.
 
-The facade re-exports the entry points that analyze one parser `Impl` at a time:
+The facade re-exports the entry point that analyzes one parser `Impl` at a time:
 
 - `analyze_function_like(node, spec)`
-- `analyze_function_like_multi(node, rules)`
 
 Only function-like top-level nodes are executable:
 

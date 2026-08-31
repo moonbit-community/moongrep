@@ -18,7 +18,6 @@ analyzer 及其调用方的维护者，不面向规则作者。
 门面重新导出以下入口，每次分析一个 parser `Impl`：
 
 - `analyze_function_like(node, spec)`
-- `analyze_function_like_multi(node, rules)`
 
 只有函数形态的顶层节点是可执行的：
 

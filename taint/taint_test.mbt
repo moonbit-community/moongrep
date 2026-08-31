@@ -140,9 +140,6 @@ test "taint facade exposes the complete public API" {
   assert_eq(result.function_name, "sample")
   let _ = result.function_loc
   assert_eq(result.findings.length(), 1)
-  let analyzed = analyze_function_like_multi(node, [spec])
-  assert_eq(analyzed.length(), 1)
-  assert_eq(analyzed[0].rule_id, "rule")
 }
 
 ///|
