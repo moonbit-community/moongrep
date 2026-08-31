@@ -30,7 +30,18 @@ test "docs show rejects unknown document name" {
 
 ///|
 test "docs rejects unreachable command state as internal" {
-  try render_docs_command(("scan", None, None)) catch {
+  let options : CliOptions = {
+    rules_root: None,
+    rule_file: None,
+    patterns: [],
+    scan_root: ".",
+    excludes: [],
+    disabled_rules: [],
+    verbose: false,
+    no_color: false,
+    output_json: false,
+  }
+  try render_docs_command(Scan(options)) catch {
     CliError::Internal(..) as err => assert_eq(err.exit_code(), 1)
     err => fail("unexpected error \{err}")
   } noraise {

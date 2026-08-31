@@ -38,8 +38,9 @@ fn cli_errno_reason(errno : Int) -> String {
 async fn write_cli_stdout(output : String) -> Unit {
   write_raw_cli_stdout(output) catch {
     @os_error.OSError(errno, ..) =>
-      raise @cli.CliError::Output(
-        message="standard output: \{cli_errno_reason(errno)}",
+      raise @cli.CliError::output_error(
+        "standard output",
+        cli_errno_reason(errno),
       )
     err => raise err
   }
@@ -62,13 +63,12 @@ async fn run_cli() -> Unit {
     env=@env.get_env_vars(),
   )
   match command {
-    ("scan", Some(options), None) => @cli.run_scan_command(options)
-    ("lint", Some(options), None) => @cli.run_lint_command(options)
-    ("docs-list", None, None) | ("docs-show", None, Some(_)) =>
+    Scan(options) => @cli.run_scan_command(options)
+    Lint(options) => @cli.run_lint_command(options)
+    DocsList | DocsShow(_) =>
       write_cli_stdout(@cli.render_docs_command(command))
-    ("dump-impl", None, Some(_)) | ("dump-expr", None, Some(_)) =>
+    DumpImpl(_) | DumpExpr(_) =>
       write_cli_stdout(@cli.render_dump_command(command))
-    _ => raise @cli.CliError::Internal(message="invalid CLI command")
   }
 }
 
@@ -82,6 +82,6 @@ async fn main {
     @cli.CliError::RuleContent(..) as err => exit_with_cli_error(err)
     @cli.CliError::ScanInput(..) as err => exit_with_cli_error(err)
     @cli.CliError::Output(..) as err => exit_with_cli_error(err)
-    err => exit_with_cli_error(@cli.CliError::Internal(message="\{err}"))
+    err => exit_with_cli_error(@cli.CliError::internal("\{err}"))
   }
 }

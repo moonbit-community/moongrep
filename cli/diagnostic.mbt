@@ -1,4 +1,25 @@
 ///|
+fn new_cli_diagnostic(
+  summary : String,
+  source : String?,
+  reason : String?,
+  help : String?,
+  pattern? : String,
+) -> CliDiagnostic {
+  Fields(summary~, source~, reason~, help~, pattern~)
+}
+
+///|
+fn new_usage_error(summary : String) -> CliError {
+  Usage(diagnostic=new_cli_diagnostic(summary, None, None, None))
+}
+
+///|
+fn new_parser_usage_error(message : String) -> CliError {
+  Usage(diagnostic=ParserMessage(message~))
+}
+
+///|
 fn format_cli_diagnostic(
   summary : String,
   source : String?,
@@ -74,57 +95,30 @@ fn compact_cli_diagnostic_value(value : String) -> String {
 }
 
 ///|
-fn cli_message_is_display_ready(message : String) -> Bool {
-  message.has_prefix("error:") || message.has_prefix("Usage:")
-}
-
-///|
 fn render_cli_error(error : CliError) -> String {
-  let message = match error {
-    Internal(message~) => message
-    Usage(message~) => message
-    DumpInput(message~) => message
-    RuleSource(message~) => message
-    RuleContent(message~) => message
-    ScanInput(message~) => message
-    Output(message~) => message
+  let diagnostic = match error {
+    Internal(diagnostic~) => diagnostic
+    Usage(diagnostic~) => diagnostic
+    DumpInput(diagnostic~) => diagnostic
+    RuleSource(diagnostic~) => diagnostic
+    RuleContent(diagnostic~) => diagnostic
+    ScanInput(diagnostic~) => diagnostic
+    Output(diagnostic~) => diagnostic
   }
-  if cli_message_is_display_ready(message) {
-    message
-  } else {
-    match error {
-      Internal(_) =>
-        format_cli_diagnostic(
-          "internal error",
-          None,
-          Some(message),
-          Some(
-            "report this issue at https://github.com/moonbit-community/moongrep/issues",
-          ),
-        )
-      Output(_) => render_plain_output_error(message)
-      _ => "error: \{message}"
-    }
-  }
+  render_cli_diagnostic(diagnostic)
 }
 
 ///|
-fn render_plain_output_error(message : String) -> String {
-  let stdout_prefix = "standard output: "
-  let stderr_prefix = "standard error: "
-  let (source, reason) = if message.has_prefix(stdout_prefix) {
-    (Some("standard output"), message[stdout_prefix.length():].to_owned())
-  } else if message.has_prefix(stderr_prefix) {
-    (Some("standard error"), message[stderr_prefix.length():].to_owned())
-  } else {
-    (None, message)
+fn render_cli_diagnostic(diagnostic : CliDiagnostic) -> String {
+  match diagnostic {
+    Fields(summary~, source~, reason~, help~, pattern~) =>
+      match pattern {
+        Some(value) =>
+          format_cli_diagnostic(summary, source, reason, help, pattern=value)
+        None => format_cli_diagnostic(summary, source, reason, help)
+      }
+    ParserMessage(message~) => message
   }
-  format_cli_diagnostic(
-    "could not write output",
-    source,
-    Some(reason),
-    Some("check the output destination or downstream command"),
-  )
 }
 
 ///|
@@ -142,7 +136,7 @@ fn os_error_reason(error : @os_error.OSError) -> String {
 ///|
 fn new_internal_error(reason : String) -> CliError {
   Internal(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "internal error",
       None,
       Some(reason),
@@ -154,9 +148,15 @@ fn new_internal_error(reason : String) -> CliError {
 }
 
 ///|
+/// Builds an internal CLI failure while retaining its structured diagnostic.
+pub fn CliError::internal(reason : String) -> CliError {
+  new_internal_error(reason)
+}
+
+///|
 fn new_guard_error(source : String, reason : String) -> CliError {
   Usage(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "invalid --guard",
       Some(source),
       Some(reason),
@@ -176,7 +176,7 @@ fn new_yaml_guard_error(error : @yaml.YamlError) -> CliError {
 ///|
 fn new_guard_placement_error(reason : String) -> CliError {
   Usage(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "invalid --guard placement",
       Some("--guard"),
       Some(reason),
@@ -188,7 +188,7 @@ fn new_guard_placement_error(reason : String) -> CliError {
 ///|
 fn new_unknown_document_error(name : String) -> CliError {
   Usage(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "unknown document",
       Some(name),
       None,
@@ -200,7 +200,7 @@ fn new_unknown_document_error(name : String) -> CliError {
 ///|
 fn new_unknown_disabled_rule_error(rule_id : String) -> CliError {
   Usage(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "unknown rule id in --disable",
       Some(rule_id),
       None,
@@ -221,7 +221,7 @@ fn dump_input_help(source : String) -> String {
 ///|
 fn new_dump_input_error(source : String, reason : String) -> CliError {
   DumpInput(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "could not parse dump input",
       Some(source),
       Some(reason),
@@ -233,7 +233,7 @@ fn new_dump_input_error(source : String, reason : String) -> CliError {
 ///|
 fn new_empty_rule_directory_error(path : String) -> CliError {
   RuleSource(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "no rules found",
       Some(path),
       Some("the directory contains no YAML rule files"),
@@ -245,7 +245,7 @@ fn new_empty_rule_directory_error(path : String) -> CliError {
 ///|
 fn new_invalid_rule_error(path : String, reason : String) -> CliError {
   RuleContent(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "invalid rule",
       Some(path),
       Some(reason),
@@ -261,7 +261,7 @@ fn new_invalid_pattern_error(
   reason : String,
 ) -> CliError {
   RuleContent(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "invalid rule",
       Some(path),
       Some(reason),
@@ -277,7 +277,7 @@ fn new_invalid_anonymous_pattern_error(
   reason : String,
 ) -> CliError {
   RuleContent(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "invalid anonymous pattern",
       Some("--pattern"),
       Some(reason),
@@ -339,7 +339,7 @@ fn new_rule_source_os_error(
   error : @os_error.OSError,
 ) -> CliError {
   RuleSource(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "could not \{operation}",
       Some(path),
       Some(os_error_reason(error)),
@@ -355,7 +355,7 @@ fn new_scan_input_error(
   reason : String,
 ) -> CliError {
   ScanInput(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "could not \{operation}",
       Some(path),
       Some(reason),
@@ -376,13 +376,22 @@ fn new_scan_input_os_error(
 ///|
 fn new_output_error(destination : String, reason : String) -> CliError {
   Output(
-    message=format_cli_diagnostic(
+    diagnostic=new_cli_diagnostic(
       "could not write output",
       Some(destination),
       Some(reason),
       Some("check the output destination or downstream command"),
     ),
   )
+}
+
+///|
+/// Builds an output failure while retaining its destination and reason.
+pub fn CliError::output_error(
+  destination : String,
+  reason : String,
+) -> CliError {
+  new_output_error(destination, reason)
 }
 
 ///|

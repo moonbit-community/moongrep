@@ -323,7 +323,8 @@ async test "stream writer failures are output errors" {
       _ => (),
     )
   catch {
-    CliError::Output(message~) as err => {
+    CliError::Output(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 7)
       assert_true(message.contains("injected writer failure"))
     }

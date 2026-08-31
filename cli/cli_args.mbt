@@ -1,13 +1,30 @@
 ///|
+/// Structured information rendered for one command-line failure.
+///
+/// `ParserMessage` is reserved for argparse output that already contains its
+/// own usage layout. Other failures retain separate diagnostic fields until
+/// they are written at the process boundary.
+pub(all) enum CliDiagnostic {
+  Fields(
+    summary~ : String,
+    source~ : String?,
+    reason~ : String?,
+    help~ : String?,
+    pattern~ : String?
+  )
+  ParserMessage(message~ : String)
+} derive(Debug)
+
+///|
 /// Failures reported by the command-line frontend.
 pub(all) suberror CliError {
-  Internal(message~ : String)
-  Usage(message~ : String)
-  DumpInput(message~ : String)
-  RuleSource(message~ : String)
-  RuleContent(message~ : String)
-  ScanInput(message~ : String)
-  Output(message~ : String)
+  Internal(diagnostic~ : CliDiagnostic)
+  Usage(diagnostic~ : CliDiagnostic)
+  DumpInput(diagnostic~ : CliDiagnostic)
+  RuleSource(diagnostic~ : CliDiagnostic)
+  RuleContent(diagnostic~ : CliDiagnostic)
+  ScanInput(diagnostic~ : CliDiagnostic)
+  Output(diagnostic~ : CliDiagnostic)
 } derive(Debug)
 
 ///|
@@ -41,6 +58,17 @@ pub(all) struct CliOptions {
   verbose : Bool
   no_color : Bool
   output_json : Bool
+}
+
+///|
+/// One validated command accepted by the command-line frontend.
+pub(all) enum CliCommand {
+  Scan(CliOptions)
+  Lint(CliOptions)
+  DocsList
+  DocsShow(String)
+  DumpImpl(String)
+  DumpExpr(String)
 }
 
 ///|
@@ -211,38 +239,31 @@ fn no_color_enabled(env : Map[String, String]) -> Bool {
 }
 
 ///|
-fn docs_cli_command(
-  docs_matches : @argparse.Matches,
-) -> (String, CliOptions?, String?) raise {
+fn docs_cli_command(docs_matches : @argparse.Matches) -> CliCommand raise {
   let list_requested = cli_flag_enabled(docs_matches.flags, "list")
   let doc_name = last_cli_value(docs_matches.values, "doc-name")
   match (list_requested, doc_name) {
-    (true, None) => ("docs-list", None, None)
-    (false, Some(name)) => ("docs-show", None, Some(name))
+    (true, None) => DocsList
+    (false, Some(name)) => DocsShow(name)
     (true, Some(_)) =>
-      raise CliError::Usage(
-        message="docs --list cannot be combined with a document name",
+      raise new_usage_error(
+        "docs --list cannot be combined with a document name",
       )
     (false, None) =>
-      raise CliError::Usage(message="missing docs --list or document name")
+      raise new_usage_error("missing docs --list or document name")
   }
 }
 
 ///|
-fn dump_cli_command(
-  dump_matches : @argparse.Matches,
-) -> (String, CliOptions?, String?) raise {
+fn dump_cli_command(dump_matches : @argparse.Matches) -> CliCommand raise {
   let impl_source = last_cli_value(dump_matches.values, "impl")
   let expr_source = last_cli_value(dump_matches.values, "expr")
   match (impl_source, expr_source) {
-    (Some(source), None) => ("dump-impl", None, Some(source))
-    (None, Some(source)) => ("dump-expr", None, Some(source))
+    (Some(source), None) => DumpImpl(source)
+    (None, Some(source)) => DumpExpr(source)
     (Some(_), Some(_)) =>
-      raise CliError::Usage(
-        message="dump --impl cannot be combined with --expr",
-      )
-    (None, None) =>
-      raise CliError::Usage(message="missing dump --impl or --expr")
+      raise new_usage_error("dump --impl cannot be combined with --expr")
+    (None, None) => raise new_usage_error("missing dump --impl or --expr")
   }
 }
 
@@ -298,7 +319,7 @@ fn parse_scan_pattern_specs(
     let arg = argv[index]
     if arg == "--pattern" {
       if index + 1 >= argv.length() {
-        raise CliError::Usage(message="missing value for --pattern")
+        raise new_usage_error("missing value for --pattern")
       }
       patterns.push({
         shape: argv[index + 1],
@@ -317,7 +338,7 @@ fn parse_scan_pattern_specs(
       index += 1
     } else if arg == "--guard" {
       if index + 1 >= argv.length() {
-        raise CliError::Usage(message="missing value for --guard")
+        raise new_usage_error("missing value for --guard")
       }
       attach_scan_guard(
         patterns,
@@ -416,20 +437,20 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 pub fn parse_cli_command(
   argv : Array[String],
   env? : Map[String, String] = Map([]),
-) -> (String, CliOptions?, String?) raise {
+) -> CliCommand raise {
   let matches = moongrep_command.parse(argv~, env~) catch {
     err => {
       let message = "\{err}"
-      raise CliError::Usage(message~)
+      raise new_parser_usage_error(message)
     }
   }
   match matches.subcommand {
     Some(("scan", scan_matches)) =>
-      ("scan", Some(scan_cli_options(scan_matches, env, argv)), None)
+      Scan(scan_cli_options(scan_matches, env, argv))
     Some(("lint", lint_matches)) =>
-      ("lint", Some(scan_cli_options(lint_matches, env, argv)), None)
+      Lint(scan_cli_options(lint_matches, env, argv))
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
-    _ => raise CliError::Usage(message="missing required command")
+    _ => raise new_usage_error("missing required command")
   }
 }

@@ -11,14 +11,15 @@ fn expect_cli_usage(argv : Array[String], exit_code : Int) -> Unit raise {
 
 ///|
 test "cli error categories have fixed exit codes" {
+  let diagnostic = new_cli_diagnostic("message", None, None, None)
   let errors : Array[CliError] = [
-    Internal(message="message"),
-    Usage(message="message"),
-    DumpInput(message="message"),
-    RuleSource(message="message"),
-    RuleContent(message="message"),
-    ScanInput(message="message"),
-    Output(message="message"),
+    Internal(diagnostic~),
+    Usage(diagnostic~),
+    DumpInput(diagnostic~),
+    RuleSource(diagnostic~),
+    RuleContent(diagnostic~),
+    ScanInput(diagnostic~),
+    Output(diagnostic~),
   ]
   let exit_codes = errors.map(error => error.exit_code())
   assert_eq(exit_codes, [1, 2, 3, 4, 5, 6, 7])
@@ -29,7 +30,8 @@ test "cli args describe malformed guard YAML without debug constructors" {
   try
     parse_cli_command(["scan", "--pattern", "target()", "--guard", "{", "src"])
   catch {
-    CliError::Usage(message~) => {
+    CliError::Usage(diagnostic~) => {
+      let message = render_cli_diagnostic(diagnostic)
       inspect(
         message,
         content=(
@@ -99,7 +101,7 @@ test "cli args require command" {
 ///|
 test "cli args use default rules root" {
   match parse_cli_command(["scan"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "./.moongrep/rules")
       assert_true(options.rule_file is None)
       expect_no_patterns(options)
@@ -112,7 +114,7 @@ test "cli args use default rules root" {
 ///|
 test "cli args parse docs list command" {
   match parse_cli_command(["docs", "--list"]) {
-    ("docs-list", None, None) => inspect("docs-list", content="docs-list")
+    DocsList => inspect("docs-list", content="docs-list")
     _ => fail("unexpected command")
   }
 }
@@ -120,7 +122,7 @@ test "cli args parse docs list command" {
 ///|
 test "cli args parse docs named command" {
   match parse_cli_command(["docs", "RuleSpec"]) {
-    ("docs-show", None, Some(name)) => inspect(name, content="RuleSpec")
+    DocsShow(name) => inspect(name, content="RuleSpec")
     _ => fail("unexpected command")
   }
 }
@@ -133,8 +135,7 @@ test "cli args reject ambiguous docs command" {
 ///|
 test "cli args parse dump impl command" {
   match parse_cli_command(["dump", "--impl", "fn answer { 42 }"]) {
-    ("dump-impl", None, Some(source)) =>
-      inspect(source, content="fn answer { 42 }")
+    DumpImpl(source) => inspect(source, content="fn answer { 42 }")
     _ => fail("unexpected command")
   }
 }
@@ -142,7 +143,7 @@ test "cli args parse dump impl command" {
 ///|
 test "cli args parse dump expr command" {
   match parse_cli_command(["dump", "--expr", "x + 1"]) {
-    ("dump-expr", None, Some(source)) => inspect(source, content="x + 1")
+    DumpExpr(source) => inspect(source, content="x + 1")
     _ => fail("unexpected command")
   }
 }
@@ -155,7 +156,7 @@ test "cli args reject ambiguous dump command" {
 ///|
 test "cli args parse rules root and default scan root" {
   match parse_cli_command(["scan", "--rules", "custom-rules"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "custom-rules")
       assert_true(options.rule_file is None)
       expect_no_patterns(options)
@@ -171,28 +172,28 @@ test "cli args parse rules root and default scan root" {
 ///|
 test "cli args enable no color only when NO_COLOR is 1" {
   match parse_cli_command(["scan", "--rules", "custom-rules"]) {
-    ("scan", Some(options), None) => assert_false(options.no_color)
+    Scan(options) => assert_false(options.no_color)
     _ => fail("unexpected command")
   }
   match
     parse_cli_command(["scan", "--rules", "custom-rules"], env={
       "NO_COLOR": "",
     }) {
-    ("scan", Some(options), None) => assert_false(options.no_color)
+    Scan(options) => assert_false(options.no_color)
     _ => fail("unexpected command")
   }
   match
     parse_cli_command(["scan", "--rules", "custom-rules"], env={
       "NO_COLOR": "true",
     }) {
-    ("scan", Some(options), None) => assert_false(options.no_color)
+    Scan(options) => assert_false(options.no_color)
     _ => fail("unexpected command")
   }
   match
     parse_cli_command(["scan", "--rules", "custom-rules"], env={
       "NO_COLOR": "1",
     }) {
-    ("scan", Some(options), None) => assert_true(options.no_color)
+    Scan(options) => assert_true(options.no_color)
     _ => fail("unexpected command")
   }
 }
@@ -200,7 +201,7 @@ test "cli args enable no color only when NO_COLOR is 1" {
 ///|
 test "cli args parse single rule file and default scan root" {
   match parse_cli_command(["scan", "--rule", "custom-rules/example.yaml"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       assert_true(options.rules_root is None)
       expect_rule_file(options, "custom-rules/example.yaml")
       expect_no_patterns(options)
@@ -214,7 +215,7 @@ test "cli args parse single rule file and default scan root" {
 ///|
 test "cli args parse explicit scan root" {
   match parse_cli_command(["scan", "--rules", "custom-rules", "src"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "custom-rules")
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
@@ -228,7 +229,7 @@ test "cli args parse explicit scan root" {
 test "cli args parse scan verbose flag" {
   match
     parse_cli_command(["scan", "--rules", "custom-rules", "--verbose", "src"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "custom-rules")
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
@@ -244,7 +245,7 @@ test "cli args parse scan output json flag" {
     parse_cli_command([
       "scan", "--rules", "custom-rules", "--output-json", "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       inspect(options.scan_root, content="src")
       assert_true(options.output_json)
       assert_false(options.verbose)
@@ -260,7 +261,7 @@ test "cli args parse repeated scan excludes before scan root" {
       "scan", "--rules", "custom-rules", "--exclude", "./vendor/", "--exclude=generated.mbt",
       "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
       assert_eq(options.excludes, ["vendor", "generated.mbt"])
@@ -277,7 +278,7 @@ test "cli args parse repeated scan disabled rules before scan root" {
       "scan", "--rules", "custom-rules", "--disable", "target", "--disable=other",
       "--disable", "third", "--disable", "last", "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "custom-rules")
       inspect(options.scan_root, content="src")
       assert_eq(options.disabled_rules, ["target", "other", "third", "last"])
@@ -298,7 +299,7 @@ test "cli args reject json matcher flag" {
 ///|
 test "cli args parse argparse option input forms" {
   match parse_cli_command(["scan", "--rules=inline-rules"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "inline-rules")
       expect_no_patterns(options)
       inspect(options.scan_root, content=".")
@@ -307,7 +308,7 @@ test "cli args parse argparse option input forms" {
     _ => fail("unexpected inline command")
   }
   match parse_cli_command(["scan", "-r", "short-rules", "src"]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "short-rules")
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
@@ -323,7 +324,7 @@ test "cli args keep the last rules option" {
     parse_cli_command([
       "scan", "--rules", "old-rules", "--rules=new-rules", "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "new-rules")
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")
@@ -339,7 +340,7 @@ test "cli args parse anonymous patterns without rules root" {
     parse_cli_command([
       "scan", "--pattern", "target()", "--pattern", "other()", "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       assert_true(options.rules_root is None)
       assert_eq(options.patterns.length(), 2)
       expect_pattern_shape(options, 0, "target()")
@@ -360,7 +361,7 @@ test "cli args parse anonymous pattern guard" {
       "scan", "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}",
       "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       assert_true(options.rules_root is None)
       assert_eq(options.patterns.length(), 1)
       expect_pattern_shape(options, 0, "$(callee:id)()")
@@ -378,7 +379,7 @@ test "cli args parse multiple anonymous pattern guard pairs in order" {
       "scan", "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}",
       "--pattern", "sink($(value:const))", "--guard", "{$value: \"^ok$\"}", "src",
     ]) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       assert_eq(options.patterns.length(), 2)
       expect_pattern_shape(options, 0, "$(callee:id)()")
       expect_pattern_shape(options, 1, "sink($(value:const))")
@@ -470,7 +471,7 @@ test "cli args reject scan builtin rules flag" {
 ///|
 test "cli args parse lint with builtin rules and default scan root" {
   match parse_cli_command(["lint"]) {
-    ("lint", Some(options), None) => {
+    Lint(options) => {
       assert_true(options.rules_root is None)
       assert_true(options.rule_file is None)
       expect_no_patterns(options)
@@ -497,7 +498,7 @@ test "cli args parse lint scan options in addition to builtin rules" {
       ],
       env={ "NO_COLOR": "1" },
     ) {
-    ("lint", Some(options), None) => {
+    Lint(options) => {
       expect_rules_root(options, "custom-rules")
       expect_rule_file(options, "custom-rules/example.yaml")
       assert_eq(options.patterns.length(), 1)
@@ -543,7 +544,7 @@ test "cli args from runtime drop executable name" {
     parse_cli_command(
       runtime_cli_args(["moongrep", "scan", "--rules", "custom-rules", "src"]),
     ) {
-    ("scan", Some(options), None) => {
+    Scan(options) => {
       expect_rules_root(options, "custom-rules")
       expect_no_patterns(options)
       inspect(options.scan_root, content="src")

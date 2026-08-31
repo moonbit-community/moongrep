@@ -152,11 +152,29 @@ test "rule pattern diagnostics keep source and shape separate" {
 }
 
 ///|
+test "usage errors retain structured diagnostic fields" {
+  match new_unknown_document_error("MissingDoc") {
+    Usage(diagnostic~) =>
+      match diagnostic {
+        Fields(summary~, source~, reason~, help~, pattern~) => {
+          inspect(summary, content="unknown document")
+          assert_eq(source, Some("MissingDoc"))
+          assert_true(reason is None)
+          assert_eq(
+            help,
+            Some("run `moongrep docs --list` to list embedded documents"),
+          )
+          assert_true(pattern is None)
+        }
+        ParserMessage(..) => fail("expected structured usage diagnostic")
+      }
+    _ => fail("expected usage error")
+  }
+}
+
+///|
 test "plain messages gain an error prefix" {
-  inspect(
-    "\{CliError::Usage(message="plain message")}",
-    content="error: plain message",
-  )
+  inspect("\{new_usage_error("plain message")}", content="error: plain message")
 }
 
 ///|
@@ -168,7 +186,7 @@ test "argparse error and usage blocks pass through unchanged" {
     #|
     #|Usage: moongrep <command>
   inspect(
-    "\{CliError::Usage(message=argparse_message)}",
+    "\{new_parser_usage_error(argparse_message)}",
     content=(
       #|error: unexpected argument '--bad' found
       #|
@@ -179,7 +197,7 @@ test "argparse error and usage blocks pass through unchanged" {
   )
   let usage_message = "Usage: moongrep <command>"
   inspect(
-    "\{CliError::Usage(message=usage_message)}",
+    "\{new_parser_usage_error(usage_message)}",
     content="Usage: moongrep <command>",
   )
 }
@@ -187,7 +205,7 @@ test "argparse error and usage blocks pass through unchanged" {
 ///|
 test "plain internal errors include reporting help" {
   inspect(
-    "\{CliError::Internal(message="unreachable state")}",
+    "\{CliError::internal("unreachable state")}",
     content=(
       #|error: internal error
       #|  reason: unreachable state
@@ -199,7 +217,7 @@ test "plain internal errors include reporting help" {
 ///|
 test "plain output errors separate the destination from the OS reason" {
   inspect(
-    "\{CliError::Output(message="standard output: Broken pipe")}",
+    "\{CliError::output_error("standard output", "Broken pipe")}",
     content=(
       #|error: could not write output
       #|  source: standard output
