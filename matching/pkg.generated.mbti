@@ -15,6 +15,8 @@ pub fn match_expr_pattern_candidate(CompiledExprPattern, @cst.ExprMatchCandidate
 
 pub fn match_expr_pattern_candidate_with_bindings(CompiledExprPattern, @cst.ExprMatchCandidate, @hashmap.HashMap[String, BoundValue]) -> ExprMatch?
 
+pub fn parse_metavar_syntax(String) -> MetavarSyntax
+
 // Errors
 
 // Types and methods
@@ -25,20 +27,8 @@ pub(all) enum BoundValue {
 
 pub(all) struct CompiledExprPattern {
   cst : @untyped_cst.CstNode
-  expr_metavars : Array[String]
-  identifier_metavars : Array[String]
-  constant_metavars : Array[String]
-  arg_metavars : Array[String]
-  type_metavars : Array[String]
-  ellipsis_metavars : Array[EllipsisMetavar]
-  target_metavar : String?
-  source_metavar : String?
+  metavars : MetavarRegistry
   ignored_fields : Array[IgnoredPatternField]
-}
-
-pub(all) struct EllipsisMetavar {
-  name : String
-  kind : EllipsisMetavarKind
 }
 
 pub(all) enum EllipsisMetavarKind {
@@ -50,6 +40,7 @@ pub(all) enum EllipsisMetavarKind {
   PatItem
   TypeItem
 } derive(Eq)
+pub fn EllipsisMetavarKind::syntax_name(Self) -> String
 
 pub(all) struct ExprMatch {
   root : @untyped_cst.CstNode
@@ -60,6 +51,60 @@ pub(all) struct ExprMatch {
 pub(all) struct IgnoredPatternField {
   parent_kind : @untyped_cst.NodeKind
   child_name : String
+}
+
+pub(all) struct MetavarEntry {
+  name : String
+  kind : MetavarKind
+}
+
+pub(all) enum MetavarKind {
+  Expr
+  Identifier
+  Constant
+  Argument
+  Type
+  Pattern
+  Ellipsis(EllipsisMetavarKind)
+} derive(Eq)
+pub fn MetavarKind::syntax_name(Self) -> String
+
+pub(all) enum MetavarRegistration {
+  Registered
+  AlreadyRegistered
+  RegistrationConflict(MetavarKind)
+} derive(Eq)
+
+pub(all) struct MetavarRegistry {
+  entries : Array[MetavarEntry]
+  special_expr_placeholders : Array[String]
+}
+pub fn MetavarRegistry::copy(Self) -> Self
+pub fn MetavarRegistry::is_placeholder(Self, String) -> Bool
+pub fn MetavarRegistry::is_wildcard(Self, String) -> Bool
+pub fn MetavarRegistry::kind_of(Self, String) -> MetavarKind?
+pub fn MetavarRegistry::names(Self, MetavarKind) -> Array[String]
+pub fn MetavarRegistry::new() -> Self
+pub fn MetavarRegistry::register(Self, String, MetavarKind) -> MetavarRegistration
+pub fn MetavarRegistry::register_special_expr_placeholder(Self, String) -> Unit
+pub fn MetavarRegistry::resolve(Self, String) -> ResolvedMetavar?
+
+pub(all) enum MetavarSyntax {
+  NotMetavar
+  InvalidMetavar
+  InvalidEllipsisMetavar
+  UnsupportedMetavarKind(String)
+  UnsupportedEllipsisMetavarKind(String)
+  Bare(String)
+  Typed(String, MetavarKind)
+  EllipsisSyntax(String, EllipsisMetavarKind?)
+  Wildcard
+} derive(Eq)
+
+pub(all) enum ResolvedMetavar {
+  ResolvedWildcard(MetavarKind?)
+  ResolvedNamed(MetavarEntry)
+  ResolvedSpecialExpr(String)
 }
 
 // Type aliases

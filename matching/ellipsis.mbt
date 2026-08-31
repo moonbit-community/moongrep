@@ -10,28 +10,12 @@ fn ellipsis_placeholder(
   compiled : CompiledExprPattern,
 ) -> EllipsisPlaceholder? {
   guard ellipsis_item_raw(item) is Some(raw) else { return None }
-  guard matching_parse_ellipsis_syntax(raw) is Some(parsed) else { return None }
-  let (name, raw_kind) = parsed
-  if name == "_" {
-    Some({ name, kind: raw_kind.unwrap_or(AnyItem), })
-  } else if compiled_ellipsis_metavar(compiled, name) is Some(metavar) {
-    Some({ name, kind: metavar.kind, })
-  } else {
-    None
+  match compiled.metavars.resolve(raw) {
+    Some(ResolvedWildcard(Some(Ellipsis(kind)))) => Some({ name: "_", kind, })
+    Some(ResolvedNamed({ name, kind: Ellipsis(kind), })) =>
+      Some({ name, kind, })
+    _ => None
   }
-}
-
-///|
-fn compiled_ellipsis_metavar(
-  compiled : CompiledExprPattern,
-  name : String,
-) -> EllipsisMetavar? {
-  for metavar in compiled.ellipsis_metavars {
-    if metavar.name == name {
-      return Some(metavar)
-    }
-  }
-  None
 }
 
 ///|
@@ -63,47 +47,6 @@ fn matching_ellipsis_direct_raw(node : @untyped_cst.CstNode) -> String? {
   }
   match raw {
     Some(raw) if raw.has_prefix("$$$") => Some(raw)
-    _ => None
-  }
-}
-
-///|
-fn matching_parse_ellipsis_syntax(
-  raw : String,
-) -> (String, EllipsisMetavarKind?)? {
-  if !raw.has_prefix("$$$") {
-    return None
-  }
-  if raw.has_prefix("$$$(") && raw.has_suffix(")") {
-    let end = raw.length() - 1
-    for index in 4..<end {
-      if raw[index] == ':' {
-        let name = raw[4:index].trim()
-        let kind = matching_parse_ellipsis_kind(raw[index + 1:end].trim())
-        if !name.is_empty() && kind is Some(kind) {
-          return Some((name.to_owned(), Some(kind)))
-        }
-        return None
-      }
-    }
-    None
-  } else if raw.length() > 3 {
-    Some((raw[3:].to_owned(), None))
-  } else {
-    None
-  }
-}
-
-///|
-fn matching_parse_ellipsis_kind(raw : StringView) -> EllipsisMetavarKind? {
-  match raw {
-    "any" => Some(AnyItem)
-    "exp" => Some(ExpItem)
-    "id" => Some(IdItem)
-    "const" => Some(ConstItem)
-    "arg" => Some(ArgItem)
-    "pat" => Some(PatItem)
-    "type" => Some(TypeItem)
     _ => None
   }
 }

@@ -46,16 +46,11 @@ fn compile_bucket_inside_pattern(source : String) -> CompiledRulePattern raise {
 
 ///|
 fn manual_source_pattern(shape : String) -> CompiledRulePattern raise {
+  let metavars = @matching.MetavarRegistry::new()
+  metavars.register_special_expr_placeholder("__SOURCE__")
   let compiled : @matching.CompiledExprPattern = {
     cst: parse_bucket_node(shape),
-    expr_metavars: [],
-    identifier_metavars: [],
-    constant_metavars: [],
-    arg_metavars: [],
-    type_metavars: [],
-    ellipsis_metavars: [],
-    target_metavar: None,
-    source_metavar: Some("__SOURCE__"),
+    metavars,
     ignored_fields: [],
   }
   {

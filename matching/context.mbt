@@ -10,34 +10,8 @@ pub(all) struct IgnoredPatternField {
 /// A compiled structural pattern backed directly by parser CST nodes.
 pub(all) struct CompiledExprPattern {
   cst : @untyped_cst.CstNode
-  expr_metavars : Array[String]
-  identifier_metavars : Array[String]
-  constant_metavars : Array[String]
-  arg_metavars : Array[String]
-  type_metavars : Array[String]
-  ellipsis_metavars : Array[EllipsisMetavar]
-  target_metavar : String?
-  source_metavar : String?
+  metavars : MetavarRegistry
   ignored_fields : Array[IgnoredPatternField]
-}
-
-///|
-/// The per-item constraint applied by an ellipsis metavar.
-pub(all) enum EllipsisMetavarKind {
-  AnyItem
-  ExpItem
-  IdItem
-  ConstItem
-  ArgItem
-  PatItem
-  TypeItem
-} derive(Eq)
-
-///|
-/// A named ellipsis metavar discovered while compiling a pattern.
-pub(all) struct EllipsisMetavar {
-  name : String
-  kind : EllipsisMetavarKind
 }
 
 ///|

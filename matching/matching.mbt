@@ -128,7 +128,7 @@ fn match_sequence_continuation_tail(
   guard match_node(pattern_header, candidate_header, compiled, branch) else {
     return Some(false)
   }
-  if is_ignore_placeholder(tail_name) {
+  if compiled.metavars.is_wildcard(tail_name) {
     replace_bindings(bindings, branch)
     return Some(true)
   }
@@ -150,15 +150,11 @@ fn continuation_tail_name(
   guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
     return None
   }
-  if is_ignore_placeholder(name) {
-    Some(name)
-  } else if single_metavar_name(name) is Some(logical) &&
-    contains_name(compiled.expr_metavars, logical) {
-    Some(logical)
-  } else if is_special_expr_metavar(compiled, name) {
-    Some(name)
-  } else {
-    None
+  match compiled.metavars.resolve(name) {
+    Some(ResolvedWildcard(_)) => Some(name)
+    Some(ResolvedNamed({ name, kind: Expr, })) => Some(name)
+    Some(ResolvedSpecialExpr(name)) => Some(name)
+    _ => None
   }
 }
 
@@ -233,8 +229,10 @@ fn match_split_pattern_constructor_identity(
   guard pattern_names.length() > 1 else { return None }
   let mut has_identifier_placeholder = false
   for name in pattern_names {
-    if @cst.normalized_name(name).bind(single_metavar_name) is Some(logical) &&
-      contains_name(compiled.identifier_metavars, logical) {
+    if @cst.normalized_name(name).bind(raw => {
+        resolved_named_metavar(compiled, raw, Identifier)
+      })
+      is Some(_) {
       has_identifier_placeholder = true
       break
     }
@@ -294,8 +292,8 @@ fn match_constructor_identity_placeholder(
   guard @cst.raw_child(pattern, "type") is None else { return None }
   guard @cst.normalized_name(pattern) is Some(pattern_name) else { return None }
   guard metavariable_qualified_prefix(pattern_name) is None else { return None }
-  guard single_metavar_name(pattern_name) is Some(logical) &&
-    contains_name(compiled.identifier_metavars, logical) else {
+  guard resolved_named_metavar(compiled, pattern_name, Identifier)
+    is Some(logical) else {
     return None
   }
   guard candidate.kind == pattern.kind &&
@@ -335,20 +333,22 @@ fn match_type_placeholder(
   compiled : CompiledExprPattern,
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
-  guard type_placeholder_name(pattern) is Some(parsed_name) else { return None }
-  guard contains_name(compiled.type_metavars, parsed_name) else { return None }
-  Some(candidate.kind.is_type() && bind_value(bindings, parsed_name, candidate))
+  guard type_placeholder_raw(pattern) is Some(raw) else { return None }
+  guard resolved_named_metavar(compiled, raw, Type) is Some(name) else {
+    return None
+  }
+  Some(candidate.kind.is_type() && bind_value(bindings, name, candidate))
 }
 
 ///|
-fn type_placeholder_name(node : @untyped_cst.CstNode) -> String? {
+fn type_placeholder_raw(node : @untyped_cst.CstNode) -> String? {
   guard node.kind is @untyped_cst.Type_Name else { return None }
   for entry in @cst.semantic_children(node) {
     if entry.1.kind.is_type() {
       return None
     }
   }
-  @cst.name_node(node).bind(@cst.normalized_name).bind(single_metavar_name)
+  @cst.name_node(node).bind(@cst.normalized_name)
 }
 
 ///|
@@ -364,8 +364,8 @@ fn match_argument_placeholder(
   bindings : @hashmap.HashMap[String, BoundValue],
 ) -> Bool? {
   guard pattern.kind is @untyped_cst.Argument_Positional else { return None }
-  guard argument_placeholder_name(pattern) is Some(name) else { return None }
-  if contains_name(compiled.arg_metavars, name) {
+  guard argument_placeholder_raw(pattern) is Some(raw) else { return None }
+  if resolved_named_metavar(compiled, raw, Argument) is Some(name) {
     Some(candidate.kind.is_argument() && bind_value(bindings, name, candidate))
   } else {
     None
@@ -373,11 +373,9 @@ fn match_argument_placeholder(
 }
 
 ///|
-fn argument_placeholder_name(node : @untyped_cst.CstNode) -> String? {
+fn argument_placeholder_raw(node : @untyped_cst.CstNode) -> String? {
   guard node.kind is @untyped_cst.Argument_Positional else { return None }
-  @cst.argument_value(node)
-  .bind(@cst.normalized_expr_identifier_name)
-  .bind(single_metavar_name)
+  @cst.argument_value(node).bind(@cst.normalized_expr_identifier_name)
 }
 
 ///|
@@ -391,13 +389,13 @@ fn match_expr_placeholder(
   guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
     return None
   }
-  let logical = single_metavar_name(name)
-  if is_ignore_placeholder(name) {
-    Some(true)
-  } else if logical is Some(logical) {
-    if contains_name(compiled.expr_metavars, logical) {
+  match compiled.metavars.resolve(name) {
+    Some(ResolvedWildcard(_)) => Some(true)
+    Some(ResolvedSpecialExpr(logical)) =>
       Some(bind_value(bindings, logical, candidate))
-    } else if contains_name(compiled.identifier_metavars, logical) {
+    Some(ResolvedNamed({ name: logical, kind: Expr, })) =>
+      Some(bind_value(bindings, logical, candidate))
+    Some(ResolvedNamed({ name: logical, kind: Identifier, })) =>
       match
         (
           @cst.normalized_expr_identifier_name(candidate),
@@ -412,19 +410,13 @@ fn match_expr_placeholder(
           }
         _ => Some(false)
       }
-    } else if contains_name(compiled.constant_metavars, logical) {
+    Some(ResolvedNamed({ name: logical, kind: Constant, })) =>
       if expr_constant(candidate) is Some(constant) {
         Some(bind_value(bindings, logical, constant))
       } else {
         Some(false)
       }
-    } else {
-      None
-    }
-  } else if is_special_expr_metavar(compiled, name) {
-    Some(bind_value(bindings, name, candidate))
-  } else {
-    None
+    _ => None
   }
 }
 
@@ -439,30 +431,27 @@ fn match_pattern_placeholder(
   guard @cst.normalized_pattern_identifier_name(pattern) is Some(name) else {
     return None
   }
-  if parse_pattern_metavar_name(name) is Some(meta_name) {
-    Some(bind_value(bindings, meta_name, candidate))
-  } else if is_ignore_placeholder(name) {
-    Some(true)
-  } else if single_metavar_name(name) is Some(logical) &&
-    contains_name(compiled.identifier_metavars, logical) {
-    match
-      (
-        @cst.normalized_pattern_identifier_name(candidate),
-        @cst.name_node(candidate),
-      ) {
-      (Some(_), Some(candidate_name)) =>
-        Some(bind_value(bindings, logical, candidate_name))
-      _ => Some(false)
-    }
-  } else if single_metavar_name(name) is Some(logical) &&
-    contains_name(compiled.constant_metavars, logical) {
-    if pattern_constant(candidate) is Some(constant) {
-      Some(bind_value(bindings, logical, constant))
-    } else {
-      Some(false)
-    }
-  } else {
-    None
+  match compiled.metavars.resolve(name) {
+    Some(ResolvedWildcard(_)) => Some(true)
+    Some(ResolvedNamed({ name: logical, kind: Pattern, })) =>
+      Some(bind_value(bindings, logical, candidate))
+    Some(ResolvedNamed({ name: logical, kind: Identifier, })) =>
+      match
+        (
+          @cst.normalized_pattern_identifier_name(candidate),
+          @cst.name_node(candidate),
+        ) {
+        (Some(_), Some(candidate_name)) =>
+          Some(bind_value(bindings, logical, candidate_name))
+        _ => Some(false)
+      }
+    Some(ResolvedNamed({ name: logical, kind: Constant, })) =>
+      if pattern_constant(candidate) is Some(constant) {
+        Some(bind_value(bindings, logical, constant))
+      } else {
+        Some(false)
+      }
+    _ => None
   }
 }
 
@@ -774,16 +763,16 @@ fn match_name_node(
   guard @cst.normalized_name(candidate) is Some(candidate_name) else {
     return false
   }
-  if is_ignore_placeholder(pattern_name) {
-    return true
-  }
-  if single_metavar_name(pattern_name) is Some(logical) &&
-    contains_name(compiled.identifier_metavars, logical) {
-    if metavariable_qualified_prefix(pattern_name) is Some(_) &&
-      !same_metavariable_qualified_prefix(pattern_name, candidate_name) {
-      return false
+  match compiled.metavars.resolve(pattern_name) {
+    Some(ResolvedWildcard(_)) => return true
+    Some(ResolvedNamed({ name: logical, kind: Identifier, })) => {
+      if metavariable_qualified_prefix(pattern_name) is Some(_) &&
+        !same_metavariable_qualified_prefix(pattern_name, candidate_name) {
+        return false
+      }
+      return bind_value(bindings, logical, candidate)
     }
-    return bind_value(bindings, logical, candidate)
+    _ => ()
   }
   pattern_name == candidate_name
 }
@@ -923,79 +912,14 @@ fn pattern_constant(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
 }
 
 ///|
-fn contains_name(names : Array[String], name : String) -> Bool {
-  for item in names {
-    if item == name {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn is_special_expr_metavar(
+fn resolved_named_metavar(
   compiled : CompiledExprPattern,
-  name : String,
-) -> Bool {
-  compiled.target_metavar == Some(name) || compiled.source_metavar == Some(name)
-}
-
-///|
-fn parse_pattern_metavar_name(raw : String) -> String? {
-  match parse_single_metavar(raw) {
-    Some((name, Some("pat"))) => Some(name)
+  raw : String,
+  kind : MetavarKind,
+) -> String? {
+  match compiled.metavars.resolve(raw) {
+    Some(ResolvedNamed(entry)) if entry.kind == kind => Some(entry.name)
     _ => None
-  }
-}
-
-///|
-fn is_ignore_placeholder(name : String) -> Bool {
-  name == "$_"
-}
-
-///|
-fn single_metavar_name(raw : String) -> String? {
-  parse_single_metavar(raw).map(parsed => parsed.0)
-}
-
-///|
-fn parse_single_metavar(raw : String) -> (String, String?)? {
-  guard metavar_component(raw) is Some(component) else { return None }
-  if component.has_prefix("$$$") || component == "$_" {
-    return None
-  }
-  if component.has_prefix("$(") && component.has_suffix(")") {
-    let end = component.length() - 1
-    for index in 2..<end {
-      if component[index] == ':' {
-        let name = component[2:index].trim()
-        let kind = component[index + 1:end].trim()
-        if !name.is_empty() && !kind.is_empty() {
-          return Some((name.to_owned(), Some(kind.to_owned())))
-        }
-        return None
-      }
-    }
-    None
-  } else if component.has_prefix("$") && component.length() > 1 {
-    Some((component[1:].to_owned(), None))
-  } else {
-    None
-  }
-}
-
-///|
-fn metavar_component(raw : String) -> String? {
-  let mut start = -1
-  for index in 0..<raw.length() {
-    if raw[index] == '$' {
-      start = index
-    }
-  }
-  if start >= 0 {
-    Some(raw[start:].to_owned())
-  } else {
-    None
   }
 }
 

@@ -391,7 +391,7 @@ fn apply_inside_context_cst_bucketed(
             target_exprs,
             context_loc,
             result.bindings,
-            inside.compiled.identifier_metavars,
+            inside.compiled.metavars,
             hits,
           )
         } else {
@@ -404,7 +404,7 @@ fn apply_inside_context_cst_bucketed(
                 negative_pattern_buckets,
                 target_candidate,
                 result.bindings,
-                inside.compiled.identifier_metavars,
+                inside.compiled.metavars,
                 hits,
               )
             PruneOnNegative =>
@@ -415,7 +415,7 @@ fn apply_inside_context_cst_bucketed(
                 negative_pattern_buckets,
                 target_candidate,
                 result.bindings,
-                inside.compiled.identifier_metavars,
+                inside.compiled.metavars,
                 hits,
               )
           }
@@ -523,14 +523,14 @@ fn apply_cst_bucketed_patterns_in_target_subtree(
   negative_pattern_buckets : ExprPatternBuckets,
   target : @cst.ExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
   hits : Array[RuleFinding],
 ) -> Unit {
   @cst.visit_scoped_expr_match_candidate(target, [], fn(scoped_candidate) {
     match
       apply_cst_bucketed_patterns_at_scoped_candidate(
         file, rule, pattern_buckets, negative_pattern_buckets, scoped_candidate,
-        outer_bindings, inherited_identifier_metavars, hits,
+        outer_bindings, inherited_metavars, hits,
       ) {
       RulePrune => @cst.NodeVisitPrune
       RuleContinue => @cst.NodeVisitContinue
@@ -546,7 +546,7 @@ fn apply_cst_bucketed_covered_patterns_in_target_subtree(
   negative_pattern_buckets : ExprPatternBuckets,
   target : @cst.ExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
   hits : Array[RuleFinding],
 ) -> Unit {
   let pending_hits : Array[RuleFinding] = []
@@ -558,7 +558,7 @@ fn apply_cst_bucketed_covered_patterns_in_target_subtree(
       match
         apply_cst_bucketed_covered_patterns_at_scoped_candidate(
           file, rule, pattern_buckets, negative_pattern_buckets, scoped_candidate,
-          outer_bindings, inherited_identifier_metavars, pending_hits,
+          outer_bindings, inherited_metavars, pending_hits,
         ) {
         InsideTargetPrune => @cst.NodeVisitPrune
         InsideTargetReject => {
@@ -582,11 +582,11 @@ fn apply_inside_context_only_cst_bucketed(
   target_exprs : Array[@cst.ScopedExprMatchCandidate],
   context_loc : @basic.Location,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
   hits : Array[RuleFinding],
 ) -> Unit {
   if cst_bucketed_negative_patterns_match_any_scoped_candidate(
-      negative_pattern_buckets, target_exprs, outer_bindings, inherited_identifier_metavars,
+      negative_pattern_buckets, target_exprs, outer_bindings, inherited_metavars,
     ) {
     return
   }
@@ -617,7 +617,7 @@ fn apply_cst_bucketed_covered_patterns_at_scoped_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
   scoped_candidate : @cst.ScopedExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
   hits : Array[RuleFinding],
 ) -> InsideTargetScanAction {
   for
@@ -627,7 +627,7 @@ fn apply_cst_bucketed_covered_patterns_at_scoped_candidate(
     if cst_pattern_blocked_by_shadowed_outer_id(
         indexed.pattern,
         outer_bindings,
-        inherited_identifier_metavars,
+        inherited_metavars,
         scoped_candidate.shadowed_names,
       ) {
       continue
@@ -649,7 +649,7 @@ fn apply_cst_bucketed_covered_patterns_at_scoped_candidate(
     }
   }
   if cst_bucketed_negative_patterns_match_scoped_candidate(
-      negative_pattern_buckets, scoped_candidate, outer_bindings, inherited_identifier_metavars,
+      negative_pattern_buckets, scoped_candidate, outer_bindings, inherited_metavars,
     ) {
     return InsideTargetReject
   }
@@ -664,7 +664,7 @@ fn apply_cst_bucketed_patterns_at_scoped_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
   scoped_candidate : @cst.ScopedExprMatchCandidate,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
   for
@@ -674,7 +674,7 @@ fn apply_cst_bucketed_patterns_at_scoped_candidate(
     if cst_pattern_blocked_by_shadowed_outer_id(
         indexed.pattern,
         outer_bindings,
-        inherited_identifier_metavars,
+        inherited_metavars,
         scoped_candidate.shadowed_names,
       ) {
       continue
@@ -696,7 +696,7 @@ fn apply_cst_bucketed_patterns_at_scoped_candidate(
     }
   }
   if cst_bucketed_negative_patterns_match_scoped_candidate(
-      negative_pattern_buckets, scoped_candidate, outer_bindings, inherited_identifier_metavars,
+      negative_pattern_buckets, scoped_candidate, outer_bindings, inherited_metavars,
     ) {
     return RulePrune
   }
@@ -762,7 +762,7 @@ fn cst_bucketed_negative_patterns_match_scoped_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
   scoped_candidate : @cst.ScopedExprMatchCandidate,
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
 ) -> Bool {
   for
     indexed in negative_pattern_buckets.patterns_for_candidate(
@@ -771,7 +771,7 @@ fn cst_bucketed_negative_patterns_match_scoped_candidate(
     if cst_pattern_blocked_by_shadowed_outer_id(
         indexed.pattern,
         initial_bindings,
-        inherited_identifier_metavars,
+        inherited_metavars,
         scoped_candidate.shadowed_names,
       ) {
       continue
@@ -793,11 +793,11 @@ fn cst_bucketed_negative_patterns_match_any_scoped_candidate(
   negative_pattern_buckets : ExprPatternBuckets,
   target_exprs : Array[@cst.ScopedExprMatchCandidate],
   initial_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
 ) -> Bool {
   for scoped_candidate in target_exprs {
     if cst_bucketed_negative_patterns_match_scoped_candidate(
-        negative_pattern_buckets, scoped_candidate, initial_bindings, inherited_identifier_metavars,
+        negative_pattern_buckets, scoped_candidate, initial_bindings, inherited_metavars,
       ) {
       return true
     }
@@ -809,11 +809,11 @@ fn cst_bucketed_negative_patterns_match_any_scoped_candidate(
 fn cst_pattern_blocked_by_shadowed_outer_id(
   pattern : CompiledRulePattern,
   outer_bindings : @hashmap.HashMap[String, @matching.BoundValue],
-  inherited_identifier_metavars : Array[String],
+  inherited_metavars : @matching.MetavarRegistry,
   shadowed_names : Array[String],
 ) -> Bool {
-  for metavar in inherited_identifier_metavars {
-    if names_contain(pattern.compiled.identifier_metavars, metavar) {
+  for metavar in inherited_metavars.names(Identifier) {
+    if pattern.compiled.metavars.kind_of(metavar) == Some(Identifier) {
       if outer_bindings.get(metavar) is Some(Single(bound_node)) {
         if @cst.normalized_name(bound_node) is Some(bound_name) &&
           names_contain(shadowed_names, bound_name) {

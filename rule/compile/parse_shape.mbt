@@ -1,15 +1,7 @@
 ///|
-priv enum ShapeMetavarSyntax {
-  Explicit(String, String)
-  Bare(String)
-  Ellipsis(String, @matching.EllipsisMetavarKind?)
-  Ignore
-}
-
-///|
 priv struct ShapeMetavarOccurrence {
   raw : String
-  syntax : ShapeMetavarSyntax
+  syntax : @matching.MetavarSyntax
   start : Int
   end : Int
   uppercase_identifier : Bool
@@ -111,24 +103,28 @@ fn collect_shape_metavar_tokens(
   for entry in tokens {
     let (token, start, end) = entry
     if metavar_token_payload(token) is Some(raw) {
+      let syntax = parse_shape_metavar_syntax(context, raw)
       insert_shape_metavar_occurrence(occurrences, {
         raw,
-        syntax: parse_shape_metavar_syntax(context, raw),
+        syntax,
         start: start.cnum,
         end: end.cnum,
-        uppercase_identifier: metavar_name_starts_uppercase(raw),
+        uppercase_identifier: metavar_name_starts_uppercase(syntax),
       })
     }
   }
 }
 
 ///|
-fn metavar_name_starts_uppercase(raw : String) -> Bool {
-  let offset = if raw.has_prefix("$(") { 2 } else { 1 }
-  if offset >= raw.length() {
-    false
+fn metavar_name_starts_uppercase(syntax : @matching.MetavarSyntax) -> Bool {
+  let name = match syntax {
+    Bare(name) | Typed(name, _) | EllipsisSyntax(name, _) => Some(name)
+    _ => None
+  }
+  if name is Some(name) && !name.is_empty() {
+    name[0] >= 'A' && name[0] <= 'Z'
   } else {
-    raw[offset] >= 'A' && raw[offset] <= 'Z'
+    false
   }
 }
 
@@ -192,24 +188,24 @@ fn metavar_token_payload(token : @tokens.Token) -> String? {
 fn parse_shape_metavar_syntax(
   context : PatternCompileContext,
   raw : String,
-) -> ShapeMetavarSyntax raise {
-  if raw == "$_" {
-    return Ignore
-  }
-  if raw.has_prefix("$$$") {
-    guard parse_ellipsis_syntax(context, raw) is Some(parsed) else {
+) -> @matching.MetavarSyntax raise {
+  let syntax = @matching.parse_metavar_syntax(raw)
+  match syntax {
+    InvalidEllipsisMetavar =>
       raise context.invalid_pattern(
         "the pattern contains invalid ellipsis metavar \{raw}",
       )
-    }
-    return Ellipsis(parsed.0, parsed.1)
-  }
-  guard parse_metavar(raw, context) is Some(syntax) else {
-    raise context.invalid_pattern(invalid_metavar_syntax_message(raw))
-  }
-  match syntax {
-    Explicit(kind, name) => Explicit(kind, name)
-    Bare(name) => Bare(name)
+    UnsupportedEllipsisMetavarKind(kind) =>
+      raise context.invalid_pattern(
+        "the pattern contains unsupported ellipsis metavar kind \{kind}",
+      )
+    UnsupportedMetavarKind(kind) =>
+      raise context.invalid_pattern(
+        "the pattern contains unsupported metavar kind \{kind}",
+      )
+    InvalidMetavar | NotMetavar =>
+      raise context.invalid_pattern(invalid_metavar_syntax_message(raw))
+    _ => syntax
   }
 }
 

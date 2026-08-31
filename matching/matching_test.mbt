@@ -28,26 +28,23 @@ fn test_impl(
 ///|
 fn test_compiled(
   cst : @untyped_cst.CstNode,
-  expr_metavars? : Array[String] = [],
-  identifier_metavars? : Array[String] = [],
-  constant_metavars? : Array[String] = [],
-  arg_metavars? : Array[String] = [],
-  type_metavars? : Array[String] = [],
-  ellipsis_metavars? : Array[EllipsisMetavar] = [],
+  entries? : Array[MetavarEntry] = [],
+  special_expr_placeholders? : Array[String] = [],
   ignored_fields? : Array[IgnoredPatternField] = [],
 ) -> CompiledExprPattern {
-  {
-    cst,
-    expr_metavars,
-    identifier_metavars,
-    constant_metavars,
-    arg_metavars,
-    type_metavars,
-    ellipsis_metavars,
-    target_metavar: None,
-    source_metavar: None,
-    ignored_fields,
+  let metavars = MetavarRegistry::new()
+  for entry in entries {
+    ignore(metavars.register(entry.name, entry.kind))
   }
+  for placeholder in special_expr_placeholders {
+    metavars.register_special_expr_placeholder(placeholder)
+  }
+  { cst, metavars, ignored_fields, }
+}
+
+///|
+fn test_metavar_entry(name : String, kind : MetavarKind) -> MetavarEntry {
+  { name, kind, }
 }
 
 ///|
@@ -104,8 +101,8 @@ test "semantic equality preserves constant spelling and operators" {
 
 ///|
 test "expression metavars capture any expression and repeat structurally" {
-  let compiled = test_compiled(test_expr("pair($(value:exp), $(value:exp))"), expr_metavars=[
-    "value",
+  let compiled = test_compiled(test_expr("pair($(value:exp), $(value:exp))"), entries=[
+    test_metavar_entry("value", Expr),
   ])
   assert_true(
     match_expr_pattern(compiled, test_expr("pair(a + 1, a + 1)")) is Some(_),
@@ -122,10 +119,12 @@ test "expression metavars capture any expression and repeat structurally" {
 
 ///|
 test "raw expression and constant metavars use logical names" {
-  let exp = test_compiled(test_expr("$(value:exp)"), expr_metavars=["value"])
+  let exp = test_compiled(test_expr("$(value:exp)"), entries=[
+    test_metavar_entry("value", Expr),
+  ])
   assert_true(match_expr_pattern(exp, test_expr("some_call()")) is Some(_))
-  let constant = test_compiled(test_expr("$(value:const)"), constant_metavars=[
-    "value",
+  let constant = test_compiled(test_expr("$(value:const)"), entries=[
+    test_metavar_entry("value", Constant),
   ])
   let value = test_single_binding(
     match_expr_pattern(constant, test_expr("42")),
@@ -138,7 +137,7 @@ test "raw expression and constant metavars use logical names" {
 test "identifier metavars normalize binder and expression names" {
   let compiled = test_compiled(
     test_expr("match subject { $(name:id) => $(name:id) }"),
-    identifier_metavars=["name"],
+    entries=[test_metavar_entry("name", Identifier)],
   )
   let captured = test_single_binding(
     match_expr_pattern(compiled, test_expr("match subject { item => item }")),
@@ -154,8 +153,8 @@ test "identifier metavars normalize binder and expression names" {
 ///|
 test "qualified identifier metavars require the same prefix" {
   for pattern_source in ["@pkg.$(callee:id)()", "@pkg.$callee()"] {
-    let compiled = test_compiled(test_expr(pattern_source), identifier_metavars=[
-      "callee",
+    let compiled = test_compiled(test_expr(pattern_source), entries=[
+      test_metavar_entry("callee", Identifier),
     ])
     for candidate_source in ["local()", "@other.wrong()"] {
       assert_false(
@@ -172,8 +171,8 @@ test "qualified identifier metavars require the same prefix" {
 
 ///|
 test "one identifier metavar captures a complete constructor identity" {
-  let compiled = test_compiled(test_expr("$(Ctor:id)($(Ctor:id))"), identifier_metavars=[
-    "Ctor",
+  let compiled = test_compiled(test_expr("$(Ctor:id)($(Ctor:id))"), entries=[
+    test_metavar_entry("Ctor", Identifier),
   ])
   let cases = [
     ("Ctor(Ctor)", "Ctor"),
@@ -206,7 +205,10 @@ test "constructor identity bindings compare across patterns and expressions" {
     test_expr(
       "match input { $(Ctor:id)($(item:id)) => $(Ctor:id)($(item:id)) }",
     ),
-    identifier_metavars=["Ctor", "item"],
+    entries=[
+      test_metavar_entry("Ctor", Identifier),
+      test_metavar_entry("item", Identifier),
+    ],
   )
   let matched = test_expr(
     "match input { @pkg.Type::Ctor(item) => @pkg.Type::Ctor(item) }",
@@ -238,8 +240,9 @@ test "constructor identity bindings compare across patterns and expressions" {
 
 ///|
 test "explicit constructor identity parts remain separate captures" {
-  let compiled = test_compiled(test_expr("$(Type:id)::$(Ctor:id)(value)"), identifier_metavars=[
-    "Type", "Ctor",
+  let compiled = test_compiled(test_expr("$(Type:id)::$(Ctor:id)(value)"), entries=[
+    test_metavar_entry("Type", Identifier),
+    test_metavar_entry("Ctor", Identifier),
   ])
   guard match_expr_pattern(compiled, test_expr("@pkg.Type::Ctor(value)"))
     is Some(result) else {
@@ -253,7 +256,10 @@ test "explicit constructor identity parts remain separate captures" {
   assert_eq(@cst.normalized_name(constructor_name), Some("Ctor"))
   let pattern_compiled = test_compiled(
     test_expr("match input { $(Type:id)::$(Ctor:id)(value) => body }"),
-    identifier_metavars=["Type", "Ctor"],
+    entries=[
+      test_metavar_entry("Type", Identifier),
+      test_metavar_entry("Ctor", Identifier),
+    ],
   )
   guard match_expr_pattern(
       pattern_compiled,
@@ -272,8 +278,8 @@ test "explicit constructor identity parts remain separate captures" {
 
 ///|
 test "constant metavars work in expressions and patterns" {
-  let expression = test_compiled(test_expr("check($(value:const))"), constant_metavars=[
-    "value",
+  let expression = test_compiled(test_expr("check($(value:const))"), entries=[
+    test_metavar_entry("value", Constant),
   ])
   assert_true(
     match_expr_pattern(expression, test_expr("check(\"raw\")")) is Some(_),
@@ -283,7 +289,7 @@ test "constant metavars work in expressions and patterns" {
   )
   let pattern = test_compiled(
     test_expr("match input { $(value:const) => body }"),
-    constant_metavars=["value"],
+    entries=[test_metavar_entry("value", Constant)],
   )
   assert_true(
     match_expr_pattern(pattern, test_expr("match input { 7 => body }"))
@@ -295,7 +301,7 @@ test "constant metavars work in expressions and patterns" {
 test "constant metavars reuse captures across patterns and expressions" {
   let compiled = test_compiled(
     test_expr("match input { $(lit:const) => $(lit:const) }"),
-    constant_metavars=["lit"],
+    entries=[test_metavar_entry("lit", Constant)],
   )
   assert_true(
     match_expr_pattern(compiled, test_expr("match input { 7 => 7 }")) is Some(_),
@@ -307,8 +313,8 @@ test "constant metavars reuse captures across patterns and expressions" {
 
 ///|
 test "argument metavars capture the complete argument kind" {
-  let compiled = test_compiled(test_expr("sink($(item:arg))"), arg_metavars=[
-    "item",
+  let compiled = test_compiled(test_expr("sink($(item:arg))"), entries=[
+    test_metavar_entry("item", Argument),
   ])
   let labelled = test_single_binding(
     match_expr_pattern(compiled, test_expr("sink(label=value)")),
@@ -324,7 +330,10 @@ test "argument metavars capture the complete argument kind" {
 
 ///|
 test "pattern metavars capture whole normalized patterns" {
-  let compiled = test_compiled(test_expr("match input { $(item:pat) => body }"))
+  let compiled = test_compiled(
+    test_expr("match input { $(item:pat) => body }"),
+    entries=[test_metavar_entry("item", Pattern)],
+  )
   let captured = test_single_binding(
     match_expr_pattern(
       compiled,
@@ -346,7 +355,7 @@ test "pattern metavars capture whole normalized patterns" {
 test "type metavars compare repeated captures" {
   let compiled = test_compiled(
     test_expr("match input { (left : $(T:type), right : $(T:type)) => body }"),
-    type_metavars=["T"],
+    entries=[test_metavar_entry("T", Type)],
   )
   assert_true(
     match_expr_pattern(
@@ -380,8 +389,8 @@ test "ignore placeholder does not create a binding" {
 
 ///|
 test "ellipsis captures ordered argument spans including empty spans" {
-  let compiled = test_compiled(test_expr("call($$$items, tail)"), ellipsis_metavars=[
-    { name: "items", kind: AnyItem, },
+  let compiled = test_compiled(test_expr("call($$$items, tail)"), entries=[
+    test_metavar_entry("items", Ellipsis(AnyItem)),
   ])
   guard match_expr_pattern(compiled, test_expr("call(1, label=x, tail)"))
     is Some(result) else {
@@ -396,8 +405,8 @@ test "ellipsis captures ordered argument spans including empty spans" {
 
 ///|
 test "typed ellipsis constrains every captured item" {
-  let compiled = test_compiled(test_expr("call($$$(values:const))"), ellipsis_metavars=[
-    { name: "values", kind: ConstItem, },
+  let compiled = test_compiled(test_expr("call($$$(values:const))"), entries=[
+    test_metavar_entry("values", Ellipsis(ConstItem)),
   ])
   assert_true(
     match_expr_pattern(compiled, test_expr("call(1, \"two\")")) is Some(_),
@@ -545,7 +554,9 @@ test "explicit continuation metavars capture complete let and guard suffixes" {
   for case in cases {
     let (pattern, candidate, expected_body, expected_multiple) = case
     guard match_expr_pattern_candidate(
-        test_compiled(test_expr(pattern), expr_metavars=["body"]),
+        test_compiled(test_expr(pattern), entries=[
+          test_metavar_entry("body", Expr),
+        ]),
         test_candidate(candidate),
       )
       is Some(result) else {
@@ -569,8 +580,8 @@ test "explicit continuation metavars capture complete let and guard suffixes" {
 
 ///|
 test "direct continuation captures preserve explicit block candidates" {
-  let compiled = test_compiled(test_expr("let value = source(); $(body:exp)"), expr_metavars=[
-    "body",
+  let compiled = test_compiled(test_expr("let value = source(); $(body:exp)"), entries=[
+    test_metavar_entry("body", Expr),
   ])
   let cases = [
     ("{ let value = source() }", "", true),
@@ -642,7 +653,9 @@ test "nested expression containers capture complete continuation suffixes" {
   for case in cases {
     let (pattern, candidate, expected_body, expected_multiple) = case
     guard match_expr_pattern_candidate(
-        test_compiled(test_expr(pattern), expr_metavars=["body"]),
+        test_compiled(test_expr(pattern), entries=[
+          test_metavar_entry("body", Expr),
+        ]),
         test_candidate(candidate),
       )
       is Some(result) else {
@@ -698,11 +711,10 @@ test "terminal ignore placeholder absorbs every continuation owner suffix" {
 
 ///|
 test "terminal ignore placeholder commits header bindings without binding itself" {
-  let compiled = test_compiled(
-    test_expr("let $(name:id) = $(value:exp); $_"),
-    expr_metavars=["value"],
-    identifier_metavars=["name"],
-  )
+  let compiled = test_compiled(test_expr("let $(name:id) = $(value:exp); $_"), entries=[
+    test_metavar_entry("value", Expr),
+    test_metavar_entry("name", Identifier),
+  ])
   for
     candidate in [
       "let item = load()", "let item = load(); consume(item)", "let item = load(); consume(item); finish(item)",
@@ -931,8 +943,8 @@ test "ignored top-level fields implement partial matching" {
 
 ///|
 test "caller bindings are copied and repeated values ignore locations" {
-  let compiled = test_compiled(test_expr("pair($(value:exp), $(value:exp))"), expr_metavars=[
-    "value",
+  let compiled = test_compiled(test_expr("pair($(value:exp), $(value:exp))"), entries=[
+    test_metavar_entry("value", Expr),
   ])
   let initial : @hashmap.HashMap[String, BoundValue] = HashMap([])
   initial["existing"] = Single(test_expr("kept"))
