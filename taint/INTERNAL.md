@@ -10,8 +10,8 @@ The root `taint` package is the compatibility facade for a generic
 intraprocedural taint engine over MoonBit parser CSTs. Its production source
 contains only three `pub using` blocks. The implementation is split into:
 
-- `taint/domain`: storage paths, value sites, origins, relative taint, and sink
-  findings
+- `taint/domain`: storage paths, value sites, origins, relative taint, sink
+  identifiers, and sink findings
 - `taint/model`: normalized calls, transfers, matchers, effects, and rule specs
 - `taint/engine`: public analysis results and entry points, plus private state,
   CST helpers, and evaluation
@@ -75,7 +75,9 @@ returns a tree with relative path `Field("secret")`; evaluating
 value itself is tainted.
 
 Origins are de-duplicated by structural equality. Merge operations preserve all
-unique origins for the same path.
+unique origins for the same path. `taint_tree_origins(tree)` flattens origins
+across all relative entries in first-occurrence order and de-duplicates them
+using the full `TaintOrigin` value.
 
 ## Storage Paths
 
@@ -196,6 +198,9 @@ Argument indices are semantic after pipe desugaring:
 - `f <| rhs` makes `rhs` argument `0`
 - receivers stay separate from arguments
 
+`CallInfo::argument_at(index)` looks up this semantic index directly; the
+semantic index does not have to equal the argument's position in the array.
+
 If an argument evaluates to a non-normal flow such as `return`, the call
 transfer is not executed. This prevents a sink call from reporting after one of
 its arguments has already exited control flow.
@@ -221,7 +226,9 @@ contributes effects.
 
 Sink effects collect origins from the selected value and report only when at
 least one origin is present. Custom transfers are responsible for preserving
-that invariant themselves; their findings are not filtered by the engine.
+that invariant themselves; their findings are not filtered by the engine. The
+engine treats `SinkId` as opaque: generic models use `Named`, while ordered
+rule integrations can use `PatternIndex`.
 
 Kill effects only affect later storage reads. They do not rewrite the
 receiver/argument taint already evaluated for other effects on the same call.
@@ -275,6 +282,12 @@ The lowering layer implements YAML taint semantics as a custom transfer:
 - matching source calls add fresh return taint
 - matching sanitizer calls kill the selected target path if it has one
 - matching sink calls report when the selected target value is tainted
+
+Each lowered YAML sink carries `SinkId::PatternIndex(index)` using its
+zero-based position in the compiled sink array. `rule/apply` accepts only a
+non-negative pattern index below the planned sink count; a named, negative, or
+out-of-range ID raises an internal apply error instead of producing a finding
+or falling back to pattern `0`.
 
 The `rule/compile` layer guarantees that `__SOURCE__` appears exactly once in a
 sink or sanitizer and is the whole receiver or whole argument. Because of that,

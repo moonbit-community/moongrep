@@ -8,7 +8,7 @@ analyzer 及其调用方的维护者，不面向规则作者。
 根 `taint` 包是基于 MoonBit parser CST 的通用过程内污点分析引擎的兼容门面。
 它的生产源码只包含三个 `pub using` 块。实现拆分为：
 
-- `taint/domain`：存储路径、值位置、origin、相对污点和 sink finding
+- `taint/domain`：存储路径、值位置、origin、相对污点、sink 标识和 sink finding
 - `taint/model`：规范化调用、transfer、matcher、effect 和规则配置
 - `taint/engine`：公开分析结果和入口，以及私有状态、CST helper 和求值实现
 
@@ -64,6 +64,8 @@ relative segments below current value -> origins
 表示这个值自身被污染。
 
 origin 会按结构相等去重。merge 操作会保留同一路径上的所有唯一 origin。
+`taint_tree_origins(tree)` 会按首次出现顺序展平所有相对 entry，并依据完整
+`TaintOrigin` 值去重。
 
 ## 存储路径
 
@@ -166,6 +168,9 @@ pipe desugaring 后的参数下标是语义下标：
 - `f <| rhs` 会让 `rhs` 成为参数 `0`
 - receiver 与参数保持分离
 
+`CallInfo::argument_at(index)` 会按这个语义下标直接查找；语义下标不要求等于参数在
+数组中的位置。
+
 如果某个参数求值为 `return` 这类非 normal flow，则不会执行 call transfer。
 这样可以避免某个参数已经退出控制流后的 sink finding。
 
@@ -188,7 +193,9 @@ pipe desugaring 后的参数下标是语义下标：
 声明式 model 匹配不是 first-match-wins。每个匹配到的 call model 都会贡献 effect。
 
 Sink effect 会从被选择的值中收集 origin，并且只在至少存在一个 origin 时报告。
-Custom transfer 需要自己维护这个不变量；引擎不会过滤它们的 finding。
+Custom transfer 需要自己维护这个不变量；引擎不会过滤它们的 finding。引擎将
+`SinkId` 视为不透明标识：通用 model 使用 `Named`，有序规则集成可以使用
+`PatternIndex`。
 
 Kill effect 只影响后续的存储读取。它不会重写同一次调用中已经为其他 effect 求值好的
 receiver/argument taint。
@@ -233,6 +240,11 @@ lowering 层会把 YAML taint 语义实现为 custom transfer：
 - 匹配 source call 时添加新的 return taint
 - 匹配 sanitizer call 时，如果被选择的 target path 存在，则 kill 它
 - 匹配 sink call 时，如果被选择的 target value 被污染，则报告
+
+每个降低后的 YAML sink 都直接携带 `SinkId::PatternIndex(index)`，其中 index 是它在
+已编译 sink 数组里的零基位置。`rule/apply` 只接受小于计划 sink 数量的非负 pattern
+index；命名、负数或越界 ID 会抛出内部 apply 错误，不会产生 finding，也不会回退到
+pattern `0`。
 
 `rule/compile` 层保证 `__SOURCE__` 在 sink 或 sanitizer 中恰好出现一次，
 并且是完整 receiver 或完整 argument。正因如此，`rule/taint_lowering` 可以直接从
