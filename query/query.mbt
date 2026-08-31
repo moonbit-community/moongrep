@@ -1,9 +1,5 @@
 ///|
-using @rule_model {
-  type CompiledRule,
-  type CompiledRulePattern,
-  type RawRuleSpec,
-}
+using @rule_model {type RulePrefilter}
 
 ///|
 priv suberror QueryError {
@@ -12,25 +8,16 @@ priv suberror QueryError {
 
 ///|
 struct ExprQuery {
-  rule : CompiledRule
-  pattern : CompiledRulePattern
+  pattern : @matching.CompiledExprPattern
+  prefilter : RulePrefilter
 }
 
 ///|
 pub fn ExprQuery::ExprQuery(pattern : String) -> ExprQuery raise {
-  let rules = @rule_compile.compile_rules([anonymous_pattern_rule(pattern)])
-  guard rules.length() == 1 else {
-    fail("expected one compiled anonymous pattern rule")
-  }
-  let rule = rules[0]
-  match rule.definition {
-    Structural(structural) => {
-      guard structural.patterns.length() == 1 else {
-        fail("expected one compiled structural pattern")
-      }
-      { rule, pattern: structural.patterns[0], }
-    }
-    Taint(_) => fail("expected anonymous pattern to compile as structural rule")
+  let compiled = @rule_compile.compile_expr_pattern(pattern)
+  {
+    pattern: compiled,
+    prefilter: @rule_prefilter.compile_expr_pattern_prefilter(compiled),
   }
 }
 
@@ -41,7 +28,7 @@ pub fn ExprQuery::captures(
   source : String,
 ) -> ArrayView[Map[String, @matching.BoundValue]] raise {
   let matches : Array[Map[String, @matching.BoundValue]] = []
-  if !@rule_prefilter.rule_is_relevant_to_source(self.rule, source) {
+  if !@rule_prefilter.prefilter_matches_source(self.prefilter, source) {
     return matches
   }
   let parsed = @untyped_cst.parse_structure(source, name=source_name)
@@ -60,7 +47,7 @@ pub fn ExprQuery::captures(
   }
   for node in @cst.toplevel_nodes(parsed.root()) {
     let impl_source = @cst.source_text(node, source)
-    if @rule_prefilter.rule_is_relevant_to_source(self.rule, impl_source) {
+    if @rule_prefilter.prefilter_matches_source(self.prefilter, impl_source) {
       collect_node_matches(self.pattern, node, matches)
     }
   }
@@ -78,24 +65,8 @@ pub fn ExprQuery::captures_from_cst(
 }
 
 ///|
-fn anonymous_pattern_rule(pattern : String) -> RawRuleSpec {
-  {
-    path: pattern,
-    rule_id: pattern,
-    description: "Anonymous query pattern.",
-    definition: Structural({
-      inside_expr: [],
-      inside_toplevel: [],
-      patterns: [{ shape: pattern, guards: Map([]), match_mode: Default, }],
-      patterns_not: [],
-      patterns_not_mode: PruneOnNegative,
-    }),
-  }
-}
-
-///|
 fn collect_node_matches(
-  pattern : CompiledRulePattern,
+  pattern : @matching.CompiledExprPattern,
   cst : @untyped_cst.CstNode,
   matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
@@ -107,14 +78,11 @@ fn collect_node_matches(
 
 ///|
 fn collect_scoped_candidate_matches(
-  pattern : CompiledRulePattern,
+  pattern : @matching.CompiledExprPattern,
   scoped_candidate : @cst.ScopedExprMatchCandidate,
   matches : Array[Map[String, @matching.BoundValue]],
 ) -> Unit {
-  if @matching.match_expr_pattern_candidate(
-      pattern.compiled,
-      scoped_candidate.candidate,
-    )
+  if @matching.match_expr_pattern_candidate(pattern, scoped_candidate.candidate)
     is Some(result) {
     matches.push(capture_map_from_bindings(result.bindings))
   } else {
