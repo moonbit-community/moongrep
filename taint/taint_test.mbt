@@ -146,6 +146,74 @@ test "taint facade exposes the complete public API" {
 }
 
 ///|
+test "CallInfo::argument_at uses semantic argument indexes" {
+  let node = parse_single_impl("fn sample {}")
+  let arguments : Array[CallArgument] = [
+    {
+      index: 7,
+      label: Some("seventh"),
+      expr: node,
+      loc: node.loc,
+      path: None,
+      site: Synthetic("seventh"),
+      taint: [],
+    },
+    {
+      index: 2,
+      label: Some("second"),
+      expr: node,
+      loc: node.loc,
+      path: None,
+      site: Synthetic("second"),
+      taint: [],
+    },
+  ]
+  let info : CallInfo = {
+    kind: Apply,
+    cst: node,
+    loc: node.loc,
+    callee_name: Some("callee"),
+    receiver_path: None,
+    receiver_site: None,
+    receiver_taint: [],
+    arguments,
+  }
+  guard info.argument_at(2) is Some(argument) else {
+    fail("expected semantic argument index 2")
+  }
+  assert_eq(argument.index, 2)
+  assert_eq(argument.label, Some("second"))
+  assert_true(info.argument_at(0) is None)
+}
+
+///|
+test "taint_tree_origins deduplicates stably across entries" {
+  let first : TaintOrigin = {
+    rule_id: "rule",
+    origin_id: "first",
+    site: Synthetic("first"),
+    note: None,
+  }
+  let second : TaintOrigin = {
+    rule_id: "rule",
+    origin_id: "shared-id",
+    site: Synthetic("second"),
+    note: None,
+  }
+  let same_id_different_origin : TaintOrigin = {
+    rule_id: "rule",
+    origin_id: "shared-id",
+    site: Synthetic("second"),
+    note: Some("distinct note"),
+  }
+  let tree : TaintTree = [
+    { path: [], origins: [first, second], },
+    { path: [Field("nested")], origins: [first, same_id_different_origin], },
+  ]
+  assert_eq(taint_tree_origins(tree), [first, second, same_id_different_origin])
+}
+
+///|
 fn parse_single_impl(source : String) -> @untyped_cst.CstNode raise {
   let parsed = @untyped_cst.parse_structure(source, name="taint test")
   guard parsed.diagnostics_view().is_empty() else {
