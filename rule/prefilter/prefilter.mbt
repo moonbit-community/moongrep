@@ -14,7 +14,12 @@ pub fn rule_is_relevant_to_source(rule : CompiledRule, source : String) -> Bool 
 }
 
 ///|
-fn prefilter_matches_source(prefilter : RulePrefilter, source : String) -> Bool {
+/// Returns whether `source` contains one complete alternative of required
+/// literals from `prefilter`.
+pub fn prefilter_matches_source(
+  prefilter : RulePrefilter,
+  source : String,
+) -> Bool {
   prefilter_matches_with_literal_matcher(prefilter, fn(literal) {
     literal_matches_source(literal, source)
   })
@@ -105,6 +110,15 @@ pub fn compile_rule_prefilter(
 }
 
 ///|
+/// Builds a conservative source-text prefilter for one compiled expression
+/// pattern.
+pub fn compile_expr_pattern_prefilter(
+  pattern : @matching.CompiledExprPattern,
+) -> RulePrefilter {
+  { alternatives: [required_literals_from_expr_pattern(pattern)], }
+}
+
+///|
 fn compile_structural_prefilter(rule : CompiledStructuralRule) -> RulePrefilter {
   let alternatives : Array[Array[String]] = []
   let inside_patterns = if !rule.inside_toplevel.is_empty() {
@@ -161,8 +175,15 @@ fn compile_taint_prefilter(rule : CompiledTaintRule) -> RulePrefilter {
 fn required_literals_from_compiled_pattern(
   pattern : CompiledRulePattern,
 ) -> Array[String] {
+  required_literals_from_expr_pattern(pattern.compiled)
+}
+
+///|
+fn required_literals_from_expr_pattern(
+  compiled : @matching.CompiledExprPattern,
+) -> Array[String] {
   let literals : Array[String] = []
-  collect_node_literals(pattern.compiled.cst, pattern.compiled, literals)
+  collect_node_literals(compiled.cst, compiled, literals)
   unique_literals(literals)
 }
 

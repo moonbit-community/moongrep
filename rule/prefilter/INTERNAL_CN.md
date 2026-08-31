@@ -4,7 +4,8 @@
 
 ## 包职责
 
-`rule/prefilter` 为编译后的规则构造并执行保守的源码文本筛选。
+`rule/prefilter` 为编译后的规则和独立编译的表达式 pattern 构造并执行保守的源码
+文本筛选。
 
 筛选发生在解析和 CST 匹配之前。它只判断源码文本是否包含某个规则分支每次成功匹配时
 都必需出现的字面量。返回 false 时，调用方可以跳过该规则；返回 true 只表示该规则仍是
@@ -17,6 +18,10 @@
 `compile_rule_prefilter`。这个顺序很重要：只有编译后的 pattern 才包含安全提取
 字面量所需的规范化 CST、metavar 集合、保留的 target/source 占位符和 matcher
 忽略字段。
+
+已经持有单个 `CompiledExprPattern` 的调用方使用
+`compile_expr_pattern_prefilter`。它复用同一套字面量提取逻辑，只构造一个备选项，
+不需要合成虚拟规则。
 
 ## 表示与求值
 
@@ -45,13 +50,26 @@
 两种空值行为都是有意保留的保守回退。它们表示没有可用的必需文本，因此不能安全排除
 该规则。
 
-`rule_is_relevant_to_source` 提供基于 `String::contains` 的 matcher。
+`prefilter_matches_source` 提供基于 `String::contains` 的 matcher；
+`rule_is_relevant_to_source` 是该入口面向编译后规则的包装。
 匹配区分大小写、不要求边界，并按普通文本处理。`+`、`(`、`.` 等正则元字符没有
 特殊含义。
 
 基于回调的入口把布尔求值和文本搜索分开。`rule/apply` 会用
 `StringView::contains` 及一次筛选调用内的字面量缓存来调用它，因此多个规则共享的
 同一字面量在该次调用中只搜索一次。
+
+## 独立表达式 Pattern 编译
+
+`compile_expr_pattern_prefilter` 从一个 `CompiledExprPattern` 提取必需字面量，并把
+它们保存为唯一备选项：
+
+```text
+alternative(pattern) = required_literals(pattern)
+```
+
+只含 metavar 的 pattern 会生成空内层备选项，因此对任何源码都保持相关。这与编译后
+structural rule 中不可筛选 pattern 的保守行为相同。
 
 ## Structural Rule 编译
 
@@ -173,8 +191,9 @@ default、exact 或 partial 模式中都不会成为必需字面量。候选源�
   `Map[String, Bool]` 缓存。
 - CLI 先筛选整个文件，再在解析前筛选每个 `///|` 源码块。因此，不相关且格式错误的
   文件或源码块可以在 parser 产生诊断前被跳过。
-- `query` 先筛选完整源码，再筛选每个顶层项的源码切片，然后才遍历 CST。
-  `captures_from_cst` 没有源码文本，因此会绕过 prefilter。
+- `query` 会编译并缓存独立 pattern prefilter，先筛选完整源码，再筛选每个顶层项的
+  源码切片，然后才遍历 CST。`captures_from_cst` 没有源码文本，因此会绕过
+  prefilter。
 
 继续筛选一个已经过滤过的 `ScanPlan` 是安全的：它只会针对更小的源码切片移除更多条目，
 不会修改原始 plan。

@@ -2,11 +2,16 @@
 package "moonbit-community/moongrep/rule/prefilter"
 
 import {
+  "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
 }
 
 // Values
+pub fn compile_expr_pattern_prefilter(@matching.CompiledExprPattern) -> @model.RulePrefilter
+
 pub fn compile_rule_prefilter(@model.CompiledRuleDefinition) -> @model.RulePrefilter
+
+pub fn prefilter_matches_source(@model.RulePrefilter, String) -> Bool
 
 pub fn prefilter_matches_with_literal_matcher(@model.RulePrefilter, (String) -> Bool) -> Bool
 
