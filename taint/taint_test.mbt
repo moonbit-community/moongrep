@@ -22,9 +22,10 @@ test "taint facade exposes the complete public API" {
   }
   let relative : RelativeTaint = { path: [Field("value")], origins: [origin], }
   let tree : TaintTree = [relative]
+  let sink_ids : Array[SinkId] = [Named("sink"), PatternIndex(1)]
   let finding : SinkFinding = {
     rule_id: "rule",
-    sink_id: "sink",
+    sink_id: sink_ids[0],
     sink_loc: node.loc,
     sink_site: sites[1],
     origins: [origin],
@@ -74,8 +75,8 @@ test "taint facade exposes the complete public API" {
     PropagateArgSubpathToReturn(0, [Field("value")]),
     KillArg(0),
     KillReceiver,
-    ReportSinkArg("sink:arg", 0),
-    ReportSinkReceiver("sink:receiver"),
+    ReportSinkArg(Named("sink:arg"), 0),
+    ReportSinkReceiver(Named("sink:receiver")),
   ]
   let model : CallModel = { matcher: matchers[2], effects, }
   let spec : TaintSpec = {
@@ -103,8 +104,10 @@ test "taint facade exposes the complete public API" {
   assert_eq(origin.note, Some("note"))
   assert_eq(relative.path.length(), 1)
   assert_eq(relative.origins.length(), 1)
+  assert_eq(sink_ids[0], Named("sink"))
+  assert_eq(sink_ids[1], PatternIndex(1))
   assert_eq(finding.rule_id, "rule")
-  assert_eq(finding.sink_id, "sink")
+  assert_eq(finding.sink_id, Named("sink"))
   let _ = finding.sink_loc
   let _ = finding.sink_site
   assert_eq(finding.origins.length(), 1)
@@ -182,7 +185,7 @@ fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
     arg.expr.kind is @untyped_cst.Expr_Ident {
     findings.push({
       rule_id: "test/node-transfer",
-      sink_id: "node-kinds",
+      sink_id: Named("node-kinds"),
       sink_loc: arg.loc,
       sink_site: arg.site,
       origins: [
@@ -216,7 +219,7 @@ test "taint engine passes CST nodes to custom transfer" {
   })
   inspect(result.function_name, content="sample")
   assert_eq(result.findings.length(), 1)
-  inspect(result.findings[0].sink_id, content="node-kinds")
+  assert_eq(result.findings[0].sink_id, Named("node-kinds"))
 }
 
 ///|
@@ -229,7 +232,10 @@ fn analyze_single_entry_sink(
   analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(path, "entry:\{root}", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
 }
@@ -245,7 +251,10 @@ fn analyze_call_source_sink(source : String) -> AnalysisResult raise {
         CallReturn(CalleeName("get_user_inputs"), "source:many", None, []),
       ],
       call_models=[
-        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+        {
+          matcher: CalleeName("sink"),
+          effects: [ReportSinkArg(Named("sink:0"), 0)],
+        },
       ],
     ),
   )
@@ -378,7 +387,10 @@ test "taint engine writes and clears fields without changing siblings" {
         EntryPath(sibling_path, "entry:sibling", None),
       ],
       call_models=[
-        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+        {
+          matcher: CalleeName("sink"),
+          effects: [ReportSinkArg(Named("sink:0"), 0)],
+        },
       ],
     ),
   )
@@ -457,11 +469,14 @@ test "taint engine reports entry parameter source reaching sink argument" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
-  inspect(result.findings[0].sink_id, content="sink:0")
+  assert_eq(result.findings[0].sink_id, Named("sink:0"))
   inspect(result.findings[0].origins[0].origin_id, content="entry:input")
 }
 
@@ -479,7 +494,10 @@ test "taint engine sanitizer kills argument path before later sink" {
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       { matcher: CalleeName("sanitize"), effects: [KillArg(0)], },
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 0)
@@ -500,12 +518,12 @@ test "taint engine reports tainted receiver reaching method sink" {
     simple_spec(sources=[EntryPath(receiver_path, "entry:receiver", None)], call_models=[
       {
         matcher: MethodName("sink"),
-        effects: [ReportSinkReceiver("sink:receiver")],
+        effects: [ReportSinkReceiver(Named("sink:receiver"))],
       },
     ]),
   )
   assert_eq(result.findings.length(), 1)
-  inspect(result.findings[0].sink_id, content="sink:receiver")
+  assert_eq(result.findings[0].sink_id, Named("sink:receiver"))
 }
 
 ///|
@@ -520,7 +538,10 @@ test "taint engine analyzes impl method bodies" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(receiver_path, "entry:receiver", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   inspect(result.function_name, content="output")
@@ -560,7 +581,10 @@ test "taint engine keeps field paths precise" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(secret_path, "entry:secret", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -581,7 +605,10 @@ test "taint engine projects tuple element taint through let binding" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -601,7 +628,10 @@ test "taint engine joins branch states before following sink" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -620,7 +650,10 @@ test "taint engine does not continue sequence after return" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 0)
@@ -766,7 +799,10 @@ test "taint engine propagates unknown call argument taint to return by default" 
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -786,7 +822,10 @@ test "taint engine can disable unknown call return propagation" {
     simple_spec(
       sources=[EntryPath(input_path, "entry:input", None)],
       call_models=[
-        { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+        {
+          matcher: CalleeName("sink"),
+          effects: [ReportSinkArg(Named("sink:0"), 0)],
+        },
       ],
       unknown_call_policy=NoEffect,
     ),
@@ -806,7 +845,10 @@ test "taint engine treats reverse pipe as argument zero" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -827,7 +869,10 @@ test "taint engine analyzes normal match cases after early-return cases" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -849,7 +894,10 @@ test "taint engine binds raised value in catch pattern" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 1)
@@ -867,7 +915,10 @@ test "taint engine does not execute call transfer after argument return" {
   let result = analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      { matcher: CalleeName("sink"), effects: [ReportSinkArg("sink:0", 0)], },
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
     ]),
   )
   assert_eq(result.findings.length(), 0)

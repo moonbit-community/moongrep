@@ -78,11 +78,11 @@ fn transfer_compiled_taint_call(
       matched = true
       if target_value_for_match(call, sink.target, pattern_match)
         is Some(target) {
-        let origins = origins_from_taint_tree(target.taint)
+        let origins = @taint.taint_tree_origins(target.taint)
         if origins.length() > 0 {
           findings.push({
             rule_id,
-            sink_id: "sink:\{index}",
+            sink_id: @taint.SinkId::PatternIndex(index),
             sink_loc: target.loc,
             sink_site: target.site,
             origins,
@@ -160,13 +160,13 @@ fn target_value(call : @taint.CallInfo, target : TaintTarget) -> TargetValue? {
         None
       }
     PositionalArg(index) =>
-      if call_argument_at(call.arguments, index) is Some(arg) {
+      if call.argument_at(index) is Some(arg) {
         Some({ loc: arg.loc, site: arg.site, path: arg.path, taint: arg.taint, })
       } else {
         None
       }
     LabelledArg(label~, index~) =>
-      if call_argument_at(call.arguments, index) is Some(arg) {
+      if call.argument_at(index) is Some(arg) {
         if arg.label == Some(label) {
           Some({
             loc: arg.loc,
@@ -181,32 +181,4 @@ fn target_value(call : @taint.CallInfo, target : TaintTarget) -> TargetValue? {
         None
       }
   }
-}
-
-///|
-fn call_argument_at(
-  args : Array[@taint.CallArgument],
-  index : Int,
-) -> @taint.CallArgument? {
-  for arg in args {
-    if arg.index == index {
-      return Some(arg)
-    }
-  }
-  None
-}
-
-///|
-fn origins_from_taint_tree(
-  tree : @taint.TaintTree,
-) -> Array[@taint.TaintOrigin] {
-  let origins : Array[@taint.TaintOrigin] = []
-  for entry in tree {
-    for origin in entry.origins {
-      if !origins.contains(origin) {
-        origins.push(origin)
-      }
-    }
-  }
-  origins
 }
