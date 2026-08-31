@@ -389,6 +389,11 @@ fn match_expr_placeholder(
   guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
     return None
   }
+  if metavar_component(name) is Some(component) &&
+    component != name &&
+    compiled.metavars.is_wildcard(component) {
+    return Some(false)
+  }
   match compiled.metavars.resolve(name) {
     Some(ResolvedWildcard(_)) => Some(true)
     Some(ResolvedSpecialExpr(logical)) =>

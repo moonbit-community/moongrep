@@ -127,12 +127,15 @@ Only these inline kinds are supported:
   pattern CST
 - `type`: a whole CST type node
 
-The matcher recognizes `$name`, `$(name:kind)`, `$$$name`, and `$_` spellings
-directly and consults the compiled kind arrays or ellipsis metadata for their
-semantics.
+The matcher resolves `$name`, `$(name:kind)`, `$$$name`, and wildcard spellings
+through the compiled `MetavarRegistry`. Only the complete, unqualified spelling
+`$_` is the single-node ignore placeholder; qualified wildcard positions are
+rejected during occurrence validation.
 
-Metavar arrays preserve first-seen order. Several tests assert that order, so do
-not sort these arrays as a cleanup.
+For ordinary expression shapes, registry entries preserve first-occurrence
+order. Top-level function shapes retain the existing identifier priority:
+identifier metavars found in parameters precede other identifier entries. Do
+not sort registry entries as a cleanup.
 
 ## Reserved Names
 
@@ -142,9 +145,9 @@ Inline declarations may not use:
 - `__TARGET__`
 - `__SOURCE__`
 
-`$_` is the matcher ignore placeholder. `__TARGET__` is reserved for structural
-inside-context traversal, and `__SOURCE__` is reserved for taint sink and
-sanitizer target selection.
+The complete, unqualified spelling `$_` is the matcher ignore placeholder.
+`__TARGET__` is reserved for structural inside-context traversal, and
+`__SOURCE__` is reserved for taint sink and sanitizer target selection.
 
 Names that merely start with underscores, such as `__moongrep_value`, are not
 reserved. The exact built-ins listed above are reserved.

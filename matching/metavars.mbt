@@ -233,10 +233,14 @@ fn MetavarRegistry::is_special_expr_placeholder(
 pub fn parse_metavar_syntax(raw : String) -> MetavarSyntax {
   guard metavar_component(raw) is Some(component) else { return NotMetavar }
   if component == "$_" {
-    return Wildcard
+    return if component == raw { Wildcard } else { InvalidMetavar }
   }
   if component.has_prefix("$$$") {
-    return parse_ellipsis_metavar_component(component)
+    let syntax = parse_ellipsis_metavar_component(component)
+    return match syntax {
+      EllipsisSyntax("_", _) if component != raw => InvalidEllipsisMetavar
+      _ => syntax
+    }
   }
   if component.has_prefix("$(") {
     return parse_typed_metavar_component(component)

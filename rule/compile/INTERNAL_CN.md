@@ -112,10 +112,13 @@ pattern，因为该位置在 `id`、`const` 和 `pat` 之间有歧义。
 - `pat`：简单 pattern-variable 位置，捕获完整候选 pattern CST
 - `type`：完整的 CST type 节点
 
-matcher 会直接识别 `$name`、`$(name:kind)`、`$$$name` 和 `$_` 拼写，并结合
-编译后的 kind 数组或 ellipsis 元数据决定语义。
+matcher 会通过编译后的 `MetavarRegistry` 解析 `$name`、`$(name:kind)`、
+`$$$name` 和 wildcard 拼写。只有完整且未限定的 `$_` 是单节点忽略占位符；
+限定 wildcard 会在 occurrence 校验阶段被拒绝。
 
-Metavar 数组保持首次出现顺序。若干测试会断言这个顺序，不要把这些数组排序当作清理。
+普通 expression shape 的 registry entry 按首次出现顺序保存。Top-level function
+shape 保留既有的 identifier 优先级：参数中的 identifier metavar 排在其他
+identifier entry 之前。不要把 registry entry 排序当作清理。
 
 ## 保留名称
 
@@ -125,8 +128,8 @@ Inline 声明不能使用：
 - `__TARGET__`
 - `__SOURCE__`
 
-`$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural inside-context
-遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
+完整且未限定的 `$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural
+inside-context 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
 
 以下划线开头不会自动成为保留名称。`__moongrep_value` 等名称不是保留名称。上面列出的精确内置名是保留名称。
 

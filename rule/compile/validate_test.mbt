@@ -1266,6 +1266,37 @@ test "validate rejects const metavar in qualified identifiers" {
 }
 
 ///|
+test "validate rejects wildcard in qualified identifiers" {
+  let package_source =
+    #|id: package
+    #|description: Qualified package wildcard.
+    #|patterns:
+    #|  - shape: "@html.$_"
+    #|
+  expect_compile_invalid(
+    package_source, "the pattern uses $_ in an unsupported qualified identifier position",
+  )
+  let constructor_source =
+    #|id: constructor
+    #|description: Qualified constructor wildcard.
+    #|patterns:
+    #|  - shape: "Type::$_"
+    #|
+  expect_compile_invalid(
+    constructor_source, "the pattern uses $_ in an unsupported qualified identifier position",
+  )
+  let field_source =
+    #|id: field
+    #|description: Qualified field wildcard.
+    #|patterns:
+    #|  - shape: "value.$_"
+    #|
+  expect_compile_invalid(
+    field_source, "the pattern uses $_ in an unsupported qualified identifier position",
+  )
+}
+
+///|
 test "validate rejects const metavar in ordinary binders" {
   let source =
     #|id: example

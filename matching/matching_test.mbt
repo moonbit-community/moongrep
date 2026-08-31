@@ -170,6 +170,17 @@ test "qualified identifier metavars require the same prefix" {
 }
 
 ///|
+test "qualified wildcard does not match as an expression placeholder" {
+  let compiled = test_compiled(test_expr("@html.$_"))
+  assert_false(
+    match_expr_pattern(compiled, test_expr("@html.render(value)")) is Some(_),
+  )
+  assert_false(
+    match_expr_pattern(compiled, test_expr("render(value)")) is Some(_),
+  )
+}
+
+///|
 test "one identifier metavar captures a complete constructor identity" {
   let compiled = test_compiled(test_expr("$(Ctor:id)($(Ctor:id))"), entries=[
     test_metavar_entry("Ctor", Identifier),

@@ -51,13 +51,27 @@ test "shared metavar syntax parses bare typed qualified and wildcard forms" {
 ///|
 test "shared metavar syntax preserves ellipsis constraints" {
   assert_true(parse_metavar_syntax("$$$items") == EllipsisSyntax("items", None))
+  assert_true(parse_metavar_syntax("$$$_") == EllipsisSyntax("_", None))
   assert_true(
     parse_metavar_syntax("$$$(items:arg)") ==
     EllipsisSyntax("items", Some(ArgItem)),
   )
   assert_true(
+    parse_metavar_syntax("$$$(_:const)") == EllipsisSyntax("_", Some(ConstItem)),
+  )
+  assert_true(
     parse_metavar_syntax("@pkg.$$$(items:type)") ==
     EllipsisSyntax("items", Some(TypeItem)),
+  )
+}
+
+///|
+test "shared metavar syntax rejects qualified wildcard forms" {
+  assert_true(parse_metavar_syntax("@pkg.$_") == InvalidMetavar)
+  assert_true(parse_metavar_syntax("Type::$_") == InvalidMetavar)
+  assert_true(parse_metavar_syntax("@pkg.$$$_") == InvalidEllipsisMetavar)
+  assert_true(
+    parse_metavar_syntax("Type::$$$(_:const)") == InvalidEllipsisMetavar,
   )
 }
 
@@ -72,6 +86,10 @@ test "registry resolves named wildcard ellipsis and special placeholders" {
   assert_true(registry.is_placeholder("value"))
   assert_true(registry.is_wildcard("$_"))
   assert_true(registry.is_wildcard("$$$_"))
+  assert_false(registry.is_wildcard("@pkg.$_"))
+  assert_false(registry.is_wildcard("Type::$_"))
+  assert_false(registry.is_wildcard("@pkg.$$$_"))
+  assert_false(registry.is_wildcard("Type::$$$(_:const)"))
   match registry.resolve("@pkg.$value") {
     Some(ResolvedNamed(entry)) => {
       inspect(entry.name, content="value")
