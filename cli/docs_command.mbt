@@ -23,12 +23,10 @@ fn render_doc_body(name : String) -> String raise {
 }
 
 ///|
-pub fn render_docs_command(
-  command : (String, CliOptions?, String?),
-) -> String raise {
+pub fn render_docs_command(command : CliCommand) -> String raise {
   match command {
-    ("docs-list", None, None) => render_docs_list()
-    ("docs-show", None, Some(name)) => render_doc_body(name)
+    DocsList => render_docs_list()
+    DocsShow(name) => render_doc_body(name)
     _ => raise new_internal_error("expected docs command")
   }
 }

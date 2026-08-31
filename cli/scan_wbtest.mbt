@@ -582,7 +582,8 @@ async test "scan disables configured rule ids before planning" {
 ///|
 async test "scan rejects unknown disabled rule ids" {
   try capture_scan_events(Scan, unknown_disabled_rule_scan_options()) catch {
-    CliError::Usage(message~) as err => {
+    CliError::Usage(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 2)
       inspect(
         message,
@@ -603,9 +604,9 @@ async test "scan rejects unknown disabled rule ids" {
 async test "scan keeps rule disabling case sensitive on every host" {
   let rules = load_rule_directory("e2etests/rules/prefilter")
   try disable_scan_rules(rules, ["TARGET"]) catch {
-    CliError::Usage(message~) =>
+    CliError::Usage(diagnostic~) =>
       inspect(
-        message,
+        render_cli_diagnostic(diagnostic),
         content=(
           #|error: unknown rule id in --disable
           #|  source: TARGET
@@ -621,7 +622,8 @@ async test "scan keeps rule disabling case sensitive on every host" {
 ///|
 async test "scan classifies rule source, rule content, and scan input failures" {
   try load_rule_directory("testdata/missing-rule-root") catch {
-    CliError::RuleSource(message~) as err => {
+    CliError::RuleSource(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 4)
       assert_true(message.contains("error: could not read rule directory"))
       assert_true(message.contains("testdata/missing-rule-root"))
@@ -633,7 +635,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     _ => fail("expected missing rule source error")
   }
   try load_rule_directory("testdata/empty-rule-root") catch {
-    CliError::RuleSource(message~) as err => {
+    CliError::RuleSource(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 4)
       inspect(
         message,
@@ -663,7 +666,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     output_json: false,
   }
   try capture_scan_events(Scan, invalid_pattern_options) catch {
-    CliError::RuleContent(message~) as err => {
+    CliError::RuleContent(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 5)
       inspect(
         message,
@@ -683,7 +687,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     _ => fail("expected rule content error")
   }
   try load_rule_file("testdata/exit-codes/invalid.yaml") catch {
-    CliError::RuleContent(message~) as err => {
+    CliError::RuleContent(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 5)
       inspect(
         message,
@@ -714,7 +719,8 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     output_json: false,
   }
   try capture_scan_events(Scan, missing_scan_root_options) catch {
-    CliError::ScanInput(message~) as err => {
+    CliError::ScanInput(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 6)
       assert_true(message.contains("error: could not access scan path"))
       assert_true(

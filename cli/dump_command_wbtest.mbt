@@ -1,8 +1,6 @@
 ///|
 test "dump impl renders untyped CST debug output" {
-  let output = render_dump_command(
-    ("dump-impl", None, Some("fn answer { 42 }")),
-  )
+  let output = render_dump_command(DumpImpl("fn answer { 42 }"))
   assert_true(output.contains("Impl_Function"))
   assert_true(output.contains("String(\"answer\")"))
   assert_true(output.contains("Expr_Constant"))
@@ -11,7 +9,7 @@ test "dump impl renders untyped CST debug output" {
 
 ///|
 test "dump expr renders untyped CST debug output" {
-  let output = render_dump_command(("dump-expr", None, Some("x + 1")))
+  let output = render_dump_command(DumpExpr("x + 1"))
   assert_true(output.contains("Expr_Infix"))
   assert_true(output.contains("Expr_Ident"))
   assert_true(output.contains("Constant_Int"))
@@ -20,8 +18,9 @@ test "dump expr renders untyped CST debug output" {
 
 ///|
 test "dump impl rejects empty source" {
-  try render_dump_command(("dump-impl", None, Some(""))) catch {
-    CliError::DumpInput(message~) as err => {
+  try render_dump_command(DumpImpl("")) catch {
+    CliError::DumpInput(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 3)
       inspect(
         message,
@@ -41,8 +40,9 @@ test "dump impl rejects empty source" {
 
 ///|
 test "dump expr keeps the compact parser reason" {
-  try render_dump_command(("dump-expr", None, Some("value +"))) catch {
-    CliError::DumpInput(message~) as err => {
+  try render_dump_command(DumpExpr("value +")) catch {
+    CliError::DumpInput(diagnostic~) as err => {
+      let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 3)
       inspect(
         message,

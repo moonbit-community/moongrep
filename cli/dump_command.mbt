@@ -1,10 +1,8 @@
 ///|
-pub fn render_dump_command(
-  command : (String, CliOptions?, String?),
-) -> String raise {
+pub fn render_dump_command(command : CliCommand) -> String raise {
   match command {
-    ("dump-impl", None, Some(source)) => render_dump_impl_debug(source)
-    ("dump-expr", None, Some(source)) => render_dump_expr_debug(source)
+    DumpImpl(source) => render_dump_impl_debug(source)
+    DumpExpr(source) => render_dump_expr_debug(source)
     _ => raise new_internal_error("invalid dump command")
   }
 }

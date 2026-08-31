@@ -7,11 +7,11 @@ import {
 }
 
 // Values
-pub fn parse_cli_command(Array[String], env? : Map[String, String]) -> (String, CliOptions?, String?) raise
+pub fn parse_cli_command(Array[String], env? : Map[String, String]) -> CliCommand raise
 
-pub fn render_docs_command((String, CliOptions?, String?)) -> String raise
+pub fn render_docs_command(CliCommand) -> String raise
 
-pub fn render_dump_command((String, CliOptions?, String?)) -> String raise
+pub fn render_dump_command(CliCommand) -> String raise
 
 pub async fn run_lint_command(CliOptions) -> Unit
 
@@ -21,18 +21,34 @@ pub fn runtime_cli_args(Array[String]) -> Array[String]
 
 // Errors
 pub(all) suberror CliError {
-  Internal(message~ : String)
-  Usage(message~ : String)
-  DumpInput(message~ : String)
-  RuleSource(message~ : String)
-  RuleContent(message~ : String)
-  ScanInput(message~ : String)
-  Output(message~ : String)
+  Internal(diagnostic~ : CliDiagnostic)
+  Usage(diagnostic~ : CliDiagnostic)
+  DumpInput(diagnostic~ : CliDiagnostic)
+  RuleSource(diagnostic~ : CliDiagnostic)
+  RuleContent(diagnostic~ : CliDiagnostic)
+  ScanInput(diagnostic~ : CliDiagnostic)
+  Output(diagnostic~ : CliDiagnostic)
 } derive(@debug.Debug)
 pub fn CliError::exit_code(Self) -> Int
+pub fn CliError::internal(String) -> Self
+pub fn CliError::output_error(String, String) -> Self
 pub impl Show for CliError
 
 // Types and methods
+pub(all) enum CliCommand {
+  Scan(CliOptions)
+  Lint(CliOptions)
+  DocsList
+  DocsShow(String)
+  DumpImpl(String)
+  DumpExpr(String)
+}
+
+pub(all) enum CliDiagnostic {
+  Fields(summary~ : String, source~ : String?, reason~ : String?, help~ : String?, pattern~ : String?)
+  ParserMessage(message~ : String)
+} derive(@debug.Debug)
+
 pub(all) struct CliOptions {
   rules_root : String?
   rule_file : String?
