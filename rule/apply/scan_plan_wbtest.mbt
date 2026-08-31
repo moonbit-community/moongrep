@@ -302,3 +302,30 @@ test "scan plan taint apply returns expected findings" {
   )
   assert_eq(plan_hits[0].pattern_index, 0)
 }
+
+///|
+fn expect_invalid_taint_sink_id(
+  sink_id : @taint.SinkId,
+  sink_count : Int,
+) -> Unit raise {
+  try sink_pattern_index(sink_id, sink_count) catch {
+    RuleApplyError::InvalidTaintSinkId(
+      sink_id=actual_sink_id,
+      sink_count=actual_sink_count
+    ) => {
+      assert_eq(actual_sink_id, sink_id)
+      assert_eq(actual_sink_count, sink_count)
+    }
+  } noraise {
+    _ => fail("expected invalid taint sink id")
+  }
+}
+
+///|
+test "taint sink pattern indexes reject invalid ids" {
+  assert_eq(sink_pattern_index(@taint.SinkId::PatternIndex(0), 2), 0)
+  assert_eq(sink_pattern_index(@taint.SinkId::PatternIndex(1), 2), 1)
+  expect_invalid_taint_sink_id(@taint.SinkId::Named("named"), 2)
+  expect_invalid_taint_sink_id(@taint.SinkId::PatternIndex(-1), 2)
+  expect_invalid_taint_sink_id(@taint.SinkId::PatternIndex(2), 2)
+}
