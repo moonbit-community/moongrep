@@ -11,8 +11,6 @@ import {
 // Values
 pub fn analyze_function_like(@untyped_cst.CstNode, @model.TaintSpec) -> @engine.AnalysisResult raise
 
-pub fn analyze_function_like_multi(@untyped_cst.CstNode, Array[@model.TaintSpec]) -> Array[@engine.AnalysisResult] raise
-
 pub fn taint_tree_origins(Array[@domain.RelativeTaint]) -> Array[@domain.TaintOrigin]
 
 // Errors
