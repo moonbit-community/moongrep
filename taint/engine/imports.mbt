@@ -2,10 +2,12 @@
 using @domain {
   type PathSegment,
   type SinkFinding,
+  type SinkId,
   type StoragePath,
   type TaintOrigin,
   type TaintTree,
   type ValueSite,
+  taint_tree_origins,
 }
 
 ///|

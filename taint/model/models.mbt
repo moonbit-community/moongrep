@@ -70,6 +70,9 @@ pub(all) struct CallModel {
 /// `KillReceiver` remove taint only from post-call storage when the selected
 /// value has a storage path; they do not rewrite already evaluated
 /// argument/receiver taint used by other effects on the same call.
+/// Sink identifiers are passed through unchanged. Generic models should use
+/// `SinkId::Named`; `SinkId::PatternIndex` is reserved for ordered rule
+/// patterns.
 pub(all) enum CallEffect {
   ReturnFreshSource(String, String?, Array[PathSegment])
   PropagateArgToReturn(Int)
@@ -77,8 +80,8 @@ pub(all) enum CallEffect {
   PropagateArgSubpathToReturn(Int, Array[PathSegment])
   KillArg(Int)
   KillReceiver
-  ReportSinkArg(String, Int)
-  ReportSinkReceiver(String)
+  ReportSinkArg(SinkId, Int)
+  ReportSinkReceiver(SinkId)
 } derive(Eq, Debug)
 
 ///|

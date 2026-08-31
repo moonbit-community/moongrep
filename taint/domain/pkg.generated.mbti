@@ -7,6 +7,7 @@ import {
 }
 
 // Values
+pub fn taint_tree_origins(Array[RelativeTaint]) -> Array[TaintOrigin]
 
 // Errors
 
@@ -25,10 +26,15 @@ pub(all) struct RelativeTaint {
 
 pub(all) struct SinkFinding {
   rule_id : String
-  sink_id : String
+  sink_id : SinkId
   sink_loc : @basic.Location
   sink_site : ValueSite
   origins : Array[TaintOrigin]
+} derive(Eq, @debug.Debug)
+
+pub(all) enum SinkId {
+  Named(String)
+  PatternIndex(Int)
 } derive(Eq, @debug.Debug)
 
 pub(all) struct StoragePath {

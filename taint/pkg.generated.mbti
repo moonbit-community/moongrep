@@ -13,6 +13,8 @@ pub fn analyze_function_like(@untyped_cst.CstNode, @model.TaintSpec) -> @engine.
 
 pub fn analyze_function_like_multi(@untyped_cst.CstNode, Array[@model.TaintSpec]) -> Array[@engine.AnalysisResult] raise
 
+pub fn taint_tree_origins(Array[@domain.RelativeTaint]) -> Array[@domain.TaintOrigin]
+
 // Errors
 
 // Types and methods
@@ -39,6 +41,8 @@ pub using @domain {type PathSegment}
 pub using @domain {type RelativeTaint}
 
 pub using @domain {type SinkFinding}
+
+pub using @domain {type SinkId}
 
 pub using @model {type SourceModel}
 

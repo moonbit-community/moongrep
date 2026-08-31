@@ -1100,21 +1100,20 @@ fn apply_declared_call_transfer(
               ),
             )
           PropagateArgToReturn(index) =>
-            if argument_at(info.arguments, index) is Some(arg) {
+            if info.argument_at(index) is Some(arg) {
               return_taint = tree_merge(return_taint, arg.taint)
             }
           PropagateReceiverToReturn =>
             return_taint = tree_merge(return_taint, info.receiver_taint)
           PropagateArgSubpathToReturn(index, path) =>
-            if argument_at(info.arguments, index) is Some(arg) {
+            if info.argument_at(index) is Some(arg) {
               return_taint = tree_merge(
                 return_taint,
                 tree_project(arg.taint, path),
               )
             }
           KillArg(index) =>
-            if argument_at(info.arguments, index) is Some(arg) &&
-              arg.path is Some(path) {
+            if info.argument_at(index) is Some(arg) && arg.path is Some(path) {
               next = state_kill_path(next, path)
             }
           KillReceiver =>
@@ -1125,7 +1124,7 @@ fn apply_declared_call_transfer(
           // point at the whole call while keeping the receiver as the value
           // site, because receiver syntax has no standalone call-site location.
           ReportSinkArg(sink_id, index) =>
-            if argument_at(info.arguments, index) is Some(arg) {
+            if info.argument_at(index) is Some(arg) {
               push_sink_finding_if_tainted(
                 spec.rule_id,
                 sink_id,
@@ -1197,39 +1196,18 @@ fn unknown_call_return_taint(
 }
 
 ///|
-fn argument_at(args : Array[CallArgument], index : Int) -> CallArgument? {
-  for arg in args {
-    if arg.index == index {
-      return Some(arg)
-    }
-  }
-  None
-}
-
-///|
 fn push_sink_finding_if_tainted(
   rule_id : String,
-  sink_id : String,
+  sink_id : SinkId,
   loc : @basic.Location,
   site : ValueSite,
   taint : TaintTree,
   findings : Array[SinkFinding],
 ) -> Unit {
-  let origins = origins_from_tree(taint)
+  let origins = taint_tree_origins(taint)
   if origins.length() > 0 {
     findings.push({ rule_id, sink_id, sink_loc: loc, sink_site: site, origins, })
   }
-}
-
-///|
-fn origins_from_tree(tree : TaintTree) -> Array[TaintOrigin] {
-  let origins : Array[TaintOrigin] = []
-  for entry in tree {
-    for origin in entry.origins {
-      add_origin_unique(origins, origin)
-    }
-  }
-  origins
 }
 
 ///|

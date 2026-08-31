@@ -39,3 +39,17 @@ pub(all) struct CallInfo {
   receiver_taint : TaintTree
   arguments : Array[CallArgument]
 }
+
+///|
+/// Finds an evaluated argument by its normalized semantic index.
+///
+/// Semantic indexes account for pipe desugaring and need not match positions
+/// in the `arguments` array.
+pub fn CallInfo::argument_at(self : CallInfo, index : Int) -> CallArgument? {
+  for argument in self.arguments {
+    if argument.index == index {
+      return Some(argument)
+    }
+  }
+  None
+}

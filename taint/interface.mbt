@@ -6,7 +6,9 @@ pub using @domain {
   type TaintOrigin,
   type RelativeTaint,
   type TaintTree,
+  type SinkId,
   type SinkFinding,
+  taint_tree_origins,
 }
 
 ///|

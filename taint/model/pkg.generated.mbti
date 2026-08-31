@@ -30,8 +30,8 @@ pub(all) enum CallEffect {
   PropagateArgSubpathToReturn(Int, Array[@domain.PathSegment])
   KillArg(Int)
   KillReceiver
-  ReportSinkArg(String, Int)
-  ReportSinkReceiver(String)
+  ReportSinkArg(@domain.SinkId, Int)
+  ReportSinkReceiver(@domain.SinkId)
 } derive(Eq, @debug.Debug)
 
 pub(all) struct CallInfo {
@@ -44,6 +44,7 @@ pub(all) struct CallInfo {
   receiver_taint : Array[@domain.RelativeTaint]
   arguments : Array[CallArgument]
 }
+pub fn CallInfo::argument_at(Self, Int) -> CallArgument?
 
 pub(all) enum CallKind {
   Apply

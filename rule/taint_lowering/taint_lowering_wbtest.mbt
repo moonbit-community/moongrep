@@ -52,6 +52,6 @@ test "taint lowering preserves internal source and sink ids" {
     lower_compiled_taint_rule(rule, taint_rule),
   )
   assert_eq(result.findings.length(), 1)
-  inspect(result.findings[0].sink_id, content="sink:0")
+  assert_eq(result.findings[0].sink_id, @taint.SinkId::PatternIndex(0))
   inspect(result.findings[0].origins[0].origin_id, content="source:0")
 }

@@ -4,12 +4,16 @@ using @model {
   type CompiledRuleGuard,
   type CompiledRulePattern,
   type CompiledStructuralRule,
-  type CompiledTaintRule,
   type RuleFinding,
 }
 
 ///|
 using @taint_lowering {lower_compiled_taint_rule}
+
+///|
+priv suberror RuleApplyError {
+  InvalidTaintSinkId(sink_id~ : @taint.SinkId, sink_count~ : Int)
+} derive(Debug)
 
 ///|
 priv enum RuleTraversalAction {
@@ -36,7 +40,7 @@ priv struct CstStructuralRuleEntry {
 ///|
 priv struct PlannedTaintRule {
   rule : CompiledRule
-  taint_rule : CompiledTaintRule
+  sink_count : Int
   spec : @taint.TaintSpec
 }
 
@@ -57,7 +61,7 @@ pub fn ScanPlan::from_rules(rules : Array[CompiledRule]) -> ScanPlan {
       Taint(taint_rule) =>
         taint_entries.push({
           rule,
-          taint_rule,
+          sink_count: taint_rule.sinks.length(),
           spec: lower_compiled_taint_rule(rule, taint_rule),
         })
     }
@@ -291,7 +295,7 @@ fn apply_planned_taint_rule_to_node(
           file,
           rule_id: entry.rule.rule_id,
           description: entry.rule.description,
-          pattern_index: sink_pattern_index(entry.taint_rule, finding.sink_id),
+          pattern_index: sink_pattern_index(finding.sink_id, entry.sink_count),
           loc: finding.sink_loc,
         })
       }
@@ -299,13 +303,15 @@ fn apply_planned_taint_rule_to_node(
 }
 
 ///|
-fn sink_pattern_index(taint_rule : CompiledTaintRule, sink_id : String) -> Int {
-  for index in 0..<taint_rule.sinks.length() {
-    if sink_id == "sink:\{index}" {
-      return index
-    }
+fn sink_pattern_index(
+  sink_id : @taint.SinkId,
+  sink_count : Int,
+) -> Int raise RuleApplyError {
+  match sink_id {
+    @taint.SinkId::PatternIndex(index) if index >= 0 && index < sink_count =>
+      index
+    _ => raise RuleApplyError::InvalidTaintSinkId(sink_id~, sink_count~)
   }
-  0
 }
 
 ///|
