@@ -2,10 +2,13 @@
 package "moonbit-community/moongrep/rule/compile"
 
 import {
+  "moonbit-community/moongrep/matching",
   "moonbit-community/moongrep/rule/model",
 }
 
 // Values
+pub fn compile_expr_pattern(String) -> @matching.CompiledExprPattern raise
+
 pub fn compile_rules(Array[@model.RawRuleSpec]) -> Array[@model.CompiledRule] raise
 
 // Errors

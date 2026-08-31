@@ -5,12 +5,16 @@
 
 ## 包职责
 
-`rule/compile` 是已加载 YAML 规则和可执行规则之间的校验与规范化边界。
+`rule/compile` 是 pattern 源文本与可执行 matcher / 规则之间的校验与规范化边界。
 
-这个包从 `rule/model` 接收 `RawRuleSpec`，并通过唯一公开入口生成
-`CompiledRule`：
+这个包提供两个公开入口：
 
 - `compile_rules(raw_rules)`
+- `compile_expr_pattern(pattern)`
+
+`compile_rules` 从 `rule/model` 接收 `RawRuleSpec` 并生成 `CompiledRule`。
+`compile_expr_pattern` 则把一个普通 structural expression shape 直接编译成
+`matching.CompiledExprPattern`，不构造规则元数据、guard 或规则级 prefilter。
 
 编译职责有意保持收窄。这个包会：
 
@@ -38,6 +42,13 @@
 
 prefilter 必须基于编译后的 definition。此时 metavar 已经完成分类，可以从字面量
 收集中排除。原始 YAML 不具备这个条件。
+
+`compile_expr_pattern` 会创建与单个匿名 `patterns[0]` 条目相同的上下文，并调用
+`compile_structural_expr_pattern`。普通 structural `patterns` 和
+`patterns-not` 也使用这个 helper。该 helper 负责解析表达式、分类 metavar、在存在
+inside context 时校验继承绑定、拒绝 `__TARGET__`，并构造 matcher pattern。
+直接入口不传入外层 shape，因此继承绑定校验为空操作；调用方可再通过
+`rule/prefilter` 单独构造单模式 prefilter。
 
 ## Shape 解析
 
@@ -156,7 +167,8 @@ Pattern variable、binder、label 和其他字面名称节点不计入其中。�
 捕获。`ensure_inherited_inside_context_metavar_forms_for_all` 同时检查跨备选项
 可用性和 kind 一致性。内部未引用的捕获保持分支局部，不要求一致。
 
-普通 `patterns` 和 `patterns-not` 会在 inside context 之后独立编译。它们不能在完整表达式位置包含
+普通 `patterns` 和 `patterns-not` 会在 inside context 之后，通过与
+`compile_expr_pattern` 相同的 helper 独立编译。它们不能在完整表达式位置包含
 `__TARGET__`；非表达式字面名称中的相同拼写仍按字面处理。
 
 ## Guard
