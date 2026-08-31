@@ -23,6 +23,22 @@ using @model {
 using @prefilter {compile_rule_prefilter}
 
 ///|
+/// Compiles one structural expression pattern into the matcher representation.
+///
+/// The pattern uses the same CST, metavar, and reserved-placeholder validation
+/// as one ordinary `patterns[0]` rule entry, but does not create rule metadata,
+/// guards, or a rule-level prefilter.
+pub fn compile_expr_pattern(
+  pattern : String,
+) -> @matching.CompiledExprPattern raise {
+  compile_structural_expr_pattern(
+    pattern_compile_context(pattern, "patterns[0]", pattern),
+    "",
+    [],
+  )
+}
+
+///|
 /// Validates and compiles raw YAML rule specs into executable rules.
 ///
 /// This step parses each `shape`, discovers metavars, rejects reserved
@@ -100,19 +116,10 @@ fn compile_structural_rule(
       "patterns[\{index}]",
       pattern.shape,
     )
-    let compiled_shape = compile_metavar_shape(context)
-    ensure_inherited_inside_context_metavar_forms_for_all(
-      path,
-      context.location,
-      outer_context,
-      compiled_shape,
-      outer_shapes,
+    let compiled = compile_structural_expr_pattern(
+      context, outer_context, outer_shapes,
     )
-    let cst = compiled_shape.cst
-    if count_bindable_expr_identifier_in_node(cst, "__TARGET__") != 0 {
-      raise context.invalid_pattern("the pattern must not contain __TARGET__")
-    }
-    patterns.push(compile_pattern(pattern, compiled_shape, context))
+    patterns.push(compile_rule_pattern(pattern, compiled, context))
   }
   let patterns_not : Array[CompiledRulePattern] = []
   for index in 0..<spec.patterns_not.length() {
@@ -122,19 +129,10 @@ fn compile_structural_rule(
       "patterns-not[\{index}]",
       pattern.shape,
     )
-    let compiled_shape = compile_metavar_shape(context)
-    ensure_inherited_inside_context_metavar_forms_for_all(
-      path,
-      context.location,
-      outer_context,
-      compiled_shape,
-      outer_shapes,
+    let compiled = compile_structural_expr_pattern(
+      context, outer_context, outer_shapes,
     )
-    let cst = compiled_shape.cst
-    if count_bindable_expr_identifier_in_node(cst, "__TARGET__") != 0 {
-      raise context.invalid_pattern("the pattern must not contain __TARGET__")
-    }
-    patterns_not.push(compile_pattern(pattern, compiled_shape, context))
+    patterns_not.push(compile_rule_pattern(pattern, compiled, context))
   }
   {
     inside_expr,
@@ -143,6 +141,27 @@ fn compile_structural_rule(
     patterns_not,
     patterns_not_mode: spec.patterns_not_mode,
   }
+}
+
+///|
+fn compile_structural_expr_pattern(
+  context : PatternCompileContext,
+  outer_context : String,
+  outer_shapes : Array[MetavarShape],
+) -> @matching.CompiledExprPattern raise {
+  let compiled_shape = compile_metavar_shape(context)
+  ensure_inherited_inside_context_metavar_forms_for_all(
+    context.path,
+    context.location,
+    outer_context,
+    compiled_shape,
+    outer_shapes,
+  )
+  if count_bindable_expr_identifier_in_node(compiled_shape.cst, "__TARGET__") !=
+    0 {
+    raise context.invalid_pattern("the pattern must not contain __TARGET__")
+  }
+  build_compiled_expr_pattern(compiled_shape)
 }
 
 ///|
@@ -346,16 +365,34 @@ fn compile_pattern(
   special_expr_placeholders? : Array[String] = [],
   ignored_fields? : Array[@matching.IgnoredPatternField] = [],
 ) -> CompiledRulePattern raise {
+  let compiled = build_compiled_expr_pattern(
+    compiled_shape,
+    special_expr_placeholders~,
+    ignored_fields~,
+  )
+  compile_rule_pattern(pattern, compiled, context)
+}
+
+///|
+fn build_compiled_expr_pattern(
+  compiled_shape : MetavarShape,
+  special_expr_placeholders? : Array[String] = [],
+  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
+) -> @matching.CompiledExprPattern {
   let metavars = compiled_shape.metavars.copy()
   for placeholder in special_expr_placeholders {
     metavars.register_special_expr_placeholder(placeholder)
   }
-  let guards = compile_guards(pattern.guards, context, metavars)
-  let compiled : @matching.CompiledExprPattern = {
-    cst: compiled_shape.cst,
-    metavars,
-    ignored_fields,
-  }
+  { cst: compiled_shape.cst, metavars, ignored_fields, }
+}
+
+///|
+fn compile_rule_pattern(
+  pattern : RulePatternSpec,
+  compiled : @matching.CompiledExprPattern,
+  context : PatternCompileContext,
+) -> CompiledRulePattern raise {
+  let guards = compile_guards(pattern.guards, context, compiled.metavars)
   { source: pattern, compiled, guards, }
 }
 

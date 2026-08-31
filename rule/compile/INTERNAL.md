@@ -6,13 +6,18 @@ and its callers, not for rule authors.
 
 ## Package Role
 
-`rule/compile` is the validation and normalization boundary between loaded YAML
-rules and executable rules.
+`rule/compile` is the validation and normalization boundary between pattern
+source text and executable matcher or rule values.
 
-The package takes `RawRuleSpec` values from `rule/model` and produces
-`CompiledRule` values through the package's only public entry point:
+The package exposes two public entry points:
 
 - `compile_rules(raw_rules)`
+- `compile_expr_pattern(pattern)`
+
+`compile_rules` takes `RawRuleSpec` values from `rule/model` and produces
+`CompiledRule` values. `compile_expr_pattern` compiles one ordinary structural
+expression shape directly to `matching.CompiledExprPattern` without creating
+rule metadata, guards, or a rule-level prefilter.
 
 Compilation is deliberately narrow. This package:
 
@@ -43,6 +48,15 @@ with `compile_rule`.
 The prefilter must be built from the compiled definition, not from raw YAML,
 because metavars have already been classified and can be excluded from literal
 collection.
+
+`compile_expr_pattern` creates the same context as one anonymous
+`patterns[0]` entry and calls `compile_structural_expr_pattern`. Ordinary
+structural `patterns` and `patterns-not` use that helper too. The helper parses
+the expression, classifies metavars, validates inherited inside-context
+bindings when present, rejects `__TARGET__`, and builds the matcher pattern.
+The direct entry passes no outer shapes, so inherited-binding validation is a
+no-op. Its caller may build a single-pattern prefilter separately through
+`rule/prefilter`.
 
 ## Shape Parsing
 
@@ -180,8 +194,9 @@ cross-alternative availability and kind consistency. Captures not referenced
 by inner patterns remain branch-local and need not agree.
 
 Normal `patterns` and `patterns-not` are compiled independently after the
-inside context. They must not contain `__TARGET__` in a complete expression
-position; the same spelling in a non-expression literal name remains literal.
+inside context through the same helper used by `compile_expr_pattern`. They
+must not contain `__TARGET__` in a complete expression position; the same
+spelling in a non-expression literal name remains literal.
 
 ## Guards
 
