@@ -1,14 +1,26 @@
 # taint Internal Notes
 
 This document records implementation details that are easy to miss when
-changing the `taint` package and its rule integration. It is for maintainers of
-the analyzer and callers, not for rule authors.
+changing the `taint` packages and their rule integration. It is for maintainers
+of the analyzer and callers, not for rule authors.
 
 ## Package Role
 
-`taint` is a generic intraprocedural taint engine over MoonBit parser CSTs.
+The root `taint` package is the compatibility facade for a generic
+intraprocedural taint engine over MoonBit parser CSTs. Its production source
+contains only three `pub using` blocks. The implementation is split into:
 
-The package analyzes one parser `Impl` at a time through:
+- `taint/domain`: storage paths, value sites, origins, relative taint, and sink
+  findings
+- `taint/model`: normalized calls, transfers, matchers, effects, and rule specs
+- `taint/engine`: public analysis results and entry points, plus private state,
+  CST helpers, and evaluation
+
+Dependencies point from `engine` to `model` to `domain`; `engine` also imports
+`domain` directly. The facade imports all three packages. None of the three
+subpackages imports the facade or a higher layer.
+
+The facade re-exports the entry points that analyze one parser `Impl` at a time:
 
 - `analyze_function_like(node, spec)`
 - `analyze_function_like_multi(node, rules)`
@@ -25,7 +37,7 @@ intentionally catches and ignores that error during file scans.
 
 ## Main Flow
 
-Analysis starts in `analyze_single_function_like`:
+Analysis inside `taint/engine` starts in `analyze_single_function_like`:
 
 1. `function_like_from_impl` extracts the function or method name, location,
    parameter roots, and body expression.
@@ -305,7 +317,8 @@ When adding a new storage-shaped expression:
 
 1. update `storage_path_from_expr`
 2. update read/projection behavior in `eval_expr` if needed
-3. add domain tests for read, write, kill, and merge behavior
+3. add `taint/engine/state_wbtest.mbt` tests for read, write, kill, and merge
+   behavior
 4. add taint tests showing sink behavior through the new path form
 
 When adding a new value-producing expression:
@@ -334,6 +347,9 @@ When changing YAML taint behavior:
 4. update rule-author docs only for user-visible semantics
 5. add integration tests under `rule/apply` or `rule/taint_lowering`
 
-For package-local engine work, `moon test taint` is the tight loop. For changes
-visible through YAML rules, also run the relevant `rule/compile`,
-`rule/taint_lowering`, and `rule/apply` tests.
+Use `moon test taint/engine` as the tight loop for private state and evaluator
+work. Use `moon test taint` to check the compatibility facade and its complete
+public surface. Package-boundary changes should run both plus `moon check`.
+Before finishing, run `moon info && moon fmt` and review the facade and all three
+subpackage interfaces. For changes visible through YAML rules, also run the
+relevant `rule/compile`, `rule/taint_lowering`, and `rule/apply` tests.

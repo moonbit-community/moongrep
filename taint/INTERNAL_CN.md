@@ -1,13 +1,21 @@
 # taint 内部说明
 
-本文记录修改 `taint` 包及其规则集成时容易遗漏的实现细节。它面向
+本文记录修改 `taint` 各包及其规则集成时容易遗漏的实现细节。它面向
 analyzer 及其调用方的维护者，不面向规则作者。
 
 ## 包职责
 
-`taint` 是一个基于 MoonBit parser CST 的通用过程内污点分析引擎。
+根 `taint` 包是基于 MoonBit parser CST 的通用过程内污点分析引擎的兼容门面。
+它的生产源码只包含三个 `pub using` 块。实现拆分为：
 
-这个包每次通过以下入口分析一个 parser `Impl`：
+- `taint/domain`：存储路径、值位置、origin、相对污点和 sink finding
+- `taint/model`：规范化调用、transfer、matcher、effect 和规则配置
+- `taint/engine`：公开分析结果和入口，以及私有状态、CST helper 和求值实现
+
+依赖方向固定为 `engine` 指向 `model`、`model` 指向 `domain`；`engine` 也会
+直接依赖 `domain`。根门面依赖这三个子包。三个子包都不得依赖根门面或更高层。
+
+门面重新导出以下入口，每次分析一个 parser `Impl`：
 
 - `analyze_function_like(node, spec)`
 - `analyze_function_like_multi(node, rules)`
@@ -22,7 +30,7 @@ analyzer 及其调用方的维护者，不面向规则作者。
 
 ## 主流程
 
-分析从 `analyze_single_function_like` 开始：
+`taint/engine` 内的分析从 `analyze_single_function_like` 开始：
 
 1. `function_like_from_impl` 提取函数或方法名称、位置、参数根，以及 body 表达式。
 2. 根是真实参数的 `EntryPath` source 会写入初始 `TaintState`。
@@ -262,7 +270,7 @@ YAML 规则集成 boundary 添加聚焦测试。
 
 1. 更新 `storage_path_from_expr`
 2. 必要时更新 `eval_expr` 中的读取/投影行为
-3. 为 read、write、kill 和 merge 行为添加 domain 测试
+3. 在 `taint/engine/state_wbtest.mbt` 中添加 read、write、kill 和 merge 测试
 4. 添加 taint 测试，展示 sink 行为能通过新的路径形式传播
 
 新增一种能产生值的表达式时：
@@ -288,5 +296,8 @@ YAML 规则集成 boundary 添加聚焦测试。
 4. 仅在用户可见语义变化时更新规则作者文档
 5. 在 `rule/apply` 或 `rule/taint_lowering` 下添加集成测试
 
-对于 package-local 的引擎工作，`moon test taint` 是最短反馈循环。对于通过 YAML
-规则可见的变化，还要运行相关的 `rule/compile`、`rule/taint_lowering` 和 `rule/apply` 测试。
+私有状态和求值器工作以 `moon test taint/engine` 作为最短反馈循环。
+使用 `moon test taint` 检查兼容门面及完整公开接口。涉及包边界时，两者都要运行，
+并运行 `moon check`。结束前运行 `moon info && moon fmt`，检查门面和三个子包的接口。
+对于通过 YAML 规则可见的变化，还要运行相关的 `rule/compile`、
+`rule/taint_lowering` 和 `rule/apply` 测试。
