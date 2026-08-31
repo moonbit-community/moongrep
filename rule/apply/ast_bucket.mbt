@@ -55,21 +55,6 @@ priv struct ExprPatternBuckets {
 }
 
 ///|
-fn cst_bucket_contains_name(values : Array[String], value : String) -> Bool {
-  for item in values {
-    if item == value {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn cst_bucket_is_ignore_placeholder(name : String) -> Bool {
-  name == "$_"
-}
-
-///|
 fn node_root_key(node : @untyped_cst.CstNode) -> ExprRootKey {
   match node.kind {
     @untyped_cst.Expr_Ident => IdentRoot
@@ -86,57 +71,12 @@ fn compiled_root_ident_key(
   compiled : @matching.CompiledExprPattern,
   name : String,
 ) -> ExprRootKey?? {
-  let logical = cst_bucket_metavar_name(name)
-  if cst_bucket_is_ignore_placeholder(name) ||
-    compiled.target_metavar == Some(name) ||
-    compiled.source_metavar == Some(name) ||
-    (
-      logical is Some(value) &&
-      cst_bucket_contains_name(compiled.expr_metavars, value)
-    ) {
-    Some(None)
-  } else if logical is Some(value) &&
-    cst_bucket_contains_name(compiled.identifier_metavars, value) {
-    Some(Some(IdentRoot))
-  } else if logical is Some(value) &&
-    cst_bucket_contains_name(compiled.constant_metavars, value) {
-    Some(Some(ConstantRoot))
-  } else {
-    None
-  }
-}
-
-///|
-fn cst_bucket_metavar_name(raw : String) -> String? {
-  let mut start = -1
-  for index in 0..<raw.length() {
-    if raw[index] == '$' {
-      start = index
-    }
-  }
-  if start < 0 {
-    return None
-  }
-  let component = raw[start:]
-  if component.has_prefix("$$$") || component == "$_" {
-    return None
-  }
-  if component.has_prefix("$(") && component.has_suffix(")") {
-    let end = component.length() - 1
-    for index in 2..<end {
-      if component[index] == ':' {
-        let name = component[2:index].trim()
-        if !name.is_empty() {
-          return Some(name.to_owned())
-        }
-        return None
-      }
-    }
-    None
-  } else if component.has_prefix("$") && component.length() > 1 {
-    Some(component[1:].to_owned())
-  } else {
-    None
+  match compiled.metavars.resolve(name) {
+    Some(ResolvedWildcard(_) | ResolvedSpecialExpr(_)) => Some(None)
+    Some(ResolvedNamed({ kind: Expr, .. })) => Some(None)
+    Some(ResolvedNamed({ kind: Identifier, .. })) => Some(Some(IdentRoot))
+    Some(ResolvedNamed({ kind: Constant, .. })) => Some(Some(ConstantRoot))
+    _ => None
   }
 }
 

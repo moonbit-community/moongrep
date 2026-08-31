@@ -1,19 +1,7 @@
 ///|
 priv struct MetavarShape {
   cst : @untyped_cst.CstNode
-  expr_metavars : Array[String]
-  identifier_metavars : Array[String]
-  constant_metavars : Array[String]
-  arg_metavars : Array[String]
-  type_metavars : Array[String]
-  pattern_metavars : Array[String]
-  ellipsis_metavars : Array[@matching.EllipsisMetavar]
-}
-
-///|
-priv enum MetavarSyntax {
-  Explicit(String, String)
-  Bare(String)
+  metavars : @matching.MetavarRegistry
 }
 
 ///|
@@ -31,16 +19,6 @@ priv struct MetavarOccurrenceContext {
   ellipsis_slot : EllipsisItemSlot?
   qualified_identifier : Bool
   binder_only_pattern : Bool
-}
-
-///|
-priv struct MetavarCollections {
-  expr : Array[String]
-  identifier : Array[String]
-  constant : Array[String]
-  arg : Array[String]
-  type_ : Array[String]
-  pattern : Array[String]
 }
 
 ///|
@@ -63,22 +41,14 @@ fn compile_prepared_metavar_shape(
   cst : @untyped_cst.CstNode,
   occurrences : Array[ShapeMetavarOccurrence],
 ) -> MetavarShape raise {
-  let collections : MetavarCollections = {
-    expr: [],
-    identifier: [],
-    constant: [],
-    arg: [],
-    type_: [],
-    pattern: [],
-  }
+  let classified = @matching.MetavarRegistry::new()
   let contexts : Array[MetavarOccurrenceContext] = []
   for occurrence in occurrences {
     contexts.push(find_metavar_occurrence_context(context, cst, occurrence))
   }
   for index in 0..<occurrences.length() {
     match occurrences[index].syntax {
-      Explicit(kind, name) => {
-        validate_single_metavar_kind(context, kind)
+      Typed(name, kind) => {
         validate_declared_metavar(context, name, true)
         if occurrence_rejected_by_original_identifier_case(
             kind,
@@ -87,50 +57,77 @@ fn compile_prepared_metavar_shape(
           reject_metavar_position(context, kind, name, contexts[index])
         }
         validate_metavar_position(context, kind, name, contexts[index])
-        register_metavar_kind(context, collections, kind, name)
+        register_metavar_kind(context, classified, kind, name)
       }
       _ => ()
     }
   }
-  infer_bare_metavar_kinds(context, occurrences, contexts, collections)
-  let ellipsis_metavars = compile_ellipsis_occurrences(
-    context, occurrences, contexts, collections,
-  )
-  preserve_toplevel_identifier_order(cst, collections.identifier)
-  {
-    cst,
-    expr_metavars: collections.expr,
-    identifier_metavars: collections.identifier,
-    constant_metavars: collections.constant,
-    arg_metavars: collections.arg,
-    type_metavars: collections.type_,
-    pattern_metavars: collections.pattern,
-    ellipsis_metavars,
-  }
+  infer_bare_metavar_kinds(context, occurrences, contexts, classified)
+  compile_ellipsis_occurrences(context, occurrences, contexts, classified)
+  let metavars = registry_in_occurrence_order(occurrences, classified)
+  preserve_toplevel_identifier_order(cst, metavars)
+  { cst, metavars, }
 }
 
 ///|
 fn preserve_toplevel_identifier_order(
   cst : @untyped_cst.CstNode,
-  names : Array[String],
+  metavars : @matching.MetavarRegistry,
 ) -> Unit {
   guard cst.kind is @untyped_cst.Impl_Function else { return }
   guard @cst.raw_child(cst, "params") is Some(params) else { return }
-  let reordered : Array[String] = []
-  for name in names {
-    if subtree_contains_normalized_name(params, name) {
-      reordered.push(name)
+  let reordered : Array[@matching.MetavarEntry] = []
+  for entry in metavars.entries {
+    if entry.kind == Identifier &&
+      subtree_contains_normalized_name(params, entry.name) {
+      reordered.push(entry)
     }
   }
-  for name in names {
-    if !array_contains(reordered, name) {
-      reordered.push(name)
+  for entry in metavars.entries {
+    if entry.kind == Identifier &&
+      !metavar_entries_contain_name(reordered, entry.name) {
+      reordered.push(entry)
     }
   }
-  names.clear()
-  for name in reordered {
-    names.push(name)
+  let mut next = 0
+  for index in 0..<metavars.entries.length() {
+    if metavars.entries[index].kind == Identifier {
+      metavars.entries[index] = reordered[next]
+      next += 1
+    }
   }
+}
+
+///|
+fn registry_in_occurrence_order(
+  occurrences : Array[ShapeMetavarOccurrence],
+  classified : @matching.MetavarRegistry,
+) -> @matching.MetavarRegistry {
+  let ordered = @matching.MetavarRegistry::new()
+  for occurrence in occurrences {
+    let name = match occurrence.syntax {
+      Bare(name) | Typed(name, _) => Some(name)
+      EllipsisSyntax(name, _) if name != "_" => Some(name)
+      _ => None
+    }
+    if name is Some(name) && classified.kind_of(name) is Some(kind) {
+      ignore(ordered.register(name, kind))
+    }
+  }
+  ordered
+}
+
+///|
+fn metavar_entries_contain_name(
+  entries : Array[@matching.MetavarEntry],
+  name : String,
+) -> Bool {
+  for entry in entries {
+    if entry.name == name {
+      return true
+    }
+  }
+  false
 }
 
 ///|
@@ -153,68 +150,10 @@ fn subtree_contains_normalized_name(
 
 ///|
 fn single_metavar_source_name(raw : String) -> String? {
-  let mut start = -1
-  for index in 0..<raw.length() {
-    if raw[index] == '$' {
-      start = index
-    }
+  match @matching.parse_metavar_syntax(raw) {
+    Bare(name) | Typed(name, _) => Some(name)
+    _ => None
   }
-  if start < 0 {
-    return None
-  }
-  let component = raw[start:]
-  if component.has_prefix("$$$") || component is "$_" {
-    return None
-  }
-  if component.has_prefix("$(") && component.has_suffix(")") {
-    let end = component.length() - 1
-    for index in 2..<end {
-      if component[index] == ':' {
-        let name = component[2:index].trim()
-        if !name.is_empty() {
-          return Some(name.to_owned())
-        }
-        return None
-      }
-    }
-    None
-  } else if component.has_prefix("$") && component.length() > 1 {
-    Some(component[1:].to_owned())
-  } else {
-    None
-  }
-}
-
-///|
-fn parse_metavar(
-  raw : String,
-  context : PatternCompileContext,
-) -> MetavarSyntax? raise {
-  if raw.has_prefix("$$$") || raw == "$_" || !raw.has_prefix("$") {
-    return None
-  }
-  if !raw.has_prefix("$(") || !raw.has_suffix(")") {
-    if raw.length() <= 1 {
-      raise context.invalid_pattern(
-        "the pattern has invalid metavar \{raw}; use explicit typed syntax like $(value:exp)",
-      )
-    }
-    return Some(Bare(raw[1:].to_owned()))
-  }
-  let end = raw.length() - 1
-  for index in 2..<end {
-    if raw[index] == ':' {
-      return Some(
-        Explicit(
-          raw[index + 1:end].trim().to_owned(),
-          raw[2:index].trim().to_owned(),
-        ),
-      )
-    }
-  }
-  raise context.invalid_pattern(
-    "the pattern has invalid metavar payload \{raw}; use explicit typed syntax like $(value:exp)",
-  )
 }
 
 ///|
@@ -369,11 +308,11 @@ fn path_has_binder_only_pattern_context(
 
 ///|
 fn occurrence_rejected_by_original_identifier_case(
-  kind : String,
+  kind : @matching.MetavarKind,
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
   occurrence.uppercase_identifier &&
-  (kind == "exp" || kind == "const" || kind == "arg" || kind == "pat")
+  (kind == Expr || kind == Constant || kind == Argument || kind == Pattern)
 }
 
 ///|
@@ -555,42 +494,25 @@ fn first_cst_pattern_child(
 }
 
 ///|
-fn validate_single_metavar_kind(
-  context : PatternCompileContext,
-  kind : String,
-) -> Unit raise {
-  if kind != "exp" &&
-    kind != "id" &&
-    kind != "const" &&
-    kind != "arg" &&
-    kind != "type" &&
-    kind != "pat" {
-    raise context.invalid_pattern(
-      "the pattern contains unsupported metavar kind \{kind}",
-    )
-  }
-}
-
-///|
 fn validate_metavar_position(
   context : PatternCompileContext,
-  kind : String,
+  kind : @matching.MetavarKind,
   name : String,
   occurrence : MetavarOccurrenceContext,
 ) -> Unit raise {
   let valid = match kind {
-    "exp" => occurrence.position == ExpressionPosition
-    "id" => true
-    "const" =>
+    Expr => occurrence.position == ExpressionPosition
+    Identifier => true
+    Constant =>
       occurrence.position == ExpressionPosition ||
       (
         occurrence.position == PatternPosition &&
         !occurrence.binder_only_pattern
       )
-    "arg" => occurrence.whole_argument
-    "type" => occurrence.position == TypePosition
-    "pat" => occurrence.position == PatternPosition
-    _ => false
+    Argument => occurrence.whole_argument
+    Type => occurrence.position == TypePosition
+    Pattern => occurrence.position == PatternPosition
+    Ellipsis(_) => false
   }
   if !valid {
     reject_metavar_position(context, kind, name, occurrence)
@@ -600,25 +522,22 @@ fn validate_metavar_position(
 ///|
 fn reject_metavar_position(
   context : PatternCompileContext,
-  kind : String,
+  kind : @matching.MetavarKind,
   name : String,
   occurrence : MetavarOccurrenceContext,
 ) -> Unit raise {
   let text = metavar_text(kind, name)
-  let info = if kind == "exp" {
-    "the pattern uses \{text} outside a bare expression position"
-  } else if kind == "pat" {
-    "the pattern uses \{text} outside a bare pattern position"
-  } else if kind == "arg" {
-    "the pattern uses \{text} outside a bare argument position"
-  } else if kind == "type" {
-    "the pattern uses \{text} outside a whole type position"
-  } else if kind == "id" {
-    "the pattern uses \{text} outside an identifier position"
-  } else if occurrence.qualified_identifier {
-    "the pattern uses \{text} in an unsupported qualified identifier position"
-  } else {
-    "the pattern uses \{text} outside a constant expression or pattern position"
+  let info = match kind {
+    Expr => "the pattern uses \{text} outside a bare expression position"
+    Pattern => "the pattern uses \{text} outside a bare pattern position"
+    Argument => "the pattern uses \{text} outside a bare argument position"
+    Type => "the pattern uses \{text} outside a whole type position"
+    Identifier => "the pattern uses \{text} outside an identifier position"
+    Constant if occurrence.qualified_identifier =>
+      "the pattern uses \{text} in an unsupported qualified identifier position"
+    Constant =>
+      "the pattern uses \{text} outside a constant expression or pattern position"
+    Ellipsis(_) => abort("ellipsis metavars use ordered-list validation")
   }
   raise context.invalid_pattern(info)
 }
@@ -626,44 +545,27 @@ fn reject_metavar_position(
 ///|
 fn register_metavar_kind(
   context : PatternCompileContext,
-  collections : MetavarCollections,
-  kind : String,
+  metavars : @matching.MetavarRegistry,
+  kind : @matching.MetavarKind,
   name : String,
 ) -> Unit raise {
-  let existing = collection_kind(collections, name)
-  if existing is Some(previous) && previous != kind {
-    raise context.invalid_pattern(
-      "the pattern declares metavar \{name} as multiple metavar kinds",
-    )
-  }
-  let target = match kind {
-    "exp" => collections.expr
-    "id" => collections.identifier
-    "const" => collections.constant
-    "arg" => collections.arg
-    "type" => collections.type_
-    "pat" => collections.pattern
-    _ => return
-  }
-  push_unique_string(target, name)
-}
-
-///|
-fn collection_kind(collections : MetavarCollections, name : String) -> String? {
-  if array_contains(collections.expr, name) {
-    Some("exp")
-  } else if array_contains(collections.identifier, name) {
-    Some("id")
-  } else if array_contains(collections.constant, name) {
-    Some("const")
-  } else if array_contains(collections.arg, name) {
-    Some("arg")
-  } else if array_contains(collections.type_, name) {
-    Some("type")
-  } else if array_contains(collections.pattern, name) {
-    Some("pat")
-  } else {
-    None
+  match metavars.register(name, kind) {
+    RegistrationConflict(previous) =>
+      match (previous, kind) {
+        (Ellipsis(_), Ellipsis(_)) =>
+          raise context.invalid_pattern(
+            "the pattern declares ellipsis metavar \{name} as multiple metavar kinds",
+          )
+        (Ellipsis(_), _) | (_, Ellipsis(_)) =>
+          raise context.invalid_pattern(
+            "the pattern cannot use \{name} as both an ellipsis metavar and a single-node metavar",
+          )
+        _ =>
+          raise context.invalid_pattern(
+            "the pattern declares metavar \{name} as multiple metavar kinds",
+          )
+      }
+    _ => ()
   }
 }
 
@@ -672,15 +574,15 @@ fn infer_bare_metavar_kinds(
   context : PatternCompileContext,
   occurrences : Array[ShapeMetavarOccurrence],
   contexts : Array[MetavarOccurrenceContext],
-  collections : MetavarCollections,
+  metavars : @matching.MetavarRegistry,
 ) -> Unit raise {
   for index in 0..<occurrences.length() {
     match occurrences[index].syntax {
       Bare(name) if contexts[index].position == PatternPosition &&
-        collection_kind(collections, name) is None =>
+        metavars.kind_of(name) is None =>
         if contexts[index].binder_only_pattern {
           validate_declared_metavar(context, name, true)
-          register_metavar_kind(context, collections, "id", name)
+          register_metavar_kind(context, metavars, Identifier, name)
         } else {
           raise context.invalid_pattern(
             "the pattern cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
@@ -695,15 +597,15 @@ fn infer_bare_metavar_kinds(
         Bare(name) if contexts[index].position == position => {
           validate_declared_metavar(context, name, true)
           let inferred = match position {
-            IdentifierPosition => "id"
-            TypePosition => "type"
-            ExpressionPosition => "exp"
+            IdentifierPosition => @matching.MetavarKind::Identifier
+            TypePosition => Type
+            ExpressionPosition => Expr
             PatternPosition => abort("unreachable")
           }
-          if collection_kind(collections, name) is None {
-            register_metavar_kind(context, collections, inferred, name)
+          if metavars.kind_of(name) is None {
+            register_metavar_kind(context, metavars, inferred, name)
           } else if position == TypePosition &&
-            collection_kind(collections, name) != Some("type") {
+            metavars.kind_of(name) != Some(Type) {
             raise context.invalid_pattern(
               "the pattern declares metavar \{name} as multiple metavar kinds",
             )
@@ -716,7 +618,7 @@ fn infer_bare_metavar_kinds(
   for index in 0..<occurrences.length() {
     match occurrences[index].syntax {
       Bare(name) => {
-        guard collection_kind(collections, name) is Some(kind) else {
+        guard metavars.kind_of(name) is Some(kind) else {
           raise context.invalid_pattern(
             "the pattern cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
           )
@@ -729,13 +631,6 @@ fn infer_bare_metavar_kinds(
 }
 
 ///|
-fn push_unique_string(items : Array[String], item : String) -> Unit {
-  if !array_contains(items, item) {
-    items.push(item)
-  }
-}
-
-///|
-fn metavar_text(kind : String, name : String) -> String {
-  "$(" + name + ":" + kind + ")"
+fn metavar_text(kind : @matching.MetavarKind, name : String) -> String {
+  "$(" + name + ":" + kind.syntax_name() + ")"
 }

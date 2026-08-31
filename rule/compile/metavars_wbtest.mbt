@@ -10,21 +10,21 @@ fn compile_toplevel_shape_for_test(source : String) -> MetavarShape raise {
 ///|
 test "top-level type declarations record type metavars" {
   let type_alias = compile_toplevel_shape_for_test("pub type Alias = $(T:type)")
-  debug_inspect(type_alias.type_metavars, content="[\"T\"]")
+  debug_inspect(type_alias.metavars.names(Type), content="[\"T\"]")
   let record_source =
     #|struct Box {
     #|  value : $(T:type)
     #|}
     #|
   let record = compile_toplevel_shape_for_test(record_source)
-  debug_inspect(record.type_metavars, content="[\"T\"]")
+  debug_inspect(record.metavars.names(Type), content="[\"T\"]")
   let variant_source =
     #|enum Choice {
     #|  Some($(T:type))
     #|}
     #|
   let variant = compile_toplevel_shape_for_test(variant_source)
-  debug_inspect(variant.type_metavars, content="[\"T\"]")
+  debug_inspect(variant.metavars.names(Type), content="[\"T\"]")
 }
 
 ///|
@@ -35,5 +35,17 @@ test "top-level trait declarations record method type metavars" {
     #|}
     #|
   let trait_shape = compile_toplevel_shape_for_test(trait_source)
-  debug_inspect(trait_shape.type_metavars, content="[\"T\"]")
+  debug_inspect(trait_shape.metavars.names(Type), content="[\"T\"]")
+}
+
+///|
+test "top-level function parameters retain identifier priority" {
+  let shape = compile_toplevel_shape_for_test(
+    "fn $(function:id)($(param:id) : Int) { $(body:exp) }",
+  )
+  debug_inspect(
+    shape.metavars.names(Identifier),
+    content="[\"param\", \"function\"]",
+  )
+  debug_inspect(shape.metavars.names(Expr), content="[\"body\"]")
 }

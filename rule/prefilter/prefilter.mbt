@@ -273,19 +273,5 @@ fn is_filter_placeholder(
   name : String,
   compiled : @matching.CompiledExprPattern,
 ) -> Bool {
-  name.has_prefix("$$$") ||
-  name.has_prefix("$") ||
-  is_underscore_placeholder(name) ||
-  compiled.target_metavar == Some(name) ||
-  compiled.source_metavar == Some(name) ||
-  contains_string(compiled.expr_metavars, name) ||
-  contains_string(compiled.identifier_metavars, name) ||
-  contains_string(compiled.constant_metavars, name) ||
-  contains_string(compiled.arg_metavars, name) ||
-  contains_string(compiled.type_metavars, name)
-}
-
-///|
-fn is_underscore_placeholder(name : String) -> Bool {
-  name == "$_"
+  compiled.metavars.is_placeholder(name)
 }
