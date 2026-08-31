@@ -158,8 +158,8 @@ an inside context exists.
 Each inside-context shape is compiled as a normal pattern with:
 
 - the guards declared on its pattern object
-- `target_metavar = Some("__TARGET__")`
-- `source_metavar = None`
+- `__TARGET__` registered as a special expression placeholder in its
+  `MetavarRegistry`
 
 Every alternative must contain exactly one `__TARGET__` in a complete
 expression-identifier position as counted by

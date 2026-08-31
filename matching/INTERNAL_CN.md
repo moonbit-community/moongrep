@@ -29,12 +29,15 @@
 表达式位置里的占位符优先级如下：
 
 1. 精确拼写 `$_` 是忽略占位符
-2. `target_metavar` 和 `source_metavar` 在 `CompiledExprPattern`
-   中存在时，会绑定整个表达式
+2. `CompiledExprPattern.metavars` 中注册的特殊表达式占位符（如
+   `__TARGET__` 和 `__SOURCE__`）会绑定整个表达式
 3. 声明过的 expression metavar 绑定整个表达式值
 4. 声明过的 identifier metavar 绑定规范化后的标识符字符串
 5. 声明过的 constant metavar 只绑定 `Expr_Constant`
 6. 未声明的名字是字面 CST 名称
+
+所有源码拼写都通过已编译的 `MetavarRegistry` 解析。matcher 不会再从原始拼写
+推断 metavar kind。
 
 对于类型节点，一个包含已声明 type metavar payload 的简单 `Type_Name` 会绑定整个候选
 type 节点。

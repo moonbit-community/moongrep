@@ -145,10 +145,8 @@ CST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含
 当 matcher 可以用任意源码替换某个名称时，就不能收集这个名称。
 `is_filter_placeholder` 会排除：
 
-- 包含 `$` 的原始 metavar 名称，包括单节点和 ellipsis 形式
-- 精确拼写为 `$_` 的忽略占位符
-- 编译后 pattern 的 `target_metavar` 和 `source_metavar`
-- 已声明的 expression、identifier、constant、argument 和 type metavar
+- 编译后 pattern 的 `MetavarRegistry` 能解析出的所有单节点、ellipsis、wildcard
+  和特殊表达式占位符
 
 只有精确的 `$_` 具有由拼写决定的下划线占位语义。`__` 这类普通全下划线标识符仍是
 必需字面量。
