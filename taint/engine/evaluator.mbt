@@ -85,7 +85,7 @@ fn analyze_single_function_like(
       EntryPath(path, origin_id, note) =>
         if function_has_param_root(function_like, path.root) {
           let origin_site = ValueSite::Path(path)
-          let origin = {
+          let origin : TaintOrigin = {
             rule_id: spec.rule_id,
             origin_id,
             site: origin_site,
@@ -750,7 +750,7 @@ fn eval_apply_call(
   if args_result.flow != FlowNormal {
     return flow_result(args_result.flow, args_result.state, args_result.value)
   }
-  let info = {
+  let info : CallInfo = {
     kind: Apply,
     cst,
     loc,
@@ -784,7 +784,7 @@ fn eval_dot_apply_call(
   if args_result.flow != FlowNormal {
     return flow_result(args_result.flow, args_result.state, args_result.value)
   }
-  let info = {
+  let info : CallInfo = {
     kind: DotApply,
     cst,
     loc,
@@ -875,7 +875,7 @@ fn eval_pipe_call(
             )
           }
           let arguments = prepend_argument(lhs_arg, args_result.arguments)
-          let info = {
+          let info : CallInfo = {
             kind: Pipe,
             cst,
             loc,
@@ -1633,7 +1633,8 @@ fn bind_pattern(
       let mut after_rest = false
       let mut positional_index = 0
       for item in items {
-        let segment = if after_rest || item.kind is @untyped_cst.Pattern_Rest {
+        let segment : PathSegment = if after_rest ||
+          item.kind is @untyped_cst.Pattern_Rest {
           AnyIndex
         } else {
           ConstIndex(positional_index.to_string())

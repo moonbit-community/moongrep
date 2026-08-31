@@ -1,0 +1,56 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/taint/domain"
+
+import {
+  "moonbitlang/core/debug",
+  "moonbitlang/lexer/basic",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub(all) enum PathSegment {
+  Field(String)
+  TupleIndex(Int)
+  ConstIndex(String)
+  AnyIndex
+} derive(Eq, @debug.Debug)
+
+pub(all) struct RelativeTaint {
+  path : Array[PathSegment]
+  origins : Array[TaintOrigin]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct SinkFinding {
+  rule_id : String
+  sink_id : String
+  sink_loc : @basic.Location
+  sink_site : ValueSite
+  origins : Array[TaintOrigin]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct StoragePath {
+  root : String
+  segments : Array[PathSegment]
+} derive(Eq, @debug.Debug)
+
+pub(all) struct TaintOrigin {
+  rule_id : String
+  origin_id : String
+  site : ValueSite
+  note : String?
+} derive(Eq, @debug.Debug)
+
+pub(all) enum ValueSite {
+  Path(StoragePath)
+  CallResult(String?, @basic.Location)
+  Expr(@basic.Location, String?)
+  Synthetic(String)
+} derive(Eq, @debug.Debug)
+
+// Type aliases
+pub type TaintTree = Array[RelativeTaint]
+
+// Traits

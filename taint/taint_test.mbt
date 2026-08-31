@@ -1,11 +1,145 @@
 ///|
-test "taint package exposes public path and site models" {
-  let path : StoragePath = { root: "input", segments: [Field("body")], }
-  let site = ValueSite::Path(path)
-  match site {
-    Path(found) => inspect(found.root, content="input")
-    _ => fail("expected path site")
+test "taint facade exposes the complete public API" {
+  let node = parse_single_impl("fn sample {}")
+  let segments : Array[PathSegment] = [
+    Field("body"),
+    TupleIndex(0),
+    ConstIndex("1"),
+    AnyIndex,
+  ]
+  let path : StoragePath = { root: "input", segments, }
+  let sites : Array[ValueSite] = [
+    Path(path),
+    CallResult(Some("callee"), node.loc),
+    Expr(node.loc, None),
+    Synthetic("site"),
+  ]
+  let origin : TaintOrigin = {
+    rule_id: "rule",
+    origin_id: "origin",
+    site: sites[0],
+    note: Some("note"),
   }
+  let relative : RelativeTaint = { path: [Field("value")], origins: [origin], }
+  let tree : TaintTree = [relative]
+  let finding : SinkFinding = {
+    rule_id: "rule",
+    sink_id: "sink",
+    sink_loc: node.loc,
+    sink_site: sites[1],
+    origins: [origin],
+  }
+  let kinds : Array[CallKind] = [Apply, DotApply, Pipe, RevPipe]
+  let argument : CallArgument = {
+    index: 0,
+    label: Some("arg"),
+    expr: node,
+    loc: node.loc,
+    path: Some(path),
+    site: sites[0],
+    taint: tree,
+  }
+  let info : CallInfo = {
+    kind: kinds[0],
+    cst: node,
+    loc: node.loc,
+    callee_name: Some("callee"),
+    receiver_path: Some(path),
+    receiver_site: Some(sites[0]),
+    receiver_taint: tree,
+    arguments: [argument],
+  }
+  let transfer : CallTransfer = {
+    return_taint: tree,
+    killed_paths: [path],
+    findings: [finding],
+  }
+  let policies : Array[UnknownCallPolicy] = [
+    NoEffect,
+    PropagateArgumentsToReturn,
+  ]
+  let matchers : Array[CallMatcher] = [
+    CalleeName("callee"),
+    MethodName("method"),
+    AnyCall,
+  ]
+  let sources : Array[SourceModel] = [
+    EntryPath(path, "entry", None),
+    CallReturn(matchers[0], "call", None, [Field("value")]),
+  ]
+  let effects : Array[CallEffect] = [
+    ReturnFreshSource("fresh", None, []),
+    PropagateArgToReturn(0),
+    PropagateReceiverToReturn,
+    PropagateArgSubpathToReturn(0, [Field("value")]),
+    KillArg(0),
+    KillReceiver,
+    ReportSinkArg("sink:arg", 0),
+    ReportSinkReceiver("sink:receiver"),
+  ]
+  let model : CallModel = { matcher: matchers[2], effects, }
+  let spec : TaintSpec = {
+    rule_id: "rule",
+    sources,
+    call_models: [model],
+    unknown_call_policy: policies[0],
+    max_fixpoint_iterations: 1,
+    custom_transfer_call: no_custom_transfer,
+  }
+  let result : AnalysisResult = {
+    rule_id: "rule",
+    function_name: "sample",
+    function_loc: node.loc,
+    findings: [finding],
+  }
+
+  assert_eq(path.root, "input")
+  assert_eq(path.segments.length(), 4)
+  guard sites[0] is Path(found) else { fail("expected path site") }
+  assert_eq(found.root, "input")
+  assert_eq(origin.rule_id, "rule")
+  assert_eq(origin.origin_id, "origin")
+  let _ = origin.site
+  assert_eq(origin.note, Some("note"))
+  assert_eq(relative.path.length(), 1)
+  assert_eq(relative.origins.length(), 1)
+  assert_eq(finding.rule_id, "rule")
+  assert_eq(finding.sink_id, "sink")
+  let _ = finding.sink_loc
+  let _ = finding.sink_site
+  assert_eq(finding.origins.length(), 1)
+  assert_eq(argument.index, 0)
+  assert_eq(argument.label, Some("arg"))
+  let _ = argument.expr
+  let _ = argument.loc
+  assert_eq(argument.path, Some(path))
+  let _ = argument.site
+  assert_eq(argument.taint.length(), 1)
+  assert_eq(info.kind, Apply)
+  let _ = info.cst
+  let _ = info.loc
+  assert_eq(info.callee_name, Some("callee"))
+  assert_eq(info.receiver_path, Some(path))
+  assert_true(info.receiver_site is Some(_))
+  assert_eq(info.receiver_taint.length(), 1)
+  assert_eq(info.arguments.length(), 1)
+  assert_eq(transfer.return_taint.length(), 1)
+  assert_eq(transfer.killed_paths.length(), 1)
+  assert_eq(transfer.findings.length(), 1)
+  assert_eq(model.effects.length(), 8)
+  assert_eq(spec.rule_id, "rule")
+  assert_eq(spec.sources.length(), 2)
+  assert_eq(spec.call_models.length(), 1)
+  assert_eq(spec.unknown_call_policy, NoEffect)
+  assert_eq(spec.max_fixpoint_iterations, 1)
+  assert_true((spec.custom_transfer_call)(info) is None)
+  assert_eq(result.rule_id, "rule")
+  assert_eq(result.function_name, "sample")
+  let _ = result.function_loc
+  assert_eq(result.findings.length(), 1)
+  let analyzed = analyze_function_like_multi(node, [spec])
+  assert_eq(analyzed.length(), 1)
+  assert_eq(analyzed[0].rule_id, "rule")
 }
 
 ///|
