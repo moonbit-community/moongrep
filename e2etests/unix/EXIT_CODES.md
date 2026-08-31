@@ -77,6 +77,19 @@ error: invalid anonymous pattern
 [5]
 ```
 
+A qualified ignore placeholder is rejected with the same rule-content status.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '@html.$_' testdata/cli-pattern/hit.mbt 2>&1 > /dev/null
+error: invalid anonymous pattern
+  source: --pattern
+  pattern:
+    @html.$_
+  reason: the pattern uses $_ in an unsupported qualified identifier position
+  help: fix the pattern passed to --pattern and try again
+[5]
+```
+
 Malformed rule YAML is in the same rule-content category.
 
 ```mooncram

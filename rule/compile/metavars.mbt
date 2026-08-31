@@ -48,6 +48,10 @@ fn compile_prepared_metavar_shape(
   }
   for index in 0..<occurrences.length() {
     match occurrences[index].syntax {
+      Wildcard if contexts[index].qualified_identifier =>
+        raise context.invalid_pattern(
+          "the pattern uses $_ in an unsupported qualified identifier position",
+        )
       Typed(name, kind) => {
         validate_declared_metavar(context, name, true)
         if occurrence_rejected_by_original_identifier_case(
@@ -201,6 +205,11 @@ fn cst_contains_qualified_metavar(
 ) -> Bool {
   if node.kind is @untyped_cst.LongIdent_Dot &&
     metavar_node_matches_occurrence(node, occurrence) {
+    return true
+  }
+  if node.kind is (@untyped_cst.Expr_Method | @untyped_cst.Expr_Field) &&
+    @cst.raw_child(node, "field") is Some(field) &&
+    metavar_node_matches_occurrence(field, occurrence) {
     return true
   }
   for entry in node.children {

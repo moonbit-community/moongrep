@@ -33,7 +33,7 @@ Expression matching first calls placeholder matchers such as
 
 Placeholder priority in expression positions is:
 
-1. exact `$_` is an ignore placeholder
+1. the exact, unqualified source spelling `$_` is an ignore placeholder
 2. special expression placeholders registered in `CompiledExprPattern.metavars`,
    such as `__TARGET__` and `__SOURCE__`, bind a whole expression
 3. declared expression metavars bind a whole expression value
@@ -42,7 +42,9 @@ Placeholder priority in expression positions is:
 6. undeclared names are literal CST names
 
 All source spellings are resolved through the compiled `MetavarRegistry`.
-The matcher does not infer a metavar kind from the raw spelling.
+The matcher does not infer a metavar kind from the raw spelling. Qualification
+is preserved for named metavars, but `@pkg.$_`, `Type::$_`, and qualified
+anonymous ellipsis spellings are not wildcards.
 
 For type nodes, a simple `Type_Name` containing a declared type-metavar payload
 binds the whole candidate type node. Repeated type captures use the same
@@ -54,7 +56,8 @@ metavars are special; everything else is literal. For pattern variables,
 metavars match only `Pattern_Constant`, and declared identifier metavars
 capture normalized pattern names. `__TARGET__` and `__SOURCE__` are special only
 in whole expression positions. For example, undeclared `__x` is literal: only
-exact `$_` is an ignore placeholder by spelling alone.
+the complete, unqualified spelling `$_` is an ignore placeholder by spelling
+alone.
 
 The parser forwards metavar mode when it re-lexes string and bytes
 interpolation sources. `InterpSegment_Source` therefore contains the correct

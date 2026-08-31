@@ -28,7 +28,7 @@
 
 表达式位置里的占位符优先级如下：
 
-1. 精确拼写 `$_` 是忽略占位符
+1. 完整且未限定的精确源码拼写 `$_` 是忽略占位符
 2. `CompiledExprPattern.metavars` 中注册的特殊表达式占位符（如
    `__TARGET__` 和 `__SOURCE__`）会绑定整个表达式
 3. 声明过的 expression metavar 绑定整个表达式值
@@ -37,7 +37,8 @@
 6. 未声明的名字是字面 CST 名称
 
 所有源码拼写都通过已编译的 `MetavarRegistry` 解析。matcher 不会再从原始拼写
-推断 metavar kind。
+推断 metavar kind。限定形式对命名 metavar 仍有意义，但 `@pkg.$_`、`Type::$_`
+和限定的匿名 ellipsis 拼写都不是 wildcard。
 
 对于类型节点，一个包含已声明 type metavar payload 的简单 `Type_Name` 会绑定整个候选
 type 节点。
@@ -46,7 +47,7 @@ type 节点。
 对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$(name:pat)` 会绑定整个候选 `Pattern` CST，声明过的 constant metavar 只匹配
 `Pattern_Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
 `__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
-`__x` 是字面量：只有精确拼写 `$_` 本身才是忽略占位符。
+`__x` 是字面量：只有完整且未限定的精确拼写 `$_` 本身才是忽略占位符。
 
 parser 会在重新词法分析 string / bytes 插值源码时透传 metavar 模式。因此
 `InterpSegment_Source` 已包含正确解析的 `expr` 子树，matcher 通过普通的 CST 递归
