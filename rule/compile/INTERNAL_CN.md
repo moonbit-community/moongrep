@@ -139,8 +139,7 @@ positive / negative pattern。
 每个 inside-context shape 会被编译成普通 pattern，并使用：
 
 - 它的 pattern object 上声明的 guard
-- `target_metavar = Some("__TARGET__")`
-- `source_metavar = None`
+- 在其 `MetavarRegistry` 中注册为特殊表达式占位符的 `__TARGET__`
 
 每个备选项都必须包含恰好一个由
 `count_bindable_expr_identifier_in_node` 统计到的完整表达式标识符位置

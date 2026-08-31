@@ -169,10 +169,8 @@ any separate parse.
 A name must not be collected when the matcher can replace it with arbitrary
 source. `is_filter_placeholder` excludes:
 
-- raw metavar names containing `$`, including single and ellipsis forms
-- the exact ignore placeholder `$_`
-- the compiled pattern's `target_metavar` and `source_metavar`
-- declared expression, identifier, constant, argument, and type metavars
+- every single, ellipsis, wildcard, or special expression placeholder resolved
+  by the compiled pattern's `MetavarRegistry`
 
 Only exact `$_` has spelling-based underscore semantics. An ordinary
 all-underscore identifier such as `__` remains a required literal.

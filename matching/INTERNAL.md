@@ -34,12 +34,15 @@ Expression matching first calls placeholder matchers such as
 Placeholder priority in expression positions is:
 
 1. exact `$_` is an ignore placeholder
-2. `target_metavar` and `source_metavar` bind a whole expression when present
-   in `CompiledExprPattern`
+2. special expression placeholders registered in `CompiledExprPattern.metavars`,
+   such as `__TARGET__` and `__SOURCE__`, bind a whole expression
 3. declared expression metavars bind a whole expression value
 4. declared identifier metavars bind a normalized identifier string
 5. declared constant metavars bind only `Expr_Constant`
 6. undeclared names are literal CST names
+
+All source spellings are resolved through the compiled `MetavarRegistry`.
+The matcher does not infer a metavar kind from the raw spelling.
 
 For type nodes, a simple `Type_Name` containing a declared type-metavar payload
 binds the whole candidate type node. Repeated type captures use the same
