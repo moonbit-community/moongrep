@@ -5,8 +5,8 @@ changing the `rule/prefilter` package.
 
 ## Package Role
 
-`rule/prefilter` builds and evaluates a conservative source-text filter for a
-compiled rule.
+`rule/prefilter` builds and evaluates conservative source-text filters for
+compiled rules and standalone compiled expression patterns.
 
 The filter runs before parsing or CST matching. It asks only whether the source
 text contains literals that every possible match of at least one rule branch
@@ -23,6 +23,10 @@ analyze taint flow.
 compiled patterns contain the normalized CST, metavar sets, reserved
 target/source placeholders, and ignored matcher fields needed for safe literal
 extraction.
+
+Callers that already have one `CompiledExprPattern` use
+`compile_expr_pattern_prefilter`. It applies the same literal extraction but
+creates only one alternative and does not require a synthetic rule.
 
 ## Representation and Evaluation
 
@@ -51,7 +55,8 @@ short-circuits on the first successful alternative or failed literal:
 Both empty cases are deliberate conservative fallbacks. They mean that no
 useful necessary text was available, so the rule cannot be rejected safely.
 
-`rule_is_relevant_to_source` supplies a matcher based on `String::contains`.
+`prefilter_matches_source` supplies a matcher based on `String::contains`.
+`rule_is_relevant_to_source` is the compiled-rule wrapper around that entry.
 Matching is case-sensitive, unanchored, and literal. Regex metacharacters such
 as `+`, `(`, or `.` have no special meaning.
 
@@ -59,6 +64,19 @@ The callback-based entry point keeps the Boolean evaluation separate from text
 search. `rule/apply` uses it with `StringView::contains` and a per-filter-call
 literal cache, so a literal shared by several rules is searched only once
 during that call.
+
+## Standalone Expression Pattern Compilation
+
+`compile_expr_pattern_prefilter` extracts the required literals from one
+`CompiledExprPattern` and stores them as one alternative:
+
+```text
+alternative(pattern) = required_literals(pattern)
+```
+
+A pattern made only of metavars produces an empty inner alternative and stays
+relevant for every source. This is the same conservative behavior as an
+unfilterable pattern inside a compiled structural rule.
 
 ## Structural Rule Compilation
 
@@ -202,9 +220,9 @@ granularities:
 - the CLI filters a whole file, then filters each `///|` source block before
   parsing it. An irrelevant malformed file or block can therefore be skipped
   before parser diagnostics are produced.
-- `query` filters the whole source and then each top-level item's source slice
-  before CST traversal. `captures_from_cst` has no source text and bypasses the
-  prefilter.
+- `query` compiles and caches a standalone pattern prefilter, then applies it to
+  the whole source and each top-level item's source slice before CST traversal.
+  `captures_from_cst` has no source text and bypasses the prefilter.
 
 Filtering a previously filtered `ScanPlan` is safe: it can only remove more
 entries for the narrower source slice and does not mutate the original plan.
