@@ -28,6 +28,18 @@ fn origin_ids(tree : TaintTree) -> Array[String] {
 }
 
 ///|
+fn assert_state_indexes(state : TaintState) -> Unit raise {
+  assert_eq(state.entry_indices.length(), state.entries.length())
+  for index, entry in state.entries {
+    assert_eq(state.entry_indices.get(entry.key), Some(index))
+    guard state.root_indices.get(entry.path.root) is Some(indices) else {
+      fail("missing root index for \{entry.path.root}")
+    }
+    assert_true(indices.contains(index))
+  }
+}
+
+///|
 test "domain write overwrites target subtree and keeps siblings" {
   let state = empty_state()
     |> state_write_path(test_path("x", [Field("a")]), single_tree("a"))
@@ -90,4 +102,21 @@ test "domain branch join unions states" {
     content="[\"left\", \"right\"]",
   )
   assert_true(state_equiv(joined, state_merge_all([right, left])))
+}
+
+///|
+test "domain state indexes stay consistent across writes kills and merges" {
+  let written = empty_state()
+    |> state_write_path(test_path("x", [Field("a")]), single_tree("xa"))
+    |> state_write_path(test_path("y", [Field("b")]), single_tree("yb"))
+    |> state_write_path(test_path("x", [Field("c")]), single_tree("xc"))
+  let killed = state_kill_path(written, test_path("x", [Field("a")]))
+  let merged = state_merge(
+    killed,
+    empty_state()
+    |> state_write_path(test_path("z", [AnyIndex]), single_tree("z")),
+  )
+  assert_state_indexes(written)
+  assert_state_indexes(killed)
+  assert_state_indexes(merged)
 }

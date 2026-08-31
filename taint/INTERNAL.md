@@ -56,11 +56,17 @@ There are two related taint representations:
 - `TaintState` stores taint facts for named storage paths.
 - `TaintTree` stores taint facts relative to one evaluated expression value.
 
-`TaintState` is an array of private `StateEntry` values:
+`TaintState` keeps private `StateEntry` values in an array so iteration order
+stays deterministic:
 
 ```text
 StoragePath(root, absolute segments) -> origins
 ```
+
+It also maintains two private indexes. A hash map from cached structured path
+keys to entry indexes makes exact merges and state equivalence checks direct.
+A root-to-entry-index map limits path reads to facts under the requested root.
+State builders update the ordered entries and both indexes together.
 
 `TaintTree` is public and represented as `Array[RelativeTaint]`:
 

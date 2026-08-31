@@ -46,11 +46,15 @@ analyzer 及其调用方的维护者，不面向规则作者。
 - `TaintState` 存储具名存储路径上的污点事实。
 - `TaintTree` 存储相对于某个已求值表达式值的污点事实。
 
-`TaintState` 是私有 `StateEntry` 值的数组：
+`TaintState` 使用数组保存私有 `StateEntry`，以保持确定的遍历顺序：
 
 ```text
 StoragePath(root, absolute segments) -> origins
 ```
+
+它还维护两个私有索引。缓存的结构化路径 key 到 entry 下标的哈希表用于直接完成
+精确合并和状态等价判断；root 到 entry 下标的索引让路径读取只检查目标 root 下的
+事实。状态 builder 会同步更新有序 entry 和两个索引。
 
 `TaintTree` 是公开类型，表示为 `Array[RelativeTaint]`：
 

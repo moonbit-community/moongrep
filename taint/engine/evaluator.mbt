@@ -1332,18 +1332,18 @@ fn restore_scoped_roots(
   if roots.is_empty() {
     return scoped
   }
-  let entries : Array[StateEntry] = []
+  let builder = new_state_builder()
   for entry in scoped.entries {
     if !root_name_in(entry.path.root, roots) {
-      merge_state_entry(entries, entry.path, entry.origins)
+      builder.merge_entry(entry)
     }
   }
   for entry in base.entries {
     if root_name_in(entry.path.root, roots) {
-      merge_state_entry(entries, entry.path, entry.origins)
+      builder.merge_entry(entry)
     }
   }
-  { entries, }
+  builder.finish()
 }
 
 ///|

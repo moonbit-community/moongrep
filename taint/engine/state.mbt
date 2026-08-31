@@ -1,20 +1,56 @@
 ///|
+priv struct StateKey {
+  path : StoragePath
+  hash : Int
+}
+
+///|
+impl Eq for StateKey with fn equal(self, other) {
+  self.path == other.path
+}
+
+///|
+impl Hash for StateKey with fn hash(self) {
+  self.hash
+}
+
+///|
+impl Hash for StateKey with fn hash_combine(self, hasher) {
+  hasher.combine_int(self.hash)
+}
+
+///|
 priv struct StateEntry {
+  key : StateKey
   path : StoragePath
   origins : Array[TaintOrigin]
 }
 
 ///|
-// The abstract state maps storage paths, including summarized `AnyIndex` paths,
-// to source origins. Expression values use `TaintTree`, which is relative to
-// that expression, while state entries are rooted at locals or parameters.
+// The abstract state keeps entries in insertion order for deterministic
+// results. Exact paths and roots have private indexes so merge, equivalence,
+// and reads do not repeatedly scan unrelated entries or build string keys.
 priv struct TaintState {
   entries : Array[StateEntry]
+  entry_indices : Map[StateKey, Int]
+  root_indices : Map[String, Array[Int]]
+}
+
+///|
+priv struct StateBuilder {
+  entries : Array[StateEntry]
+  entry_indices : Map[StateKey, Int]
+  root_indices : Map[String, Array[Int]]
+}
+
+///|
+fn new_state_builder() -> StateBuilder {
+  { entries: [], entry_indices: {}, root_indices: {}, }
 }
 
 ///|
 fn empty_state() -> TaintState {
-  { entries: [], }
+  { entries: [], entry_indices: {}, root_indices: {}, }
 }
 
 ///|
@@ -48,27 +84,100 @@ fn copy_tree(tree : TaintTree) -> TaintTree {
 }
 
 ///|
-fn segment_key(segment : PathSegment) -> String {
-  match segment {
-    Field(name) => "f:\{name}"
-    TupleIndex(index) => "t:\{index}"
-    ConstIndex(index) => "i:\{index}"
-    AnyIndex => "i:*"
+fn state_path_hash(path : StoragePath) -> Int {
+  let hasher = Hasher()
+  hasher.combine_string(path.root)
+  hasher.combine_int(path.segments.length())
+  for segment in path.segments {
+    match segment {
+      Field(name) => {
+        hasher.combine_int(0)
+        hasher.combine_string(name)
+      }
+      TupleIndex(index) => {
+        hasher.combine_int(1)
+        hasher.combine_int(index)
+      }
+      ConstIndex(index) => {
+        hasher.combine_int(2)
+        hasher.combine_string(index)
+      }
+      AnyIndex => hasher.combine_int(3)
+    }
+  }
+  hasher.finalize()
+}
+
+///|
+fn state_key(path : StoragePath) -> StateKey {
+  { path, hash: state_path_hash(path), }
+}
+
+///|
+fn copy_storage_path(path : StoragePath) -> StoragePath {
+  { root: path.root, segments: copy_segments(path.segments), }
+}
+
+///|
+fn StateBuilder::add_entry(self : StateBuilder, entry : StateEntry) -> Unit {
+  let index = self.entries.length()
+  self.entries.push(entry)
+  self.entry_indices[entry.key] = index
+  match self.root_indices.get(entry.path.root) {
+    Some(indices) => indices.push(index)
+    None => self.root_indices[entry.path.root] = [index]
   }
 }
 
 ///|
-fn segments_key(segments : Array[PathSegment]) -> String {
-  let parts : Array[String] = []
-  for segment in segments {
-    parts.push(segment_key(segment))
+fn StateBuilder::merge_entry(self : StateBuilder, entry : StateEntry) -> Unit {
+  match self.entry_indices.get(entry.key) {
+    Some(index) => {
+      let previous = self.entries[index]
+      self.entries[index] = {
+        key: previous.key,
+        path: previous.path,
+        origins: merge_origin_lists(previous.origins, entry.origins),
+      }
+    }
+    None => self.add_entry(entry)
   }
-  parts.join("/")
 }
 
 ///|
-fn storage_path_key(path : StoragePath) -> String {
-  "\{path.root}/\{segments_key(path.segments)}"
+fn StateBuilder::merge_path(
+  self : StateBuilder,
+  path : StoragePath,
+  origins : Array[TaintOrigin],
+) -> Unit {
+  let query_key = state_key(path)
+  match self.entry_indices.get(query_key) {
+    Some(index) => {
+      let previous = self.entries[index]
+      self.entries[index] = {
+        key: previous.key,
+        path: previous.path,
+        origins: merge_origin_lists(previous.origins, origins),
+      }
+    }
+    None => {
+      let stored_path = copy_storage_path(path)
+      self.add_entry({
+        key: state_key(stored_path),
+        path: stored_path,
+        origins: copy_origins(origins),
+      })
+    }
+  }
+}
+
+///|
+fn StateBuilder::finish(self : StateBuilder) -> TaintState {
+  {
+    entries: self.entries,
+    entry_indices: self.entry_indices,
+    root_indices: self.root_indices,
+  }
 }
 
 ///|
@@ -178,9 +287,8 @@ fn merge_relative_entry(
   path : Array[PathSegment],
   origins : Array[TaintOrigin],
 ) -> Unit {
-  let key = segments_key(path)
   for index in 0..<tree.length() {
-    if segments_key(tree[index].path) == key {
+    if tree[index].path == path {
       tree[index] = {
         path: copy_segments(tree[index].path),
         origins: merge_origin_lists(tree[index].origins, origins),
@@ -189,28 +297,6 @@ fn merge_relative_entry(
     }
   }
   tree.push({ path: copy_segments(path), origins: copy_origins(origins), })
-}
-
-///|
-fn merge_state_entry(
-  entries : Array[StateEntry],
-  path : StoragePath,
-  origins : Array[TaintOrigin],
-) -> Unit {
-  let key = storage_path_key(path)
-  for index in 0..<entries.length() {
-    if storage_path_key(entries[index].path) == key {
-      entries[index] = {
-        path: { root: path.root, segments: copy_segments(path.segments), },
-        origins: merge_origin_lists(entries[index].origins, origins),
-      }
-      return
-    }
-  }
-  entries.push({
-    path: { root: path.root, segments: copy_segments(path.segments), },
-    origins: copy_origins(origins),
-  })
 }
 
 ///|
@@ -240,9 +326,12 @@ fn tree_project(tree : TaintTree, prefix : Array[PathSegment]) -> TaintTree {
 ///|
 fn state_read_path(state : TaintState, path : StoragePath) -> TaintTree {
   let projected : TaintTree = []
-  for entry in state.entries {
-    if entry.path.root == path.root &&
-      path_prefix_match_for_read(entry.path.segments, path.segments) {
+  guard state.root_indices.get(path.root) is Some(indices) else {
+    return projected
+  }
+  for index in indices {
+    let entry = state.entries[index]
+    if path_prefix_match_for_read(entry.path.segments, path.segments) {
       merge_relative_entry(
         projected,
         strip_segments_prefix(entry.path.segments, path.segments),
@@ -255,15 +344,15 @@ fn state_read_path(state : TaintState, path : StoragePath) -> TaintTree {
 
 ///|
 fn state_kill_path(state : TaintState, path : StoragePath) -> TaintState {
-  let kept : Array[StateEntry] = []
+  let builder = new_state_builder()
   for entry in state.entries {
     let should_drop = entry.path.root == path.root &&
       path_prefix_match_for_write(entry.path.segments, path.segments)
     if !should_drop {
-      kept.push(entry)
+      builder.add_entry(entry)
     }
   }
-  { entries: kept, }
+  builder.finish()
 }
 
 ///|
@@ -272,40 +361,44 @@ fn state_write_path(
   path : StoragePath,
   value : TaintTree,
 ) -> TaintState {
-  let killed = state_kill_path(state, path)
-  let entries : Array[StateEntry] = []
-  for entry in killed.entries {
-    merge_state_entry(entries, entry.path, entry.origins)
+  let builder = new_state_builder()
+  for entry in state.entries {
+    let should_drop = entry.path.root == path.root &&
+      path_prefix_match_for_write(entry.path.segments, path.segments)
+    if !should_drop {
+      builder.add_entry(entry)
+    }
   }
   for entry in value {
-    merge_state_entry(
-      entries,
+    builder.merge_path(
       { root: path.root, segments: append_segments(path.segments, entry.path), },
       entry.origins,
     )
   }
-  { entries, }
+  builder.finish()
 }
 
 ///|
 fn state_merge(left : TaintState, right : TaintState) -> TaintState {
-  let entries : Array[StateEntry] = []
+  let builder = new_state_builder()
   for entry in left.entries {
-    merge_state_entry(entries, entry.path, entry.origins)
+    builder.merge_entry(entry)
   }
   for entry in right.entries {
-    merge_state_entry(entries, entry.path, entry.origins)
+    builder.merge_entry(entry)
   }
-  { entries, }
+  builder.finish()
 }
 
 ///|
 fn state_merge_all(states : Array[TaintState]) -> TaintState {
-  let mut merged = empty_state()
+  let builder = new_state_builder()
   for state in states {
-    merged = state_merge(merged, state)
+    for entry in state.entries {
+      builder.merge_entry(entry)
+    }
   }
-  merged
+  builder.finish()
 }
 
 ///|
@@ -330,15 +423,12 @@ fn state_equiv(left : TaintState, right : TaintState) -> Bool {
     return false
   }
   for entry in left.entries {
-    let mut found = false
-    for other in right.entries {
-      if storage_path_key(entry.path) == storage_path_key(other.path) &&
-        same_origin_list(entry.origins, other.origins) {
-        found = true
-      }
-    }
-    if !found {
-      return false
+    match right.entry_indices.get(entry.key) {
+      Some(index) =>
+        if !same_origin_list(entry.origins, right.entries[index].origins) {
+          return false
+        }
+      None => return false
     }
   }
   true
