@@ -439,27 +439,26 @@ fn guard_capture_kind(
   name : String,
   metavars : @matching.MetavarRegistry,
 ) -> RuleGuardCaptureKind raise {
-  match metavars.kind_of(name) {
-    Some(kind) =>
-      match kind {
-        Identifier => IdentifierGuard
-        Constant => ConstantGuard
-        Ellipsis(_) =>
-          raise RuleLoadError::InvalidRule(
-            path=context.path,
-            info="\{context.location}.guard.\{raw_name} cannot reference ellipsis metavar \{name}",
-          )
-        _ =>
-          raise RuleLoadError::InvalidRule(
-            path=context.path,
-            info="\{context.location}.guard.\{raw_name} cannot reference \{kind.syntax_name()} metavar \{name}",
-          )
-      }
-    None =>
-      raise RuleLoadError::InvalidRule(
-        path=context.path,
-        info="\{context.location}.guard.\{raw_name} references unknown metavar",
-      )
+  if metavars.kind_of(name) is Some(kind) {
+    match kind {
+      Identifier => IdentifierGuard
+      Constant => ConstantGuard
+      Ellipsis(_) =>
+        raise RuleLoadError::InvalidRule(
+          path=context.path,
+          info="\{context.location}.guard.\{raw_name} cannot reference ellipsis metavar \{name}",
+        )
+      _ =>
+        raise RuleLoadError::InvalidRule(
+          path=context.path,
+          info="\{context.location}.guard.\{raw_name} cannot reference \{kind.syntax_name()} metavar \{name}",
+        )
+    }
+  } else {
+    raise RuleLoadError::InvalidRule(
+      path=context.path,
+      info="\{context.location}.guard.\{raw_name} references unknown metavar",
+    )
   }
 }
 

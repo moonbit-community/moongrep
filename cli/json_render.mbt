@@ -85,9 +85,8 @@ fn render_scan_warning_json(warning : ScanWarning) -> String {
       record["message"] = Json::string(scan_warning_message(warning))
       record["file"] = Json::string(parse_warning.file)
       record["reason"] = Json::string(parse_warning.reason)
-      match parse_warning.block_start_line {
-        Some(line) => record["block_start_line"] = ToJson::to_json(line)
-        None => ()
+      if parse_warning.block_start_line is Some(line) {
+        record["block_start_line"] = ToJson::to_json(line)
       }
     }
     InvalidMoongrepSkipPayload(file, loc) => {

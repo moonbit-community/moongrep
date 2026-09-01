@@ -123,24 +123,24 @@ fn StateBuilder::add_entry(self : StateBuilder, entry : StateEntry) -> Unit {
   let index = self.entries.length()
   self.entries.push(entry)
   self.entry_indices[entry.key] = index
-  match self.root_indices.get(entry.path.root) {
-    Some(indices) => indices.push(index)
-    None => self.root_indices[entry.path.root] = [index]
+  if self.root_indices.get(entry.path.root) is Some(indices) {
+    indices.push(index)
+  } else {
+    self.root_indices[entry.path.root] = [index]
   }
 }
 
 ///|
 fn StateBuilder::merge_entry(self : StateBuilder, entry : StateEntry) -> Unit {
-  match self.entry_indices.get(entry.key) {
-    Some(index) => {
-      let previous = self.entries[index]
-      self.entries[index] = {
-        key: previous.key,
-        path: previous.path,
-        origins: merge_origin_lists(previous.origins, entry.origins),
-      }
+  if self.entry_indices.get(entry.key) is Some(index) {
+    let previous = self.entries[index]
+    self.entries[index] = {
+      key: previous.key,
+      path: previous.path,
+      origins: merge_origin_lists(previous.origins, entry.origins),
     }
-    None => self.add_entry(entry)
+  } else {
+    self.add_entry(entry)
   }
 }
 
@@ -151,23 +151,20 @@ fn StateBuilder::merge_path(
   origins : Array[TaintOrigin],
 ) -> Unit {
   let query_key = state_key(path)
-  match self.entry_indices.get(query_key) {
-    Some(index) => {
-      let previous = self.entries[index]
-      self.entries[index] = {
-        key: previous.key,
-        path: previous.path,
-        origins: merge_origin_lists(previous.origins, origins),
-      }
+  if self.entry_indices.get(query_key) is Some(index) {
+    let previous = self.entries[index]
+    self.entries[index] = {
+      key: previous.key,
+      path: previous.path,
+      origins: merge_origin_lists(previous.origins, origins),
     }
-    None => {
-      let stored_path = copy_storage_path(path)
-      self.add_entry({
-        key: state_key(stored_path),
-        path: stored_path,
-        origins: copy_origins(origins),
-      })
-    }
+  } else {
+    let stored_path = copy_storage_path(path)
+    self.add_entry({
+      key: state_key(stored_path),
+      path: stored_path,
+      origins: copy_origins(origins),
+    })
   }
 }
 
@@ -423,12 +420,12 @@ fn state_equiv(left : TaintState, right : TaintState) -> Bool {
     return false
   }
   for entry in left.entries {
-    match right.entry_indices.get(entry.key) {
-      Some(index) =>
-        if !same_origin_list(entry.origins, right.entries[index].origins) {
-          return false
-        }
-      None => return false
+    if right.entry_indices.get(entry.key) is Some(index) {
+      if !same_origin_list(entry.origins, right.entries[index].origins) {
+        return false
+      }
+    } else {
+      return false
     }
   }
   true
