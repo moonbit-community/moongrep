@@ -78,6 +78,24 @@ completes successfully.
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'let $(name:id) = $(value:exp)' testdata/scan-non-bmp/tmp.mbt > /dev/null
 ```
 
+## Taint loop fixpoint
+
+A YAML taint rule still reports a sink when propagation needs more than six
+abstract loop iterations.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/taint-fixpoint/rules testdata/taint-fixpoint/src
+testdata/taint-fixpoint/src/hit.mbt:19:8-19:10
+rule: taint-fixpoint
+description:
+  Taint crosses more than six loop iterations.
+source:
+17 |     x1 = x0
+18 |   }
+19 >   sink(x7)
+20 | }
+```
+
 ## Source-level structural suppression
 
 A bare `#moongrep.skip` suppresses every structural rule in its function while
