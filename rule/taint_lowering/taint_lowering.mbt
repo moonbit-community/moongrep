@@ -24,7 +24,7 @@ pub fn lower_compiled_taint_rule(
     sources: [],
     call_models: [],
     unknown_call_policy: NoEffect,
-    max_fixpoint_iterations: 6,
+    max_fixpoint_iterations: 64,
     custom_transfer_call: call => {
       transfer_compiled_taint_call(rule.rule_id, taint_rule, call)
     },
