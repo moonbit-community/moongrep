@@ -32,6 +32,7 @@ pub(all) suberror CliError {
 pub fn CliError::exit_code(Self) -> Int
 pub fn CliError::internal(String) -> Self
 pub fn CliError::output_error(String, String) -> Self
+pub fn CliError::render_json(Self) -> String
 pub impl Show for CliError
 
 // Types and methods

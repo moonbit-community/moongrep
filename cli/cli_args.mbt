@@ -42,6 +42,12 @@ pub fn CliError::exit_code(self : CliError) -> Int {
 }
 
 ///|
+/// Renders this failure as one compact JSON Lines error record.
+pub fn CliError::render_json(self : CliError) -> String {
+  render_cli_error_json(self)
+}
+
+///|
 pub impl Show for CliError with fn output(self, logger) {
   logger.write_string(render_cli_error(self))
 }

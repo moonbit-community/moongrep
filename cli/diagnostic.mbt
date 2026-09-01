@@ -96,7 +96,12 @@ fn compact_cli_diagnostic_value(value : String) -> String {
 
 ///|
 fn render_cli_error(error : CliError) -> String {
-  let diagnostic = match error {
+  render_cli_diagnostic(cli_error_diagnostic(error))
+}
+
+///|
+fn cli_error_diagnostic(error : CliError) -> CliDiagnostic {
+  match error {
     Internal(diagnostic~) => diagnostic
     Usage(diagnostic~) => diagnostic
     DumpInput(diagnostic~) => diagnostic
@@ -105,7 +110,58 @@ fn render_cli_error(error : CliError) -> String {
     ScanInput(diagnostic~) => diagnostic
     Output(diagnostic~) => diagnostic
   }
-  render_cli_diagnostic(diagnostic)
+}
+
+///|
+fn cli_error_category(error : CliError) -> String {
+  match error {
+    Internal(..) => "internal"
+    Usage(..) => "usage"
+    DumpInput(..) => "dump_input"
+    RuleSource(..) => "rule_source"
+    RuleContent(..) => "rule_content"
+    ScanInput(..) => "scan_input"
+    Output(..) => "output"
+  }
+}
+
+///|
+fn append_json_diagnostic_field(
+  record : Map[String, Json],
+  name : String,
+  value : String?,
+) -> Unit {
+  match value {
+    Some(text) if text != "" => record[name] = Json::string(text)
+    _ => ()
+  }
+}
+
+///|
+fn render_cli_error_json(error : CliError) -> String {
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("error")
+  record["category"] = Json::string(cli_error_category(error))
+  record["exit_code"] = ToJson::to_json(error.exit_code())
+  match cli_error_diagnostic(error) {
+    Fields(summary~, source~, reason~, help~, pattern~) => {
+      record["message"] = Json::string(summary)
+      append_json_diagnostic_field(record, "source", source)
+      match pattern {
+        Some(text) => {
+          let normalized = normalize_cli_diagnostic_pattern(text)
+          if normalized != "" {
+            record["pattern"] = Json::string(normalized)
+          }
+        }
+        None => ()
+      }
+      append_json_diagnostic_field(record, "reason", reason)
+      append_json_diagnostic_field(record, "help", help)
+    }
+    ParserMessage(message~) => record["message"] = Json::string(message)
+  }
+  Json::object(record).stringify()
 }
 
 ///|
