@@ -42,7 +42,8 @@ moongrep provides four commands:
 - `lint` scans MoonBit source with embedded builtin rules enabled by default.
 - `docs` lists or prints embedded documentation.
 - `dump` parses one MoonBit implementation item or expression and either
-  prints CST debug output or reports parse success through its exit status.
+  prints CST debug output, writes a structured dump record, or reports parse
+  success through its exit status.
 
 Running moongrep without a command prints a missing-subcommand diagnostic and
 top-level help, then exits with status 2.
@@ -311,9 +312,9 @@ During `scan` and `lint`, findings are written to standard output as they are
 found. Human mode writes `no match hits` for a scan with zero findings. JSON
 mode leaves standard output empty for the same scan.
 
-Help, embedded documentation, and ordinary dump output are also written to
-standard output. A successful `dump --exit-code` check leaves standard output
-empty.
+Help, embedded documentation, text dump output, and JSON dump records are also
+written to standard output. A successful `dump --exit-code` check leaves both
+output streams empty.
 
 ### Standard Error and Verbose Events
 
@@ -399,12 +400,16 @@ while nonmatching context rows use ` | `.
 
 ### Protocol and Mode Detection
 
-For `scan` and `lint`, `--output-json` makes every nonempty application-output
-line on both standard streams a compact JSON object. The option must be a
-standalone argument before an option terminator. For example,
-`scan -- --output-json` does not enable JSON mode. The initial command must be
-`scan` or `lint`; successful help, `docs`, and `dump` output are not part of
-this protocol.
+For `scan`, `lint`, and `dump`, `--output-json` selects structured output. The
+option must be a standalone argument before an option terminator. For example,
+`scan -- --output-json` and `dump -- --output-json` do not enable JSON mode.
+The initial command must be `scan`, `lint`, or `dump`.
+
+For `scan` and `lint`, every nonempty application-output line on both standard
+streams is a compact JSON object. For `dump`, a successful non-exit-code dump
+is one compact JSON object on standard output. Successful help and `docs`
+output are not part of this protocol. In particular,
+`dump --output-json --help` still prints ordinary help text.
 
 Mode detection happens before full argument parsing. An unknown option, a
 missing option value, or another parsing failure is therefore rendered as an
@@ -461,6 +466,24 @@ traversal:
 { "type": "trace", "event": "path_skipped", "path": string }
 { "type": "trace", "event": "file_started", "path": string }
 ```
+
+### Dump Records
+
+A successful `dump --output-json` command writes exactly one record to standard
+output:
+
+```text
+{ "type": "dump", "kind": "impl" | "expr", "content": string }
+```
+
+The record contains exactly the fields shown above, in `type`, `kind`,
+`content` order. `kind` reflects the selected input option. `content` is the
+same CST `Repr` text that human mode would print. JSON encoding escapes its
+newlines and other special characters, so the complete record occupies one
+physical output line.
+
+`dump --exit-code --output-json` remains silent after a successful parse.
+Invalid input and usage failures use the error record below.
 
 ### Error Records
 
@@ -526,27 +549,33 @@ arguments prints its help and exits with status 0.
 The command accepts exactly one of these forms:
 
 ```text
-moongrep dump [--exit-code] --impl <source>
-moongrep dump [--exit-code] --expr <source>
+moongrep dump [--exit-code] [--output-json] --impl <source>
+moongrep dump [--exit-code] [--output-json] --expr <source>
 ```
 
 `--impl` accepts one valid MoonBit top-level item. `--expr` accepts one valid
 MoonBit expression. Both forms require a parse without diagnostics or recovery
 nodes.
 
-On success, `dump` writes the MoonBit `Repr` debug rendering of the resulting
-untyped CST node to standard output in CST debug text format.
+On success, text mode writes the MoonBit `Repr` debug rendering of the resulting
+untyped CST node to standard output in CST debug text format. With
+`--output-json`, the same rendering is the `content` of one compact `dump`
+record whose `kind` is `impl` or `expr`.
 
 `--exit-code` checks the same parse conditions without rendering or writing the
-CST. A successful check writes nothing to standard output and exits with status
-0. Invalid input still writes its diagnostic to standard error and exits with
-status 3.
+CST. It takes precedence over `--output-json`: a successful check writes
+nothing to either output stream and exits with status 0. Invalid input still
+writes its diagnostic to standard error and exits with status 3; when
+`--output-json` is present, that diagnostic uses the existing `error` record
+schema.
 
 Providing both `--impl` and `--expr`, or using `--exit-code` without either
 input option, is a usage error with status 2. Invoking bare `dump` without any
 arguments prints help and exits with status 0. Lexical or parse diagnostics,
 recovery nodes, and an `--impl` result containing zero or multiple top-level
-items exit with status 3.
+items exit with status 3. `dump --output-json` without an input is a JSON usage
+error with status 2. `dump --output-json --help` still prints ordinary help and
+exits with status 0.
 
 ## Diagnostics and Exit Status
 

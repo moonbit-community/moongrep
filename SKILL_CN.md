@@ -122,11 +122,14 @@ user.name == other.name
 
 ```bash
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
+moongrep dump --output-json --expr 'x + 1'
 ```
 
-JSON 模式下，每个非空应用输出行都是一个紧凑 JSON object。标准输出只包含
-`finding` 记录；标准错误只包含 `trace`、`warning` 和 `error` 记录。没有命中时
-标准输出为空。记录按遍历顺序流式写出，后续失败不会撤回已经写出的记录。
+JSON 模式下，每个非空应用输出行都是一个紧凑 JSON object。对于 `scan` 和
+`lint`，标准输出只包含 `finding` 记录；对于 `dump`，成功且未启用 exit-code
+模式时会在标准输出写出一条 `dump` 记录。标准错误只包含 `trace`、`warning` 和
+`error` 记录。没有命中时标准输出为空。记录按遍历顺序流式写出，后续失败不会
+撤回已经写出的记录。
 
 稳定记录结构如下：
 
@@ -135,6 +138,7 @@ finding: { "type":"finding", "file", "rule_id", "description", "range",
            "matched_source", "source_context" }
 warning: { "type":"warning", "category", "message", ...详情字段 }
 trace:   { "type":"trace", "event", ...事件字段 }
+dump:    { "type":"dump", "kind":"impl"|"expr", "content" }
 error:   { "type":"error", "category", "exit_code", "message",
            ...可选诊断字段 }
 ```
@@ -144,9 +148,9 @@ warning category 是 `parse` 和 `invalid_skip_payload`。trace event 是
 category 是 `internal`、`usage`、`dump_input`、`rule_source`、
 `rule_content`、`scan_input` 和 `output`。
 
-CLI 会在完整解析前识别首个命令为 `scan` 或 `lint` 时的独立
-`--output-json`，因此未知选项、缺少参数值等用法错误也输出 JSON。选项终止符 `--`
-之后的 `--output-json` 不会被当作选项。
+CLI 会在完整解析前识别首个命令为 `scan`、`lint` 或 `dump` 时的独立
+`--output-json`，因此未知选项、缺少参数值等用法错误也输出 JSON。选项终止符
+`--` 之后的 `--output-json` 不会被当作选项。成功的帮助输出仍是普通文本。
 
 ## 模式附加条件
 
@@ -184,25 +188,33 @@ MoonBit `untyped_cst` 调试 dump 可通过 `dump` 子命令使用：
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
 moongrep dump --expr 'x + 1'
+moongrep dump --output-json --expr 'x + 1'
 moongrep dump --exit-code --expr 'x + 1'
 ```
 
 命令行参数概要：
 
 ```text
-moongrep dump [--exit-code] (--impl <impl> | --expr <expr>)
+moongrep dump [--exit-code] [--output-json] (--impl <impl> | --expr <expr>)
 ```
 
 使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_cst`
 调试输出。使用 `--expr <expr>` 可以解析一个 MoonBit 表达式，并打印它的
 `untyped_cst` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
 
+使用 `--output-json` 会写出一条紧凑记录，其中 `type` 为 `"dump"`，`kind` 为
+`"impl"` 或 `"expr"`，`content` 包含相同的 CST `Repr` 文本。JSON 转义保证整条
+记录只占一个物理输出行。
+
 使用 `--exit-code` 可以执行相同的解析校验而不打印 CST。检查成功时不输出 CST，
-并以退出码 0 退出；输入无效时仍打印诊断，并以退出码 3 退出。
+即使同时提供 `--output-json`，两个输出流也都为空，并以退出码 0 退出；输入无效时
+仍打印诊断并以退出码 3 退出，存在 `--output-json` 时使用现有 JSON `error` 记录
+schema。
 
 不带参数调用 `moongrep dump` 会打印 `dump` 帮助，并以退出码 0 成功退出。用法
 错误，例如组合使用 `--impl` 和 `--expr`，会打印消息并以退出码 2 退出。解析或
-词法失败会打印消息并以退出码 3 退出。
+词法失败会打印消息并以退出码 3 退出。`dump --output-json` 未提供输入时报告 JSON
+usage error；`dump --output-json --help` 仍打印普通帮助。
 
 ## 退出状态
 
