@@ -388,17 +388,6 @@ fn state_merge(left : TaintState, right : TaintState) -> TaintState {
 }
 
 ///|
-fn state_merge_all(states : Array[TaintState]) -> TaintState {
-  let builder = new_state_builder()
-  for state in states {
-    for entry in state.entries {
-      builder.merge_entry(entry)
-    }
-  }
-  builder.finish()
-}
-
-///|
 fn same_origin_list(
   left : Array[TaintOrigin],
   right : Array[TaintOrigin],

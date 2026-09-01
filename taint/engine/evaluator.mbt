@@ -1,53 +1,4 @@
 ///|
-// Control-flow exits are tracked so unreachable later expressions do not report
-// sinks after `return`, `raise`, `break`, or `continue`.
-priv enum FlowExit {
-  FlowNormal
-  FlowReturn
-  FlowRaise
-  FlowBreak(String?)
-  FlowContinue(String?)
-} derive(Eq)
-
-///|
-priv struct EvalResult {
-  state : TaintState
-  value : TaintTree
-  flow : FlowExit
-}
-
-///|
-priv struct EvalArgumentsResult {
-  state : TaintState
-  arguments : Array[CallArgument]
-  flow : FlowExit
-  value : TaintTree
-}
-
-///|
-priv struct ConditionEval {
-  base_state : TaintState
-  true_state : TaintState
-  bound_roots : Array[String]
-  flow : FlowExit
-  value : TaintTree
-}
-
-///|
-fn normal_result(state : TaintState, value : TaintTree) -> EvalResult {
-  { state, value, flow: FlowNormal, }
-}
-
-///|
-fn flow_result(
-  flow : FlowExit,
-  state : TaintState,
-  value : TaintTree,
-) -> EvalResult {
-  { state, value, flow, }
-}
-
-///|
 fn control_label_name(node : @untyped_cst.CstNode) -> String? {
   let label = if node_child(node, "label") is Some(label) {
     label
@@ -60,15 +11,6 @@ fn control_label_name(node : @untyped_cst.CstNode) -> String? {
     Some(name)
   } else {
     @cst.raw_child(label, "name_value").bind(@cst.normalized_name)
-  }
-}
-
-///|
-fn control_targets_loop(target : String?, loop_label : String?) -> Bool {
-  if target is Some(target) {
-    loop_label == Some(target)
-  } else {
-    true
   }
 }
 
@@ -123,7 +65,7 @@ fn eval_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   match expr.kind {
     @untyped_cst.Expr_Block =>
       eval_cst_sequence(@cst.sequence_items(expr), state, spec, findings)
@@ -371,28 +313,24 @@ fn eval_expr(
     @untyped_cst.Expr_Function => normal_result(state, [])
     @untyped_cst.Expr_Return =>
       if node_optional_child(expr, "return_value") is Some(value) {
-        let result = eval_expr(value, state, spec, findings)
-        flow_result(FlowReturn, result.state, result.value)
+        flow_normal_to_return(eval_expr(value, state, spec, findings))
       } else {
-        flow_result(FlowReturn, state, [])
+        return_result(state, [])
       }
     @untyped_cst.Expr_Break =>
       if node_optional_child(expr, "arg") is Some(value) {
-        let result = eval_expr(value, state, spec, findings)
-        flow_result(
-          FlowBreak(control_label_name(expr)),
-          result.state,
-          result.value,
+        flow_normal_to_break(
+          eval_expr(value, state, spec, findings),
+          control_label_name(expr),
         )
       } else {
-        flow_result(FlowBreak(control_label_name(expr)), state, [])
+        break_result(control_label_name(expr), state, [])
       }
     @untyped_cst.Expr_Raise =>
       if node_child(expr, "err_value") is Some(value) {
-        let result = eval_expr(value, state, spec, findings)
-        flow_result(FlowRaise, result.state, result.value)
+        flow_normal_to_raise(eval_expr(value, state, spec, findings))
       } else {
-        flow_result(FlowRaise, state, [])
+        raise_result(state, [])
       }
     @untyped_cst.Expr_Continue => {
       let result = eval_children(
@@ -401,11 +339,7 @@ fn eval_expr(
         spec,
         findings,
       )
-      flow_result(
-        FlowContinue(control_label_name(expr)),
-        result.state,
-        result.value,
-      )
+      flow_normal_to_continue(result, control_label_name(expr))
     }
     _ => eval_unknown_expr(expr, state, spec, findings)
   }
@@ -418,13 +352,8 @@ fn eval_labelled_block(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
-  let result = eval_expr(body, state, spec, findings)
-  match result.flow {
-    FlowBreak(Some(target)) if label == Some(target) =>
-      normal_result(result.state, result.value)
-    _ => result
-  }
+) -> EvalResult raise {
+  consume_labelled_block_break(eval_expr(body, state, spec, findings), label)
 }
 
 ///|
@@ -433,28 +362,33 @@ fn eval_cst_sequence(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let outer_state = state
   let local_roots : Array[String] = []
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for expr in expressions {
     let result = match expr.kind {
       @untyped_cst.Expr_Let | @untyped_cst.Expr_LetMut =>
         match (@cst.raw_child(expr, "pattern"), @cst.raw_child(expr, "expr")) {
           (Some(pattern), Some(bound_expr)) => {
             let bound = eval_expr(bound_expr, current, spec, findings)
-            if bound.flow != FlowNormal {
-              bound
-            } else {
-              let roots = pattern_bound_roots(pattern)
-              for root in roots {
-                add_unique_root_name(local_roots, root)
+            match bound.normal {
+              Some(path) => {
+                let roots = pattern_bound_roots(pattern)
+                for root in roots {
+                  add_unique_root_name(local_roots, root)
+                }
+                flow_with_normal(
+                  bound,
+                  Some({
+                    state: bind_pattern(pattern, path.value, path.state),
+                    value: path.value,
+                  }),
+                )
               }
-              normal_result(
-                bind_pattern(pattern, bound.value, bound.state),
-                bound.value,
-              )
+              None => bound
             }
           }
           _ => normal_result(current, [])
@@ -477,30 +411,41 @@ fn eval_cst_sequence(
       @untyped_cst.Expr_Guard =>
         if @cst.raw_child(expr, "cond") is Some(cond) {
           let condition = eval_condition_scope(cond, current, spec, findings)
-          if condition.flow != FlowNormal {
-            flow_result(condition.flow, condition.base_state, condition.value)
-          } else {
-            if @cst.raw_child(expr, "else") is Some(otherwise) {
-              ignore(eval_expr(otherwise, condition.base_state, spec, findings))
+          match condition.normal {
+            Some(path) => {
+              let mut guard_exits = condition.exits
+              if @cst.raw_child(expr, "else") is Some(otherwise) {
+                guard_exits = flow_join(
+                  guard_exits,
+                  flow_without_normal(
+                    eval_expr(otherwise, path.base_state, spec, findings),
+                  ),
+                )
+              }
+              for root in path.bound_roots {
+                add_unique_root_name(local_roots, root)
+              }
+              flow_join(guard_exits, normal_result(path.true_state, path.value))
             }
-            for root in condition.bound_roots {
-              add_unique_root_name(local_roots, root)
-            }
-            normal_result(condition.true_state, condition.value)
+            None => condition.exits
           }
         } else {
           normal_result(current, [])
         }
       _ => eval_expr(expr, current, spec, findings)
     }
-    if result.flow != FlowNormal {
-      return restore_result_scoped_roots(result, outer_state, local_roots)
+    exits = flow_join(exits, flow_without_normal(result))
+    match result.normal {
+      Some(path) => {
+        current = path.state
+        value = path.value
+      }
+      None =>
+        return restore_result_scoped_roots(exits, outer_state, local_roots)
     }
-    current = result.state
-    value = result.value
   }
   restore_result_scoped_roots(
-    normal_result(current, value),
+    flow_join(exits, normal_result(current, value)),
     outer_state,
     local_roots,
   )
@@ -526,21 +471,24 @@ fn eval_field_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   if storage_path_from_expr(expr) is Some(path) {
     normal_result(state, state_read_path(state, path))
   } else {
     let record_result = eval_expr(record, state, spec, findings)
-    if record_result.flow != FlowNormal {
-      return record_result
-    }
-    if segment_from_accessor(accessor) is Some(segment) {
-      normal_result(
-        record_result.state,
-        tree_project(record_result.value, [segment]),
-      )
-    } else {
-      normal_result(record_result.state, [])
+    match record_result.normal {
+      Some(path) =>
+        flow_with_normal(
+          record_result,
+          Some({
+            state: path.state,
+            value: match segment_from_accessor(accessor) {
+              Some(segment) => tree_project(path.value, [segment])
+              None => []
+            },
+          }),
+        )
+      None => record_result
     }
   }
 }
@@ -553,22 +501,33 @@ fn eval_array_get_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let index_result = eval_expr(index, state, spec, findings)
-  if index_result.flow != FlowNormal {
-    return index_result
-  }
-  if storage_path_from_expr(expr) is Some(path) {
-    normal_result(index_result.state, state_read_path(index_result.state, path))
-  } else {
-    let array_result = eval_expr(array, index_result.state, spec, findings)
-    if array_result.flow != FlowNormal {
-      return array_result
-    }
-    normal_result(
-      array_result.state,
-      tree_project(array_result.value, [segment_from_index_expr(index)]),
-    )
+  match index_result.normal {
+    Some(index_path) =>
+      if storage_path_from_expr(expr) is Some(path) {
+        flow_with_normal(
+          index_result,
+          Some({
+            state: index_path.state,
+            value: state_read_path(index_path.state, path),
+          }),
+        )
+      } else {
+        let array_result = eval_expr(array, index_path.state, spec, findings)
+        let projected = match array_result.normal {
+          Some(array_path) =>
+            Some({
+              state: array_path.state,
+              value: tree_project(array_path.value, [
+                segment_from_index_expr(index),
+              ]),
+            })
+          None => None
+        }
+        flow_sequence(index_result, flow_with_normal(array_result, projected))
+      }
+    None => index_result
   }
 }
 
@@ -578,18 +537,22 @@ fn eval_tuple_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for index in 0..<exprs.length() {
     let result = eval_expr(exprs[index], current, spec, findings)
-    if result.flow != FlowNormal {
-      return result
+    exits = flow_join(exits, flow_without_normal(result))
+    match result.normal {
+      Some(path) => {
+        current = path.state
+        value = tree_merge(value, tree_shift([TupleIndex(index)], path.value))
+      }
+      None => return exits
     }
-    current = result.state
-    value = tree_merge(value, tree_shift([TupleIndex(index)], result.value))
   }
-  normal_result(current, value)
+  flow_join(exits, normal_result(current, value))
 }
 
 ///|
@@ -598,22 +561,26 @@ fn eval_array_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for index in 0..<exprs.length() {
     let result = eval_expr(exprs[index], current, spec, findings)
-    if result.flow != FlowNormal {
-      return result
+    exits = flow_join(exits, flow_without_normal(result))
+    match result.normal {
+      Some(path) => {
+        current = path.state
+        value = tree_merge(
+          value,
+          tree_shift([ConstIndex(index.to_string())], path.value),
+        )
+        value = tree_merge(value, tree_shift([AnyIndex], path.value))
+      }
+      None => return exits
     }
-    current = result.state
-    value = tree_merge(
-      value,
-      tree_shift([ConstIndex(index.to_string())], result.value),
-    )
-    value = tree_merge(value, tree_shift([AnyIndex], result.value))
   }
-  normal_result(current, value)
+  flow_join(exits, normal_result(current, value))
 }
 
 ///|
@@ -622,25 +589,29 @@ fn eval_record_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for field in fields {
     match (node_child(field, "label"), node_child(field, "expr")) {
       (Some(label), Some(expr)) => {
         let result = eval_expr(expr, current, spec, findings)
-        if result.flow != FlowNormal {
-          return result
-        }
-        current = result.state
-        if node_label_name(label) is Some(name) {
-          value = tree_merge(value, tree_shift([Field(name)], result.value))
+        exits = flow_join(exits, flow_without_normal(result))
+        match result.normal {
+          Some(path) => {
+            current = path.state
+            if node_label_name(label) is Some(name) {
+              value = tree_merge(value, tree_shift([Field(name)], path.value))
+            }
+          }
+          None => return exits
         }
       }
       _ => ()
     }
   }
-  normal_result(current, value)
+  flow_join(exits, normal_result(current, value))
 }
 
 ///|
@@ -651,14 +622,20 @@ fn eval_let(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let bound = eval_expr(bound_expr, state, spec, findings)
-  if bound.flow != FlowNormal {
-    return bound
+  match bound.normal {
+    Some(path) => {
+      let bound_state = bind_pattern(pattern, path.value, path.state)
+      let result = restore_result_scoped_roots(
+        eval_expr(body, bound_state, spec, findings),
+        path.state,
+        pattern_bound_roots(pattern),
+      )
+      flow_sequence(bound, result)
+    }
+    None => bound
   }
-  let bound_state = bind_pattern(pattern, bound.value, bound.state)
-  let result = eval_expr(body, bound_state, spec, findings)
-  restore_result_scoped_roots(result, bound.state, pattern_bound_roots(pattern))
 }
 
 ///|
@@ -669,16 +646,22 @@ fn eval_let_binder(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let bound = eval_expr(bound_expr, state, spec, findings)
-  if bound.flow != FlowNormal {
-    return bound
+  match bound.normal {
+    Some(path) => {
+      let roots : Array[String] = []
+      add_binder_root_name(roots, binder)
+      let bound_state = bind_binder(binder, path.value, path.state)
+      let result = restore_result_scoped_roots(
+        eval_expr(body, bound_state, spec, findings),
+        path.state,
+        roots,
+      )
+      flow_sequence(bound, result)
+    }
+    None => bound
   }
-  let roots : Array[String] = []
-  add_binder_root_name(roots, binder)
-  let bound_state = bind_binder(binder, bound.value, bound.state)
-  let result = eval_expr(body, bound_state, spec, findings)
-  restore_result_scoped_roots(result, bound.state, roots)
 }
 
 ///|
@@ -688,7 +671,7 @@ fn eval_clean_root_scope(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let scoped = clean_bind_roots(state, roots)
   let result = eval_expr(body, scoped, spec, findings)
   restore_result_scoped_roots(result, state, roots)
@@ -701,18 +684,21 @@ fn eval_assign(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let rhs_result = eval_expr(rhs, state, spec, findings)
-  if rhs_result.flow != FlowNormal {
-    return rhs_result
-  }
-  if storage_path_from_assignment(assignment) is Some(path) {
-    normal_result(
-      state_write_path(rhs_result.state, path, rhs_result.value),
-      rhs_result.value,
-    )
-  } else {
-    rhs_result
+  match rhs_result.normal {
+    Some(normal) =>
+      flow_with_normal(
+        rhs_result,
+        Some({
+          state: match storage_path_from_assignment(assignment) {
+            Some(path) => state_write_path(normal.state, path, normal.value)
+            None => normal.state
+          },
+          value: normal.value,
+        }),
+      )
+    None => rhs_result
   }
 }
 
@@ -724,12 +710,16 @@ fn eval_mutate(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let receiver_result = eval_expr(receiver, state, spec, findings)
-  if receiver_result.flow != FlowNormal {
-    return receiver_result
+  match receiver_result.normal {
+    Some(path) =>
+      flow_sequence(
+        receiver_result,
+        eval_assign(assignment, rhs, path.state, spec, findings),
+      )
+    None => receiver_result
   }
-  eval_assign(assignment, rhs, receiver_result.state, spec, findings)
 }
 
 ///|
@@ -741,26 +731,37 @@ fn eval_apply_call(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let func_result = eval_expr(func, state, spec, findings)
-  if func_result.flow != FlowNormal {
-    return func_result
+  match func_result.normal {
+    Some(func_path) => {
+      let args_result = eval_arguments(args, 0, func_path.state, spec, findings)
+      let after_args = match args_result.normal {
+        Some(args_path) =>
+          flow_join(
+            args_result.exits,
+            apply_call_transfer(
+              {
+                kind: Apply,
+                cst,
+                loc,
+                callee_name: callee_name_from_expr(func),
+                receiver_path: None,
+                receiver_site: None,
+                receiver_taint: [],
+                arguments: args_path.arguments,
+              },
+              args_path.state,
+              spec,
+              findings,
+            ),
+          )
+        None => args_result.exits
+      }
+      flow_sequence(func_result, after_args)
+    }
+    None => func_result
   }
-  let args_result = eval_arguments(args, 0, func_result.state, spec, findings)
-  if args_result.flow != FlowNormal {
-    return flow_result(args_result.flow, args_result.state, args_result.value)
-  }
-  let info : CallInfo = {
-    kind: Apply,
-    cst,
-    loc,
-    callee_name: callee_name_from_expr(func),
-    receiver_path: None,
-    receiver_site: None,
-    receiver_taint: [],
-    arguments: args_result.arguments,
-  }
-  apply_call_transfer(info, args_result.state, spec, findings)
 }
 
 ///|
@@ -773,28 +774,45 @@ fn eval_dot_apply_call(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let receiver = eval_expr(self, state, spec, findings)
-  if receiver.flow != FlowNormal {
-    return receiver
+  match receiver.normal {
+    Some(receiver_flow) => {
+      let receiver_path = storage_path_from_expr(self)
+      let receiver_site = site_for_expr(self, receiver_path)
+      let args_result = eval_arguments(
+        args,
+        0,
+        receiver_flow.state,
+        spec,
+        findings,
+      )
+      let after_args = match args_result.normal {
+        Some(args_path) =>
+          flow_join(
+            args_result.exits,
+            apply_call_transfer(
+              {
+                kind: DotApply,
+                cst,
+                loc,
+                callee_name: node_label_name(method_name),
+                receiver_path,
+                receiver_site: Some(receiver_site),
+                receiver_taint: receiver_flow.value,
+                arguments: args_path.arguments,
+              },
+              args_path.state,
+              spec,
+              findings,
+            ),
+          )
+        None => args_result.exits
+      }
+      flow_sequence(receiver, after_args)
+    }
+    None => receiver
   }
-  let receiver_path = storage_path_from_expr(self)
-  let receiver_site = site_for_expr(self, receiver_path)
-  let args_result = eval_arguments(args, 0, receiver.state, spec, findings)
-  if args_result.flow != FlowNormal {
-    return flow_result(args_result.flow, args_result.state, args_result.value)
-  }
-  let info : CallInfo = {
-    kind: DotApply,
-    cst,
-    loc,
-    callee_name: node_label_name(method_name),
-    receiver_path,
-    receiver_site: Some(receiver_site),
-    receiver_taint: receiver.value,
-    arguments: args_result.arguments,
-  }
-  apply_call_transfer(info, args_result.state, spec, findings)
 }
 
 ///|
@@ -806,45 +824,54 @@ fn eval_pipe_call(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let lhs_result = eval_expr(lhs, state, spec, findings)
-  if lhs_result.flow != FlowNormal {
-    return lhs_result
+  let lhs_path = match lhs_result.normal {
+    Some(path) => path
+    None => return lhs_result
   }
-  let lhs_arg = evaled_argument_from_result(0, None, lhs, lhs_result)
-  match rhs.kind {
+  let lhs_arg = evaled_argument_from_path(0, None, lhs, lhs_path)
+  let rhs_flow = match rhs.kind {
     @untyped_cst.Expr_Apply =>
       match (node_child(rhs, "func"), node_child(rhs, "args")) {
         (Some(func), Some(args)) => {
-          let func_result = eval_expr(func, lhs_result.state, spec, findings)
-          if func_result.flow != FlowNormal {
-            return func_result
+          let func_result = eval_expr(func, lhs_path.state, spec, findings)
+          match func_result.normal {
+            Some(func_path) => {
+              let args_result = eval_arguments(
+                args,
+                1,
+                func_path.state,
+                spec,
+                findings,
+              )
+              let after_args = match args_result.normal {
+                Some(args_path) => {
+                  let arguments = prepend_argument(lhs_arg, args_path.arguments)
+                  flow_join(
+                    args_result.exits,
+                    apply_call_transfer(
+                      call_info_without_receiver(
+                        Pipe,
+                        cst,
+                        loc,
+                        callee_name_from_expr(func),
+                        arguments,
+                      ),
+                      args_path.state,
+                      spec,
+                      findings,
+                    ),
+                  )
+                }
+                None => args_result.exits
+              }
+              flow_sequence(func_result, after_args)
+            }
+            None => func_result
           }
-          let args_result = eval_arguments(
-            args,
-            1,
-            func_result.state,
-            spec,
-            findings,
-          )
-          if args_result.flow != FlowNormal {
-            return flow_result(
-              args_result.flow,
-              args_result.state,
-              args_result.value,
-            )
-          }
-          let arguments = prepend_argument(lhs_arg, args_result.arguments)
-          let info = call_info_without_receiver(
-            Pipe,
-            cst,
-            loc,
-            callee_name_from_expr(func),
-            arguments,
-          )
-          apply_call_transfer(info, args_result.state, spec, findings)
         }
-        _ => normal_result(lhs_result.state, lhs_result.value)
+        _ => normal_result(lhs_path.state, lhs_path.value)
       }
     @untyped_cst.Expr_DotApply =>
       match
@@ -854,56 +881,73 @@ fn eval_pipe_call(
           node_child(rhs, "args"),
         ) {
         (Some(self), Some(method_name), Some(args)) => {
-          let receiver = eval_expr(self, lhs_result.state, spec, findings)
-          if receiver.flow != FlowNormal {
-            return receiver
+          let receiver = eval_expr(self, lhs_path.state, spec, findings)
+          match receiver.normal {
+            Some(receiver_flow) => {
+              let receiver_path = storage_path_from_expr(self)
+              let receiver_site = site_for_expr(self, receiver_path)
+              let args_result = eval_arguments(
+                args,
+                1,
+                receiver_flow.state,
+                spec,
+                findings,
+              )
+              let after_args = match args_result.normal {
+                Some(args_path) => {
+                  let arguments = prepend_argument(lhs_arg, args_path.arguments)
+                  flow_join(
+                    args_result.exits,
+                    apply_call_transfer(
+                      {
+                        kind: Pipe,
+                        cst,
+                        loc,
+                        callee_name: node_label_name(method_name),
+                        receiver_path,
+                        receiver_site: Some(receiver_site),
+                        receiver_taint: receiver_flow.value,
+                        arguments,
+                      },
+                      args_path.state,
+                      spec,
+                      findings,
+                    ),
+                  )
+                }
+                None => args_result.exits
+              }
+              flow_sequence(receiver, after_args)
+            }
+            None => receiver
           }
-          let receiver_path = storage_path_from_expr(self)
-          let receiver_site = site_for_expr(self, receiver_path)
-          let args_result = eval_arguments(
-            args,
-            1,
-            receiver.state,
-            spec,
-            findings,
-          )
-          if args_result.flow != FlowNormal {
-            return flow_result(
-              args_result.flow,
-              args_result.state,
-              args_result.value,
-            )
-          }
-          let arguments = prepend_argument(lhs_arg, args_result.arguments)
-          let info : CallInfo = {
-            kind: Pipe,
-            cst,
-            loc,
-            callee_name: node_label_name(method_name),
-            receiver_path,
-            receiver_site: Some(receiver_site),
-            receiver_taint: receiver.value,
-            arguments,
-          }
-          apply_call_transfer(info, args_result.state, spec, findings)
         }
-        _ => normal_result(lhs_result.state, lhs_result.value)
+        _ => normal_result(lhs_path.state, lhs_path.value)
       }
     _ => {
-      let rhs_result = eval_expr(rhs, lhs_result.state, spec, findings)
-      if rhs_result.flow != FlowNormal {
-        return rhs_result
+      let rhs_result = eval_expr(rhs, lhs_path.state, spec, findings)
+      match rhs_result.normal {
+        Some(rhs_path) =>
+          flow_sequence(
+            rhs_result,
+            apply_call_transfer(
+              call_info_without_receiver(
+                Pipe,
+                cst,
+                loc,
+                callee_name_from_expr(rhs),
+                [lhs_arg],
+              ),
+              rhs_path.state,
+              spec,
+              findings,
+            ),
+          )
+        None => rhs_result
       }
-      let info = call_info_without_receiver(
-        Pipe,
-        cst,
-        loc,
-        callee_name_from_expr(rhs),
-        [lhs_arg],
-      )
-      apply_call_transfer(info, rhs_result.state, spec, findings)
     }
   }
+  flow_sequence(lhs_result, rhs_flow)
 }
 
 ///|
@@ -915,24 +959,34 @@ fn eval_rev_pipe_call(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let func_result = eval_expr(lhs, state, spec, findings)
-  if func_result.flow != FlowNormal {
-    return func_result
+  match func_result.normal {
+    Some(func_path) => {
+      let rhs_result = eval_expr(rhs, func_path.state, spec, findings)
+      let after_rhs = match rhs_result.normal {
+        Some(rhs_path) =>
+          flow_sequence(
+            rhs_result,
+            apply_call_transfer(
+              call_info_without_receiver(
+                RevPipe,
+                cst,
+                loc,
+                callee_name_from_expr(lhs),
+                [evaled_argument_from_path(0, None, rhs, rhs_path)],
+              ),
+              rhs_path.state,
+              spec,
+              findings,
+            ),
+          )
+        None => rhs_result
+      }
+      flow_sequence(func_result, after_rhs)
+    }
+    None => func_result
   }
-  let rhs_result = eval_expr(rhs, func_result.state, spec, findings)
-  if rhs_result.flow != FlowNormal {
-    return rhs_result
-  }
-  let arg = evaled_argument_from_result(0, None, rhs, rhs_result)
-  let info = call_info_without_receiver(
-    RevPipe,
-    cst,
-    loc,
-    callee_name_from_expr(lhs),
-    [arg],
-  )
-  apply_call_transfer(info, rhs_result.state, spec, findings)
 }
 
 ///|
@@ -942,52 +996,51 @@ fn eval_arguments(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalArgumentsResult {
+) -> EvalArgumentsResult raise {
   let mut current = state
   let arguments : Array[CallArgument] = []
+  let mut exits = empty_flow_summary()
   let raw = node_items(args)
   for offset in 0..<raw.length() {
     let arg = raw[offset]
     if @cst.argument_value(arg) is Some(value) {
       let result = eval_expr(value, current, spec, findings)
-      if result.flow != FlowNormal {
-        return {
-          state: result.state,
-          arguments,
-          flow: result.flow,
-          value: result.value,
+      exits = flow_join(exits, flow_without_normal(result))
+      match result.normal {
+        Some(path) => {
+          current = path.state
+          arguments.push(
+            call_argument_from_path(
+              start_index + offset,
+              argument_label(arg),
+              value,
+              path,
+            ),
+          )
         }
+        None => return { normal: None, exits, }
       }
-      current = result.state
-      arguments.push(
-        call_argument_from_result(
-          start_index + offset,
-          argument_label(arg),
-          value,
-          result,
-        ),
-      )
     }
   }
-  { state: current, arguments, flow: FlowNormal, value: [], }
+  { normal: Some({ state: current, arguments, }), exits, }
 }
 
 ///|
-fn evaled_argument_from_result(
+fn evaled_argument_from_path(
   index : Int,
   label : String?,
   expr : @untyped_cst.CstNode,
-  result : EvalResult,
+  path : FlowPath,
 ) -> CallArgument {
-  call_argument_from_result(index, label, expr, result)
+  call_argument_from_path(index, label, expr, path)
 }
 
 ///|
-fn call_argument_from_result(
+fn call_argument_from_path(
   index : Int,
   label : String?,
   expr : @untyped_cst.CstNode,
-  result : EvalResult,
+  flow_path : FlowPath,
 ) -> CallArgument {
   let path = storage_path_from_expr(expr)
   {
@@ -997,7 +1050,7 @@ fn call_argument_from_result(
     loc: expr.loc,
     path,
     site: site_for_expr(expr, path),
-    taint: result.value,
+    taint: flow_path.value,
   }
 }
 
@@ -1353,10 +1406,47 @@ fn restore_result_scoped_roots(
   roots : Array[String],
 ) -> EvalResult {
   {
-    state: restore_scoped_roots(base, result.state, roots),
-    value: result.value,
-    flow: result.flow,
+    normal: restore_optional_flow_path(result.normal, base, roots),
+    returned: restore_optional_flow_path(result.returned, base, roots),
+    raised: restore_optional_flow_path(result.raised, base, roots),
+    breaks: restore_labelled_flow_paths(result.breaks, base, roots),
+    continues: restore_labelled_flow_paths(result.continues, base, roots),
   }
+}
+
+///|
+fn restore_optional_flow_path(
+  path : FlowPath?,
+  base : TaintState,
+  roots : Array[String],
+) -> FlowPath? {
+  match path {
+    Some(path) =>
+      Some({
+        state: restore_scoped_roots(base, path.state, roots),
+        value: path.value,
+      })
+    None => None
+  }
+}
+
+///|
+fn restore_labelled_flow_paths(
+  paths : Array[LabelledFlowPath],
+  base : TaintState,
+  roots : Array[String],
+) -> Array[LabelledFlowPath] {
+  let restored : Array[LabelledFlowPath] = []
+  for entry in paths {
+    restored.push({
+      label: entry.label,
+      path: {
+        state: restore_scoped_roots(base, entry.path.state, roots),
+        value: entry.path.value,
+      },
+    })
+  }
+  restored
 }
 
 ///|
@@ -1681,11 +1771,17 @@ fn bind_array_pattern_item(
 ///|
 fn condition_from_eval_result(result : EvalResult) -> ConditionEval {
   {
-    base_state: result.state,
-    true_state: result.state,
-    bound_roots: [],
-    flow: result.flow,
-    value: result.value,
+    normal: match result.normal {
+      Some(path) =>
+        Some({
+          base_state: path.state,
+          true_state: path.state,
+          bound_roots: [],
+          value: path.value,
+        })
+      None => None
+    },
+    exits: flow_without_normal(result),
   }
 }
 
@@ -1695,7 +1791,7 @@ fn eval_condition_scope(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> ConditionEval {
+) -> ConditionEval raise {
   match cond.kind {
     @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
       if node_child(cond, "expr") is Some(expr) {
@@ -1707,16 +1803,18 @@ fn eval_condition_scope(
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
-          if matched.flow != FlowNormal {
-            return condition_from_eval_result(matched)
-          }
-          let roots = pattern_bound_roots(pat)
           {
-            base_state: matched.state,
-            true_state: bind_pattern(pat, matched.value, matched.state),
-            bound_roots: roots,
-            flow: FlowNormal,
-            value: matched.value,
+            normal: match matched.normal {
+              Some(path) =>
+                Some({
+                  base_state: path.state,
+                  true_state: bind_pattern(pat, path.value, path.state),
+                  bound_roots: pattern_bound_roots(pat),
+                  value: path.value,
+                })
+              None => None
+            },
+            exits: flow_without_normal(matched),
           }
         }
         _ => condition_from_eval_result(normal_result(state, []))
@@ -1725,29 +1823,33 @@ fn eval_condition_scope(
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
-          if matched.flow != FlowNormal {
-            return condition_from_eval_result(matched)
-          }
           let bindings = node_child_items(cond, "bindings")
           let roots = merge_root_names(
             regex_pattern_bound_roots(pat),
             regex_bindings_bound_roots(bindings),
           )
-          let pattern_state = bind_regex_pattern(
-            pat,
-            matched.value,
-            matched.state,
-          )
           {
-            base_state: matched.state,
-            true_state: bind_regex_bindings(
-              bindings,
-              matched.value,
-              pattern_state,
-            ),
-            bound_roots: roots,
-            flow: FlowNormal,
-            value: matched.value,
+            normal: match matched.normal {
+              Some(path) => {
+                let pattern_state = bind_regex_pattern(
+                  pat,
+                  path.value,
+                  path.state,
+                )
+                Some({
+                  base_state: path.state,
+                  true_state: bind_regex_bindings(
+                    bindings,
+                    path.value,
+                    pattern_state,
+                  ),
+                  bound_roots: roots,
+                  value: path.value,
+                })
+              }
+              None => None
+            },
+            exits: flow_without_normal(matched),
           }
         }
         _ => condition_from_eval_result(normal_result(state, []))
@@ -1771,23 +1873,43 @@ fn eval_and_condition_scope(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> ConditionEval {
+) -> ConditionEval raise {
   let left = eval_condition_scope(lhs, state, spec, findings)
-  if left.flow != FlowNormal {
-    return left
-  }
-  let right = eval_condition_scope(rhs, left.true_state, spec, findings)
-  let base = restore_scoped_roots(
-    left.base_state,
-    right.base_state,
-    left.bound_roots,
-  )
-  {
-    base_state: base,
-    true_state: right.true_state,
-    bound_roots: merge_root_names(left.bound_roots, right.bound_roots),
-    flow: right.flow,
-    value: tree_merge(left.value, right.value),
+  match left.normal {
+    Some(left_path) => {
+      let right = eval_condition_scope(
+        rhs,
+        left_path.true_state,
+        spec,
+        findings,
+      )
+      let right_exits = restore_result_scoped_roots(
+        right.exits,
+        left_path.base_state,
+        left_path.bound_roots,
+      )
+      {
+        normal: match right.normal {
+          Some(right_path) =>
+            Some({
+              base_state: restore_scoped_roots(
+                left_path.base_state,
+                right_path.base_state,
+                left_path.bound_roots,
+              ),
+              true_state: right_path.true_state,
+              bound_roots: merge_root_names(
+                left_path.bound_roots,
+                right_path.bound_roots,
+              ),
+              value: tree_merge(left_path.value, right_path.value),
+            })
+          None => None
+        },
+        exits: flow_join(left.exits, right_exits),
+      }
+    }
+    None => left
   }
 }
 
@@ -1806,9 +1928,10 @@ fn eval_lex_top_pattern_exprs(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for pattern in patterns {
     let result = match lex_top_pattern_kind(pattern) {
       Some(@untyped_cst.LexTopPattern_Pattern) =>
@@ -1817,13 +1940,16 @@ fn eval_lex_top_pattern_exprs(
       | Some(@untyped_cst.LexTopPattern_Wildcard) => normal_result(current, [])
       _ => normal_result(current, [])
     }
-    if result.flow != FlowNormal {
-      return result
+    exits = flow_join(exits, flow_without_normal(result))
+    match result.normal {
+      Some(path) => {
+        current = path.state
+        value = tree_merge(value, path.value)
+      }
+      None => return exits
     }
-    current = result.state
-    value = tree_merge(value, result.value)
   }
-  normal_result(current, value)
+  flow_join(exits, normal_result(current, value))
 }
 
 ///|
@@ -1832,7 +1958,7 @@ fn eval_lex_pattern_exprs(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   match pattern.kind {
     LexPattern_Alias =>
       if node_child(pattern, "pat") is Some(pat) {
@@ -1850,15 +1976,19 @@ fn eval_lex_pattern_exprs(
     LexPattern_Sequence => {
       let mut current = state
       let mut value : TaintTree = []
+      let mut exits = empty_flow_summary()
       for pat in pattern_body_items(pattern) {
         let result = eval_lex_pattern_exprs(pat, current, spec, findings)
-        if result.flow != FlowNormal {
-          return result
+        exits = flow_join(exits, flow_without_normal(result))
+        match result.normal {
+          Some(path) => {
+            current = path.state
+            value = tree_merge(value, path.value)
+          }
+          None => return exits
         }
-        current = result.state
-        value = tree_merge(value, result.value)
       }
-      normal_result(current, value)
+      flow_join(exits, normal_result(current, value))
     }
     LexPattern_ConstantRef | LexPattern_Literal => normal_result(state, [])
     _ => normal_result(state, [])
@@ -1871,25 +2001,29 @@ fn eval_interp_elems(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for elem in elems {
     match elem.kind {
       @untyped_cst.InterpSegment_Source =>
         if node_child(elem, "expr") is Some(expr) {
           let result = eval_expr(expr, current, spec, findings)
-          if result.flow != FlowNormal {
-            return result
+          exits = flow_join(exits, flow_without_normal(result))
+          match result.normal {
+            Some(path) => {
+              current = path.state
+              value = tree_merge(value, path.value)
+            }
+            None => return exits
           }
-          current = result.state
-          value = tree_merge(value, result.value)
         }
       @untyped_cst.InterpSegment_Literal => ()
       _ => ()
     }
   }
-  normal_result(current, value)
+  flow_join(exits, normal_result(current, value))
 }
 
 ///|
@@ -2165,26 +2299,26 @@ fn eval_if(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let cond_result = eval_condition_scope(cond, state, spec, findings)
-  if cond_result.flow != FlowNormal {
-    return {
-      state: cond_result.base_state,
-      value: cond_result.value,
-      flow: cond_result.flow,
+  match cond_result.normal {
+    Some(path) => {
+      let then_result = restore_result_scoped_roots(
+        eval_expr(ifso, path.true_state, spec, findings),
+        path.base_state,
+        path.bound_roots,
+      )
+      let else_result = match ifnot {
+        Some(expr) => eval_expr(expr, path.base_state, spec, findings)
+        None => normal_result(path.base_state, [])
+      }
+      flow_join(
+        cond_result.exits,
+        merge_branch_results(then_result, else_result),
+      )
     }
+    None => cond_result.exits
   }
-  let then_result = restore_result_scoped_roots(
-    eval_expr(ifso, cond_result.true_state, spec, findings),
-    cond_result.base_state,
-    cond_result.bound_roots,
-  )
-  let else_result = if ifnot is Some(expr) {
-    eval_expr(expr, cond_result.base_state, spec, findings)
-  } else {
-    normal_result(cond_result.base_state, [])
-  }
-  merge_branch_results(then_result, else_result)
 }
 
 ///|
@@ -2192,19 +2326,7 @@ fn merge_branch_results(
   then_result : EvalResult,
   else_result : EvalResult,
 ) -> EvalResult {
-  if then_result.flow != FlowNormal && else_result.flow == FlowNormal {
-    return else_result
-  }
-  if else_result.flow != FlowNormal && then_result.flow == FlowNormal {
-    return then_result
-  }
-  if then_result.flow != FlowNormal {
-    return then_result
-  }
-  normal_result(
-    state_merge(then_result.state, else_result.state),
-    tree_merge(then_result.value, else_result.value),
-  )
+  flow_join(then_result, else_result)
 }
 
 ///|
@@ -2215,26 +2337,26 @@ fn eval_guard(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let cond_result = eval_condition_scope(cond, state, spec, findings)
-  if cond_result.flow != FlowNormal {
-    return {
-      state: cond_result.base_state,
-      value: cond_result.value,
-      flow: cond_result.flow,
+  match cond_result.normal {
+    Some(path) => {
+      let body_result = restore_result_scoped_roots(
+        eval_expr(body, path.true_state, spec, findings),
+        path.base_state,
+        path.bound_roots,
+      )
+      let else_result = match otherwise {
+        Some(expr) => eval_expr(expr, path.base_state, spec, findings)
+        None => normal_result(path.base_state, [])
+      }
+      flow_join(
+        cond_result.exits,
+        merge_branch_results(body_result, else_result),
+      )
     }
+    None => cond_result.exits
   }
-  let body_result = restore_result_scoped_roots(
-    eval_expr(body, cond_result.true_state, spec, findings),
-    cond_result.base_state,
-    cond_result.bound_roots,
-  )
-  let else_result = if otherwise is Some(expr) {
-    eval_expr(expr, cond_result.base_state, spec, findings)
-  } else {
-    normal_result(cond_result.base_state, [])
-  }
-  merge_branch_results(body_result, else_result)
 }
 
 ///|
@@ -2244,41 +2366,23 @@ fn eval_match(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
-  if scrutinee_result.flow != FlowNormal {
-    return scrutinee_result
-  }
-  let normal_states : Array[TaintState] = []
-  let mut branch_value : TaintTree = []
-  let exit_states : Array[TaintState] = []
-  let mut exit_flow = FlowNormal
-  let mut exit_value : TaintTree = []
-  for case in cases {
-    let case_result = eval_pattern_case(
-      case,
-      scrutinee_result.value,
-      scrutinee_result.state,
-      spec,
-      findings,
-    )
-    if case_result.flow == FlowNormal {
-      normal_states.push(case_result.state)
-      branch_value = tree_merge(branch_value, case_result.value)
-    } else {
-      if exit_states.is_empty() {
-        exit_flow = case_result.flow
-        exit_value = case_result.value
+  match scrutinee_result.normal {
+    Some(path) => {
+      let mut branches = empty_flow_summary()
+      for case in cases {
+        branches = flow_join(
+          branches,
+          eval_pattern_case(case, path.value, path.state, spec, findings),
+        )
       }
-      exit_states.push(case_result.state)
+      if cases.is_empty() {
+        branches = normal_result(path.state, [])
+      }
+      flow_sequence(scrutinee_result, branches)
     }
-  }
-  if normal_states.length() > 0 {
-    normal_result(state_merge_all(normal_states), branch_value)
-  } else if exit_states.length() > 0 {
-    flow_result(exit_flow, state_merge_all(exit_states), exit_value)
-  } else {
-    normal_result(scrutinee_result.state, [])
+    None => scrutinee_result
   }
 }
 
@@ -2289,7 +2393,7 @@ fn eval_pattern_case(
   base_state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let pattern = if node_child(case, "pattern") is Some(pattern) {
     pattern
   } else {
@@ -2304,18 +2408,17 @@ fn eval_pattern_case(
   let bound = bind_pattern(pattern, value, base_state)
   let result = if node_optional_child(case, "guard") is Some(guard_expr) {
     let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
-    if guard_result.flow == FlowNormal {
-      restore_result_scoped_roots(
-        eval_expr(body, guard_result.true_state, spec, findings),
-        guard_result.base_state,
-        guard_result.bound_roots,
-      )
-    } else {
-      {
-        state: guard_result.base_state,
-        value: guard_result.value,
-        flow: guard_result.flow,
-      }
+    match guard_result.normal {
+      Some(path) =>
+        flow_join(
+          guard_result.exits,
+          restore_result_scoped_roots(
+            eval_expr(body, path.true_state, spec, findings),
+            path.base_state,
+            path.bound_roots,
+          ),
+        )
+      None => guard_result.exits
     }
   } else {
     eval_expr(body, bound, spec, findings)
@@ -2330,41 +2433,23 @@ fn eval_lex_match(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
-  if scrutinee_result.flow != FlowNormal {
-    return scrutinee_result
-  }
-  let normal_states : Array[TaintState] = []
-  let mut branch_value : TaintTree = []
-  let exit_states : Array[TaintState] = []
-  let mut exit_flow = FlowNormal
-  let mut exit_value : TaintTree = []
-  for case in cases {
-    let case_result = eval_lex_case(
-      case,
-      scrutinee_result.value,
-      scrutinee_result.state,
-      spec,
-      findings,
-    )
-    if case_result.flow == FlowNormal {
-      normal_states.push(case_result.state)
-      branch_value = tree_merge(branch_value, case_result.value)
-    } else {
-      if exit_states.is_empty() {
-        exit_flow = case_result.flow
-        exit_value = case_result.value
+  match scrutinee_result.normal {
+    Some(path) => {
+      let mut branches = empty_flow_summary()
+      for case in cases {
+        branches = flow_join(
+          branches,
+          eval_lex_case(case, path.value, path.state, spec, findings),
+        )
       }
-      exit_states.push(case_result.state)
+      if cases.is_empty() {
+        branches = normal_result(path.state, [])
+      }
+      flow_sequence(scrutinee_result, branches)
     }
-  }
-  if normal_states.length() > 0 {
-    normal_result(state_merge_all(normal_states), branch_value)
-  } else if exit_states.length() > 0 {
-    flow_result(exit_flow, state_merge_all(exit_states), exit_value)
-  } else {
-    normal_result(scrutinee_result.state, [])
+    None => scrutinee_result
   }
 }
 
@@ -2375,7 +2460,7 @@ fn eval_lex_case(
   base_state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let patterns = if node_child(case, "pat") is Some(pattern) {
     lex_top_pattern_items(pattern)
   } else {
@@ -2384,35 +2469,44 @@ fn eval_lex_case(
   let pattern_result = eval_lex_top_pattern_exprs(
     patterns, base_state, spec, findings,
   )
-  if pattern_result.flow != FlowNormal {
-    return pattern_result
-  }
-  let body = if node_child(case, "body") is Some(body) {
-    body
-  } else {
-    return normal_result(pattern_result.state, [])
-  }
-  let roots = lex_top_patterns_bound_roots(patterns)
-  let bound = bind_lex_top_patterns(patterns, value, pattern_result.state)
-  let result = if node_optional_child(case, "guard") is Some(guard_expr) {
-    let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
-    if guard_result.flow == FlowNormal {
-      restore_result_scoped_roots(
-        eval_expr(body, guard_result.true_state, spec, findings),
-        guard_result.base_state,
-        guard_result.bound_roots,
-      )
-    } else {
-      {
-        state: guard_result.base_state,
-        value: guard_result.value,
-        flow: guard_result.flow,
+  match pattern_result.normal {
+    Some(pattern_path) => {
+      let body = match node_child(case, "body") {
+        Some(body) => body
+        None =>
+          return flow_with_normal(
+            pattern_result,
+            Some({ state: pattern_path.state, value: [], }),
+          )
       }
+      let roots = lex_top_patterns_bound_roots(patterns)
+      let bound = bind_lex_top_patterns(patterns, value, pattern_path.state)
+      let result = if node_optional_child(case, "guard") is Some(guard_expr) {
+        let guard_result = eval_condition_scope(
+          guard_expr, bound, spec, findings,
+        )
+        match guard_result.normal {
+          Some(path) =>
+            flow_join(
+              guard_result.exits,
+              restore_result_scoped_roots(
+                eval_expr(body, path.true_state, spec, findings),
+                path.base_state,
+                path.bound_roots,
+              ),
+            )
+          None => guard_result.exits
+        }
+      } else {
+        eval_expr(body, bound, spec, findings)
+      }
+      flow_sequence(
+        pattern_result,
+        restore_result_scoped_roots(result, pattern_path.state, roots),
+      )
     }
-  } else {
-    eval_expr(body, bound, spec, findings)
+    None => pattern_result
   }
-  restore_result_scoped_roots(result, pattern_result.state, roots)
 }
 
 ///|
@@ -2422,41 +2516,23 @@ fn eval_lex_scan(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
-  if scrutinee_result.flow != FlowNormal {
-    return scrutinee_result
-  }
-  let normal_states : Array[TaintState] = []
-  let mut branch_value : TaintTree = []
-  let exit_states : Array[TaintState] = []
-  let mut exit_flow = FlowNormal
-  let mut exit_value : TaintTree = []
-  for case in cases {
-    let case_result = eval_lex_scan_case(
-      case,
-      scrutinee_result.value,
-      scrutinee_result.state,
-      spec,
-      findings,
-    )
-    if case_result.flow == FlowNormal {
-      normal_states.push(case_result.state)
-      branch_value = tree_merge(branch_value, case_result.value)
-    } else {
-      if exit_states.is_empty() {
-        exit_flow = case_result.flow
-        exit_value = case_result.value
+  match scrutinee_result.normal {
+    Some(path) => {
+      let mut branches = empty_flow_summary()
+      for case in cases {
+        branches = flow_join(
+          branches,
+          eval_lex_scan_case(case, path.value, path.state, spec, findings),
+        )
       }
-      exit_states.push(case_result.state)
+      if cases.is_empty() {
+        branches = normal_result(path.state, [])
+      }
+      flow_sequence(scrutinee_result, branches)
     }
-  }
-  if normal_states.length() > 0 {
-    normal_result(state_merge_all(normal_states), branch_value)
-  } else if exit_states.length() > 0 {
-    flow_result(exit_flow, state_merge_all(exit_states), exit_value)
-  } else {
-    normal_result(scrutinee_result.state, [])
+    None => scrutinee_result
   }
 }
 
@@ -2467,7 +2543,7 @@ fn eval_lex_scan_case(
   base_state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let pattern = if node_child(case, "pat") is Some(pattern) {
     pattern
   } else {
@@ -2482,18 +2558,17 @@ fn eval_lex_scan_case(
   let bound = bind_lex_scan_pattern(pattern, value, base_state)
   let result = if node_optional_child(case, "guard") is Some(guard_expr) {
     let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
-    if guard_result.flow == FlowNormal {
-      restore_result_scoped_roots(
-        eval_expr(body, guard_result.true_state, spec, findings),
-        guard_result.base_state,
-        guard_result.bound_roots,
-      )
-    } else {
-      {
-        state: guard_result.base_state,
-        value: guard_result.value,
-        flow: guard_result.flow,
-      }
+    match guard_result.normal {
+      Some(path) =>
+        flow_join(
+          guard_result.exits,
+          restore_result_scoped_roots(
+            eval_expr(body, path.true_state, spec, findings),
+            path.base_state,
+            path.bound_roots,
+          ),
+        )
+      None => guard_result.exits
     }
   } else {
     eval_expr(body, bound, spec, findings)
@@ -2509,78 +2584,83 @@ fn eval_try(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let body_result = eval_expr(body, state, spec, findings)
-  match body_result.flow {
-    FlowReturn | FlowBreak(_) | FlowContinue(_) => return body_result
-    FlowRaise => return eval_catch_cases(body_result, catch_, spec, findings)
-    FlowNormal => ()
+  let passthrough : EvalResult = {
+    normal: None,
+    returned: body_result.returned,
+    raised: None,
+    breaks: body_result.breaks,
+    continues: body_result.continues,
   }
-  let branch_states : Array[TaintState] = [body_result.state]
-  let mut branch_value = body_result.value
-  for case in catch_ {
-    let result = eval_pattern_case(case, [], body_result.state, spec, findings)
-    if result.flow == FlowNormal {
-      branch_states.push(result.state)
-      branch_value = tree_merge(branch_value, result.value)
-    }
-  }
-  if try_else is Some(cases) {
-    for case in case_items(cases) {
-      let result = eval_pattern_case(
-        case,
-        body_result.value,
-        body_result.state,
-        spec,
-        findings,
-      )
-      if result.flow == FlowNormal {
-        branch_states.push(result.state)
-        branch_value = tree_merge(branch_value, result.value)
+  let successful = match body_result.normal {
+    Some(path) =>
+      match try_else {
+        Some(cases) => {
+          let items = case_items(cases)
+          let mut branches = empty_flow_summary()
+          for case in items {
+            branches = flow_join(
+              branches,
+              eval_pattern_case(case, path.value, path.state, spec, findings),
+            )
+          }
+          if items.is_empty() {
+            normal_result(path.state, path.value)
+          } else {
+            branches
+          }
+        }
+        None => normal_result(path.state, path.value)
       }
-    }
+    None => empty_flow_summary()
   }
-  normal_result(state_merge_all(branch_states), branch_value)
+  let caught = match body_result.raised {
+    Some(path) => eval_catch_cases(path, catch_, spec, findings)
+    None => empty_flow_summary()
+  }
+  flow_join(passthrough, flow_join(successful, caught))
 }
 
 ///|
 fn eval_catch_cases(
-  raised : EvalResult,
+  raised : FlowPath,
   catch_ : Array[@untyped_cst.CstNode],
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
-  let normal_states : Array[TaintState] = []
-  let mut branch_value : TaintTree = []
-  let exit_states : Array[TaintState] = []
-  let mut exit_flow = FlowRaise
-  let mut exit_value = raised.value
+) -> EvalResult raise {
+  if catch_.is_empty() {
+    return raise_result(raised.state, raised.value)
+  }
+  let mut branches = empty_flow_summary()
   for case in catch_ {
-    let case_result = eval_pattern_case(
-      case,
-      raised.value,
-      raised.state,
-      spec,
-      findings,
+    branches = flow_join(
+      branches,
+      eval_pattern_case(case, raised.value, raised.state, spec, findings),
     )
-    if case_result.flow == FlowNormal {
-      normal_states.push(case_result.state)
-      branch_value = tree_merge(branch_value, case_result.value)
-    } else {
-      if exit_states.is_empty() {
-        exit_flow = case_result.flow
-        exit_value = case_result.value
-      }
-      exit_states.push(case_result.state)
+  }
+  branches
+}
+
+///|
+fn finish_loop_fixpoint(
+  summary : LoopFixpointSummary,
+  else_expr : @untyped_cst.CstNode?,
+  spec : TaintSpec,
+  findings : Array[SinkFinding],
+) -> EvalResult raise {
+  let mut result = summary.exits
+  if summary.normal_exit is Some(path) {
+    let normal_completion = match else_expr {
+      Some(expr) => eval_expr(expr, path.state, spec, findings)
+      None => normal_result(path.state, [])
     }
+    result = flow_join(result, normal_completion)
   }
-  if normal_states.length() > 0 {
-    normal_result(state_merge_all(normal_states), branch_value)
-  } else if exit_states.length() > 0 {
-    flow_result(exit_flow, state_merge_all(exit_states), exit_value)
-  } else {
-    raised
+  if summary.break_exit is Some(path) {
+    result = flow_join(result, normal_result(path.state, path.value))
   }
+  result
 }
 
 ///|
@@ -2592,62 +2672,41 @@ fn eval_while(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
-  let mut current = state
-  let mut break_value : TaintTree = []
-  let mut iteration = 0
-  // Loops are interpreted to a bounded fixpoint. The condition is evaluated on
-  // each abstract iteration so condition pattern bindings are scoped to the
-  // body and restored before the loop state is joined.
-  while iteration < spec.max_fixpoint_iterations {
-    let cond_result = eval_condition_scope(loop_cond, current, spec, findings)
-    if cond_result.flow != FlowNormal {
-      return {
-        state: cond_result.base_state,
-        value: cond_result.value,
-        flow: cond_result.flow,
-      }
-    }
-    let body_result = restore_result_scoped_roots(
-      eval_expr(loop_body, cond_result.true_state, spec, findings),
-      cond_result.base_state,
-      cond_result.bound_roots,
-    )
-    match body_result.flow {
-      FlowReturn | FlowRaise => return body_result
-      FlowBreak(target) => {
-        if !control_targets_loop(target, loop_label) {
-          return body_result
+) -> EvalResult raise {
+  let summary = run_loop_fixpoint(
+    state,
+    spec.max_fixpoint_iterations,
+    current => {
+      let condition = eval_condition_scope(loop_cond, current, spec, findings)
+      match condition.normal {
+        Some(path) => {
+          let body_result = restore_result_scoped_roots(
+            eval_expr(loop_body, path.true_state, spec, findings),
+            path.base_state,
+            path.bound_roots,
+          )
+          let consumed = consume_loop_control(body_result, loop_label)
+          {
+            normal_exit: match consumed.back_edge {
+              Some(_) => Some({ state: path.base_state, value: [], })
+              None => None
+            },
+            back_edge: consumed.back_edge,
+            break_exit: consumed.break_exit,
+            exits: flow_join(condition.exits, consumed.exits),
+          }
         }
-        current = state_merge(cond_result.base_state, body_result.state)
-        break_value = tree_merge(break_value, body_result.value)
-        break
+        None =>
+          {
+            normal_exit: None,
+            back_edge: None,
+            break_exit: None,
+            exits: condition.exits,
+          }
       }
-      FlowContinue(target) =>
-        if !control_targets_loop(target, loop_label) {
-          return body_result
-        }
-      FlowNormal => ()
-    }
-    let joined = state_merge(cond_result.base_state, body_result.state)
-    if state_equiv(joined, current) {
-      break
-    }
-    current = joined
-    iteration += 1
-  }
-  if while_else is Some(expr) {
-    let else_result = eval_expr(expr, current, spec, findings)
-    if else_result.flow != FlowNormal {
-      return else_result
-    }
-    normal_result(
-      state_merge(current, else_result.state),
-      tree_merge(break_value, else_result.value),
-    )
-  } else {
-    normal_result(current, break_value)
-  }
+    },
+  )
+  finish_loop_fixpoint(summary, while_else, spec, findings)
 }
 
 ///|
@@ -2661,134 +2720,166 @@ fn eval_for(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let loop_roots : Array[String] = []
   let mut loop_base = state
   let mut current = state
-  let mut break_value : TaintTree = []
+  let mut initial_exits = empty_flow_summary()
   for pair in binders {
     match (node_child(pair, "binder"), node_child(pair, "expr")) {
       (Some(binder), Some(expr)) => {
         let result = eval_expr(expr, current, spec, findings)
-        if result.flow != FlowNormal {
-          return restore_result_scoped_roots(result, loop_base, loop_roots)
+        initial_exits = flow_join(
+          initial_exits,
+          restore_result_scoped_roots(
+            flow_without_normal(result),
+            loop_base,
+            loop_roots,
+          ),
+        )
+        match result.normal {
+          Some(path) => {
+            current = path.state
+            loop_base = restore_scoped_roots(loop_base, current, loop_roots)
+            add_binder_root_name(loop_roots, binder)
+            current = bind_binder(binder, path.value, current)
+          }
+          None => return initial_exits
         }
-        current = result.state
-        loop_base = restore_scoped_roots(loop_base, current, loop_roots)
-        add_binder_root_name(loop_roots, binder)
-        current = bind_binder(binder, result.value, current)
       }
       _ => ()
     }
   }
-  let mut iteration = 0
-  // `for` uses the same bounded fixpoint strategy as `while`. Loop binders stay
-  // available to condition/body/continue/else expressions and are restored
-  // after the loop expression finishes.
-  while iteration < spec.max_fixpoint_iterations {
-    let cond_result = if condition is Some(expr) {
-      eval_condition_scope(expr, current, spec, findings)
-    } else {
-      {
-        base_state: current,
-        true_state: current,
-        bound_roots: [],
-        flow: FlowNormal,
-        value: [],
-      }
-    }
-    if cond_result.flow != FlowNormal {
-      return restore_result_scoped_roots(
-        {
-          state: cond_result.base_state,
-          value: cond_result.value,
-          flow: cond_result.flow,
-        },
-        loop_base,
-        loop_roots,
-      )
-    }
-    let raw_body_result = eval_expr(
-      body,
-      cond_result.true_state,
-      spec,
-      findings,
-    )
-    let body_result = restore_result_scoped_roots(
-      raw_body_result,
-      cond_result.base_state,
-      cond_result.bound_roots,
-    )
-    match body_result.flow {
-      FlowReturn | FlowRaise =>
-        return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-      FlowBreak(target) => {
-        if !control_targets_loop(target, loop_label) {
-          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-        }
-        current = state_merge(cond_result.base_state, body_result.state)
-        break_value = tree_merge(break_value, body_result.value)
-        break
-      }
-      FlowContinue(target) =>
-        if !control_targets_loop(target, loop_label) {
-          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-        }
-      FlowNormal => ()
-    }
-    let mut next = raw_body_result.state
-    for pair in continue_block {
-      match (node_child(pair, "binder"), node_child(pair, "expr")) {
-        (Some(binder), Some(expr)) => {
-          let result = eval_expr(expr, next, spec, findings)
-          if result.flow != FlowNormal {
-            let restored = restore_result_scoped_roots(
-              result,
-              cond_result.base_state,
-              cond_result.bound_roots,
-            )
-            return restore_result_scoped_roots(restored, loop_base, loop_roots)
+  let summary = run_loop_fixpoint(
+    current,
+    spec.max_fixpoint_iterations,
+    header => {
+      let condition_result = match condition {
+        Some(expr) => eval_condition_scope(expr, header, spec, findings)
+        None =>
+          {
+            normal: Some({
+              base_state: header,
+              true_state: header,
+              bound_roots: [],
+              value: [],
+            }),
+            exits: empty_flow_summary(),
           }
-          next = result.state
-          let base_candidate = restore_scoped_roots(
-            cond_result.base_state,
-            next,
-            cond_result.bound_roots,
-          )
-          loop_base = restore_scoped_roots(
-            loop_base, base_candidate, loop_roots,
-          )
-          add_binder_root_name(loop_roots, binder)
-          next = bind_binder(binder, result.value, next)
-        }
-        _ => ()
       }
-    }
-    next = restore_scoped_roots(
-      cond_result.base_state,
-      next,
-      cond_result.bound_roots,
-    )
-    let joined = state_merge(cond_result.base_state, next)
-    if state_equiv(joined, current) {
-      break
-    }
-    current = joined
-    iteration += 1
-  }
-  let result = if for_else is Some(expr) {
-    eval_expr(expr, current, spec, findings)
-  } else {
-    normal_result(current, [])
-  }
-  if result.flow != FlowNormal {
-    restore_result_scoped_roots(result, loop_base, loop_roots)
-  } else {
-    normal_result(
-      restore_scoped_roots(loop_base, result.state, loop_roots),
-      tree_merge(break_value, result.value),
-    )
-  }
+      match condition_result.normal {
+        Some(condition_path) => {
+          let raw_body_result = eval_expr(
+            body,
+            condition_path.true_state,
+            spec,
+            findings,
+          )
+          let raw_body = consume_loop_control(raw_body_result, loop_label)
+          let body_break = restore_optional_flow_path(
+            raw_body.break_exit,
+            condition_path.base_state,
+            condition_path.bound_roots,
+          )
+          let body_exits = restore_result_scoped_roots(
+            raw_body.exits,
+            condition_path.base_state,
+            condition_path.bound_roots,
+          )
+          let updates = match raw_body.back_edge {
+            Some(back_edge) => {
+              let mut update_normal : FlowPath? = Some(back_edge)
+              let mut update_exits = empty_flow_summary()
+              for pair in continue_block {
+                match
+                  (
+                    update_normal,
+                    node_child(pair, "binder"),
+                    node_child(pair, "expr"),
+                  ) {
+                  (Some(next), Some(binder), Some(expr)) => {
+                    let result = eval_expr(expr, next.state, spec, findings)
+                    update_exits = flow_join(
+                      update_exits,
+                      flow_without_normal(result),
+                    )
+                    update_normal = match result.normal {
+                      Some(path) => {
+                        let base_candidate = restore_scoped_roots(
+                          condition_path.base_state,
+                          path.state,
+                          condition_path.bound_roots,
+                        )
+                        loop_base = restore_scoped_roots(
+                          loop_base, base_candidate, loop_roots,
+                        )
+                        add_binder_root_name(loop_roots, binder)
+                        Some({
+                          state: bind_binder(binder, path.value, path.state),
+                          value: path.value,
+                        })
+                      }
+                      None => None
+                    }
+                  }
+                  _ => ()
+                }
+              }
+              let update_result = flow_join(
+                update_exits,
+                match update_normal {
+                  Some(path) => normal_result(path.state, path.value)
+                  None => empty_flow_summary()
+                },
+              )
+              consume_loop_control(
+                restore_result_scoped_roots(
+                  update_result,
+                  condition_path.base_state,
+                  condition_path.bound_roots,
+                ),
+                loop_label,
+              )
+            }
+            None =>
+              {
+                back_edge: None,
+                break_exit: None,
+                exits: empty_flow_summary(),
+              }
+          }
+          {
+            normal_exit: match updates.back_edge {
+              Some(_) => Some({ state: condition_path.base_state, value: [], })
+              None => None
+            },
+            back_edge: updates.back_edge,
+            break_exit: merge_optional_flow_paths(
+              body_break,
+              updates.break_exit,
+            ),
+            exits: flow_join(
+              condition_result.exits,
+              flow_join(body_exits, updates.exits),
+            ),
+          }
+        }
+        None =>
+          {
+            normal_exit: None,
+            back_edge: None,
+            break_exit: None,
+            exits: condition_result.exits,
+          }
+      }
+    },
+  )
+  let loop_result = restore_result_scoped_roots(
+    finish_loop_fixpoint(summary, for_else, spec, findings),
+    loop_base,
+    loop_roots,
+  )
+  flow_join(initial_exits, loop_result)
 }
 
 ///|
@@ -2803,26 +2894,37 @@ fn eval_for_each(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let collection_result = eval_expr(collection, state, spec, findings)
-  if collection_result.flow != FlowNormal {
-    return collection_result
+  let collection_path = match collection_result.normal {
+    Some(path) => path
+    None => return collection_result
   }
   let loop_roots : Array[String] = []
-  let mut loop_base = collection_result.state
-  let mut current = collection_result.state
-  let mut break_value : TaintTree = []
+  let mut loop_base = collection_path.state
+  let mut current = collection_path.state
+  let mut initial_exits = flow_without_normal(collection_result)
   for pair in init {
     match (node_child(pair, "init"), node_child(pair, "expr")) {
       (Some(binder), Some(expr)) => {
         let result = eval_expr(expr, current, spec, findings)
-        if result.flow != FlowNormal {
-          return restore_result_scoped_roots(result, loop_base, loop_roots)
+        initial_exits = flow_join(
+          initial_exits,
+          restore_result_scoped_roots(
+            flow_without_normal(result),
+            loop_base,
+            loop_roots,
+          ),
+        )
+        match result.normal {
+          Some(path) => {
+            current = path.state
+            loop_base = restore_scoped_roots(loop_base, current, loop_roots)
+            add_binder_root_name(loop_roots, binder)
+            current = bind_binder(binder, path.value, current)
+          }
+          None => return initial_exits
         }
-        current = result.state
-        loop_base = restore_scoped_roots(loop_base, current, loop_roots)
-        add_binder_root_name(loop_roots, binder)
-        current = bind_binder(binder, result.value, current)
       }
       _ => ()
     }
@@ -2832,69 +2934,89 @@ fn eval_for_each(
       add_binder_root_name(loop_roots, binder)
       current = bind_binder(
         binder,
-        tree_project_for_binding(collection_result.value, AnyIndex),
+        tree_project_for_binding(collection_path.value, AnyIndex),
         current,
       )
     }
   }
-  let mut iteration = 0
-  // A foreach binder receives the collection's `AnyIndex` taint summary before
-  // the loop body fixpoint starts.
-  while iteration < spec.max_fixpoint_iterations {
-    let body_result = eval_expr(body, current, spec, findings)
-    match body_result.flow {
-      FlowReturn | FlowRaise =>
-        return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-      FlowBreak(target) => {
-        if !control_targets_loop(target, loop_label) {
-          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-        }
-        current = state_merge(current, body_result.state)
-        break_value = tree_merge(break_value, body_result.value)
-        break
-      }
-      FlowContinue(target) =>
-        if !control_targets_loop(target, loop_label) {
-          return restore_result_scoped_roots(body_result, loop_base, loop_roots)
-        }
-      FlowNormal => ()
-    }
-    let mut next = body_result.state
-    for pair in continue_block {
-      match (node_child(pair, "binder"), node_child(pair, "expr")) {
-        (Some(binder), Some(expr)) => {
-          let result = eval_expr(expr, next, spec, findings)
-          if result.flow != FlowNormal {
-            return restore_result_scoped_roots(result, loop_base, loop_roots)
+  let summary = run_loop_fixpoint(
+    current,
+    spec.max_fixpoint_iterations,
+    header => {
+      let body_flow = consume_loop_control(
+        eval_expr(body, header, spec, findings),
+        loop_label,
+      )
+      let updates = match body_flow.back_edge {
+        Some(back_edge) => {
+          let mut update_normal : FlowPath? = Some(back_edge)
+          let mut update_exits = empty_flow_summary()
+          for pair in continue_block {
+            match
+              (
+                update_normal,
+                node_child(pair, "binder"),
+                node_child(pair, "expr"),
+              ) {
+              (Some(next), Some(binder), Some(expr)) => {
+                let result = eval_expr(expr, next.state, spec, findings)
+                update_exits = flow_join(
+                  update_exits,
+                  flow_without_normal(result),
+                )
+                update_normal = match result.normal {
+                  Some(path) => {
+                    loop_base = restore_scoped_roots(
+                      loop_base,
+                      path.state,
+                      loop_roots,
+                    )
+                    add_binder_root_name(loop_roots, binder)
+                    Some({
+                      state: bind_binder(binder, path.value, path.state),
+                      value: path.value,
+                    })
+                  }
+                  None => None
+                }
+              }
+              _ => ()
+            }
           }
-          next = result.state
-          loop_base = restore_scoped_roots(loop_base, next, loop_roots)
-          add_binder_root_name(loop_roots, binder)
-          next = bind_binder(binder, result.value, next)
+          consume_loop_control(
+            flow_join(
+              update_exits,
+              match update_normal {
+                Some(path) => normal_result(path.state, path.value)
+                None => empty_flow_summary()
+              },
+            ),
+            loop_label,
+          )
         }
-        _ => ()
+        None =>
+          { back_edge: None, break_exit: None, exits: empty_flow_summary(), }
       }
-    }
-    let joined = state_merge(current, next)
-    if state_equiv(joined, current) {
-      break
-    }
-    current = joined
-    iteration += 1
-  }
-  let result = if else_block is Some(expr) {
-    eval_expr(expr, current, spec, findings)
-  } else {
-    normal_result(current, [])
-  }
-  if result.flow != FlowNormal {
-    restore_result_scoped_roots(result, loop_base, loop_roots)
-  } else {
-    normal_result(
-      restore_scoped_roots(loop_base, result.state, loop_roots),
-      tree_merge(break_value, result.value),
-    )
-  }
+      {
+        normal_exit: match updates.back_edge {
+          Some(_) => Some({ state: header, value: [], })
+          None => None
+        },
+        back_edge: updates.back_edge,
+        break_exit: merge_optional_flow_paths(
+          body_flow.break_exit,
+          updates.break_exit,
+        ),
+        exits: flow_join(body_flow.exits, updates.exits),
+      }
+    },
+  )
+  let loop_result = restore_result_scoped_roots(
+    finish_loop_fixpoint(summary, else_block, spec, findings),
+    loop_base,
+    loop_roots,
+  )
+  flow_join(initial_exits, loop_result)
 }
 
 ///|
@@ -2903,7 +3025,7 @@ fn eval_unknown_expr(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   match expr.kind {
     @untyped_cst.Expr_Infix =>
       eval_children(
@@ -2976,30 +3098,38 @@ fn eval_unknown_expr(
     @untyped_cst.Expr_Map => {
       let mut current = state
       let mut value : TaintTree = []
+      let mut exits = empty_flow_summary()
       for elem in node_child_items(expr, "elems") {
         if node_child(elem, "expr") is Some(child) {
           let result = eval_expr(child, current, spec, findings)
-          if result.flow != FlowNormal {
-            return result
+          exits = flow_join(exits, flow_without_normal(result))
+          match result.normal {
+            Some(path) => {
+              current = path.state
+              value = tree_merge(value, path.value)
+            }
+            None => return exits
           }
-          current = result.state
-          value = tree_merge(value, result.value)
         }
       }
-      normal_result(current, value)
+      flow_join(exits, normal_result(current, value))
     }
     @untyped_cst.Expr_RecordUpdate =>
       if node_child(expr, "record") is Some(record) {
         let base = eval_expr(record, state, spec, findings)
-        if base.flow != FlowNormal {
-          return base
+        match base.normal {
+          Some(path) =>
+            flow_sequence(
+              base,
+              eval_record_expr(
+                node_child_items(expr, "fields"),
+                path.state,
+                spec,
+                findings,
+              ),
+            )
+          None => base
         }
-        eval_record_expr(
-          node_child_items(expr, "fields"),
-          base.state,
-          spec,
-          findings,
-        )
       } else {
         normal_result(state, [])
       }
@@ -3041,16 +3171,20 @@ fn eval_children(
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
-) -> EvalResult {
+) -> EvalResult raise {
   let mut current = state
   let mut value : TaintTree = []
+  let mut exits = empty_flow_summary()
   for child in children {
     let result = eval_expr(child, current, spec, findings)
-    if result.flow != FlowNormal {
-      return result
+    exits = flow_join(exits, flow_without_normal(result))
+    match result.normal {
+      Some(path) => {
+        current = path.state
+        value = tree_merge(value, path.value)
+      }
+      None => return exits
     }
-    current = result.state
-    value = tree_merge(value, result.value)
   }
-  normal_result(current, value)
+  flow_join(exits, normal_result(current, value))
 }

@@ -1168,3 +1168,135 @@ test "taint engine local function name shadows outer root in let-fn body" {
   let result = analyze_single_entry_sink(source, "helper")
   assert_eq(result.findings.length(), 0)
 }
+
+///|
+fn finding_origin_ids_for_source(source : String) -> Array[String] raise {
+  let ids : Array[String] = []
+  for finding in analyze_call_source_sink(source).findings {
+    for origin in finding.origins {
+      if !ids.contains(origin.origin_id) {
+        ids.push(origin.origin_id)
+      }
+    }
+  }
+  ids.sort()
+  ids
+}
+
+///|
+test "taint engine keeps mixed branch exits independent of branch order" {
+  let sources = [
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    if flag { return () } else { break }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    if flag { break } else { return () }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    match flag { true => return (); _ => break }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    match flag { _ => break; true => return () }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    lexmatch flag { _ => return (); _ => break }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    lexmatch flag { _ => break; _ => return () }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    lexscan flag { _ => return (); _ => break }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    lexscan flag { _ => break; _ => return () }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    try { raise flag } catch { true => return (); _ => break }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+    (
+      #|fn sample(flag) {
+      #|  for ;; {
+      #|    try { raise flag } catch { _ => break; true => return () }
+      #|  };
+      #|  sink(get_user_input())
+      #|}
+    ),
+  ]
+  let summaries : Array[Array[String]] = []
+  for source in sources {
+    summaries.push(finding_origin_ids_for_source(source))
+  }
+  debug_inspect(
+    summaries,
+    content=(
+      #|[
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|  ["source:single"],
+      #|]
+    ),
+  )
+}
+
+///|
+test "taint engine does not evaluate after branches that only exit" {
+  let source =
+    #|fn sample(flag) {
+    #|  if flag { return () } else { raise clean() };
+    #|  sink(get_user_input())
+    #|}
+    #|
+  assert_eq(analyze_call_source_sink(source).findings.length(), 0)
+}
