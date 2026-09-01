@@ -237,7 +237,7 @@ fn simple_spec(
     sources,
     call_models,
     unknown_call_policy,
-    max_fixpoint_iterations: 6,
+    max_fixpoint_iterations: 64,
     custom_transfer_call: no_custom_transfer,
   }
 }
@@ -1299,6 +1299,57 @@ test "taint engine does not evaluate after branches that only exit" {
     #|}
     #|
   assert_eq(analyze_call_source_sink(source).findings.length(), 0)
+}
+
+///|
+test "taint engine reaches a sink after seven reverse loop assignments" {
+  let while_source =
+    #|fn sample {
+    #|  let mut x0 = get_user_input();
+    #|  let mut x1 = (); let mut x2 = (); let mut x3 = (); let mut x4 = ();
+    #|  let mut x5 = (); let mut x6 = (); let mut x7 = ();
+    #|  while clean() {
+    #|    x7 = x6; x6 = x5; x5 = x4; x4 = x3;
+    #|    x3 = x2; x2 = x1; x1 = x0
+    #|  };
+    #|  sink(x7)
+    #|}
+    #|
+  let for_source =
+    #|fn sample {
+    #|  let mut x0 = get_user_input();
+    #|  let mut x1 = (); let mut x2 = (); let mut x3 = (); let mut x4 = ();
+    #|  let mut x5 = (); let mut x6 = (); let mut x7 = ();
+    #|  for ;; {
+    #|    x7 = x6; x6 = x5; x5 = x4; x4 = x3;
+    #|    x3 = x2; x2 = x1; x1 = x0
+    #|  };
+    #|  sink(x7)
+    #|}
+    #|
+  let foreach_source =
+    #|fn sample {
+    #|  let mut x0 = get_user_input();
+    #|  let mut x1 = (); let mut x2 = (); let mut x3 = (); let mut x4 = ();
+    #|  let mut x5 = (); let mut x6 = (); let mut x7 = ();
+    #|  for item in clean_items() {
+    #|    x7 = x6; x6 = x5; x5 = x4; x4 = x3;
+    #|    x3 = x2; x2 = x1; x1 = x0
+    #|  };
+    #|  sink(x7)
+    #|}
+    #|
+  let counts = [
+    analyze_call_source_sink(while_source).findings.length(),
+    analyze_call_source_sink(for_source).findings.length(),
+    analyze_call_source_sink(foreach_source).findings.length(),
+  ]
+  debug_inspect(
+    counts,
+    content=(
+      #|[1, 1, 1]
+    ),
+  )
 }
 
 ///|
