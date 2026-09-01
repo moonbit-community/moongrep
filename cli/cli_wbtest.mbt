@@ -135,9 +135,10 @@ test "cli args reject ambiguous docs command" {
 ///|
 test "cli args parse dump impl command" {
   match parse_cli_command(["dump", "--impl", "fn answer { 42 }"]) {
-    DumpImpl(source~, exit_code~) => {
+    DumpImpl(source~, exit_code~, output_json~) => {
       inspect(source, content="fn answer { 42 }")
       assert_false(exit_code)
+      assert_false(output_json)
     }
     _ => fail("unexpected command")
   }
@@ -146,9 +147,10 @@ test "cli args parse dump impl command" {
 ///|
 test "cli args parse dump expr command" {
   match parse_cli_command(["dump", "--expr", "x + 1"]) {
-    DumpExpr(source~, exit_code~) => {
+    DumpExpr(source~, exit_code~, output_json~) => {
       inspect(source, content="x + 1")
       assert_false(exit_code)
+      assert_false(output_json)
     }
     _ => fail("unexpected command")
   }
@@ -158,16 +160,39 @@ test "cli args parse dump expr command" {
 test "cli args parse dump exit code mode" {
   match
     parse_cli_command(["dump", "--exit-code", "--impl", "fn answer { 42 }"]) {
-    DumpImpl(source~, exit_code~) => {
+    DumpImpl(source~, exit_code~, output_json~) => {
       inspect(source, content="fn answer { 42 }")
       assert_true(exit_code)
+      assert_false(output_json)
     }
     _ => fail("unexpected command")
   }
   match parse_cli_command(["dump", "--expr", "x + 1", "--exit-code"]) {
-    DumpExpr(source~, exit_code~) => {
+    DumpExpr(source~, exit_code~, output_json~) => {
       inspect(source, content="x + 1")
       assert_true(exit_code)
+      assert_false(output_json)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse dump output json mode before and after input" {
+  match
+    parse_cli_command(["dump", "--output-json", "--impl", "fn answer { 42 }"]) {
+    DumpImpl(source~, exit_code~, output_json~) => {
+      inspect(source, content="fn answer { 42 }")
+      assert_false(exit_code)
+      assert_true(output_json)
+    }
+    _ => fail("unexpected command")
+  }
+  match parse_cli_command(["dump", "--expr", "x + 1", "--output-json"]) {
+    DumpExpr(source~, exit_code~, output_json~) => {
+      inspect(source, content="x + 1")
+      assert_false(exit_code)
+      assert_true(output_json)
     }
     _ => fail("unexpected command")
   }
@@ -281,7 +306,7 @@ test "cli args parse scan output json flag" {
 }
 
 ///|
-test "cli detects JSON mode before parsing scan and lint arguments" {
+test "cli detects JSON mode before parsing scan, lint, and dump arguments" {
   assert_true(output_json_requested(["scan", "--output-json"]))
   assert_true(
     output_json_requested([
@@ -289,12 +314,21 @@ test "cli detects JSON mode before parsing scan and lint arguments" {
     ]),
   )
   assert_true(output_json_requested(["lint", "--verbose", "--output-json"]))
+  assert_true(output_json_requested(["dump", "--output-json"]))
+  assert_true(
+    output_json_requested([
+      "dump", "--expr", "x + 1", "--unknown", "--output-json",
+    ]),
+  )
   assert_false(output_json_requested([]))
   assert_false(output_json_requested(["docs", "--output-json"]))
   assert_false(output_json_requested(["--output-json", "scan"]))
   assert_false(output_json_requested(["scan", "--output-json=true"]))
+  assert_false(output_json_requested(["dump", "--output-json=true"]))
   assert_false(output_json_requested(["scan", "--", "--output-json"]))
   assert_true(output_json_requested(["scan", "--output-json", "--"]))
+  assert_false(output_json_requested(["dump", "--", "--output-json"]))
+  assert_true(output_json_requested(["dump", "--output-json", "--"]))
 }
 
 ///|
@@ -579,6 +613,12 @@ test "cli args render argparse help" {
   assert_false(scan_help.contains("--enable-builtin-rules"))
   assert_true(scan_help.contains("[default: ./.moongrep/rules]"))
   assert_true(scan_help.contains("Directory or .mbt file to scan."))
+  let dump_help = dump_command.render_help()
+  assert_true(
+    dump_help.contains(
+      "Write one compact JSON dump record to stdout and diagnostics to stderr.",
+    ),
+  )
 }
 
 ///|

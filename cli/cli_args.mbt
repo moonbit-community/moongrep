@@ -73,8 +73,8 @@ pub(all) enum CliCommand {
   Lint(CliOptions)
   DocsList
   DocsShow(String)
-  DumpImpl(source~ : String, exit_code~ : Bool)
-  DumpExpr(source~ : String, exit_code~ : Bool)
+  DumpImpl(source~ : String, exit_code~ : Bool, output_json~ : Bool)
+  DumpExpr(source~ : String, exit_code~ : Bool, output_json~ : Bool)
 }
 
 ///|
@@ -89,11 +89,12 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 ///|
 /// Reports whether command-line failures should use the JSON Lines protocol.
 ///
-/// Only a standalone `--output-json` for an initial `scan` or `lint` command
-/// enables the protocol. Arguments after the `--` option terminator are not
-/// interpreted as options.
+/// Only a standalone `--output-json` for an initial `scan`, `lint`, or `dump`
+/// command enables the protocol. Arguments after the `--` option terminator
+/// are not interpreted as options.
 pub fn output_json_requested(argv : Array[String]) -> Bool {
-  if argv.is_empty() || (argv[0] != "scan" && argv[0] != "lint") {
+  if argv.is_empty() ||
+    (argv[0] != "scan" && argv[0] != "lint" && argv[0] != "dump") {
     return false
   }
   for index in 1..<argv.length() {
@@ -213,6 +214,11 @@ let dump_command : @argparse.Command = Command(
       long="exit-code",
       about="Check whether parsing succeeds without printing CST output.",
     ),
+    FlagArg(
+      "output-json",
+      long="output-json",
+      about="Write one compact JSON dump record to stdout and diagnostics to stderr.",
+    ),
   ],
   options=[
     OptionArg(
@@ -292,9 +298,10 @@ fn dump_cli_command(dump_matches : @argparse.Matches) -> CliCommand raise {
   let impl_source = last_cli_value(dump_matches.values, "impl")
   let expr_source = last_cli_value(dump_matches.values, "expr")
   let exit_code = cli_flag_enabled(dump_matches.flags, "exit-code")
+  let output_json = cli_flag_enabled(dump_matches.flags, "output-json")
   match (impl_source, expr_source) {
-    (Some(source), None) => DumpImpl(source~, exit_code~)
-    (None, Some(source)) => DumpExpr(source~, exit_code~)
+    (Some(source), None) => DumpImpl(source~, exit_code~, output_json~)
+    (None, Some(source)) => DumpExpr(source~, exit_code~, output_json~)
     (Some(_), Some(_)) =>
       raise new_usage_error("dump --impl cannot be combined with --expr")
     (None, None) => raise new_usage_error("missing dump --impl or --expr")
