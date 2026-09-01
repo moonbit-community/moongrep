@@ -61,50 +61,51 @@ test "json scan finding uses the compact range schema" {
 ///|
 test "json scan warnings use stable schemas" {
   inspect(
-    render_scan_warning_json(
-      Parse({
-        file: "src/bad.mbt",
-        block_start_line: Some(8),
-        reason: "parse failed due to unexpected token",
-      }),
-    ),
-    content="{\"type\":\"warning\",\"category\":\"parse\",\"message\":\"skipping src/bad.mbt block starting at line 8: parse failed due to unexpected token\",\"file\":\"src/bad.mbt\",\"reason\":\"parse failed due to unexpected token\",\"block_start_line\":8}",
-  )
-  inspect(
-    render_scan_warning_json(
-      Parse({
-        file: "src/single.mbt",
-        block_start_line: None,
-        reason: "parse failed due to missing expression",
-      }),
-    ),
-    content="{\"type\":\"warning\",\"category\":\"parse\",\"message\":\"skipping src/single.mbt: parse failed due to missing expression\",\"file\":\"src/single.mbt\",\"reason\":\"parse failed due to missing expression\"}",
-  )
-  inspect(
-    render_scan_warning_json(
-      InvalidMoongrepSkipPayload(
-        "src/hit.mbt",
-        render_test_location(7, 1, 7, 22),
+    [
+      render_scan_warning_json(
+        Parse({
+          file: "src/bad.mbt",
+          block_start_line: Some(8),
+          reason: "parse failed due to unexpected token",
+        }),
       ),
+      render_scan_warning_json(
+        Parse({
+          file: "src/single.mbt",
+          block_start_line: None,
+          reason: "parse failed due to missing expression",
+        }),
+      ),
+      render_scan_warning_json(
+        InvalidMoongrepSkipPayload(
+          "src/hit.mbt",
+          render_test_location(7, 1, 7, 22),
+        ),
+      ),
+    ].join("\n"),
+    content=(
+      #|{"type":"warning","category":"parse","message":"skipping src/bad.mbt block starting at line 8: parse failed due to unexpected token","file":"src/bad.mbt","reason":"parse failed due to unexpected token","block_start_line":8}
+      #|{"type":"warning","category":"parse","message":"skipping src/single.mbt: parse failed due to missing expression","file":"src/single.mbt","reason":"parse failed due to missing expression"}
+      #|{"type":"warning","category":"invalid_skip_payload","message":"src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip","file":"src/hit.mbt","range":{"start":{"line":7,"column":1},"end":{"line":7,"column":22}}}
     ),
-    content="{\"type\":\"warning\",\"category\":\"invalid_skip_payload\",\"message\":\"src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip\",\"file\":\"src/hit.mbt\",\"range\":{\"start\":{\"line\":7,\"column\":1},\"end\":{\"line\":7,\"column\":22}}}",
   )
 }
 
 ///|
 test "json scan traces use typed events" {
-  assert_eq(
+  inspect(
     [
       render_scan_trace_json(RuleLoaded("example")),
       render_scan_trace_json(DirectoryEntered("src")),
       render_scan_trace_json(PathSkipped("src/vendor")),
       render_scan_trace_json(FileStarted("src/main.mbt")),
-    ],
-    [
-      "{\"type\":\"trace\",\"event\":\"rule_loaded\",\"rule_id\":\"example\"}", "{\"type\":\"trace\",\"event\":\"directory_entered\",\"path\":\"src\"}",
-      "{\"type\":\"trace\",\"event\":\"path_skipped\",\"path\":\"src/vendor\"}",
-      "{\"type\":\"trace\",\"event\":\"file_started\",\"path\":\"src/main.mbt\"}",
-    ],
+    ].join("\n"),
+    content=(
+      #|{"type":"trace","event":"rule_loaded","rule_id":"example"}
+      #|{"type":"trace","event":"directory_entered","path":"src"}
+      #|{"type":"trace","event":"path_skipped","path":"src/vendor"}
+      #|{"type":"trace","event":"file_started","path":"src/main.mbt"}
+    ),
   )
 }
 
