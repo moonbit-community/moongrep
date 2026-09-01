@@ -19,7 +19,11 @@ fn render_dump_expr_debug(source : String) -> String raise {
 
 ///|
 fn parse_dump_impl(source : String) -> @untyped_cst.CstNode raise {
-  let parsed = @untyped_cst.parse_structure(source, name="dump --impl")
+  let parsed = @untyped_cst.parse_structure(
+    source,
+    name="dump --impl",
+    enable_metavar=true,
+  )
   let reports = parsed.diagnostics_view().to_owned()
   if !reports.is_empty() {
     raise new_dump_input_error("dump --impl", compact_reports(reports))
@@ -38,7 +42,11 @@ fn parse_dump_impl(source : String) -> @untyped_cst.CstNode raise {
 
 ///|
 fn parse_dump_expr(source : String) -> @untyped_cst.CstNode raise {
-  let parsed = @untyped_cst.parse_expression(source, name="dump --expr")
+  let parsed = @untyped_cst.parse_expression(
+    source,
+    name="dump --expr",
+    enable_metavar=true,
+  )
   let reports = parsed.diagnostics_view().to_owned()
   if !reports.is_empty() {
     raise new_dump_input_error("dump --expr", compact_reports(reports))
