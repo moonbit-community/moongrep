@@ -96,12 +96,12 @@ test "domain branch join unions states" {
     |> state_write_path(test_path("x", []), single_tree("left"))
   let right = empty_state()
     |> state_write_path(test_path("x", []), single_tree("right"))
-  let joined = state_merge_all([left, right])
+  let joined = state_merge(left, right)
   debug_inspect(
     origin_ids(state_read_path(joined, test_path("x", []))),
     content="[\"left\", \"right\"]",
   )
-  assert_true(state_equiv(joined, state_merge_all([right, left])))
+  assert_true(state_equiv(joined, state_merge(right, left)))
 }
 
 ///|
