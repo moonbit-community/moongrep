@@ -110,6 +110,14 @@ warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not 
 warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
 ```
 
+With `--output-json`, the same warnings are typed records on standard error.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules testdata/skip-structural/rules testdata/skip-structural/src 2>&1 >/dev/null
+{"type":"warning","category":"invalid_skip_payload","message":"testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip","file":"testdata/skip-structural/src/hit.mbt","range":{"start":{"line":7,"column":1},"end":{"line":7,"column":22}}}
+{"type":"warning","category":"invalid_skip_payload","message":"testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip","file":"testdata/skip-structural/src/hit.mbt","range":{"start":{"line":13,"column":1},"end":{"line":13,"column":17}}}
+```
+
 ## Parse warnings
 
 Parse warnings are written to standard error even without `--verbose`. An
@@ -511,11 +519,11 @@ the malformed file was skipped.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>&1 >/dev/null
-moongrep scan: loaded rule example
-moongrep scan: entering testdata/parse-warning
-moongrep scan: file testdata/parse-warning/bad.mbt
-warning: skipping testdata/parse-warning/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.
-moongrep scan: file testdata/parse-warning/hit.mbt
+{"type":"trace","event":"rule_loaded","rule_id":"example"}
+{"type":"trace","event":"directory_entered","path":"testdata/parse-warning"}
+{"type":"trace","event":"file_started","path":"testdata/parse-warning/bad.mbt"}
+{"type":"warning","category":"parse","message":"skipping testdata/parse-warning/bad.mbt: parse failed due to Unexpected end of file, missing simple expression here.","file":"testdata/parse-warning/bad.mbt","reason":"parse failed due to Unexpected end of file, missing simple expression here."}
+{"type":"trace","event":"file_started","path":"testdata/parse-warning/hit.mbt"}
 ```
 
 JSON mode writes no summary record when there are no matches. The empty stream

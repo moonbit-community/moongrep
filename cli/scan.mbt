@@ -21,8 +21,16 @@ priv struct ScanHit {
 }
 
 ///|
+priv enum ScanTrace {
+  RuleLoaded(String)
+  DirectoryEntered(String)
+  PathSkipped(String)
+  FileStarted(String)
+}
+
+///|
 priv enum ScanEvent {
-  Trace(String)
+  Trace(ScanTrace)
   Warning(ScanWarning)
   Hit(ScanHit)
 }
@@ -43,7 +51,7 @@ async fn scan_events(
   let scan_plan = @rule_apply.ScanPlan::from_rules(compiled_rules)
   if options.verbose {
     for rule in compiled_rules {
-      receive(Trace("moongrep scan: loaded rule \{rule.rule_id}"))
+      receive(Trace(RuleLoaded(rule.rule_id)))
     }
   }
   let excludes = normalize_scan_excludes(options.excludes)

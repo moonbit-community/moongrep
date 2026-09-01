@@ -80,7 +80,7 @@ fn stream_options_with_format(
 ///|
 fn scan_event_summary(event : ScanEvent) -> String {
   match event {
-    Trace(message) => "trace:\{message}"
+    Trace(trace) => "trace:\{render_scan_trace(trace)}"
     Warning(Parse(warning)) => "warning:\{warning.file}"
     Warning(InvalidMoongrepSkipPayload(file, _)) => "warning:\{file}"
     Hit(hit) =>
@@ -363,6 +363,37 @@ async test "stream diagnostics are written only to stderr" {
 }
 
 ///|
+async test "JSON stderr writes one parseable record per trace and warning" {
+  let stdout_chunks : Array[String] = []
+  let stderr_chunks : Array[String] = []
+  run_scan_mode_command_with_writers(
+    Scan,
+    stream_options_with_format(parse_warning_stream_options(), true, true),
+    output => stdout_chunks.push(output),
+    output => stderr_chunks.push(output),
+  )
+  assert_eq(stdout_chunks.length(), 1)
+  assert_true(stderr_chunks.length() > 0)
+  let mut saw_trace = false
+  let mut saw_warning = false
+  for output in stderr_chunks {
+    guard output.strip_suffix("\n") is Some(record) else {
+      fail("expected newline-terminated JSON record")
+    }
+    assert_false(record.contains("\n"))
+    ignore(@json.parse(record))
+    if record.contains("\"type\":\"trace\"") {
+      saw_trace = true
+    }
+    if record.contains("\"type\":\"warning\"") {
+      saw_warning = true
+    }
+  }
+  assert_true(saw_trace)
+  assert_true(saw_warning)
+}
+
+///|
 async test "skip payload warnings keep streaming and JSON stdout clean" {
   let human_stdout : Array[String] = []
   let human_stderr : Array[String] = []
@@ -398,5 +429,14 @@ async test "skip payload warnings keep streaming and JSON stdout clean" {
     assert_false(record.contains("warning:"))
     ignore(@json.parse(record))
   }
-  assert_true(json_stderr == human_stderr)
+  assert_eq(json_stderr.length(), 2)
+  for output in json_stderr {
+    guard output.strip_suffix("\n") is Some(record) else {
+      fail("expected newline-terminated JSON warning")
+    }
+    assert_false(record.contains("\n"))
+    assert_true(record.contains("\"type\":\"warning\""))
+    assert_true(record.contains("\"category\":\"invalid_skip_payload\""))
+    ignore(@json.parse(record))
+  }
 }
