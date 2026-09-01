@@ -8,12 +8,26 @@ test "dump impl renders untyped CST debug output" {
 }
 
 ///|
+test "dump impl supports metavariable syntax" {
+  let output = render_dump_command(DumpImpl("let $(value:pat) = 1"))
+  assert_true(output.contains("Impl_Let"))
+  assert_true(output.contains("String(\"$(value:pat)\")"))
+}
+
+///|
 test "dump expr renders untyped CST debug output" {
   let output = render_dump_command(DumpExpr("x + 1"))
   assert_true(output.contains("Expr_Infix"))
   assert_true(output.contains("Expr_Ident"))
   assert_true(output.contains("Constant_Int"))
   assert_true(!output.contains("\"kind\""))
+}
+
+///|
+test "dump expr supports metavariable syntax" {
+  let output = render_dump_command(DumpExpr("$(value:exp)"))
+  assert_true(output.contains("Expr_Ident"))
+  assert_true(output.contains("String(\"$(value:exp)\")"))
 }
 
 ///|
