@@ -211,18 +211,23 @@ MoonBit `untyped_cst` debug dumps are available through the `dump` subcommand:
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
 moongrep dump --expr 'x + 1'
+moongrep dump --exit-code --expr 'x + 1'
 ```
 
 Command-line synopsis:
 
 ```text
-moongrep dump (--impl <impl> | --expr <expr>)
+moongrep dump [--exit-code] (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse a MoonBit top-level implementation item and print
 its `untyped_cst` debug output. Use `--expr <expr>` to parse a MoonBit
 expression and print its `untyped_cst` debug output. To produce a dump, provide
 exactly one of these mutually exclusive options.
+
+Use `--exit-code` to perform the same parse validation without printing the CST.
+A successful check writes no CST output and exits with code 0. Invalid input
+still prints its diagnostic and exits with code 3.
 
 Invoking `moongrep dump` without arguments prints the `dump` help and exits
 successfully with code 0. Usage errors, such as combining `--impl` with

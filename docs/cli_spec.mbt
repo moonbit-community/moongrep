@@ -45,8 +45,8 @@ let _embed_clispec_md : String =
   #|- `scan` scans MoonBit source with explicitly selected or default rules.
   #|- `lint` scans MoonBit source with embedded builtin rules enabled by default.
   #|- `docs` lists or prints embedded documentation.
-  #|- `dump` parses one MoonBit implementation item or expression and prints CST
-  #|  debug output.
+  #|- `dump` parses one MoonBit implementation item or expression and either
+  #|  prints CST debug output or reports parse success through its exit status.
   #|
   #|Running moongrep without a command prints a missing-subcommand diagnostic and
   #|top-level help, then exits with status 2.
@@ -315,8 +315,9 @@ let _embed_clispec_md : String =
   #|found. Human mode writes `no match hits` for a scan with zero findings. JSON
   #|mode leaves standard output empty for the same scan.
   #|
-  #|Help, embedded documentation, and dump output are also written to standard
-  #|output.
+  #|Help, embedded documentation, and ordinary dump output are also written to
+  #|standard output. A successful `dump --exit-code` check leaves standard output
+  #|empty.
   #|
   #|### Standard Error and Verbose Events
   #|
@@ -468,8 +469,8 @@ let _embed_clispec_md : String =
   #|The command accepts exactly one of these forms:
   #|
   #|```text
-  #|moongrep dump --impl <source>
-  #|moongrep dump --expr <source>
+  #|moongrep dump [--exit-code] --impl <source>
+  #|moongrep dump [--exit-code] --expr <source>
   #|```
   #|
   #|`--impl` accepts one valid MoonBit top-level item. `--expr` accepts one valid
@@ -479,10 +480,16 @@ let _embed_clispec_md : String =
   #|On success, `dump` writes the MoonBit `Repr` debug rendering of the resulting
   #|untyped CST node to standard output in CST debug text format.
   #|
-  #|Providing both `--impl` and `--expr` is a usage error with status 2. Invoking
-  #|`dump` without either option prints help and exits with status 0. Lexical or
-  #|parse diagnostics, recovery nodes, and an `--impl` result containing zero or
-  #|multiple top-level items exit with status 3.
+  #|`--exit-code` checks the same parse conditions without rendering or writing the
+  #|CST. A successful check writes nothing to standard output and exits with status
+  #|0. Invalid input still writes its diagnostic to standard error and exits with
+  #|status 3.
+  #|
+  #|Providing both `--impl` and `--expr`, or using `--exit-code` without either
+  #|input option, is a usage error with status 2. Invoking bare `dump` without any
+  #|arguments prints help and exits with status 0. Lexical or parse diagnostics,
+  #|recovery nodes, and an `--impl` result containing zero or multiple top-level
+  #|items exit with status 3.
   #|
   #|## Diagnostics and Exit Status
   #|
@@ -540,7 +547,7 @@ let _embed_clispec_md : String =
   #|
   #|- help output;
   #|- successful `docs` listing or lookup;
-  #|- a successful CST dump;
+  #|- a successful CST dump or `dump --exit-code` parse check;
   #|- scans with findings;
   #|- scans with no findings; and
   #|- scans that emitted source parse or invalid-attribute warnings.

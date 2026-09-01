@@ -1,20 +1,30 @@
 ///|
 pub fn render_dump_command(command : CliCommand) -> String raise {
   match command {
-    DumpImpl(source) => render_dump_impl_debug(source)
-    DumpExpr(source) => render_dump_expr_debug(source)
+    DumpImpl(source~, exit_code~) => render_dump_impl_debug(source, exit_code)
+    DumpExpr(source~, exit_code~) => render_dump_expr_debug(source, exit_code)
     _ => raise new_internal_error("invalid dump command")
   }
 }
 
 ///|
-fn render_dump_impl_debug(source : String) -> String raise {
-  "\{Repr(parse_dump_impl(source))}"
+fn render_dump_impl_debug(source : String, exit_code : Bool) -> String raise {
+  let node = parse_dump_impl(source)
+  if exit_code {
+    ""
+  } else {
+    "\{Repr(node)}"
+  }
 }
 
 ///|
-fn render_dump_expr_debug(source : String) -> String raise {
-  "\{Repr(parse_dump_expr(source))}"
+fn render_dump_expr_debug(source : String, exit_code : Bool) -> String raise {
+  let node = parse_dump_expr(source)
+  if exit_code {
+    ""
+  } else {
+    "\{Repr(node)}"
+  }
 }
 
 ///|

@@ -42,10 +42,11 @@ error: unknown document
 [2]
 ```
 
-Invalid dump input uses status 3.
+Invalid dump input in exit-code mode still writes its diagnostic and uses
+status 3.
 
 ```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- dump --expr 'value +' 2>&1 > /dev/null
+$ moonrun "$TESTDIR"/../moongrep.wasm -- dump --exit-code --expr 'value +' 2>&1 > /dev/null
 error: could not parse dump input
   source: dump --expr
   reason: Unexpected end of file, missing simple expression here.

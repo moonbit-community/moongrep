@@ -67,8 +67,8 @@ pub(all) enum CliCommand {
   Lint(CliOptions)
   DocsList
   DocsShow(String)
-  DumpImpl(String)
-  DumpExpr(String)
+  DumpImpl(source~ : String, exit_code~ : Bool)
+  DumpExpr(source~ : String, exit_code~ : Bool)
 }
 
 ///|
@@ -181,6 +181,13 @@ let dump_command : @argparse.Command = Command(
   "dump",
   about="Parse a MoonBit impl or expression and print untyped CST debug output.",
   arg_required_else_help=true,
+  flags=[
+    FlagArg(
+      "exit-code",
+      long="exit-code",
+      about="Check whether parsing succeeds without printing CST output.",
+    ),
+  ],
   options=[
     OptionArg(
       "impl",
@@ -258,9 +265,10 @@ fn docs_cli_command(docs_matches : @argparse.Matches) -> CliCommand raise {
 fn dump_cli_command(dump_matches : @argparse.Matches) -> CliCommand raise {
   let impl_source = last_cli_value(dump_matches.values, "impl")
   let expr_source = last_cli_value(dump_matches.values, "expr")
+  let exit_code = cli_flag_enabled(dump_matches.flags, "exit-code")
   match (impl_source, expr_source) {
-    (Some(source), None) => DumpImpl(source)
-    (None, Some(source)) => DumpExpr(source)
+    (Some(source), None) => DumpImpl(source~, exit_code~)
+    (None, Some(source)) => DumpExpr(source~, exit_code~)
     (Some(_), Some(_)) =>
       raise new_usage_error("dump --impl cannot be combined with --expr")
     (None, None) => raise new_usage_error("missing dump --impl or --expr")

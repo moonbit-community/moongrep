@@ -38,7 +38,8 @@ moongrep 提供四个命令：
 - `scan` 使用显式选择或默认规则扫描 MoonBit 源码。
 - `lint` 默认启用内嵌 builtin 规则扫描 MoonBit 源码。
 - `docs` 列出或打印内嵌文档。
-- `dump` 解析一个 MoonBit 实现项或表达式，并打印 CST 调试输出。
+- `dump` 解析一个 MoonBit 实现项或表达式，并打印 CST 调试输出，或通过退出状态
+  报告解析是否成功。
 
 不带命令运行 moongrep 时，程序会打印缺少子命令的诊断和顶层帮助，然后以状态码
 2 退出。
@@ -267,7 +268,8 @@ warning。除非同一项还带有裸 `#moongrep.skip`，结构规则会继续�
 在 `scan` 和 `lint` 期间，命中会在发现时写入标准输出。文本模式对零命中扫描
 写入 `no match hits`，JSON 模式则保持标准输出为空。
 
-帮助、内嵌文档和 dump 输出也写入标准输出。
+帮助、内嵌文档和普通 dump 输出也写入标准输出。成功的 `dump --exit-code`
+检查保持标准输出为空。
 
 ### 标准错误和 Verbose 事件
 
@@ -400,8 +402,8 @@ CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
 该命令只接受以下两种形式之一：
 
 ```text
-moongrep dump --impl <source>
-moongrep dump --expr <source>
+moongrep dump [--exit-code] --impl <source>
+moongrep dump [--exit-code] --expr <source>
 ```
 
 `--impl` 接受一个有效的 MoonBit 顶层项，`--expr` 接受一个有效的 MoonBit
@@ -410,9 +412,13 @@ moongrep dump --expr <source>
 成功时，`dump` 会把结果 untyped CST node 的 MoonBit `Repr` 调试渲染以 CST
 调试文本格式写入标准输出。
 
-同时提供 `--impl` 和 `--expr` 属于状态码 2 的用法错误。不提供任一选项调用
-`dump` 会打印帮助并以状态码 0 退出。词法或解析诊断、recovery node，以及
-`--impl` 结果包含零个或多个顶层项时，都以状态码 3 退出。
+`--exit-code` 使用相同条件检查解析结果，但不渲染或写出 CST。检查成功时标准输出
+为空，并以状态码 0 退出。输入无效时仍向标准错误写入诊断，并以状态码 3 退出。
+
+同时提供 `--impl` 和 `--expr`，或只提供 `--exit-code` 而不提供输入选项，属于
+状态码 2 的用法错误。不带任何参数调用 `dump` 会打印帮助并以状态码 0 退出。
+词法或解析诊断、recovery node，以及 `--impl` 结果包含零个或多个顶层项时，
+都以状态码 3 退出。
 
 ## 诊断和退出状态
 
@@ -465,7 +471,7 @@ error: <摘要>
 
 - 帮助输出；
 - 成功的 `docs` 列表或查找；
-- 成功的 CST dump；
+- 成功的 CST dump 或 `dump --exit-code` 解析检查；
 - 有命中的扫描；
 - 没有命中的扫描；
 - 产生源码解析 warning 或无效属性 warning 的扫描。

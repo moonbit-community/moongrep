@@ -96,6 +96,7 @@ Parse a MoonBit impl or expression and print untyped CST debug output.
 
 Options:
   -h, --help     Show help information.
+  --exit-code    Check whether parsing succeeds without printing CST output.
   --impl <impl>  MoonBit top-level implementation item to parse.
   --expr <expr>  MoonBit expression to parse.
 ```
