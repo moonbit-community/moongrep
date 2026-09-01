@@ -27,9 +27,10 @@ Invalid input writes one `dump_input` record to stderr, leaves stdout empty,
 and exits with status 3.
 
 ```mooncram
-$ $stdoutPath = Join-Path $env:TESTDIR 'dump-stdout.tmp'; $stderrPath = Join-Path $env:TESTDIR 'dump-stderr.tmp'; moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --output-json --expr 'value +' 1>$stdoutPath 2>$stderrPath; $dumpStatus = $LASTEXITCODE; $dumpOutput = @(Get-Content $stdoutPath); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; Get-Content $stderrPath; Remove-Item $stdoutPath, $stderrPath; $global:LASTEXITCODE = $dumpStatus
+$ $dumpStreams = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --output-json --expr 'value +' 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput = @($dumpStreams | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }); $dumpError = @($dumpStreams | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; $dumpError | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
 status: 3
 stdout count: 0
+stderr count: 1
 {"type":"error","category":"dump_input","exit_code":3,"message":"could not parse dump input","source":"dump --expr","reason":"Unexpected end of file, missing simple expression here.","help":"provide one valid MoonBit expression"}
 [3]
 ```
@@ -37,9 +38,10 @@ stdout count: 0
 Missing input uses the shared JSON usage schema and status 2.
 
 ```mooncram
-$ $stdoutPath = Join-Path $env:TESTDIR 'dump-stdout.tmp'; $stderrPath = Join-Path $env:TESTDIR 'dump-stderr.tmp'; moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --output-json 1>$stdoutPath 2>$stderrPath; $dumpStatus = $LASTEXITCODE; $dumpOutput = @(Get-Content $stdoutPath); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; Get-Content $stderrPath; Remove-Item $stdoutPath, $stderrPath; $global:LASTEXITCODE = $dumpStatus
+$ $dumpStreams = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --output-json 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput = @($dumpStreams | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }); $dumpError = @($dumpStreams | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; $dumpError | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
 status: 2
 stdout count: 0
+stderr count: 1
 {"type":"error","category":"usage","exit_code":2,"message":"missing dump --impl or --expr"}
 [2]
 ```
