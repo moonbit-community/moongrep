@@ -150,13 +150,15 @@ its output suitable for a coding agent, add the `--output-json` option:
 
 ```bash
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
+moongrep dump --output-json --expr 'x + 1'
 ```
 
 In JSON mode, every nonempty application-output line is a compact JSON object.
-Standard output contains only `finding` records; standard error contains only
-`trace`, `warning`, and `error` records. When no match is found, standard output
-is empty. Records are streamed in traversal order and a later failure does not
-withdraw records already written.
+For `scan` and `lint`, standard output contains only `finding` records; for
+`dump`, a successful non-exit-code invocation writes one `dump` record there.
+Standard error contains only `trace`, `warning`, and `error` records. When no
+match is found, standard output is empty. Records are streamed in traversal
+order and a later failure does not withdraw records already written.
 
 The stable record shapes are:
 
@@ -165,6 +167,7 @@ finding: { "type":"finding", "file", "rule_id", "description", "range",
            "matched_source", "source_context" }
 warning: { "type":"warning", "category", "message", ...details }
 trace:   { "type":"trace", "event", ...event fields }
+dump:    { "type":"dump", "kind":"impl"|"expr", "content" }
 error:   { "type":"error", "category", "exit_code", "message",
            ...optional diagnostic fields }
 ```
@@ -174,10 +177,10 @@ Warning categories are `parse` and `invalid_skip_payload`. Trace events are
 categories are `internal`, `usage`, `dump_input`, `rule_source`,
 `rule_content`, `scan_input`, and `output`.
 
-The CLI detects a standalone `--output-json` for an initial `scan` or `lint`
-before full argument parsing, so usage errors such as unknown options and
-missing values are also JSON. `--output-json` after a `--` option terminator is
-not treated as an option.
+The CLI detects a standalone `--output-json` for an initial `scan`, `lint`, or
+`dump` before full argument parsing, so usage errors such as unknown options
+and missing values are also JSON. `--output-json` after a `--` option terminator
+is not treated as an option. Successful help remains ordinary text.
 
 ## Pattern Guards
 
@@ -234,13 +237,14 @@ MoonBit `untyped_cst` debug dumps are available through the `dump` subcommand:
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
 moongrep dump --expr 'x + 1'
+moongrep dump --output-json --expr 'x + 1'
 moongrep dump --exit-code --expr 'x + 1'
 ```
 
 Command-line synopsis:
 
 ```text
-moongrep dump [--exit-code] (--impl <impl> | --expr <expr>)
+moongrep dump [--exit-code] [--output-json] (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse a MoonBit top-level implementation item and print
@@ -248,14 +252,21 @@ its `untyped_cst` debug output. Use `--expr <expr>` to parse a MoonBit
 expression and print its `untyped_cst` debug output. To produce a dump, provide
 exactly one of these mutually exclusive options.
 
+Use `--output-json` to write one compact record with `type` set to `"dump"`,
+`kind` set to `"impl"` or `"expr"`, and `content` containing the same CST
+`Repr` text. JSON escaping keeps the record on one physical output line.
+
 Use `--exit-code` to perform the same parse validation without printing the CST.
-A successful check writes no CST output and exits with code 0. Invalid input
-still prints its diagnostic and exits with code 3.
+A successful check writes nothing to either output stream and exits with code
+0, even when `--output-json` is also present. Invalid input still prints its
+diagnostic and exits with code 3; with `--output-json`, it uses the existing
+JSON `error` record schema.
 
 Invoking `moongrep dump` without arguments prints the `dump` help and exits
 successfully with code 0. Usage errors, such as combining `--impl` with
 `--expr`, print a message and exit with code 2. Parse or lexical failures print
-a message and exit with code 3.
+a message and exit with code 3. `dump --output-json` without an input reports a
+JSON usage error, while `dump --output-json --help` still prints ordinary help.
 
 ## Exit Status
 
