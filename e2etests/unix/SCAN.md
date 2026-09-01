@@ -494,7 +494,7 @@ matched or unmatched.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules e2etests/rules/structural testdata/render-structural
-{"file":"testdata/render-structural/hit.mbt","rule_id":"example","description":"Target call.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":11}},"matched_source":"target()","source_context":[{"line":1,"text":"fn sample {","is_match":false},{"line":2,"text":"  before()","is_match":false},{"line":3,"text":"  target()","is_match":true},{"line":4,"text":"  after()","is_match":false},{"line":5,"text":"}","is_match":false}]}
+{"type":"finding","file":"testdata/render-structural/hit.mbt","rule_id":"example","description":"Target call.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":11}},"matched_source":"target()","source_context":[{"line":1,"text":"fn sample {","is_match":false},{"line":2,"text":"  before()","is_match":false},{"line":3,"text":"  target()","is_match":true},{"line":4,"text":"  after()","is_match":false},{"line":5,"text":"}","is_match":false}]}
 ```
 
 Verbose traversal messages and parse warnings are written to stderr, so
@@ -502,7 +502,7 @@ discarding stderr leaves the JSON stream on stdout unchanged.
 
 ```mooncram
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>/dev/null
-{"file":"testdata/parse-warning/hit.mbt","rule_id":"example","description":"Target call.","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":21}},"matched_source":"target()","source_context":[{"line":1,"text":"fn sample { target() }","is_match":true}]}
+{"type":"finding","file":"testdata/parse-warning/hit.mbt","rule_id":"example","description":"Target call.","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":21}},"matched_source":"target()","source_context":[{"line":1,"text":"fn sample { target() }","is_match":true}]}
 ```
 
 Conversely, discarding stdout exposes the stderr stream. Verbose mode records

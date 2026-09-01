@@ -48,7 +48,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Write loaded rule ids and traversal progress to stderr.
-  --output-json        Write each match as one JSON record to stdout.
+  --output-json        Write JSON Lines findings to stdout and diagnostics to stderr.
   -r, --rules <rules>  Directory containing YAML rules.
   --rule <rule>        Single YAML rule file.
   --pattern <pattern>  Anonymous structural pattern to match.
@@ -74,7 +74,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Write loaded rule ids and traversal progress to stderr.
-  --output-json        Write each match as one JSON record to stdout.
+  --output-json        Write JSON Lines findings to stdout and diagnostics to stderr.
   -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]
   --rule <rule>        Single YAML rule file.
   --pattern <pattern>  Anonymous structural pattern to match.
