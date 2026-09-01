@@ -247,6 +247,7 @@ fn eval_expr(
         (Some(loop_cond), Some(loop_body)) =>
           eval_while(
             control_label_name(expr),
+            expr.loc,
             loop_cond,
             loop_body,
             node_optional_child(expr, "while_else"),
@@ -260,6 +261,7 @@ fn eval_expr(
       if node_child(expr, "body") is Some(body) {
         eval_for(
           control_label_name(expr),
+          expr.loc,
           node_child_items(expr, "binders"),
           @cst.raw_child(expr, "cond"),
           node_child_items(expr, "continue_block"),
@@ -277,6 +279,7 @@ fn eval_expr(
         (Some(collection), Some(body)) =>
           eval_for_each(
             control_label_name(expr),
+            expr.loc,
             node_child_items(expr, "binders"),
             collection,
             node_child_items(expr, "init"),
@@ -2666,6 +2669,7 @@ fn finish_loop_fixpoint(
 ///|
 fn eval_while(
   loop_label : String?,
+  loop_loc : @basic.Location,
   loop_cond : @untyped_cst.CstNode,
   loop_body : @untyped_cst.CstNode,
   while_else : @untyped_cst.CstNode?,
@@ -2675,6 +2679,9 @@ fn eval_while(
 ) -> EvalResult raise {
   let summary = run_loop_fixpoint(
     state,
+    spec.rule_id,
+    "while",
+    loop_loc,
     spec.max_fixpoint_iterations,
     current => {
       let condition = eval_condition_scope(loop_cond, current, spec, findings)
@@ -2712,6 +2719,7 @@ fn eval_while(
 ///|
 fn eval_for(
   loop_label : String?,
+  loop_loc : @basic.Location,
   binders : Array[@untyped_cst.CstNode],
   condition : @untyped_cst.CstNode?,
   continue_block : Array[@untyped_cst.CstNode],
@@ -2752,6 +2760,9 @@ fn eval_for(
   }
   let summary = run_loop_fixpoint(
     current,
+    spec.rule_id,
+    "for",
+    loop_loc,
     spec.max_fixpoint_iterations,
     header => {
       let condition_result = match condition {
@@ -2885,6 +2896,7 @@ fn eval_for(
 ///|
 fn eval_for_each(
   loop_label : String?,
+  loop_loc : @basic.Location,
   binders : Array[@untyped_cst.CstNode],
   collection : @untyped_cst.CstNode,
   init : Array[@untyped_cst.CstNode],
@@ -2941,6 +2953,9 @@ fn eval_for_each(
   }
   let summary = run_loop_fixpoint(
     current,
+    spec.rule_id,
+    "foreach",
+    loop_loc,
     spec.max_fixpoint_iterations,
     header => {
       let body_flow = consume_loop_control(

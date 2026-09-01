@@ -15,6 +15,7 @@ pub fn analyze_function_like(@untyped_cst.CstNode, @model.TaintSpec) -> Analysis
 // Errors
 pub suberror TaintAnalysisError {
   UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)
+  FixpointDidNotConverge(rule_id~ : String, loop_kind~ : String, loc~ : @basic.Location, budget~ : Int)
 } derive(@debug.Debug)
 
 // Types and methods

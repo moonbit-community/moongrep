@@ -1300,3 +1300,43 @@ test "taint engine does not evaluate after branches that only exit" {
     #|
   assert_eq(analyze_call_source_sink(source).findings.length(), 0)
 }
+
+///|
+test "taint engine fails instead of returning a partial loop result" {
+  let source =
+    #|fn sample {
+    #|  let mut value = get_user_input();
+    #|  while clean() { value = [value] };
+    #|  sink(value)
+    #|}
+    #|
+  let spec = simple_spec(
+    sources=[
+      CallReturn(CalleeName("get_user_input"), "source:single", None, []),
+    ],
+    call_models=[
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
+    ],
+  )
+  let limited_spec : TaintSpec = { ..spec, max_fixpoint_iterations: 2, }
+  try analyze_function_like(parse_single_impl(source), limited_spec) catch {
+    TaintAnalysisError::FixpointDidNotConverge(
+      rule_id~,
+      loop_kind~,
+      loc~,
+      budget~
+    ) =>
+      debug_inspect(
+        (rule_id, loop_kind, loc.start.lnum, budget),
+        content=(
+          #|("test/rule", "while", 3, 2)
+        ),
+      )
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected the loop fixpoint to fail")
+  }
+}

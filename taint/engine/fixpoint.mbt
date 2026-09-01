@@ -18,6 +18,9 @@ priv struct LoopFixpointSummary {
 ///|
 fn run_loop_fixpoint(
   initial : TaintState,
+  rule_id : String,
+  loop_kind : String,
+  loc : @basic.Location,
   budget : Int,
   step : (TaintState) -> LoopIterationSummary raise,
 ) -> LoopFixpointSummary raise {
@@ -58,13 +61,10 @@ fn run_loop_fixpoint(
     current = joined
     iteration += 1
   }
-  {
-    normal_exit: match normal_exit {
-      Some(path) =>
-        Some({ state: state_merge(path.state, current), value: path.value, })
-      None => None
-    },
-    break_exit,
-    exits,
-  }
+  raise TaintAnalysisError::FixpointDidNotConverge(
+    rule_id~,
+    loop_kind~,
+    loc~,
+    budget~,
+  )
 }
