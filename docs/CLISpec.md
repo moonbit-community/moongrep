@@ -331,7 +331,9 @@ events:
   skips a child;
 - `moongrep scan: file <path>` before an eligible `.mbt` file is processed.
 
-Verbose events stay on standard error and outside the JSON record stream.
+In human mode, these events and warnings retain the text shown above. In JSON
+mode, standard error contains `trace`, `warning`, and `error` JSON Lines records
+instead. Standard output contains only `finding` records.
 
 ### Streaming Order
 
@@ -340,9 +342,10 @@ blank line separates consecutive findings. In JSON mode, every finding is one
 newline-terminated record without an extra blank line.
 
 Warnings and verbose events remain interleaved on standard error at the point
-where traversal produces them. Combining standard output and standard error
-therefore exposes traversal order, subject to the shell or caller's normal
-handling of two streams.
+where traversal produces them. A later failure appends one error record without
+withdrawing findings already written. Combining standard output and standard
+error therefore exposes traversal order, subject to the shell or caller's
+normal handling of two streams.
 
 ## Human-Readable Output
 
@@ -394,13 +397,26 @@ while nonmatching context rows use ` | `.
 
 ## JSON Lines Output
 
-### Record Schema
+### Protocol and Mode Detection
 
-`--output-json` writes one compact JSON object per finding, with fields in this
-structure:
+For `scan` and `lint`, `--output-json` makes every nonempty application-output
+line on both standard streams a compact JSON object. The option must be a
+standalone argument before an option terminator. For example,
+`scan -- --output-json` does not enable JSON mode. The initial command must be
+`scan` or `lint`; successful help, `docs`, and `dump` output are not part of
+this protocol.
+
+Mode detection happens before full argument parsing. An unknown option, a
+missing option value, or another parsing failure is therefore rendered as an
+`error` record when a qualifying `--output-json` was present.
+
+### Finding Records
+
+Each finding is written to standard output with this structure:
 
 ```text
 {
+  "type": "finding",
   "file": string,
   "rule_id": string,
   "description": string,
@@ -415,8 +431,53 @@ structure:
 }
 ```
 
-The record contains exactly the fields shown above. Trailing newline
+The finding record contains exactly the fields shown above. Trailing newline
 characters are removed from `description`.
+
+### Warning Records
+
+Warnings are written to standard error. A source parse warning has category
+`parse` and fields `type`, `category`, `message`, `file`, and `reason`; it also
+has `block_start_line` when a multi-block source identifies the skipped block.
+An invalid `#moongrep.skip` payload warning has category
+`invalid_skip_payload` and fields `type`, `category`, `message`, `file`, and
+`range`.
+
+```text
+{ "type": "warning", "category": "parse", "message": string,
+  "file": string, "reason": string, "block_start_line": integer? }
+{ "type": "warning", "category": "invalid_skip_payload", "message": string,
+  "file": string, "range": range }
+```
+
+### Trace Records
+
+With `--verbose`, trace records are written to standard error before or during
+traversal:
+
+```text
+{ "type": "trace", "event": "rule_loaded", "rule_id": string }
+{ "type": "trace", "event": "directory_entered", "path": string }
+{ "type": "trace", "event": "path_skipped", "path": string }
+{ "type": "trace", "event": "file_started", "path": string }
+```
+
+### Error Records
+
+A fatal failure is written to standard error as:
+
+```text
+{ "type": "error", "category": string, "exit_code": integer,
+  "message": string, "source": string?, "pattern": string?,
+  "reason": string?, "help": string? }
+```
+
+`category` is one of `internal`, `usage`, `dump_input`, `rule_source`,
+`rule_content`, `scan_input`, or `output`. For a structured diagnostic,
+`message` is its summary. For an argparse diagnostic, `message` contains the
+complete multiline diagnostic as one escaped JSON string. Empty optional fields
+are omitted. Pattern line endings are normalized to LF and one trailing line
+ending is removed, as in human mode.
 
 ### Coordinates and Source Text
 
@@ -432,8 +493,8 @@ by the range, even when only part of the first or last line is matched.
 ### No-Match Behavior
 
 Every JSON record ends with one newline. A scan with zero findings writes zero
-bytes to standard output. Warnings and verbose events may still be written to
-standard error.
+bytes to standard output. Warning, trace, or error records may still be written
+to standard error.
 
 ## `docs`
 
@@ -491,7 +552,7 @@ items exit with status 3.
 
 moongrep uses one fixed status for each actionable failure category:
 
-Fatal diagnostics for statuses 1 through 7 use this human-readable layout:
+In human mode, fatal diagnostics for statuses 1 through 7 use this layout:
 
 ```text
 error: <summary>
@@ -521,10 +582,10 @@ Argument-parser diagnostics that already contain an `error:` line, a `Usage:`
 section, and an optional `tip:` retain that complete layout. Scan warnings keep
 their existing `warning:` format and do not use the fatal-diagnostic layout.
 
-Fatal diagnostic wording and optional detail lines are not a machine-readable
-interface and may evolve. Callers should use the exit status to distinguish
-failure categories. Finding output, including JSON Lines records, never carries
-fatal diagnostics; failures remain on standard error.
+Human diagnostic wording and optional detail lines are not a machine-readable
+interface and may evolve. JSON mode uses the stable error schema specified
+above. Findings never carry fatal diagnostics; failures remain on standard
+error.
 
 | Status | Category |
 |---:|---|

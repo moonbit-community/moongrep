@@ -284,16 +284,18 @@ warning 和无效 `#moongrep.skip` warning 也总会写入标准错误。`--verb
 - 默认或请求的排除跳过子条目时输出 `moongrep scan: skipping <path>`；
 - 处理符合条件的 `.mbt` 文件前输出 `moongrep scan: file <path>`。
 
-Verbose 事件保留在标准错误中，不进入 JSON 记录流。
+文本模式下，这些事件和 warning 保留上面的文本格式。JSON 模式下，标准错误改为
+包含 `trace`、`warning` 和 `error` JSON Lines 记录，标准输出只包含 `finding`
+记录。
 
 ### 流式顺序
 
 遍历恢复之前会完整写完一个命中。在文本模式中，相邻命中之间用一个空行分隔。
 在 JSON 模式中，每个命中是一条以换行结束的记录，没有额外空行。
 
-warning 和 verbose 事件保留在遍历产生它们的位置，并交错写入标准错误。因此，
-合并标准输出和标准错误时可以看到遍历顺序，但仍受 shell 或调用方对两个流的正常
-处理方式影响。
+warning 和 verbose 事件保留在遍历产生它们的位置，并交错写入标准错误。后续失败
+会追加一条 error 记录，不撤回已经写出的 finding。因此，合并标准输出和标准错误
+时可以看到遍历顺序，但仍受 shell 或调用方对两个流的正常处理方式影响。
 
 ## 文本输出
 
@@ -337,12 +339,23 @@ description 末尾的换行字符会被移除，剩余每一行前面缩进两�
 
 ## JSON Lines 输出
 
-### 记录结构
+### 协议和模式识别
 
-`--output-json` 为每个命中写入一个紧凑 JSON object，字段结构如下：
+对于 `scan` 和 `lint`，`--output-json` 会让两个标准流中的每个非空应用输出行都
+成为一个紧凑 JSON object。该选项必须作为独立参数出现在选项终止符之前，例如
+`scan -- --output-json` 不会启用 JSON 模式。首个命令必须是 `scan` 或 `lint`；
+成功的 help、`docs` 和 `dump` 输出不属于此协议。
+
+模式识别发生在完整参数解析之前。因此，只要存在有效位置的 `--output-json`，未知
+选项、缺少选项值等解析失败也会输出 `error` 记录。
+
+### Finding 记录
+
+每个命中按以下结构写入标准输出：
 
 ```text
 {
+  "type": "finding",
   "file": string,
   "rule_id": string,
   "description": string,
@@ -357,7 +370,47 @@ description 末尾的换行字符会被移除，剩余每一行前面缩进两�
 }
 ```
 
-记录只包含上面列出的字段。`description` 末尾的换行字符会被移除。
+finding 记录只包含上面列出的字段。`description` 末尾的换行字符会被移除。
+
+### Warning 记录
+
+warning 写入标准错误。源码解析 warning 的 category 是 `parse`，包含 `type`、
+`category`、`message`、`file` 和 `reason`；多源码块能够定位被跳过块时，还包含
+`block_start_line`。无效 `#moongrep.skip` payload warning 的 category 是
+`invalid_skip_payload`，包含 `type`、`category`、`message`、`file` 和 `range`。
+
+```text
+{ "type": "warning", "category": "parse", "message": string,
+  "file": string, "reason": string, "block_start_line": integer? }
+{ "type": "warning", "category": "invalid_skip_payload", "message": string,
+  "file": string, "range": range }
+```
+
+### Trace 记录
+
+启用 `--verbose` 时，以下 trace 记录会在遍历前或遍历中写入标准错误：
+
+```text
+{ "type": "trace", "event": "rule_loaded", "rule_id": string }
+{ "type": "trace", "event": "directory_entered", "path": string }
+{ "type": "trace", "event": "path_skipped", "path": string }
+{ "type": "trace", "event": "file_started", "path": string }
+```
+
+### Error 记录
+
+致命失败按以下结构写入标准错误：
+
+```text
+{ "type": "error", "category": string, "exit_code": integer,
+  "message": string, "source": string?, "pattern": string?,
+  "reason": string?, "help": string? }
+```
+
+`category` 是 `internal`、`usage`、`dump_input`、`rule_source`、
+`rule_content`、`scan_input` 或 `output`。结构化诊断的 `message` 是摘要；argparse
+诊断的完整多行内容作为一个经过转义的 JSON 字符串放入 `message`。空的可选字段会
+被省略。pattern 换行与文本模式一样统一为 LF，并移除一个末尾换行。
 
 ### 坐标和源码文本
 
@@ -371,8 +424,8 @@ JSON range 坐标与文本输出使用相同的从 1 开始的 Unicode 码点列
 
 ### 无命中行为
 
-每条 JSON 记录都以一个换行结束。零命中的扫描向标准输出写入零字节。warning
-和 verbose 事件仍可能写入标准错误。
+每条 JSON 记录都以一个换行结束。零命中的扫描向标准输出写入零字节。标准错误仍
+可能包含 warning、trace 或 error 记录。
 
 ## `docs`
 
@@ -424,7 +477,7 @@ moongrep dump [--exit-code] --expr <source>
 
 moongrep 为每个可处置的失败类别使用固定状态码：
 
-状态码 1 到 7 的致命诊断使用以下面向用户的格式：
+文本模式下，状态码 1 到 7 的致命诊断使用以下面向用户的格式：
 
 ```text
 error: <摘要>
@@ -450,9 +503,8 @@ error: <摘要>
 参数解析器已经生成的 `error:` 行、`Usage:` 区块和可选 `tip:` 会保持完整布局。
 扫描 warning 继续使用现有 `warning:` 格式，不采用致命诊断布局。
 
-致命诊断的措辞和可选详情行不属于机器可读接口，后续可能调整。调用方应使用退出
-状态区分失败类别。命中输出（包括 JSON Lines 记录）不会承载致命诊断；失败仍写入
-标准错误。
+文本诊断的措辞和可选详情行不属于机器可读接口，后续可能调整。JSON 模式使用上面
+定义的稳定 error schema。命中不会承载致命诊断；失败仍写入标准错误。
 
 | 状态码 | 类别 |
 |---:|---|
