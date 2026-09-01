@@ -152,9 +152,32 @@ its output suitable for a coding agent, add the `--output-json` option:
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
 
-JSON match records are written to standard output, one per line. Verbose
-traversal messages and scan warnings are written to standard error. When no
-match is found, JSON mode writes nothing to standard output.
+In JSON mode, every nonempty application-output line is a compact JSON object.
+Standard output contains only `finding` records; standard error contains only
+`trace`, `warning`, and `error` records. When no match is found, standard output
+is empty. Records are streamed in traversal order and a later failure does not
+withdraw records already written.
+
+The stable record shapes are:
+
+```text
+finding: { "type":"finding", "file", "rule_id", "description", "range",
+           "matched_source", "source_context" }
+warning: { "type":"warning", "category", "message", ...details }
+trace:   { "type":"trace", "event", ...event fields }
+error:   { "type":"error", "category", "exit_code", "message",
+           ...optional diagnostic fields }
+```
+
+Warning categories are `parse` and `invalid_skip_payload`. Trace events are
+`rule_loaded`, `directory_entered`, `path_skipped`, and `file_started`. Error
+categories are `internal`, `usage`, `dump_input`, `rule_source`,
+`rule_content`, `scan_input`, and `output`.
+
+The CLI detects a standalone `--output-json` for an initial `scan` or `lint`
+before full argument parsing, so usage errors such as unknown options and
+missing values are also JSON. `--output-json` after a `--` option terminator is
+not treated as an option.
 
 ## Pattern Guards
 

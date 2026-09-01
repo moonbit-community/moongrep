@@ -124,8 +124,29 @@ user.name == other.name
 moongrep scan --pattern 'inspect($_, content="true")' --output-json
 ```
 
-JSON 匹配记录会逐行写入标准输出。详细遍历信息和扫描 warning 会写入标准错误；
-JSON 模式下没有命中时，标准输出为空。
+JSON 模式下，每个非空应用输出行都是一个紧凑 JSON object。标准输出只包含
+`finding` 记录；标准错误只包含 `trace`、`warning` 和 `error` 记录。没有命中时
+标准输出为空。记录按遍历顺序流式写出，后续失败不会撤回已经写出的记录。
+
+稳定记录结构如下：
+
+```text
+finding: { "type":"finding", "file", "rule_id", "description", "range",
+           "matched_source", "source_context" }
+warning: { "type":"warning", "category", "message", ...详情字段 }
+trace:   { "type":"trace", "event", ...事件字段 }
+error:   { "type":"error", "category", "exit_code", "message",
+           ...可选诊断字段 }
+```
+
+warning category 是 `parse` 和 `invalid_skip_payload`。trace event 是
+`rule_loaded`、`directory_entered`、`path_skipped` 和 `file_started`。error
+category 是 `internal`、`usage`、`dump_input`、`rule_source`、
+`rule_content`、`scan_input` 和 `output`。
+
+CLI 会在完整解析前识别首个命令为 `scan` 或 `lint` 时的独立
+`--output-json`，因此未知选项、缺少参数值等用法错误也输出 JSON。选项终止符 `--`
+之后的 `--output-json` 不会被当作选项。
 
 ## 模式附加条件
 
