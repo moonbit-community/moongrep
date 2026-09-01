@@ -7,6 +7,8 @@ import {
 }
 
 // Values
+pub fn output_json_requested(Array[String]) -> Bool
+
 pub fn parse_cli_command(Array[String], env? : Map[String, String]) -> CliCommand raise
 
 pub fn render_docs_command(CliCommand) -> String raise

@@ -87,6 +87,26 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 }
 
 ///|
+/// Reports whether command-line failures should use the JSON Lines protocol.
+///
+/// Only a standalone `--output-json` for an initial `scan` or `lint` command
+/// enables the protocol. Arguments after the `--` option terminator are not
+/// interpreted as options.
+pub fn output_json_requested(argv : Array[String]) -> Bool {
+  if argv.is_empty() || (argv[0] != "scan" && argv[0] != "lint") {
+    return false
+  }
+  for index in 1..<argv.length() {
+    match argv[index] {
+      "--" => return false
+      "--output-json" => return true
+      _ => ()
+    }
+  }
+  false
+}
+
+///|
 let default_rules_root : String = "./.moongrep/rules"
 
 ///|
@@ -107,7 +127,7 @@ fn scan_like_command(
     FlagArg(
       "output-json",
       long="output-json",
-      about="Write each match as one JSON record to stdout.",
+      about="Write JSON Lines findings to stdout and diagnostics to stderr.",
     ),
   )
   Command(
