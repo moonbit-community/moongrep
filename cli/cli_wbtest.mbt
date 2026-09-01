@@ -135,7 +135,10 @@ test "cli args reject ambiguous docs command" {
 ///|
 test "cli args parse dump impl command" {
   match parse_cli_command(["dump", "--impl", "fn answer { 42 }"]) {
-    DumpImpl(source) => inspect(source, content="fn answer { 42 }")
+    DumpImpl(source~, exit_code~) => {
+      inspect(source, content="fn answer { 42 }")
+      assert_false(exit_code)
+    }
     _ => fail("unexpected command")
   }
 }
@@ -143,7 +146,29 @@ test "cli args parse dump impl command" {
 ///|
 test "cli args parse dump expr command" {
   match parse_cli_command(["dump", "--expr", "x + 1"]) {
-    DumpExpr(source) => inspect(source, content="x + 1")
+    DumpExpr(source~, exit_code~) => {
+      inspect(source, content="x + 1")
+      assert_false(exit_code)
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args parse dump exit code mode" {
+  match
+    parse_cli_command(["dump", "--exit-code", "--impl", "fn answer { 42 }"]) {
+    DumpImpl(source~, exit_code~) => {
+      inspect(source, content="fn answer { 42 }")
+      assert_true(exit_code)
+    }
+    _ => fail("unexpected command")
+  }
+  match parse_cli_command(["dump", "--expr", "x + 1", "--exit-code"]) {
+    DumpExpr(source~, exit_code~) => {
+      inspect(source, content="x + 1")
+      assert_true(exit_code)
+    }
     _ => fail("unexpected command")
   }
 }
@@ -151,6 +176,7 @@ test "cli args parse dump expr command" {
 ///|
 test "cli args reject ambiguous dump command" {
   expect_cli_usage(["dump", "--impl", "fn answer { 42 }", "--expr", "x + 1"], 2)
+  expect_cli_usage(["dump", "--exit-code"], 2)
 }
 
 ///|

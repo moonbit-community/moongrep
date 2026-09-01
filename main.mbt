@@ -67,7 +67,7 @@ async fn run_cli() -> Unit {
     Lint(options) => @cli.run_lint_command(options)
     DocsList | DocsShow(_) =>
       write_cli_stdout(@cli.render_docs_command(command))
-    DumpImpl(_) | DumpExpr(_) =>
+    DumpImpl(..) | DumpExpr(..) =>
       write_cli_stdout(@cli.render_dump_command(command))
   }
 }

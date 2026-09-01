@@ -1,6 +1,8 @@
 ///|
 test "dump impl renders untyped CST debug output" {
-  let output = render_dump_command(DumpImpl("fn answer { 42 }"))
+  let output = render_dump_command(
+    DumpImpl(source="fn answer { 42 }", exit_code=false),
+  )
   assert_true(output.contains("Impl_Function"))
   assert_true(output.contains("String(\"answer\")"))
   assert_true(output.contains("Expr_Constant"))
@@ -9,14 +11,16 @@ test "dump impl renders untyped CST debug output" {
 
 ///|
 test "dump impl supports metavariable syntax" {
-  let output = render_dump_command(DumpImpl("let $(value:pat) = 1"))
+  let output = render_dump_command(
+    DumpImpl(source="let $(value:pat) = 1", exit_code=false),
+  )
   assert_true(output.contains("Impl_Let"))
   assert_true(output.contains("String(\"$(value:pat)\")"))
 }
 
 ///|
 test "dump expr renders untyped CST debug output" {
-  let output = render_dump_command(DumpExpr("x + 1"))
+  let output = render_dump_command(DumpExpr(source="x + 1", exit_code=false))
   assert_true(output.contains("Expr_Infix"))
   assert_true(output.contains("Expr_Ident"))
   assert_true(output.contains("Constant_Int"))
@@ -25,14 +29,28 @@ test "dump expr renders untyped CST debug output" {
 
 ///|
 test "dump expr supports metavariable syntax" {
-  let output = render_dump_command(DumpExpr("$(value:exp)"))
+  let output = render_dump_command(
+    DumpExpr(source="$(value:exp)", exit_code=false),
+  )
   assert_true(output.contains("Expr_Ident"))
   assert_true(output.contains("String(\"$(value:exp)\")"))
 }
 
 ///|
+test "dump exit code mode suppresses successful CST output" {
+  inspect(
+    render_dump_command(DumpImpl(source="fn answer { 42 }", exit_code=true)),
+    content="",
+  )
+  inspect(
+    render_dump_command(DumpExpr(source="x + 1", exit_code=true)),
+    content="",
+  )
+}
+
+///|
 test "dump impl rejects empty source" {
-  try render_dump_command(DumpImpl("")) catch {
+  try render_dump_command(DumpImpl(source="", exit_code=false)) catch {
     CliError::DumpInput(diagnostic~) as err => {
       let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 3)
@@ -54,7 +72,7 @@ test "dump impl rejects empty source" {
 
 ///|
 test "dump expr keeps the compact parser reason" {
-  try render_dump_command(DumpExpr("value +")) catch {
+  try render_dump_command(DumpExpr(source="value +", exit_code=true)) catch {
     CliError::DumpInput(diagnostic~) as err => {
       let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 3)

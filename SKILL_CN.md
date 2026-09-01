@@ -163,17 +163,21 @@ MoonBit `untyped_cst` 调试 dump 可通过 `dump` 子命令使用：
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
 moongrep dump --expr 'x + 1'
+moongrep dump --exit-code --expr 'x + 1'
 ```
 
 命令行参数概要：
 
 ```text
-moongrep dump (--impl <impl> | --expr <expr>)
+moongrep dump [--exit-code] (--impl <impl> | --expr <expr>)
 ```
 
 使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_cst`
 调试输出。使用 `--expr <expr>` 可以解析一个 MoonBit 表达式，并打印它的
 `untyped_cst` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
+
+使用 `--exit-code` 可以执行相同的解析校验而不打印 CST。检查成功时不输出 CST，
+并以退出码 0 退出；输入无效时仍打印诊断，并以退出码 3 退出。
 
 不带参数调用 `moongrep dump` 会打印 `dump` 帮助，并以退出码 0 成功退出。用法
 错误，例如组合使用 `--impl` 和 `--expr`，会打印消息并以退出码 2 退出。解析或
