@@ -147,14 +147,11 @@ fn render_cli_error_json(error : CliError) -> String {
     Fields(summary~, source~, reason~, help~, pattern~) => {
       record["message"] = Json::string(summary)
       append_json_diagnostic_field(record, "source", source)
-      match pattern {
-        Some(text) => {
-          let normalized = normalize_cli_diagnostic_pattern(text)
-          if normalized != "" {
-            record["pattern"] = Json::string(normalized)
-          }
+      if pattern is Some(text) {
+        let normalized = normalize_cli_diagnostic_pattern(text)
+        if normalized != "" {
+          record["pattern"] = Json::string(normalized)
         }
-        None => ()
       }
       append_json_diagnostic_field(record, "reason", reason)
       append_json_diagnostic_field(record, "help", help)
@@ -168,10 +165,10 @@ fn render_cli_error_json(error : CliError) -> String {
 fn render_cli_diagnostic(diagnostic : CliDiagnostic) -> String {
   match diagnostic {
     Fields(summary~, source~, reason~, help~, pattern~) =>
-      match pattern {
-        Some(value) =>
-          format_cli_diagnostic(summary, source, reason, help, pattern=value)
-        None => format_cli_diagnostic(summary, source, reason, help)
+      if pattern is Some(value) {
+        format_cli_diagnostic(summary, source, reason, help, pattern=value)
+      } else {
+        format_cli_diagnostic(summary, source, reason, help)
       }
     ParserMessage(message~) => message
   }

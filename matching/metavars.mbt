@@ -264,9 +264,10 @@ fn parse_typed_metavar_component(component : String) -> MetavarSyntax {
       if name.is_empty() || kind_text.is_empty() {
         return InvalidMetavar
       }
-      return match parse_single_metavar_kind(kind_text) {
-        Some(kind) => Typed(name.to_owned(), kind)
-        None => UnsupportedMetavarKind(kind_text.to_owned())
+      return if parse_single_metavar_kind(kind_text) is Some(kind) {
+        Typed(name.to_owned(), kind)
+      } else {
+        UnsupportedMetavarKind(kind_text.to_owned())
       }
     }
   }
@@ -287,9 +288,10 @@ fn parse_ellipsis_metavar_component(component : String) -> MetavarSyntax {
         if name.is_empty() || kind_text.is_empty() {
           return InvalidEllipsisMetavar
         }
-        return match parse_ellipsis_metavar_kind(kind_text) {
-          Some(kind) => EllipsisSyntax(name.to_owned(), Some(kind))
-          None => UnsupportedEllipsisMetavarKind(kind_text.to_owned())
+        return if parse_ellipsis_metavar_kind(kind_text) is Some(kind) {
+          EllipsisSyntax(name.to_owned(), Some(kind))
+        } else {
+          UnsupportedEllipsisMetavarKind(kind_text.to_owned())
         }
       }
     }
