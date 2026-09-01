@@ -85,9 +85,22 @@ async fn write_stream_scan_event(
   stderr_writer : async (String) -> Unit,
 ) -> Unit {
   match event {
-    Trace(message) => invoke_scan_writer(stderr_writer, message + "\n")
-    Warning(warning) =>
-      invoke_scan_writer(stderr_writer, render_scan_warning(warning) + "\n")
+    Trace(trace) => {
+      let rendered = if options.output_json {
+        render_scan_trace_json(trace)
+      } else {
+        render_scan_trace(trace)
+      }
+      invoke_scan_writer(stderr_writer, rendered + "\n")
+    }
+    Warning(warning) => {
+      let rendered = if options.output_json {
+        render_scan_warning_json(warning)
+      } else {
+        render_scan_warning(warning)
+      }
+      invoke_scan_writer(stderr_writer, rendered + "\n")
+    }
     Hit(hit) => {
       let rendered = if options.output_json {
         render_scan_hit_json(hit)

@@ -355,7 +355,7 @@ async fn capture_scan_events(
   let warnings : Array[ScanWarning] = []
   scan_events(mode, options, event => {
     match event {
-      Trace(message) => traces.push(message)
+      Trace(trace) => traces.push(render_scan_trace(trace))
       Warning(warning) => warnings.push(warning)
       Hit(hit) => hits.push(hit)
     }

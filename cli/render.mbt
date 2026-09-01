@@ -1,14 +1,29 @@
 ///|
 fn render_scan_warning(warning : ScanWarning) -> String {
+  "warning: \{scan_warning_message(warning)}"
+}
+
+///|
+fn scan_warning_message(warning : ScanWarning) -> String {
   match warning {
     Parse(parse_warning) =>
       if parse_warning.block_start_line is Some(line) {
-        "warning: skipping \{parse_warning.file} block starting at line \{line}: \{parse_warning.reason}"
+        "skipping \{parse_warning.file} block starting at line \{line}: \{parse_warning.reason}"
       } else {
-        "warning: skipping \{parse_warning.file}: \{parse_warning.reason}"
+        "skipping \{parse_warning.file}: \{parse_warning.reason}"
       }
     InvalidMoongrepSkipPayload(file, loc) =>
-      "warning: \{format_location(file, loc)}: #moongrep.skip does not accept a payload; use bare #moongrep.skip"
+      "\{format_location(file, loc)}: #moongrep.skip does not accept a payload; use bare #moongrep.skip"
+  }
+}
+
+///|
+fn render_scan_trace(trace : ScanTrace) -> String {
+  match trace {
+    RuleLoaded(rule_id) => "moongrep scan: loaded rule \{rule_id}"
+    DirectoryEntered(path) => "moongrep scan: entering \{path}"
+    PathSkipped(path) => "moongrep scan: skipping \{path}"
+    FileStarted(path) => "moongrep scan: file \{path}"
   }
 }
 

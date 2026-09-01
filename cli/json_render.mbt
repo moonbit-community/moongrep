@@ -74,3 +74,53 @@ fn render_scan_hit_json(hit : ScanHit) -> String {
   record["source_context"] = ToJson::to_json(finding.source_context)
   Json::object(record).stringify()
 }
+
+///|
+fn render_scan_warning_json(warning : ScanWarning) -> String {
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("warning")
+  match warning {
+    Parse(parse_warning) => {
+      record["category"] = Json::string("parse")
+      record["message"] = Json::string(scan_warning_message(warning))
+      record["file"] = Json::string(parse_warning.file)
+      record["reason"] = Json::string(parse_warning.reason)
+      match parse_warning.block_start_line {
+        Some(line) => record["block_start_line"] = ToJson::to_json(line)
+        None => ()
+      }
+    }
+    InvalidMoongrepSkipPayload(file, loc) => {
+      record["category"] = Json::string("invalid_skip_payload")
+      record["message"] = Json::string(scan_warning_message(warning))
+      record["file"] = Json::string(file)
+      record["range"] = ToJson::to_json(json_scan_range(loc))
+    }
+  }
+  Json::object(record).stringify()
+}
+
+///|
+fn render_scan_trace_json(trace : ScanTrace) -> String {
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("trace")
+  match trace {
+    RuleLoaded(rule_id) => {
+      record["event"] = Json::string("rule_loaded")
+      record["rule_id"] = Json::string(rule_id)
+    }
+    DirectoryEntered(path) => {
+      record["event"] = Json::string("directory_entered")
+      record["path"] = Json::string(path)
+    }
+    PathSkipped(path) => {
+      record["event"] = Json::string("path_skipped")
+      record["path"] = Json::string(path)
+    }
+    FileStarted(path) => {
+      record["event"] = Json::string("file_started")
+      record["path"] = Json::string(path)
+    }
+  }
+  Json::object(record).stringify()
+}
