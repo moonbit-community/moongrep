@@ -50,6 +50,123 @@ test "fatal diagnostics cover all seven exit categories" {
 }
 
 ///|
+test "JSON errors cover all seven stable categories" {
+  let diagnostic = new_cli_diagnostic("summary", None, None, None)
+  let errors : Array[CliError] = [
+    Internal(diagnostic~),
+    Usage(diagnostic~),
+    DumpInput(diagnostic~),
+    RuleSource(diagnostic~),
+    RuleContent(diagnostic~),
+    ScanInput(diagnostic~),
+    Output(diagnostic~),
+  ]
+  json_inspect(errors.map(error => @json.parse(error.render_json())), content=[
+    {
+      "type": "error",
+      "category": "internal",
+      "exit_code": 1,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "usage",
+      "exit_code": 2,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "dump_input",
+      "exit_code": 3,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "rule_source",
+      "exit_code": 4,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "rule_content",
+      "exit_code": 5,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "scan_input",
+      "exit_code": 6,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "output",
+      "exit_code": 7,
+      "message": "summary",
+    },
+  ])
+}
+
+///|
+test "JSON errors normalize patterns and omit empty optional fields" {
+  let error = RuleContent(
+    diagnostic=Fields(
+      summary="invalid rule",
+      source=Some(""),
+      reason=Some("first\nsecond"),
+      help=Some(""),
+      pattern=Some("first\r\n  second\r\rthird\r\n"),
+    ),
+  )
+  let rendered = error.render_json()
+  assert_false(rendered.contains("\n"))
+  assert_false(rendered.contains("\r"))
+  json_inspect(@json.parse(rendered), content={
+    "type": "error",
+    "category": "rule_content",
+    "exit_code": 5,
+    "message": "invalid rule",
+    "pattern": "first\n  second\n\nthird",
+    "reason": "first\nsecond",
+  })
+  json_inspect(
+    @json.parse(
+      RuleContent(
+        diagnostic=Fields(
+          summary="invalid rule",
+          source=None,
+          reason=None,
+          help=None,
+          pattern=Some(""),
+        ),
+      ).render_json(),
+    ),
+    content={
+      "type": "error",
+      "category": "rule_content",
+      "exit_code": 5,
+      "message": "invalid rule",
+    },
+  )
+}
+
+///|
+test "JSON argparse errors keep the complete message in one record" {
+  let message =
+    #|error: unexpected argument '--bad' found
+    #|
+    #|Usage: moongrep scan [options] [scan-root]
+  let rendered = new_parser_usage_error(message).render_json()
+  assert_false(rendered.contains("\n"))
+  json_inspect(@json.parse(rendered), content={
+    "type": "error",
+    "category": "usage",
+    "exit_code": 2,
+    "message": message,
+  })
+}
+
+///|
 test "diagnostic formatter omits empty optional fields and trailing newline" {
   inspect(
     format_cli_diagnostic("summary", None, None, None),
