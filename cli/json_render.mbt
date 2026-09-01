@@ -25,7 +25,7 @@ priv struct JsonScanFinding {
   range : JsonScanRange
   matched_source : String
   source_context : Array[JsonSourceContextLine]
-} derive(ToJson)
+}
 
 ///|
 fn json_scan_range(loc : @basic.Location) -> JsonScanRange {
@@ -63,5 +63,14 @@ fn json_scan_finding(hit : ScanHit) -> JsonScanFinding {
 
 ///|
 fn render_scan_hit_json(hit : ScanHit) -> String {
-  ToJson::to_json(json_scan_finding(hit)).stringify()
+  let finding = json_scan_finding(hit)
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("finding")
+  record["file"] = Json::string(finding.file)
+  record["rule_id"] = Json::string(finding.rule_id)
+  record["description"] = Json::string(finding.description)
+  record["range"] = ToJson::to_json(finding.range)
+  record["matched_source"] = Json::string(finding.matched_source)
+  record["source_context"] = ToJson::to_json(finding.source_context)
+  Json::object(record).stringify()
 }

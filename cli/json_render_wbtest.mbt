@@ -20,6 +20,7 @@ test "json scan finding uses the agent record schema" {
   let rendered = render_scan_hit_json(hit)
   assert_false(rendered.contains("pattern_index"))
   json_inspect(@json.parse(rendered), content={
+    "type": "finding",
     "file": "src/sample.mbt",
     "rule_id": "example",
     "description": "Line \"one\".",
@@ -40,6 +41,7 @@ test "json scan finding uses the agent record schema" {
 test "json scan finding uses the compact range schema" {
   let rendered = render_scan_hit_json(render_test_hit(3, 3))
   json_inspect(@json.parse(rendered), content={
+    "type": "finding",
     "file": "test.mbt",
     "rule_id": "test-rule",
     "description": "Test finding.",
