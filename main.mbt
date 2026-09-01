@@ -47,9 +47,10 @@ async fn write_cli_stdout(output : String) -> Unit {
 }
 
 ///|
-async fn exit_with_cli_error(error : @cli.CliError) -> Unit {
+async fn exit_with_cli_error(error : @cli.CliError, output_json : Bool) -> Unit {
   let exit_code = error.exit_code()
-  write_raw_cli_stderr("\{error}") catch {
+  let rendered = if output_json { error.render_json() } else { "\{error}" }
+  write_raw_cli_stderr(rendered) catch {
     @os_error.OSError(_) => runtime_exit(7)
     err => raise err
   }
@@ -57,11 +58,8 @@ async fn exit_with_cli_error(error : @cli.CliError) -> Unit {
 }
 
 ///|
-async fn run_cli() -> Unit {
-  let command = @cli.parse_cli_command(
-    @cli.runtime_cli_args(@env.args()),
-    env=@env.get_env_vars(),
-  )
+async fn run_cli(argv : Array[String]) -> Unit {
+  let command = @cli.parse_cli_command(argv, env=@env.get_env_vars())
   match command {
     Scan(options) => @cli.run_scan_command(options)
     Lint(options) => @cli.run_lint_command(options)
@@ -74,14 +72,18 @@ async fn run_cli() -> Unit {
 
 ///|
 async fn main {
-  run_cli() catch {
-    @cli.CliError::Internal(..) as err => exit_with_cli_error(err)
-    @cli.CliError::Usage(..) as err => exit_with_cli_error(err)
-    @cli.CliError::DumpInput(..) as err => exit_with_cli_error(err)
-    @cli.CliError::RuleSource(..) as err => exit_with_cli_error(err)
-    @cli.CliError::RuleContent(..) as err => exit_with_cli_error(err)
-    @cli.CliError::ScanInput(..) as err => exit_with_cli_error(err)
-    @cli.CliError::Output(..) as err => exit_with_cli_error(err)
-    err => exit_with_cli_error(@cli.CliError::internal("\{err}"))
+  let argv = @cli.runtime_cli_args(@env.args())
+  let output_json = @cli.output_json_requested(argv)
+  run_cli(argv) catch {
+    @cli.CliError::Internal(..) as err => exit_with_cli_error(err, output_json)
+    @cli.CliError::Usage(..) as err => exit_with_cli_error(err, output_json)
+    @cli.CliError::DumpInput(..) as err => exit_with_cli_error(err, output_json)
+    @cli.CliError::RuleSource(..) as err =>
+      exit_with_cli_error(err, output_json)
+    @cli.CliError::RuleContent(..) as err =>
+      exit_with_cli_error(err, output_json)
+    @cli.CliError::ScanInput(..) as err => exit_with_cli_error(err, output_json)
+    @cli.CliError::Output(..) as err => exit_with_cli_error(err, output_json)
+    err => exit_with_cli_error(@cli.CliError::internal("\{err}"), output_json)
   }
 }

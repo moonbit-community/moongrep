@@ -281,6 +281,23 @@ test "cli args parse scan output json flag" {
 }
 
 ///|
+test "cli detects JSON mode before parsing scan and lint arguments" {
+  assert_true(output_json_requested(["scan", "--output-json"]))
+  assert_true(
+    output_json_requested([
+      "scan", "src", "--unknown", "--output-json", "--rules",
+    ]),
+  )
+  assert_true(output_json_requested(["lint", "--verbose", "--output-json"]))
+  assert_false(output_json_requested([]))
+  assert_false(output_json_requested(["docs", "--output-json"]))
+  assert_false(output_json_requested(["--output-json", "scan"]))
+  assert_false(output_json_requested(["scan", "--output-json=true"]))
+  assert_false(output_json_requested(["scan", "--", "--output-json"]))
+  assert_true(output_json_requested(["scan", "--output-json", "--"]))
+}
+
+///|
 test "cli args parse repeated scan excludes before scan root" {
   match
     parse_cli_command([
