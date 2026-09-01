@@ -47,9 +47,11 @@ test "taint lowering preserves internal source and sink ids" {
     #|}
     #|
   let (rule, taint_rule) = compile_single_taint_rule(rule_source)
+  let spec = lower_compiled_taint_rule(rule, taint_rule)
+  assert_eq(spec.max_fixpoint_iterations, 64)
   let result = @taint.analyze_function_like(
     parse_single_taint_impl(source),
-    lower_compiled_taint_rule(rule, taint_rule),
+    spec,
   )
   assert_eq(result.findings.length(), 1)
   assert_eq(result.findings[0].sink_id, @taint.SinkId::PatternIndex(0))
