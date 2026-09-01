@@ -1,29 +1,50 @@
 ///|
 pub fn render_dump_command(command : CliCommand) -> String raise {
   match command {
-    DumpImpl(source~, exit_code~) => render_dump_impl_debug(source, exit_code)
-    DumpExpr(source~, exit_code~) => render_dump_expr_debug(source, exit_code)
+    DumpImpl(source~, exit_code~, output_json~) =>
+      render_dump_impl_debug(source, exit_code, output_json)
+    DumpExpr(source~, exit_code~, output_json~) =>
+      render_dump_expr_debug(source, exit_code, output_json)
     _ => raise new_internal_error("invalid dump command")
   }
 }
 
 ///|
-fn render_dump_impl_debug(source : String, exit_code : Bool) -> String raise {
+fn render_dump_impl_debug(
+  source : String,
+  exit_code : Bool,
+  output_json : Bool,
+) -> String raise {
   let node = parse_dump_impl(source)
-  if exit_code {
-    ""
-  } else {
-    "\{Repr(node)}"
-  }
+  render_dump_node(node, "impl", exit_code, output_json)
 }
 
 ///|
-fn render_dump_expr_debug(source : String, exit_code : Bool) -> String raise {
+fn render_dump_expr_debug(
+  source : String,
+  exit_code : Bool,
+  output_json : Bool,
+) -> String raise {
   let node = parse_dump_expr(source)
+  render_dump_node(node, "expr", exit_code, output_json)
+}
+
+///|
+fn render_dump_node(
+  node : @untyped_cst.CstNode,
+  kind : String,
+  exit_code : Bool,
+  output_json : Bool,
+) -> String {
   if exit_code {
     ""
   } else {
-    "\{Repr(node)}"
+    let content = "\{Repr(node)}"
+    if output_json {
+      render_dump_json(kind, content)
+    } else {
+      content
+    }
   }
 }
 

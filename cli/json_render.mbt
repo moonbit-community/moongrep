@@ -124,3 +124,12 @@ fn render_scan_trace_json(trace : ScanTrace) -> String {
   }
   Json::object(record).stringify()
 }
+
+///|
+fn render_dump_json(kind : String, content : String) -> String {
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("dump")
+  record["kind"] = Json::string(kind)
+  record["content"] = Json::string(content)
+  Json::object(record).stringify()
+}
