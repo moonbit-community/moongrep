@@ -26,6 +26,7 @@ analyzer 及其调用方的维护者，不面向规则作者。
 
 没有 body 的声明、顶层表达式、测试、类型定义、trait 以及其他 `Impl` 形式都会抛出
 `TaintAnalysisError::UnsupportedFunctionLike`。规则应用层在扫描文件时会有意捕获并忽略该错误。
+它不会捕获 `FixpointDidNotConverge`；该错误会进入 scanner 的 fatal-error 路径。
 
 ## 主流程
 
@@ -100,11 +101,9 @@ origin 会按结构相等去重。merge 操作会保留同一路径上的所有�
 
 ## 表达式求值
 
-`eval_expr` 会按源码求值顺序解释支持的表达式形式。它返回一个 `EvalResult`，其中包含：
-
-- 下一个存储状态
-- 表达式值的污点
-- 一个 `FlowExit`
+`eval_expr` 会按源码求值顺序解释支持的表达式形式。它返回私有的分区式
+`EvalResult`。摘要包含可选 normal path、独立的 return 和 raise path，以及按目标
+label 分组的 break 和 continue path。每条 path 都单独保存存储状态和表达式值污点。
 
 常见的值构造会把子值污点移动到相对 subpath 中：
 
@@ -205,27 +204,25 @@ receiver/argument taint。
 
 ## 控制流
 
-`FlowExit` 会记录求值是正常继续，还是通过以下方式退出：
-
-- `return`
-- `raise`
-- `break`
-- `continue`
-
-顺序求值遇到任何非 normal flow 都会停止。这就是为什么无条件 `return` 后面的 sink 不会被报告。
+顺序求值只会在 normal 分区上运行下一个表达式。return、raise、break 和 continue
+分区会绕过它并保留在摘要中。因此，无条件 `return` 后面的 sink 不会被报告；如果另一个
+分支仍能正常继续，后续代码仍会被分析。
 
 分支是 path-insensitive 的：
 
 - `if` 会求值一次 condition，从 condition true-state 求值 true branch，从 base
-  post-condition state 求值 false branch，恢复条件 binder，然后合并 normal 分支状态和值
-- `match` 和 `catch` 会独立绑定每个 case，合并 normal case 状态，并且仅在没有 normal case 时保留 exit state
-- `try` 会立即传播 `return`、`break` 和 `continue`；`raise` 会分派给 catch case
-- 当 `try` body 正常完成时，catch 和 try-else case body 也会从 post-body state 出发，作为可能的 normal 分支求值
+  post-condition state 求值 false branch，在每条 path 上恢复条件 binder，并逐分区 join
+- `match`、`lexmatch`、`lexscan` 和 catch 会独立绑定每个 case，并使用相同的逐分区
+  join，因此 case 顺序不会决定保留哪一种退出
+- labelled block 和循环只消费匹配 label 的 break 或 continue；return、raise 和指向外层
+  label 的退出继续向外传播
+- `try` 只把 raise 分区交给 catch；存在 `noraise` 时把 normal 分区交给它，并保留其他退出
 
-循环使用由 `spec.max_fixpoint_iterations` 控制的有界不动点。`while`、`for` 和
-`foreach` 会反复从当前 join state 求值 body，直到下一轮没有添加新的污点事实或达到上限。
-`return` 和 `raise` 会立即逃逸。`break` 会 join break state，然后离开循环。
-`continue` 被视为 loop-body exit 并参与 join 路径。
+`while`、`for` 和 `foreach` 共用一个由 `spec.max_fixpoint_iterations` 控制的不动点
+驱动器。每轮会分别汇总 back edge、匹配的 break 和向外退出。只有 `state_equiv`
+确认 join state 稳定时才算收敛。如果先耗尽安全预算，分析会抛出
+`TaintAnalysisError::FixpointDidNotConverge`，其中包含 rule ID、循环类型、位置和预算；
+不会返回部分 `AnalysisResult`。
 
 `foreach` 会在 body fixpoint 开始前，把循环变量绑定到 collection 的 `AnyIndex` 投影。
 
@@ -258,7 +255,7 @@ Lowered YAML taint spec 使用：
 - 没有 entry-path source
 - 没有声明式 call model
 - `unknown_call_policy = NoEffect`
-- `max_fixpoint_iterations = 6`
+- `max_fixpoint_iterations = 64`
 
 这有意比通用 `taint` API 更窄。`TaintSpec` 的直接用户可以建模 entry source、
 传播 unknown call，以及声明式 call effect。这些能力目前都没有暴露给 YAML 规则。
@@ -291,7 +288,7 @@ YAML 规则集成 boundary 添加聚焦测试。
 新增一种能产生值的表达式时：
 
 1. 按源码顺序求值 children
-2. 遇到非 normal `FlowExit` 立即停止
+2. 只从 normal 分区求值下一个 child，并保留已有的所有退出分区
 3. 当该表达式构造 compound value 时，把 child taint 移到相对路径中
 4. 为直接 sink 报告和 `let` 后存储两种情况添加测试
 

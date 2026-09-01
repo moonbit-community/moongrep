@@ -32,7 +32,9 @@ Only function-like top-level nodes are executable:
 Declarations without bodies, top-level expressions, tests, type definitions,
 traits, and other `Impl` forms raise
 `TaintAnalysisError::UnsupportedFunctionLike`. The rule application layer
-intentionally catches and ignores that error during file scans.
+intentionally catches and ignores that error during file scans. It does not
+catch `FixpointDidNotConverge`; that error follows the scanner's fatal-error
+path.
 
 ## Main Flow
 
@@ -120,11 +122,10 @@ relative tree below `x.a`. Sibling facts such as `x.b` are preserved.
 ## Expression Evaluation
 
 `eval_expr` interprets supported expression forms in source evaluation order.
-It returns an `EvalResult` containing:
-
-- the next storage state
-- the expression value taint
-- a `FlowExit`
+It returns a private, partitioned `EvalResult`. The summary has an optional
+normal path, separate return and raise paths, and break and continue paths
+grouped by target label. Every path keeps its own storage state and expression
+value taint.
 
 Common value construction shifts child taint into relative subpaths:
 
@@ -240,34 +241,30 @@ receiver/argument taint already evaluated for other effects on the same call.
 
 ## Control Flow
 
-`FlowExit` tracks whether evaluation continues normally or exits through:
-
-- `return`
-- `raise`
-- `break`
-- `continue`
-
-Sequential evaluation stops on any non-normal flow. This is why a sink after an
-unconditional `return` is not reported.
+Sequential evaluation runs the next expression only on the normal partition.
+Return, raise, break, and continue partitions bypass it and remain in the
+summary. This is why a sink after an unconditional `return` is not reported,
+while a normal branch can still reach later code when another branch exits.
 
 Branches are path-insensitive:
 
 - `if` evaluates the condition once, evaluates the true branch from the
   condition true-state, evaluates the false branch from the base post-condition
-  state, restores condition binders, and merges normal branch states and values
-- `match` and `catch` bind each case independently, merge normal case states,
-  and keep exit states only when no normal case exists
-- `try` propagates `return`, `break`, and `continue` immediately; `raise`
-  dispatches to catch cases
-- when a `try` body completes normally, catch and try-else case bodies are also
-  evaluated as possible normal branches from the post-body state
+  state, restores condition binders on every path, and joins every partition
+- `match`, `lexmatch`, `lexscan`, and catch bind each case independently and
+  use the same partition-wise join, so case order does not choose an exit kind
+- labelled blocks and loops consume only matching break or continue labels;
+  return, raise, and exits for enclosing labels remain separate
+- `try` sends only the raise partition to catch cases, sends the normal
+  partition to `noraise` cases when present, and preserves all other exits
 
-Loops use a bounded fixpoint controlled by `spec.max_fixpoint_iterations`.
-`while`, `for`, and `foreach` repeatedly evaluate the body from the current
-joined state until another pass adds no new taint facts or the bound is reached.
-`return` and `raise` escape immediately. `break` joins the break state and then
-leaves the loop. `continue` is treated as a loop-body exit and participates in
-the join path.
+`while`, `for`, and `foreach` share one fixpoint driver controlled by
+`spec.max_fixpoint_iterations`. Each iteration reports back edges, matching
+breaks, and exits for enclosing constructs separately. The driver succeeds only
+when `state_equiv` confirms that the joined state is stable. If the safety
+budget is exhausted first, analysis raises
+`TaintAnalysisError::FixpointDidNotConverge` with the rule ID, loop kind,
+location, and budget. It does not return a partial `AnalysisResult`.
 
 `foreach` binds loop variables to the collection's `AnyIndex` projection before
 the body fixpoint starts.
@@ -304,7 +301,7 @@ Lowered YAML taint specs use:
 - no entry-path sources
 - no declarative call models
 - `unknown_call_policy = NoEffect`
-- `max_fixpoint_iterations = 6`
+- `max_fixpoint_iterations = 64`
 
 This is intentionally narrower than the generic `taint` API. Direct users of
 `TaintSpec` can model entry sources, propagating unknown calls, and declarative
@@ -342,7 +339,8 @@ When adding a new storage-shaped expression:
 When adding a new value-producing expression:
 
 1. evaluate children in source order
-2. stop immediately on non-normal `FlowExit`
+2. evaluate the next child only from the normal partition and preserve all
+   existing exits
 3. shift child taint into relative paths when the expression constructs a
    compound value
 4. add tests for both direct sink reporting and storage after `let`
