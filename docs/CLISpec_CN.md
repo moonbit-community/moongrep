@@ -79,7 +79,7 @@ moongrep lint [options] [scan-root]
 - `--pattern <source>`：添加一个匿名结构模式。
 - `--guard <yaml>`：为前面的匿名模式附加 YAML guard 映射。
 - `--exclude <name-or-path>`：跳过匹配的文件或目录条目。
-- `--disable <rule-id>`：禁用精确匹配的已加载规则 id。
+- `--disable <rule-id>`：禁用一个已加载规则 id。
 - `--verbose`：把规则加载和遍历事件写入标准错误。
 - `--output-json`：以 JSON Lines 格式输出命中。
 - `-h` 或 `--help`：打印命令帮助。
@@ -168,6 +168,11 @@ JSON 输出都使用同一个规范化原生路径，因此渲染路径使用 `\
 所有选中来源都会先加载，然后才应用 `--disable`。每个禁用 id 都与组合后的已加载
 规则 id 进行精确且区分大小写的比较，此规则在所有平台一致。每个请求的 id 都必须
 存在；第一个未知 id 会成为状态码 2 的用法错误。
+
+旧内置规则 id `moonbitlang/unnessary_else` 作为
+`moonbitlang/unnecessary_else` 的弃用兼容别名继续受到支持。若存在与旧 id 精确匹配
+的已加载规则，则精确匹配优先。命中结果和 verbose 已加载规则事件始终使用修正后的
+内置规则 id。
 
 所有具有被禁用 id 的规则都会在规则编译和扫描计划之前移除。重复的禁用 id 按
 一个处理。verbose 的已加载规则事件描述最终保持启用的规则。
