@@ -42,8 +42,8 @@ fn builtin_rule_sources() -> Array[BuiltinRuleSource] {
       yaml: @moonbitlang_rules.match_option_yaml,
     },
     {
-      path: "builtin/moonbitlang/unnessary_else.yaml",
-      yaml: @moonbitlang_rules.unnessary_else_yaml,
+      path: "builtin/moonbitlang/unnecessary_else.yaml",
+      yaml: @moonbitlang_rules.unnecessary_else_yaml,
     },
     {
       path: "builtin/moonbitlang/simplifiable_assignment.yaml",

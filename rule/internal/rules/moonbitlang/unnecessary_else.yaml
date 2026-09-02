@@ -1,4 +1,4 @@
-id: unnessary_else
+id: unnecessary_else
 description: |
   Found an if expression whose else branch is empty or only returns ().
   Prefer omitting the unnecessary else branch.

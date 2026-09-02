@@ -21,8 +21,8 @@ dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
 
 dev_build(
   rule: "embed",
-  input: "unnessary_else.yaml",
-  output: "unnessary_else.mbt",
+  input: "unnecessary_else.yaml",
+  output: "unnecessary_else.mbt",
 )
 
 dev_build(

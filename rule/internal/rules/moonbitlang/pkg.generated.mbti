@@ -20,7 +20,7 @@ pub let match_option_yaml : String
 
 pub let simplifiable_assignment_yaml : String
 
-pub let unnessary_else_yaml : String
+pub let unnecessary_else_yaml : String
 
 // Errors
 
