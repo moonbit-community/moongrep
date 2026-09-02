@@ -619,6 +619,18 @@ async test "scan disables configured rule ids before planning" {
 }
 
 ///|
+test "legacy unnecessary_else id disables the corrected builtin rule id" {
+  let rules = @rule_builtin.load_rules()
+  let enabled = disable_scan_rules(rules, [legacy_unnecessary_else_rule_id])
+  let enabled_ids : Array[String] = []
+  for rule in enabled {
+    enabled_ids.push(rule.rule_id)
+  }
+  assert_eq(enabled.length(), rules.length() - 1)
+  assert_false(enabled_ids.contains(unnecessary_else_rule_id))
+}
+
+///|
 async test "scan rejects unknown disabled rule ids" {
   try capture_scan_events(Scan, unknown_disabled_rule_scan_options()) catch {
     CliError::Usage(diagnostic~) as err => {
