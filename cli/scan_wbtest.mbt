@@ -491,6 +491,45 @@ async test "scan excludes configured file and directory entries" {
 }
 
 ///|
+async test "scan skips a symlink cycle" {
+  let scan_root = @fs.tmpdir(prefix="moongrep-scan-cycle")
+  defer @fs.rmdir(scan_root, recursive=true)
+  let source_path = join_scan_path(scan_root, "hit.mbt")
+  @fs.write_file(
+    source_path,
+    (
+      #|///|
+      #|fn sample {
+      #|  target()
+      #|}
+    ),
+  )
+  let cycle_path = join_scan_path(scan_root, "again")
+  @fs.symlink(cycle_path, target=@fs.realpath(scan_root))
+  let options : CliOptions = {
+    rules_root: None,
+    rule_file: None,
+    patterns: [{ shape: "target()", guards: Map([]), match_mode: Default, }],
+    scan_root,
+    excludes: [],
+    disabled_rules: [],
+    verbose: true,
+    no_color: false,
+    output_json: false,
+  }
+  let result = capture_scan_events(Scan, options)
+  guard result.hits is [hit] else { fail("expected exactly one scan hit") }
+  assert_eq(hit.finding.file, source_path)
+  assert_true(
+    string_array_contains(
+      result.traces,
+      "moongrep scan: skipping \{cycle_path}",
+    ),
+  )
+  assert_true(result.warnings.is_empty())
+}
+
+///|
 async test "scan does not apply excludes to the explicit scan root" {
   let result = capture_scan_events(Scan, excluded_scan_root_options())
   let files : Array[String] = []
