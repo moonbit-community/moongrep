@@ -94,6 +94,9 @@ moongrep lint [options] [scan-root]
 
 `scan-root` 可以指向目录或一个普通文件。目录目标会被递归遍历。普通文件目标的
 路径以小写 `.mbt` 结尾时会被扫描。
+目录 symlink 会被跟随。每个解析后的目录最多进入一次，因此 symlink 环和后续
+指向已访问目录的别名都会被跳过。命中和事件保留遍历路径，不使用解析后的身份
+路径。
 
 在 Linux 和 macOS 上，扫描器保留提供的扫描根拼写，并按下文遍历规则使用 `/`
 构造子路径。
@@ -101,8 +104,9 @@ moongrep lint [options] [scan-root]
 在 Windows 上，扫描根会在任何文件系统操作前进行词法规范化。`/` 和 `\` 都可
 作为分隔符；重复分隔符以及 `.`、`..` 路径分量按 Windows 路径规则规范化。
 子路径使用原生分隔符连接。文件系统访问、命中位置、warning、verbose 事件和
-JSON 输出都使用同一个规范化原生路径，因此渲染路径使用 `\`。规范化不会调用
-`realpath`，也不会把相对扫描根变成绝对路径。
+JSON 输出都使用同一个规范化原生路径，因此渲染路径使用 `\`。词法规范化不会把
+相对扫描根变成绝对路径。目录身份检查会另外解析 symlink，但不会改变渲染的遍历
+路径。
 
 ### 规则来源和顺序
 
@@ -127,6 +131,7 @@ JSON 输出都使用同一个规范化原生路径，因此渲染路径使用 `\
 在 Windows 上，有效的 `--rules` 和 `--rule` 路径会在文件系统访问前进行词法
 规范化。递归规则发现使用原生路径连接；单个 `--rule` 文件的所在目录按 Windows
 路径规则计算。Linux 和 macOS 保留现有的 `/` 路径构造方式。
+目录 symlink 会被跟随，每个解析后的规则目录最多访问一次。
 
 规则目录发现、规则 id、YAML 校验、一个规则目录内的来源顺序和匹配器编译由
 [RuleSpec_CN.md](RuleSpec_CN.md) 规定。
@@ -281,7 +286,8 @@ warning 和无效 `#moongrep.skip` warning 也总会写入标准错误。`--verb
 - 遍历开始前，对每个已启用的编译规则输出
   `moongrep scan: loaded rule <id>`；
 - 进入目录时输出 `moongrep scan: entering <path>`；
-- 默认或请求的排除跳过子条目时输出 `moongrep scan: skipping <path>`；
+- 排除规则或已访问目录导致路径被跳过时输出
+  `moongrep scan: skipping <path>`；
 - 处理符合条件的 `.mbt` 文件前输出 `moongrep scan: file <path>`。
 
 文本模式下，这些事件和 warning 保留上面的文本格式。JSON 模式下，标准错误改为

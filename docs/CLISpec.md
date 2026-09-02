@@ -103,6 +103,10 @@ Long options that take values accept both `--option value` and
 `scan-root` may name a directory or one regular file. Directory targets are
 traversed recursively. A regular target is scanned when its path ends in
 lowercase `.mbt`.
+Directory symlinks are followed. Each resolved directory is entered at most
+once, so symlink cycles and later aliases of an already visited directory are
+skipped. Findings and events keep the traversal path rather than the resolved
+identity path.
 
 On Linux and macOS, the scanner retains the supplied scan-root spelling and
 constructs child paths with `/`, as described by the traversal rules below.
@@ -112,8 +116,9 @@ operation. Both `/` and `\` are accepted as separators; repeated separators and
 `.` / `..` components are normalized with Windows path rules. Child paths are
 joined with the native separator. The normalized native path is used for
 filesystem access and for finding locations, warnings, verbose events, and
-JSON output, so rendered paths use `\`. Normalization does not call `realpath`
-and does not turn a relative scan root into an absolute path.
+JSON output, so rendered paths use `\`. Lexical normalization does not turn a
+relative scan root into an absolute path. Directory identity checks resolve
+symlinks separately without changing the rendered traversal path.
 
 ### Rule Sources and Ordering
 
@@ -141,6 +146,8 @@ On Windows, effective `--rules` and `--rule` paths are lexically normalized
 before filesystem access. Recursive rule discovery uses native path joins, and
 the containing directory of a single `--rule` file is computed with Windows
 path rules. Linux and macOS retain the existing `/`-based path construction.
+Directory symlinks are followed, and each resolved rule directory is visited
+at most once.
 
 Rule-directory discovery, rule ids, YAML validation, source ordering within a
 rule directory, and matcher compilation are specified by
@@ -328,8 +335,8 @@ events:
 - `moongrep scan: loaded rule <id>` for each enabled compiled rule, before
   traversal starts;
 - `moongrep scan: entering <path>` when a directory is entered;
-- `moongrep scan: skipping <path>` when a default or requested exclusion
-  skips a child;
+- `moongrep scan: skipping <path>` when an exclusion or an already visited
+  directory skips a path;
 - `moongrep scan: file <path>` before an eligible `.mbt` file is processed.
 
 In human mode, these events and warnings retain the text shown above. In JSON
