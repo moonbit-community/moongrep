@@ -782,30 +782,36 @@ test "taint engine propagates outer breaks through nested loops" {
   assert_eq(analyze_call_source_sink(for_source).findings.length(), 0)
   let foreach_source =
     #|fn sample {
+    #|  let mut value = ();
     #|  outer~: {
     #|    for item in clean_items() {
+    #|      value = get_user_input();
     #|      break outer~
     #|    };
     #|    sink(get_user_input())
-    #|  }
+    #|  };
+    #|  sink(value)
     #|}
     #|
-  assert_eq(analyze_call_source_sink(foreach_source).findings.length(), 0)
+  assert_eq(analyze_call_source_sink(foreach_source).findings.length(), 2)
 }
 
 ///|
 test "taint engine propagates outer continues through nested loops" {
   let source =
     #|fn sample {
+    #|  let mut value = ();
     #|  outer~: for ;; {
     #|    while clean() {
+    #|      value = get_user_input();
     #|      continue outer~
     #|    };
-    #|    sink(get_user_input())
-    #|  }
+    #|    break
+    #|  };
+    #|  sink(value)
     #|}
     #|
-  assert_eq(analyze_call_source_sink(source).findings.length(), 0)
+  assert_eq(analyze_call_source_sink(source).findings.length(), 1)
 }
 
 ///|
@@ -1320,7 +1326,7 @@ test "taint engine reaches a sink after seven reverse loop assignments" {
     #|  let mut x0 = get_user_input();
     #|  let mut x1 = (); let mut x2 = (); let mut x3 = (); let mut x4 = ();
     #|  let mut x5 = (); let mut x6 = (); let mut x7 = ();
-    #|  for ;; {
+    #|  for ; clean(); {
     #|    x7 = x6; x6 = x5; x5 = x4; x4 = x3;
     #|    x3 = x2; x2 = x1; x1 = x0
     #|  };
