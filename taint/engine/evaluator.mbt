@@ -2653,7 +2653,7 @@ fn finish_loop_fixpoint(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let mut result = summary.exits
-  if summary.normal_exit is Some(path) {
+  if summary.nobreak_exit is Some(path) {
     let normal_completion = match else_expr {
       Some(expr) => eval_expr(expr, path.state, spec, findings)
       None => normal_result(path.state, [])
@@ -2694,10 +2694,7 @@ fn eval_while(
           )
           let consumed = consume_loop_control(body_result, loop_label)
           {
-            normal_exit: match consumed.back_edge {
-              Some(_) => Some({ state: path.base_state, value: [], })
-              None => None
-            },
+            nobreak_exit: Some({ state: path.base_state, value: [], }),
             back_edge: consumed.back_edge,
             break_exit: consumed.break_exit,
             exits: flow_join(condition.exits, consumed.exits),
@@ -2705,7 +2702,7 @@ fn eval_while(
         }
         None =>
           {
-            normal_exit: None,
+            nobreak_exit: None,
             back_edge: None,
             break_exit: None,
             exits: condition.exits,
@@ -2860,7 +2857,7 @@ fn eval_for(
               }
           }
           {
-            normal_exit: match updates.back_edge {
+            nobreak_exit: match condition {
               Some(_) => Some({ state: condition_path.base_state, value: [], })
               None => None
             },
@@ -2877,7 +2874,7 @@ fn eval_for(
         }
         None =>
           {
-            normal_exit: None,
+            nobreak_exit: None,
             back_edge: None,
             break_exit: None,
             exits: condition_result.exits,
@@ -3013,10 +3010,7 @@ fn eval_for_each(
           { back_edge: None, break_exit: None, exits: empty_flow_summary(), }
       }
       {
-        normal_exit: match updates.back_edge {
-          Some(_) => Some({ state: header, value: [], })
-          None => None
-        },
+        nobreak_exit: Some({ state: header, value: [], }),
         back_edge: updates.back_edge,
         break_exit: merge_optional_flow_paths(
           body_flow.break_exit,
