@@ -259,10 +259,16 @@ Branches are path-insensitive:
   partition to `noraise` cases when present, and preserves all other exits
 
 `while`, `for`, and `foreach` share one fixpoint driver controlled by
-`spec.max_fixpoint_iterations`. Each iteration reports back edges, matching
-breaks, and exits for enclosing constructs separately. The driver succeeds only
-when `state_equiv` confirms that the joined state is stable. If the safety
-budget is exhausted first, analysis raises
+`spec.max_fixpoint_iterations`. Each iteration reports the loop-head back edge,
+the natural `nobreak` exit, matching breaks, and exits for enclosing constructs
+separately. Only the back edge is joined into the next loop-head state.
+Condition-controlled `while` and `for` loops keep the false-condition path
+after a normal condition evaluation, and `foreach` keeps the empty or exhausted
+collection path. A conditionless `for ;;` has no natural exit. Matching breaks
+reach the code after the loop but skip its `nobreak` block.
+
+The driver succeeds only when `state_equiv` confirms that the loop-head state
+is stable. If the safety budget is exhausted first, analysis raises
 `TaintAnalysisError::FixpointDidNotConverge` with the rule ID, loop kind,
 location, and budget. It does not return a partial `AnalysisResult`.
 

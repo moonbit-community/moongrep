@@ -219,8 +219,12 @@ receiver/argument taint。
 - `try` 只把 raise 分区交给 catch；存在 `noraise` 时把 normal 分区交给它，并保留其他退出
 
 `while`、`for` 和 `foreach` 共用一个由 `spec.max_fixpoint_iterations` 控制的不动点
-驱动器。每轮会分别汇总 back edge、匹配的 break 和向外退出。只有 `state_equiv`
-确认 join state 稳定时才算收敛。如果先耗尽安全预算，分析会抛出
+驱动器。每轮会分别汇总循环头回边、自然 `nobreak` 退出、匹配的 break 和向外退出，
+只有回边会合并到下一轮循环头状态。条件正常求值后，带条件的 `while` 和 `for` 会保留
+条件为假的路径；`foreach` 会保留集合为空或迭代耗尽的路径。无条件 `for ;;` 不存在
+自然退出。匹配的 break 可以到达循环后的代码，但会跳过 `nobreak` 块。
+
+只有 `state_equiv` 确认循环头状态稳定时才算收敛。如果先耗尽安全预算，分析会抛出
 `TaintAnalysisError::FixpointDidNotConverge`，其中包含 rule ID、循环类型、位置和预算；
 不会返回部分 `AnalysisResult`。
 
