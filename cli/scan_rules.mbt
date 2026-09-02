@@ -97,10 +97,16 @@ fn disable_scan_rules(
   if disabled_rules.is_empty() {
     return raw_rules
   }
-  ensure_disabled_rule_ids_exist(raw_rules, disabled_rules)
+  let loaded : Map[String, Bool] = Map([])
+  for raw in raw_rules {
+    loaded[raw.rule_id] = true
+  }
   let disabled : Map[String, Bool] = Map([])
-  for rule_id in disabled_rules {
-    disabled[rule_id] = true
+  for requested_rule_id in disabled_rules {
+    match resolve_disabled_rule_id(loaded, requested_rule_id) {
+      Some(rule_id) => disabled[rule_id] = true
+      None => raise new_unknown_disabled_rule_error(requested_rule_id)
+    }
   }
   let enabled : Array[@rule_model.RawRuleSpec] = []
   for raw in raw_rules {
@@ -112,19 +118,24 @@ fn disable_scan_rules(
 }
 
 ///|
-fn ensure_disabled_rule_ids_exist(
-  raw_rules : Array[@rule_model.RawRuleSpec],
-  disabled_rules : Array[String],
-) -> Unit raise {
-  let loaded : Map[String, Bool] = Map([])
-  for raw in raw_rules {
-    loaded[raw.rule_id] = true
+let legacy_unnecessary_else_rule_id : String = "moonbitlang/unnessary_else"
+
+///|
+let unnecessary_else_rule_id : String = "moonbitlang/unnecessary_else"
+
+///|
+fn resolve_disabled_rule_id(
+  loaded : Map[String, Bool],
+  requested_rule_id : String,
+) -> String? {
+  if loaded.contains(requested_rule_id) {
+    return Some(requested_rule_id)
   }
-  for rule_id in disabled_rules {
-    if !loaded.contains(rule_id) {
-      raise new_unknown_disabled_rule_error(rule_id)
-    }
+  if requested_rule_id == legacy_unnecessary_else_rule_id &&
+    loaded.contains(unnecessary_else_rule_id) {
+    return Some(unnecessary_else_rule_id)
   }
+  None
 }
 
 ///|
