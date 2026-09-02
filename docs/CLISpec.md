@@ -86,7 +86,7 @@ Both commands accept:
 - `--pattern <source>`: add one anonymous structural pattern.
 - `--guard <yaml>`: attach a YAML guard map to a preceding anonymous pattern.
 - `--exclude <name-or-path>`: skip matching file or directory entries.
-- `--disable <rule-id>`: disable an exact loaded rule id.
+- `--disable <rule-id>`: disable a loaded rule id.
 - `--verbose`: write rule-loading and traversal events to standard error.
 - `--output-json`: write findings as JSON Lines records.
 - `-h` or `--help`: print command help.
@@ -187,10 +187,15 @@ valid, and how a guard matches are rule-compilation concerns specified by
 
 ### Rule Disabling
 
-All selected sources are loaded before `--disable` is applied. Each disabled id
-is compared exactly and case-sensitively against the combined loaded rule ids
-on every platform. Every requested id must exist; the first unknown id is a
-usage error with status 2.
+All selected sources are loaded before `--disable` is applied. Disabled ids are
+compared exactly and case-sensitively against the combined loaded rule ids on
+every platform. Every requested id must exist; the first unknown id is a usage
+error with status 2.
+
+The legacy builtin id `moonbitlang/unnessary_else` is a deprecated compatibility
+alias for `moonbitlang/unnecessary_else`. An exact loaded rule id takes
+precedence over this alias. Findings and verbose loaded-rule events always use
+the corrected builtin id.
 
 All rules with a disabled id are removed before rule compilation and scan
 planning. Repeated disabled ids are treated as one. Verbose loaded-rule events
