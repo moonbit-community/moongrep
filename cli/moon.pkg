@@ -1,6 +1,7 @@
 import {
   "moonbit-community/chalk",
   "moonbit-community/moongrep/docs",
+  "moonbit-community/moongrep/internal/fs_walk",
   "moonbit-community/moongrep/cst",
   "moonbit-community/moongrep/rule/apply" @rule_apply,
   "moonbit-community/moongrep/rule/builtin" @rule_builtin,

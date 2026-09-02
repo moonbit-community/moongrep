@@ -1,0 +1,21 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/fs_walk"
+
+import {
+  "moonbitlang/core/set",
+}
+
+// Values
+
+// Errors
+
+// Types and methods
+pub struct VisitedDirectories {
+  identities : @set.Set[String]
+}
+pub fn VisitedDirectories::new() -> Self
+pub async fn VisitedDirectories::should_enter(Self, String) -> Bool
+
+// Type aliases
+
+// Traits

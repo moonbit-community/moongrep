@@ -6,6 +6,19 @@ async fn scan_path(
   verbose : Bool,
   receive : async (ScanEvent) -> Unit,
 ) -> Unit {
+  let visited = @fs_walk.VisitedDirectories::new()
+  scan_path_once(path, excludes, scan_plan, verbose, receive, visited)
+}
+
+///|
+async fn scan_path_once(
+  path : String,
+  excludes : Array[String],
+  scan_plan : @rule_apply.ScanPlan,
+  verbose : Bool,
+  receive : async (ScanEvent) -> Unit,
+  visited : @fs_walk.VisitedDirectories,
+) -> Unit {
   let kind = @fs.kind(path) catch {
     @os_error.OSError(_) as err =>
       raise new_scan_input_os_error(path, "access scan path", err)
@@ -13,6 +26,16 @@ async fn scan_path(
   }
   match kind {
     Directory => {
+      let should_enter = visited.should_enter(path) catch {
+        @os_error.OSError(_) as err =>
+          raise new_scan_input_os_error(path, "resolve scan directory", err)
+        err =>
+          raise new_scan_input_error(path, "resolve scan directory", "\{err}")
+      }
+      if !should_enter {
+        emit_scan_trace(verbose, receive, PathSkipped(path))
+        return
+      }
       emit_scan_trace(verbose, receive, DirectoryEntered(path))
       let entries = @fs.readdir(path, sort=true) catch {
         @os_error.OSError(_) as err =>
@@ -22,7 +45,9 @@ async fn scan_path(
       for entry in entries {
         let child_path = join_scan_path(path, entry)
         if !should_skip_entry(child_path, entry, excludes) {
-          scan_path(child_path, excludes, scan_plan, verbose, receive)
+          scan_path_once(
+            child_path, excludes, scan_plan, verbose, receive, visited,
+          )
         } else {
           emit_scan_trace(verbose, receive, PathSkipped(child_path))
         }

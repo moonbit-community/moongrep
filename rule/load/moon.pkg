@@ -1,4 +1,5 @@
 import {
+  "moonbit-community/moongrep/internal/fs_walk",
   "moonbit-community/moongrep/rule/model",
   "moonbitlang/async/fs",
   "moonbitlang/async/io",

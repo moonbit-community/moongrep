@@ -70,18 +70,26 @@ fn join_rule_path(directory : String, entry : String) -> String {
 ///|
 async fn collect_rule_files(rules_root : String) -> Array[String] {
   let files : Array[String] = []
-  walk_rule_dir(rules_root, files)
+  let visited = @fs_walk.VisitedDirectories::new()
+  walk_rule_dir(rules_root, files, visited)
   files.sort()
   files
 }
 
 ///|
-async fn walk_rule_dir(dir : String, files : Array[String]) -> Unit {
+async fn walk_rule_dir(
+  dir : String,
+  files : Array[String],
+  visited : @fs_walk.VisitedDirectories,
+) -> Unit {
+  if !visited.should_enter(dir) {
+    return
+  }
   let entries = @fs.readdir(dir, sort=true)
   for entry in entries {
     let path = join_rule_path(dir, entry)
     match @fs.kind(path) {
-      Directory => walk_rule_dir(path, files)
+      Directory => walk_rule_dir(path, files, visited)
       Regular => if has_yaml_suffix(path) { files.push(path) }
       _ => ()
     }
