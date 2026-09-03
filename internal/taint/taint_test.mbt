@@ -1077,6 +1077,74 @@ test "taint engine lexscan regex alias receives scrutinee taint" {
 }
 
 ///|
+test "taint engine lexmatch regex alias receives scrutinee taint" {
+  let source =
+    #|fn sample(input) {
+    #|  lexmatch input {
+    #|    re"." as item => sink(item);
+    #|    _ => ()
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine lexscan regex binding receives scrutinee taint" {
+  let source =
+    #|fn sample(input) {
+    #|  lexscan input {
+    #|    (re".", before=head) => sink(head);
+    #|    _ => ()
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine lexmatch regex binding receives scrutinee taint" {
+  let source =
+    #|fn sample(input) {
+    #|  lexmatch input {
+    #|    (re".", before=head) => sink(head);
+    #|    _ => ()
+    #|  }
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine restores lex regex binding before following expression" {
+  let source =
+    #|fn sample(input, clean) {
+    #|  lexmatch clean {
+    #|    (re".", before=input) => ()
+    #|  };
+    #|  sink(input)
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
+test "taint engine evaluates errdefer expressions" {
+  let source =
+    #|fn sample(input) {
+    #|  errdefer sink(input)
+    #|  ()
+    #|}
+    #|
+  let result = analyze_single_entry_sink(source, "input")
+  assert_eq(result.findings.length(), 1)
+}
+
+///|
 test "taint engine restores lexscan binder before following expression" {
   let source =
     #|fn sample(input, clean) {
