@@ -166,7 +166,8 @@ fn sequence_continuation_owner(kind : @untyped_cst.NodeKind) -> Bool {
   | Expr_LetFn
   | Expr_LetAnd
   | Expr_Guard
-  | Expr_Defer)
+  | Expr_Defer
+  | Expr_ErrDefer)
 }
 
 ///|

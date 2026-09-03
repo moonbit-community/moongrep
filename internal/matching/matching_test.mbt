@@ -499,6 +499,7 @@ test "only ordinary let and guard omit a sequence continuation" {
       "letrec recur = fn(value) { value }", "letrec recur = fn(value) { value }; recur(source())",
     ),
     ("defer cleanup()", "defer cleanup(); continue_work()"),
+    ("errdefer cleanup()", "errdefer cleanup(); continue_work()"),
   ]
   for case in rejected {
     let (pattern, candidate) = case
@@ -517,7 +518,7 @@ test "complete statement shapes match sequence candidates" {
   for
     source in [
       "let mut value = source(); consume(value)", "letrec recur = fn(value) { value }; recur(source())",
-      "defer cleanup(); continue_work()",
+      "defer cleanup(); continue_work()", "errdefer cleanup(); continue_work()",
     ] {
     let compiled = test_compiled(test_expr(source))
     assert_true(
@@ -691,6 +692,7 @@ test "terminal ignore placeholder absorbs every continuation owner suffix" {
   let headers = [
     "let value = source()", "let mut value = source()", "fn helper(value) { value }",
     "letrec helper = fn(value) { value }", "guard ready() else { fallback() }", "defer cleanup()",
+    "errdefer cleanup()",
   ]
   let suffixes = ["", "; continue_work()", "; continue_work(); finish()"]
   for header in headers {
