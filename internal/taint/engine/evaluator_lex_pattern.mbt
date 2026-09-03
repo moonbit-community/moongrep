@@ -35,7 +35,10 @@ fn lex_scan_pattern_bound_roots(
 ) -> Array[String] {
   let roots : Array[String] = []
   add_lex_scan_pattern_bound_roots(roots, pattern)
-  roots
+  merge_root_names(
+    roots,
+    regex_bindings_bound_roots(node_child_items(pattern, "bindings")),
+  )
 }
 
 ///|
@@ -60,7 +63,7 @@ fn bind_lex_scan_pattern(
   value : TaintTree,
   state : TaintState,
 ) -> TaintState {
-  match
+  let pattern_state = match
     @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
     Some(@untyped_cst.LexScanCasePattern_Binder) =>
       bind_binder(pattern, value, state)
@@ -69,4 +72,9 @@ fn bind_lex_scan_pattern(
     Some(@untyped_cst.LexScanCasePattern_Wildcard) => state
     _ => state
   }
+  bind_regex_bindings(
+    node_child_items(pattern, "bindings"),
+    value,
+    pattern_state,
+  )
 }
