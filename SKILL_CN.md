@@ -237,8 +237,8 @@ usage error；`dump --output-json --help` 仍打印普通帮助。
 
 仓库内提供以下中文详细文档：
 
-- [规则规范](docs/RuleSpec_CN.md) 规定 YAML 规则、校验和匹配器语义。
-- [CLI 规范](docs/CLISpec_CN.md) 规定命令行解析、扫描、输出、诊断和退出行为。
+- [规则规范](internal/docs/RuleSpec_CN.md) 规定 YAML 规则、校验和匹配器语义。
+- [CLI 规范](internal/docs/CLISpec_CN.md) 规定命令行解析、扫描、输出、诊断和退出行为。
 
 英文版本也可以通过 `docs` 子命令查看：
 

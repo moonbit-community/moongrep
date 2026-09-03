@@ -1,0 +1,20 @@
+import {
+  "moonbit-community/moongrep/internal/cst",
+  "moonbit-community/moongrep/internal/matching",
+  "moonbit-community/moongrep/internal/rule/model",
+  "moonbit-community/moongrep/internal/rule/prefilter" @rule_prefilter,
+  "moonbit-community/moongrep/internal/rule/taint_lowering",
+  "moonbit-community/moongrep/internal/taint",
+  "moonbit-community/moongrep/model" @bound_value_model,
+  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/core/hashmap",
+}
+
+import {
+  "moonbit-community/moongrep/internal/rule/compile",
+} for "test"
+
+import {
+  "moonbit-community/moongrep/internal/rule/compile",
+} for "wbtest"

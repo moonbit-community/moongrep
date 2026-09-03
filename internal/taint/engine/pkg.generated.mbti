@@ -1,0 +1,31 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/taint/engine"
+
+import {
+  "moonbit-community/moongrep/internal/taint/domain",
+  "moonbit-community/moongrep/internal/taint/model",
+  "moonbitlang/core/debug",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/untyped_cst",
+}
+
+// Values
+pub fn analyze_function_like(@untyped_cst.CstNode, @model.TaintSpec) -> AnalysisResult raise
+
+// Errors
+pub suberror TaintAnalysisError {
+  UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)
+  FixpointDidNotConverge(rule_id~ : String, loop_kind~ : String, loc~ : @basic.Location, budget~ : Int)
+} derive(@debug.Debug)
+
+// Types and methods
+pub(all) struct AnalysisResult {
+  rule_id : String
+  function_name : String
+  function_loc : @basic.Location
+  findings : Array[@domain.SinkFinding]
+}
+
+// Type aliases
+
+// Traits

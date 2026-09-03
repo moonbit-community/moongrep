@@ -10,7 +10,7 @@
 
 - Decide how YAML taint scans should handle `FixpointDidNotConverge`. Raising
   instead of returning a partial `AnalysisResult` avoids silent false negatives,
-  but `rule/apply` currently rethrows the error, so one non-converging loop
+  but `internal/rule/apply` currently rethrows the error, so one non-converging loop
   becomes an internal fatal scan error with exit status 1. Because scan output
   is streamed, findings from earlier files may already have been written. The
   YAML loop budget also increased from 6 to 64, allowing deeper convergent

@@ -23,7 +23,7 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
     source,
   )
   assert_eq(captures.length(), 3)
-  let filtered_capture_maps : Array[Map[String, @matching.BoundValue]] = []
+  let filtered_capture_maps : Array[Map[String, BoundValue]] = []
   for capture in captures {
     if capture.get("counter") is Some(Single(counter_node)) &&
       @cst.normalized_name(counter_node) is Some(counter_name) &&
