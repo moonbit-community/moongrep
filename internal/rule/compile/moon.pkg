@@ -1,0 +1,11 @@
+import {
+  "moonbit-community/moongrep/internal/cst",
+  "moonbit-community/moongrep/internal/matching",
+  "moonbit-community/moongrep/internal/rule/model",
+  "moonbit-community/moongrep/internal/rule/prefilter",
+  "moonbitlang/lexer",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/lexer/tokens",
+  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/core/list",
+}

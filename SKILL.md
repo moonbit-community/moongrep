@@ -290,9 +290,9 @@ status 0.
 
 The repository contains these detailed references:
 
-- [RuleSpec](docs/RuleSpec.md) specifies YAML rules, validation, and matcher
+- [RuleSpec](internal/docs/RuleSpec.md) specifies YAML rules, validation, and matcher
   semantics.
-- [CLISpec](docs/CLISpec.md) specifies command-line parsing, scanning, output,
+- [CLISpec](internal/docs/CLISpec.md) specifies command-line parsing, scanning, output,
   diagnostics, and exit behavior.
 
 Their English versions are also available through the `docs` subcommand:

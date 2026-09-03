@@ -1,0 +1,19 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/rule/load"
+
+import {
+  "moonbit-community/moongrep/internal/rule/model",
+}
+
+// Values
+pub async fn load_rule(String) -> @model.RawRuleSpec
+
+pub async fn load_rules(String) -> Array[@model.RawRuleSpec]
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits

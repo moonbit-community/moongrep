@@ -1,0 +1,10 @@
+import {
+  "moonbit-community/moongrep/internal/cst",
+  "moonbit-community/moongrep/internal/matching",
+  "moonbit-community/moongrep/internal/rule/model",
+  "moonbitlang/parser/untyped_cst",
+}
+
+import {
+  "moonbit-community/moongrep/internal/rule/compile",
+} for "wbtest"

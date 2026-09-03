@@ -1,5 +1,5 @@
 import {
-  "moonbit-community/moongrep/cli",
+  "moonbit-community/moongrep/internal/cli",
   "moonbitlang/async",
   "moonbitlang/async/os_error",
   "moonbitlang/async/stdio",

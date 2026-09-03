@@ -1,0 +1,13 @@
+import {
+  "moonbit-community/moongrep/internal/matching",
+  "moonbit-community/moongrep/internal/rule/model",
+  "moonbit-community/moongrep/internal/taint",
+  "moonbit-community/moongrep/model" @bound_value_model,
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/untyped_cst",
+}
+
+import {
+  "moonbit-community/moongrep/internal/cst",
+  "moonbit-community/moongrep/internal/rule/compile",
+} for "wbtest"

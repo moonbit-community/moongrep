@@ -1,0 +1,69 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/cli"
+
+import {
+  "moonbit-community/moongrep/internal/rule/model",
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn output_json_requested(Array[String]) -> Bool
+
+pub fn parse_cli_command(Array[String], env? : Map[String, String]) -> CliCommand raise
+
+pub fn render_docs_command(CliCommand) -> String raise
+
+pub fn render_dump_command(CliCommand) -> String raise
+
+pub async fn run_lint_command(CliOptions) -> Unit
+
+pub async fn run_scan_command(CliOptions) -> Unit
+
+pub fn runtime_cli_args(Array[String]) -> Array[String]
+
+// Errors
+pub(all) suberror CliError {
+  Internal(diagnostic~ : CliDiagnostic)
+  Usage(diagnostic~ : CliDiagnostic)
+  DumpInput(diagnostic~ : CliDiagnostic)
+  RuleSource(diagnostic~ : CliDiagnostic)
+  RuleContent(diagnostic~ : CliDiagnostic)
+  ScanInput(diagnostic~ : CliDiagnostic)
+  Output(diagnostic~ : CliDiagnostic)
+} derive(@debug.Debug)
+pub fn CliError::exit_code(Self) -> Int
+pub fn CliError::internal(String) -> Self
+pub fn CliError::output_error(String, String) -> Self
+pub fn CliError::render_json(Self) -> String
+pub impl Show for CliError
+
+// Types and methods
+pub(all) enum CliCommand {
+  Scan(CliOptions)
+  Lint(CliOptions)
+  DocsList
+  DocsShow(String)
+  DumpImpl(source~ : String, exit_code~ : Bool, output_json~ : Bool)
+  DumpExpr(source~ : String, exit_code~ : Bool, output_json~ : Bool)
+}
+
+pub(all) enum CliDiagnostic {
+  Fields(summary~ : String, source~ : String?, reason~ : String?, help~ : String?, pattern~ : String?)
+  ParserMessage(message~ : String)
+} derive(@debug.Debug)
+
+pub(all) struct CliOptions {
+  rules_root : String?
+  rule_file : String?
+  patterns : Array[@model.RulePatternSpec]
+  scan_root : String
+  excludes : Array[String]
+  disabled_rules : Array[String]
+  verbose : Bool
+  no_color : Bool
+  output_json : Bool
+}
+
+// Type aliases
+
+// Traits

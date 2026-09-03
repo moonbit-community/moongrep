@@ -1,0 +1,12 @@
+import {
+  "moonbit-community/moongrep/internal/cst",
+  "moonbit-community/moongrep/internal/taint/domain",
+  "moonbit-community/moongrep/internal/taint/model",
+  "moonbitlang/core/debug",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/untyped_cst",
+}
+
+import {
+  "moonbitlang/core/bench",
+} for "wbtest"

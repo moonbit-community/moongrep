@@ -1,0 +1,10 @@
+import {
+  "moonbit-community/moongrep/internal/rule/internal/rules/moonbitlang" @moonbitlang_rules,
+  "moonbit-community/moongrep/internal/rule/model",
+}
+
+import {
+  "moonbit-community/moongrep/internal/rule/apply",
+  "moonbit-community/moongrep/internal/rule/compile",
+  "moonbitlang/parser/untyped_cst",
+} for "test"

@@ -1,0 +1,13 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/rule/taint_lowering"
+
+// Values
+pub fn lower_compiled_taint_rule(@moonbit-community/moongrep/internal/rule/model.CompiledRule, @moonbit-community/moongrep/internal/rule/model.CompiledTaintRule) -> @moonbit-community/moongrep/internal/taint/model.TaintSpec
+
+// Errors
+
+// Types and methods
+
+// Type aliases
+
+// Traits
