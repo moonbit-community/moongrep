@@ -191,7 +191,7 @@ test "function bodies are sequences while nested blocks stay direct" {
 
 ///|
 test "continuation owners expose suffixes instead of header-only candidates" {
-  let source = "fn sample { before(); let mut value = source(); body(value); defer cleanup(); after(); proof_let witness = fact(); finish(witness) }"
+  let source = "fn sample { before(); let mut value = source(); body(value); defer cleanup(); after(); errdefer on_error(); recovered(); proof_let witness = fact(); finish(witness) }"
   let candidates : Array[ScopedExprMatchCandidate] = []
   collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure(source),
@@ -207,23 +207,33 @@ test "continuation owners expose suffixes instead of header-only candidates" {
   )
   assert_eq(
     direct_candidate_count(candidates, kind => {
+      kind is @untyped_cst.Expr_ErrDefer
+    }),
+    0,
+  )
+  assert_eq(
+    direct_candidate_count(candidates, kind => {
       kind is @untyped_cst.Expr_ProofLet
     }),
     1,
   )
   let mut let_suffix = false
   let mut defer_suffix = false
+  let mut errdefer_suffix = false
   for item in candidates {
     match item.candidate {
       Sequence([first, ..]) if first.kind is @untyped_cst.Expr_LetMut =>
         let_suffix = true
       Sequence([first, ..]) if first.kind is @untyped_cst.Expr_Defer =>
         defer_suffix = true
+      Sequence([first, ..]) if first.kind is @untyped_cst.Expr_ErrDefer =>
+        errdefer_suffix = true
       _ => ()
     }
   }
   assert_true(let_suffix)
   assert_true(defer_suffix)
+  assert_true(errdefer_suffix)
 }
 
 ///|

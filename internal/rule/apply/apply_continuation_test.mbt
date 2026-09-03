@@ -199,6 +199,7 @@ test "apply rejects header-only non-shortcut continuations" {
       "letrec recur = fn(value) { value }", "fn sample { letrec recur = fn(value) { value }; recur(source()) }",
     ),
     ("defer cleanup()", "fn sample { defer cleanup(); continue_work() }"),
+    ("errdefer cleanup()", "fn sample { errdefer cleanup(); continue_work() }"),
   ]
   for case in cases {
     let (shape, source) = case
@@ -216,7 +217,7 @@ test "apply rejects header-only non-shortcut continuations" {
 test "apply accepts complete non-shortcut continuation shapes" {
   let cases = [
     "let mut value = source(); consume(value)", "letrec recur = fn(value) { value }; recur(source())",
-    "defer cleanup(); continue_work()",
+    "defer cleanup(); continue_work()", "errdefer cleanup(); continue_work()",
   ]
   for shape in cases {
     let rule_source =

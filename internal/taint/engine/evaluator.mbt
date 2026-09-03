@@ -384,7 +384,7 @@ fn eval_unknown_expr(
         spec,
         findings,
       )
-    @untyped_cst.Expr_Defer =>
+    @untyped_cst.Expr_Defer | @untyped_cst.Expr_ErrDefer =>
       eval_children(
         node_children_by_names(expr, ["expr", "body"]),
         state,

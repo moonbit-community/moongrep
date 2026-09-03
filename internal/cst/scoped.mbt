@@ -280,7 +280,8 @@ fn continuation_owner(kind : @untyped_cst.NodeKind) -> Bool {
     | @untyped_cst.Expr_LetFn
     | @untyped_cst.Expr_LetAnd
     | @untyped_cst.Expr_Guard
-    | @untyped_cst.Expr_Defer => true
+    | @untyped_cst.Expr_Defer
+    | @untyped_cst.Expr_ErrDefer => true
     _ => false
   }
 }
