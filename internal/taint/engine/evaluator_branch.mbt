@@ -134,89 +134,6 @@ fn eval_pattern_case(
 }
 
 ///|
-fn eval_lex_match(
-  scrutinee : @untyped_cst.CstNode,
-  cases : Array[@untyped_cst.CstNode],
-  state : TaintState,
-  spec : TaintSpec,
-  findings : Array[SinkFinding],
-) -> EvalResult raise {
-  let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
-  match scrutinee_result.normal {
-    Some(path) => {
-      let mut branches = empty_flow_summary()
-      for case in cases {
-        branches = flow_join(
-          branches,
-          eval_lex_case(case, path.value, path.state, spec, findings),
-        )
-      }
-      if cases.is_empty() {
-        branches = normal_result(path.state, [])
-      }
-      flow_sequence(scrutinee_result, branches)
-    }
-    None => scrutinee_result
-  }
-}
-
-///|
-fn eval_lex_case(
-  case : @untyped_cst.CstNode,
-  value : TaintTree,
-  base_state : TaintState,
-  spec : TaintSpec,
-  findings : Array[SinkFinding],
-) -> EvalResult raise {
-  let patterns = if node_child(case, "pat") is Some(pattern) {
-    lex_top_pattern_items(pattern)
-  } else {
-    []
-  }
-  let pattern_result = eval_lex_top_pattern_exprs(
-    patterns, base_state, spec, findings,
-  )
-  match pattern_result.normal {
-    Some(pattern_path) => {
-      let body = match node_child(case, "body") {
-        Some(body) => body
-        None =>
-          return flow_with_normal(
-            pattern_result,
-            Some({ state: pattern_path.state, value: [], }),
-          )
-      }
-      let roots = lex_top_patterns_bound_roots(patterns)
-      let bound = bind_lex_top_patterns(patterns, value, pattern_path.state)
-      let result = if node_optional_child(case, "guard") is Some(guard_expr) {
-        let guard_result = eval_condition_scope(
-          guard_expr, bound, spec, findings,
-        )
-        match guard_result.normal {
-          Some(path) =>
-            flow_join(
-              guard_result.exits,
-              restore_result_scoped_roots(
-                eval_expr(body, path.true_state, spec, findings),
-                path.base_state,
-                path.bound_roots,
-              ),
-            )
-          None => guard_result.exits
-        }
-      } else {
-        eval_expr(body, bound, spec, findings)
-      }
-      flow_sequence(
-        pattern_result,
-        restore_result_scoped_roots(result, pattern_path.state, roots),
-      )
-    }
-    None => pattern_result
-  }
-}
-
-///|
 fn eval_lex_scan(
   scrutinee : @untyped_cst.CstNode,
   cases : Array[@untyped_cst.CstNode],
@@ -263,24 +180,11 @@ fn eval_lex_scan_case(
   }
   let roots = lex_scan_pattern_bound_roots(pattern)
   let bound = bind_lex_scan_pattern(pattern, value, base_state)
-  let result = if node_optional_child(case, "guard") is Some(guard_expr) {
-    let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
-    match guard_result.normal {
-      Some(path) =>
-        flow_join(
-          guard_result.exits,
-          restore_result_scoped_roots(
-            eval_expr(body, path.true_state, spec, findings),
-            path.base_state,
-            path.bound_roots,
-          ),
-        )
-      None => guard_result.exits
-    }
-  } else {
-    eval_expr(body, bound, spec, findings)
-  }
-  restore_result_scoped_roots(result, base_state, roots)
+  restore_result_scoped_roots(
+    eval_expr(body, bound, spec, findings),
+    base_state,
+    roots,
+  )
 }
 
 ///|

@@ -637,9 +637,7 @@ fn visit_case_list_exprs(
 ) -> NodeVisitAction {
   for list in raw_children(node, label) {
     if list.kind
-      is (@untyped_cst.Case_MatchCase
-      | @untyped_cst.Case_LexCase
-      | @untyped_cst.Case_LexScanCase) {
+      is (@untyped_cst.Case_MatchCase | @untyped_cst.Case_LexScanCase) {
       if visit_case_exprs(list, shadowed, visitor) is NodeVisitReturn {
         return NodeVisitReturn
       }
@@ -817,9 +815,7 @@ fn add_pattern_names(
       }
       return
     }
-    @untyped_cst.Pattern_Alias
-    | @untyped_cst.LexPattern_Alias
-    | @untyped_cst.RegexPattern_Alias =>
+    @untyped_cst.Pattern_Alias | @untyped_cst.RegexPattern_Alias =>
       if raw_child(pattern, "name").bind(normalized_name) is Some(name) {
         add_unique_name(names, name)
       }

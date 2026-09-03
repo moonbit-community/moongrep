@@ -205,19 +205,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_LexMatch =>
-      if node_child(expr, "expr") is Some(scrutinee) {
-        eval_lex_match(
-          scrutinee,
-          node_child_items(expr, "cases"),
-          state,
-          spec,
-          findings,
-        )
-      } else {
-        normal_result(state, [])
-      }
-    @untyped_cst.Expr_LexScan =>
+    @untyped_cst.Expr_LexMatch | @untyped_cst.Expr_LexScan =>
       if node_child(expr, "expr") is Some(scrutinee) {
         eval_lex_scan(
           scrutinee,
