@@ -11,7 +11,8 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { copyFile, readdir } from "node:fs/promises";
+import { copyFile, mkdtemp, readdir, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,18 +25,11 @@ const projectRoot = path.resolve(scriptDirectory, "..");
 /** Directory containing common and platform-specific Moon Cram fixtures. */
 const e2eDirectory = path.join(projectRoot, "e2etests");
 
-/** Release-mode WebAssembly artifact produced by `moon build`. */
-const wasmSource = path.join(
-  projectRoot,
-  "_build",
-  "wasm",
-  "release",
-  "build",
-  "moongrep.wasm",
-);
-
 /** Artifact location referenced by the Moon Cram test commands. */
 const wasmDestination = path.join(e2eDirectory, "moongrep.wasm");
+
+/** Prefix for isolated Moon target directories created by this runner. */
+const buildDirectoryPrefix = path.join(os.tmpdir(), "moongrep-e2e-");
 
 /** Windows shell adapter that translates Moon Cram's Bash-oriented protocol. */
 const powershellAdapter = path.join(
@@ -110,27 +104,94 @@ function run(command, arguments_, env = process.env) {
 }
 
 /**
+ * Recursively finds regular files with an exact name below a directory.
+ *
+ * Moon's output layout has changed between toolchain versions, so the runner
+ * deliberately treats the target directory as opaque instead of duplicating
+ * Moon's internal path construction.
+ *
+ * @param {string} directory Directory to search.
+ * @param {string} fileName Exact file name to find.
+ * @returns {Promise<string[]>} Matching absolute paths in stable order.
+ */
+async function findFilesNamed(directory, fileName) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  entries.sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
+
+  const matches = [];
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      matches.push(...(await findFilesNamed(entryPath, fileName)));
+    } else if (entry.isFile() && entry.name === fileName) {
+      matches.push(entryPath);
+    }
+  }
+  return matches;
+}
+
+/**
+ * Builds and installs the WebAssembly CLI used by the Markdown fixtures.
+ *
+ * A fresh target directory prevents artifacts from an older Moon layout from
+ * masking a broken clean build. Requiring exactly one matching executable also
+ * turns unexpected build-layout changes into an actionable error.
+ *
+ * @returns {Promise<void>}
+ * @throws {CommandError} If the build has no unique `moongrep.wasm` artifact.
+ */
+async function buildWasmFixture() {
+  const buildDirectory = await mkdtemp(buildDirectoryPrefix);
+  try {
+    run("moon", [
+      "build",
+      "--release",
+      "--target",
+      "wasm",
+      "--target-dir",
+      buildDirectory,
+    ]);
+
+    const artifacts = await findFilesNamed(buildDirectory, "moongrep.wasm");
+    if (artifacts.length !== 1) {
+      const detail =
+        artifacts.length === 0
+          ? "none were found"
+          : `found ${artifacts.length}: ${artifacts.join(", ")}`;
+      throw new CommandError(
+        `Expected exactly one moongrep.wasm after moon build; ${detail}`,
+      );
+    }
+
+    const wasmSource = artifacts[0];
+    console.log(
+      `+ copy ${displayArgument(wasmSource)} ` +
+        displayArgument(path.relative(projectRoot, wasmDestination)),
+    );
+    await copyFile(wasmSource, wasmDestination);
+  } finally {
+    await rm(buildDirectory, {
+      force: true,
+      maxRetries: 3,
+      recursive: true,
+      retryDelay: 100,
+    });
+  }
+}
+
+/**
  * Finds Markdown tests directly inside a platform-specific fixture directory.
  * Results are sorted explicitly so execution order does not depend on the host
  * filesystem.
  *
  * @param {string} directory Absolute directory to inspect.
- * @param {boolean} [optional=false] Whether a missing directory represents an
- * empty test set instead of an error.
  * @returns {Promise<string[]>} Absolute paths of the discovered Markdown tests.
- * @throws {Error} If the directory cannot be read and is not optional.
+ * @throws {Error} If the directory cannot be read.
  */
-async function listMarkdownTests(directory, optional = false) {
-  let entries;
-  try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch (error) {
-    if (optional && error.code === "ENOENT") {
-      return [];
-    }
-    throw error;
-  }
-
+async function listMarkdownTests(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
   return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
     .sort((left, right) =>
@@ -152,11 +213,23 @@ async function listMarkdownTests(directory, optional = false) {
  */
 async function main() {
   const moonCramArguments = process.argv.slice(2);
-  if (moonCramArguments.length === 0) {
+  if (
+    moonCramArguments.length === 0 ||
+    !["test", "update"].includes(moonCramArguments[0])
+  ) {
     throw new CommandError(
       "Usage: node scripts/e2e.mjs <test|update> [moon-cram options]",
     );
   }
+
+  const platformDirectory = path.join(
+    e2eDirectory,
+    process.platform === "win32" ? "windows" : "unix",
+  );
+  const tests = [
+    path.join(e2eDirectory, "BASIC.md"),
+    ...(await listMarkdownTests(platformDirectory)),
+  ];
 
   const moonCramShell =
     process.env.MOON_CRAM_SHELL ??
@@ -165,24 +238,7 @@ async function main() {
     ? ["--shell", moonCramShell]
     : [];
 
-  run("moon", ["build", "--release", "--target", "wasm"]);
-  console.log(
-    `+ copy ${displayArgument(path.relative(projectRoot, wasmSource))} ` +
-      displayArgument(path.relative(projectRoot, wasmDestination)),
-  );
-  await copyFile(wasmSource, wasmDestination);
-
-  const platformDirectory = path.join(
-    e2eDirectory,
-    process.platform === "win32" ? "windows" : "unix",
-  );
-  const tests = [
-    path.join(e2eDirectory, "BASIC.md"),
-    ...(await listMarkdownTests(
-      platformDirectory,
-      process.platform === "win32",
-    )),
-  ];
+  await buildWasmFixture();
   const env = { ...process.env, NO_COLOR: "1" };
 
   for (const test of tests) {
