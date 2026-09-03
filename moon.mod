@@ -24,5 +24,5 @@ keywords = [ "linter", "grep", "refactoring", "static-analysis" ]
 description = "Experimental MoonBit structural search and taint-analysis tool"
 
 options(
-  exclude: [ "testdata", "e2etest" ],
+  exclude: [ "testdata", "e2etests" ],
 )
