@@ -43,5 +43,8 @@ jobs:
       - name: moon test
         run: moon test --target all
 
+      - name: query tests
+        run: moon test query_tests --target all
+
       - name: e2e test
         run: node scripts/e2e.mjs test
