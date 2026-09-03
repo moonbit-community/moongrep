@@ -38,21 +38,13 @@ fn node_child(
     (@untyped_cst.Expr_Mutate, "accessor") => "field"
     (@untyped_cst.Expr_Mutate, "field") => "expr"
     (@untyped_cst.Expr_Is | @untyped_cst.Expr_RegexMatch, "pat") => "pattern"
-    (
-      @untyped_cst.Case_MatchCase
-      | @untyped_cst.Case_LexCase
-      | @untyped_cst.Case_LexScanCase,
-      "guard",
-    ) => "cond"
-    (@untyped_cst.Case_LexCase | @untyped_cst.Case_LexScanCase, "pat") =>
-      "pattern"
+    (@untyped_cst.Case_MatchCase, "guard") => "cond"
+    (@untyped_cst.Case_LexScanCase, "pat") => "pattern"
     (@untyped_cst.Pattern_Alias, "pat") => "pattern"
     (@untyped_cst.Pattern_Alias, "alias") => "name"
     (@untyped_cst.Pattern_Constraint, "pat") => "pattern"
-    (@untyped_cst.RegexPattern_Alias | @untyped_cst.LexPattern_Alias, "pat") =>
-      "pattern"
-    (@untyped_cst.RegexPattern_Alias | @untyped_cst.LexPattern_Alias, "binder") =>
-      "name"
+    (@untyped_cst.RegexPattern_Alias, "pat") => "pattern"
+    (@untyped_cst.RegexPattern_Alias, "binder") => "name"
     (@untyped_cst.Binding_For, "binder" | "init") => "name"
     (@untyped_cst.Field_Definition, "label") => "name"
     _ => name

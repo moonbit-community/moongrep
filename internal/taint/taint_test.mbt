@@ -1063,11 +1063,11 @@ test "taint engine lexscan binder receives scrutinee taint" {
 }
 
 ///|
-test "taint engine lexscan regex alias feeds guard pattern binding" {
+test "taint engine lexscan regex alias receives scrutinee taint" {
   let source =
     #|fn sample(input) {
     #|  lexscan input {
-    #|    re"." as item if item is Some(part) => sink(part);
+    #|    re"." as item => sink(item);
     #|    _ => ()
     #|  }
     #|}
