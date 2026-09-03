@@ -1,0 +1,4 @@
+members = [
+  ".",
+  "./query_tests",
+]
