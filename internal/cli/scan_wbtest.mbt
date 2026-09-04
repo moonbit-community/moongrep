@@ -303,6 +303,20 @@ fn unknown_disabled_rule_scan_options() -> CliOptions {
 }
 
 ///|
+fn compilation_invalid_builtin_scan_rule() -> @rule_model.RawRuleSpec raise {
+  @rule_model.RawRuleSpec::from_str(
+    "builtin/moonbitlang/invalid.yaml",
+    "builtin",
+    (
+      #|id: invalid
+      #|description: Compilation-invalid builtin rule.
+      #|patterns:
+      #|  - shape: target(
+    ),
+  )
+}
+
+///|
 fn builtin_api_options() -> CliOptions {
   {
     rules_root: None,
@@ -619,9 +633,37 @@ async test "scan disables configured rule ids before planning" {
 }
 
 ///|
+test "disabled compilation-invalid builtin is not compiled" {
+  let rules = [compilation_invalid_builtin_scan_rule()]
+  let compiled = compile_scan_rules(rules, rules, ["moonbitlang/invalid"], [])
+  assert_true(compiled.is_empty())
+}
+
+///|
+test "enabled compilation-invalid builtin remains an internal error" {
+  let rules = [compilation_invalid_builtin_scan_rule()]
+  try ignore(compile_scan_rules(rules, rules, [], [])) catch {
+    CliError::Internal(diagnostic~) as err => {
+      assert_eq(err.exit_code(), 1)
+      assert_true(
+        render_cli_diagnostic(diagnostic).contains(
+          "builtin rule compilation failed",
+        ),
+      )
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected internal builtin compilation error")
+  }
+}
+
+///|
 test "legacy unnecessary_else id disables the corrected builtin rule id" {
   let rules = @rule_builtin.load_rules()
-  let enabled = disable_scan_rules(rules, [legacy_unnecessary_else_rule_id])
+  let disabled = resolve_disabled_scan_rule_ids(rules, [
+    legacy_unnecessary_else_rule_id,
+  ])
+  let enabled = disable_scan_rules(rules, disabled)
   let enabled_ids : Array[String] = []
   for rule in enabled {
     enabled_ids.push(rule.rule_id)
@@ -654,7 +696,7 @@ async test "scan rejects unknown disabled rule ids" {
 ///|
 async test "scan keeps rule disabling case sensitive on every host" {
   let rules = load_rule_directory("e2etests/rules/prefilter")
-  try disable_scan_rules(rules, ["TARGET"]) catch {
+  try resolve_disabled_scan_rule_ids(rules, ["TARGET"]) catch {
     CliError::Usage(diagnostic~) =>
       inspect(
         render_cli_diagnostic(diagnostic),

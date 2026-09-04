@@ -6,12 +6,34 @@ async fn prepare_scan_rules(
   let builtin_rules = load_builtin_scan_rules(mode)
   let raw_rules = builtin_rules.copy()
   raw_rules.append(load_scan_rules(options))
-  let enabled_rules = disable_scan_rules(raw_rules, options.disabled_rules)
+  compile_scan_rules(
+    builtin_rules,
+    raw_rules,
+    options.disabled_rules,
+    options.patterns,
+  )
+}
+
+///|
+fn compile_scan_rules(
+  builtin_rules : Array[@rule_model.RawRuleSpec],
+  raw_rules : Array[@rule_model.RawRuleSpec],
+  disabled_rules : Array[String],
+  patterns : Array[@rule_model.RulePatternSpec],
+) -> Array[@rule_model.CompiledRule] raise {
+  let disabled = resolve_disabled_scan_rule_ids(raw_rules, disabled_rules)
+  let enabled_builtin_rules = disable_scan_rules(builtin_rules, disabled)
+  ignore(
+    @rule_compile.compile_rules(enabled_builtin_rules) catch {
+      err => raise new_internal_error("builtin rule compilation failed: \{err}")
+    },
+  )
+  let enabled_rules = disable_scan_rules(raw_rules, disabled)
   @rule_compile.compile_rules(enabled_rules) catch {
     @rule_model.RuleLoadError::InvalidPattern(..) as err =>
-      raise new_compiled_rule_error(err, options.patterns)
+      raise new_compiled_rule_error(err, patterns)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
-      raise new_compiled_rule_error(err, options.patterns)
+      raise new_compiled_rule_error(err, patterns)
     @rule_model.RuleLoadError::NoRuleFiles(..) as err =>
       raise new_rule_load_error(err)
     err => raise new_internal_error("rule compilation failed: \{err}")
@@ -28,11 +50,6 @@ fn load_builtin_scan_rules(
   let rules = @rule_builtin.load_rules() catch {
     err => raise new_internal_error("could not load builtin rules: \{err}")
   }
-  ignore(
-    @rule_compile.compile_rules(rules) catch {
-      err => raise new_internal_error("builtin rule compilation failed: \{err}")
-    },
-  )
   rules
 }
 
@@ -92,11 +109,25 @@ async fn load_rule_file(rule_file : String) -> @rule_model.RawRuleSpec {
 ///|
 fn disable_scan_rules(
   raw_rules : Array[@rule_model.RawRuleSpec],
-  disabled_rules : Array[String],
-) -> Array[@rule_model.RawRuleSpec] raise {
-  if disabled_rules.is_empty() {
+  disabled : Map[String, Bool],
+) -> Array[@rule_model.RawRuleSpec] {
+  if disabled.is_empty() {
     return raw_rules
   }
+  let enabled : Array[@rule_model.RawRuleSpec] = []
+  for raw in raw_rules {
+    if !disabled.contains(raw.rule_id) {
+      enabled.push(raw)
+    }
+  }
+  enabled
+}
+
+///|
+fn resolve_disabled_scan_rule_ids(
+  raw_rules : Array[@rule_model.RawRuleSpec],
+  disabled_rules : Array[String],
+) -> Map[String, Bool] raise {
   let loaded : Map[String, Bool] = Map([])
   for raw in raw_rules {
     loaded[raw.rule_id] = true
@@ -108,13 +139,7 @@ fn disable_scan_rules(
       None => raise new_unknown_disabled_rule_error(requested_rule_id)
     }
   }
-  let enabled : Array[@rule_model.RawRuleSpec] = []
-  for raw in raw_rules {
-    if !disabled.contains(raw.rule_id) {
-      enabled.push(raw)
-    }
-  }
-  enabled
+  disabled
 }
 
 ///|
