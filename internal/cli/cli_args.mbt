@@ -358,7 +358,9 @@ fn parse_scan_pattern_specs(
   let mut index = 1
   while index < argv.length() {
     let arg = argv[index]
-    if arg == "--pattern" {
+    if arg == "--" {
+      break
+    } else if arg == "--pattern" {
       if index + 1 >= argv.length() {
         raise new_usage_error("missing value for --pattern")
       }

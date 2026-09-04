@@ -432,6 +432,55 @@ test "cli args parse anonymous patterns without rules root" {
 }
 
 ///|
+test "cli args treat option-like scan roots after terminator as positionals" {
+  match parse_cli_command(["scan", "--", "--pattern"]) {
+    Scan(options) => {
+      expect_no_patterns(options)
+      inspect(options.scan_root, content="--pattern")
+    }
+    _ => fail("unexpected standalone pattern command")
+  }
+  match parse_cli_command(["scan", "--", "--guard"]) {
+    Scan(options) => {
+      expect_no_patterns(options)
+      inspect(options.scan_root, content="--guard")
+    }
+    _ => fail("unexpected standalone guard command")
+  }
+  match parse_cli_command(["scan", "--", "--pattern=target()"]) {
+    Scan(options) => {
+      expect_no_patterns(options)
+      inspect(options.scan_root, content="--pattern=target()")
+    }
+    _ => fail("unexpected inline pattern command")
+  }
+  match parse_cli_command(["scan", "--", "--guard={$callee: \"^safe_\"}"]) {
+    Scan(options) => {
+      expect_no_patterns(options)
+      inspect(options.scan_root, content="--guard={$callee: \"^safe_\"}")
+    }
+    _ => fail("unexpected inline guard command")
+  }
+}
+
+///|
+test "cli args stop attaching pattern guards at option terminator" {
+  match
+    parse_cli_command([
+      "scan", "--pattern", "$(callee:id)()", "--", "--guard={$callee: \"^safe_\"}",
+    ]) {
+    Scan(options) => {
+      assert_true(options.rules_root is None)
+      assert_eq(options.patterns.length(), 1)
+      expect_pattern_shape(options, 0, "$(callee:id)()")
+      assert_eq(options.patterns[0].guards.length(), 0)
+      inspect(options.scan_root, content="--guard={$callee: \"^safe_\"}")
+    }
+    _ => fail("unexpected command")
+  }
+}
+
+///|
 test "cli args parse anonymous pattern guard" {
   match
     parse_cli_command([
