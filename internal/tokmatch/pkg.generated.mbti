@@ -1,0 +1,33 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/tokmatch"
+
+import {
+  "moonbitlang/lexer/basic",
+}
+
+// Values
+
+// Errors
+pub(all) suberror LexError {
+  LexError(String)
+}
+
+pub(all) suberror PatternError {
+  PatternError(index~ : Int, reason~ : String)
+}
+
+// Types and methods
+pub struct Match {
+  pattern_index : Int
+  loc : @basic.Location
+}
+
+pub struct Matcher {
+  // private fields
+}
+pub fn Matcher::compile(ArrayView[String]) -> Self raise PatternError
+pub fn Matcher::find_matches(Self, StringView, name? : String) -> Array[Match] raise LexError
+
+// Type aliases
+
+// Traits
