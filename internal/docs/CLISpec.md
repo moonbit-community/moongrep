@@ -36,10 +36,11 @@ behavior.
 
 ### Top-Level Commands
 
-moongrep provides four commands:
+moongrep provides five commands:
 
 - `scan` scans MoonBit source with explicitly selected or default rules.
 - `lint` scans MoonBit source with embedded builtin rules enabled by default.
+- `tokscan` searches consecutive token subsequences with independent patterns.
 - `docs` lists or prints embedded documentation.
 - `dump` parses one MoonBit implementation item or expression and either
   prints CST debug output, writes a structured dump record, or reports parse
@@ -59,10 +60,86 @@ With no additional arguments, each command behaves as follows:
 - `scan` starts a normal scan with scan root `.` and default rules directory
   `./.moongrep/rules`.
 - `lint` starts a normal scan with scan root `.` and builtin rules enabled.
+- `tokscan` prints `tokscan` help and exits with status 0.
 - `docs` prints `docs` help and exits with status 0.
 - `dump` prints `dump` help and exits with status 0.
 
 Help text is written to standard output.
+
+## `tokscan`
+
+```text
+moongrep tokscan --pattern <pattern> [--pattern <pattern> ...]
+  [--exclude <name-or-path> ...] [--json] [scan-root]
+```
+
+`tokscan` searches for consecutive token subsequences. It accepts repeated
+`--pattern` and `--exclude` options, `--json`, one optional scan root, and
+standard help. Both `--pattern value` and `--pattern=value` are accepted,
+as are `--exclude value` and `--exclude=value`. The root defaults to `.`
+and follows the same file suffix, sorted depth-first traversal, default
+exclusions, symlink deduplication, explicit-root, and platform path rules as
+`scan`. Exclusions use the same name/path matching, normalization, and platform
+case rules as `scan`, without glob matching. They apply to recursively found
+entries; an explicit root is still scanned even if an exclusion matches it.
+There are no rule files, captures, or guards.
+Running `tokscan` without arguments prints its help and exits with status 0.
+`tokscan --json` without a pattern reports a JSON usage error and exits with
+status 2. Help, including `tokscan --json --help`, is always ordinary text.
+
+Every pattern must lex successfully and contain at least one token after
+normalization. Syntax parsing is not required: incomplete fragments such as
+`let = + )` are accepted. Metavariables are disabled at every nesting level.
+Token comparison ignores positions, comments, newline tokens, and EOF. Token
+kinds and lexer-provided literal text and escapes remain significant. Automatic
+and explicit semicolons compare equally. Only a trailing automatic semicolon
+inserted because of a newline in a top-level pattern is removed; other
+semicolons remain significant.
+
+Interpolation expressions and attribute payloads are lexed and normalized
+recursively. Their internal positions are ignored. Literal interpolation
+segments retain their lexer representation, and each complete interpolation
+or attribute still occupies one outer token in the search. Empty attribute
+payloads are allowed. Lexical errors at any nesting level invalidate the
+pattern or source block. `#moongrep.skip` is an ordinary attribute here.
+
+Each pattern has a precomputed KMP table. Each `///|` source block is lexed and
+normalized once for all patterns, and a match cannot cross a block boundary.
+All occurrences of every pattern are reported, including overlaps and ranges
+matched by multiple patterns. Output order is file traversal order, block
+order, match start position, then pattern input order. Repeating a pattern
+therefore repeats its findings.
+
+In the default human mode, each result contains the location, the original pattern indented under
+`pattern:`, and context under `source:`. Locations cover the actual source span
+from the first through the last matched token, including dot prefixes, and
+columns count Unicode characters. The highlighting, two surrounding lines,
+long-match cropping, and `NO_COLOR=1` behavior are shared with `scan`. Results
+are separated by a blank line. For example:
+
+```text
+example.mbt:1:1-1:4
+pattern:
+  a a
+source:
+1 > a a a
+```
+
+All patterns are validated before reading any source files. The first invalid
+pattern in input order produces a diagnostic with its one-based index,
+original text, and reason, and exits with status 2. Missing patterns also use
+status 2. A lexical error in a source block writes a warning to standard error,
+skips the entire block, and continues scanning. Completed searches, including
+no matches or warnings only, exit with status 0. In human mode, no matches prints
+`no match hits`. JSON mode writes one finding per line, without color or blank
+separators, and leaves stdout empty when there are no matches. Its records
+contain exactly `type`, `file`, `pattern`, `range`, `matched_source`, and
+`source_context`; `pattern` retains its original newlines and escapes. Ranges
+use 1-based Unicode code point columns with an exclusive end. Matched source
+and context retain all matched lines and two surrounding lines without
+cropping. Lexical warnings use category `lexical` on stderr; fatal errors use
+the shared error protocol below. File access and output failures use status
+6 and 7.
 
 ## `scan` and `lint`
 
@@ -408,16 +485,16 @@ while nonmatching context rows use ` | `.
 
 ### Protocol and Mode Detection
 
-For `scan`, `lint`, and `dump`, `--json` selects structured output. The
+For `scan`, `lint`, `tokscan`, and `dump`, `--json` selects structured output. The
 option must be a standalone argument before an option terminator. For example,
-`scan -- --json` and `dump -- --json` do not enable JSON mode.
-The initial command must be `scan`, `lint`, or `dump`.
+`scan -- --json`, `tokscan -- --json`, and `dump -- --json` do not enable JSON mode.
+The initial command must be `scan`, `lint`, `tokscan`, or `dump`.
 
-For `scan` and `lint`, every nonempty application-output line on both standard
+For `scan`, `lint`, and `tokscan`, every nonempty application-output line on both standard
 streams is a compact JSON object. For `dump`, a successful non-exit-code dump
 is one compact JSON object on standard output. Successful help and `docs`
 output are not part of this protocol. In particular,
-`dump --json --help` still prints ordinary help text.
+`dump --json --help` and `tokscan --json --help` still print ordinary help text.
 
 Mode detection happens before full argument parsing. An unknown option, a
 missing option value, or another parsing failure is therefore rendered as an
@@ -425,7 +502,7 @@ missing option value, or another parsing failure is therefore rendered as an
 
 ### Finding Records
 
-Each finding is written to standard output with this structure:
+Each `scan` or `lint` finding is written to standard output with this structure:
 
 ```text
 {
@@ -447,17 +524,32 @@ Each finding is written to standard output with this structure:
 The finding record contains exactly the fields shown above. Trailing newline
 characters are removed from `description`.
 
+Each `tokscan` finding contains exactly these fields, using the same `range`
+and `source_context` structures above:
+
+```text
+{ "type": "finding", "file": string, "pattern": string, "range": range,
+  "matched_source": string, "source_context": context_lines }
+```
+
+`pattern` preserves the complete original pattern, including newlines and
+escapes. Repeated and overlapping patterns produce separate records in the
+same order as human output.
+
 ### Warning Records
 
 Warnings are written to standard error. A source parse warning has category
 `parse` and fields `type`, `category`, `message`, `file`, and `reason`; it also
 has `block_start_line` when a multi-block source identifies the skipped block.
+`tokscan` lexical warnings use the same fields with category `lexical`.
 An invalid `#moongrep.skip` payload warning has category
 `invalid_skip_payload` and fields `type`, `category`, `message`, `file`, and
 `range`.
 
 ```text
 { "type": "warning", "category": "parse", "message": string,
+  "file": string, "reason": string, "block_start_line": integer? }
+{ "type": "warning", "category": "lexical", "message": string,
   "file": string, "reason": string, "block_start_line": integer? }
 { "type": "warning", "category": "invalid_skip_payload", "message": string,
   "file": string, "range": range }
@@ -644,7 +736,7 @@ Status 0 means the requested command completed successfully. It includes:
 - a successful CST dump or `dump --exit-code` parse check;
 - scans with findings;
 - scans with no findings; and
-- scans that emitted source parse or invalid-attribute warnings.
+- scans that emitted source lexical, parse, or invalid-attribute warnings.
 
 `lint` returns status 0 for findings and source warnings.
 
@@ -659,6 +751,7 @@ not been assigned to another category.
 Status 2 means command-line selection or validation failed. It includes:
 
 - a missing or unknown top-level command;
+- missing, empty, or lexically invalid `tokscan` patterns;
 - an unknown option, missing option value, or more than one scan root;
 - a `--guard` that has no eligible preceding pattern, duplicates a guard, or
   is not a valid YAML string mapping;
@@ -683,8 +776,8 @@ reading failures, and a rule directory containing no YAML files.
 Status 5 means rule content is invalid. It covers YAML parsing, schema and
 duplicate-id validation, an unsupported single-file `--rule` suffix, and pattern
 or guard validation and compilation. This status also applies to invalid
-anonymous command-line patterns. A failure in the embedded builtin rules instead
-uses status 1.
+anonymous structural patterns for `scan` and `lint`. A failure in the embedded
+builtin rules instead uses status 1.
 
 ### Exit Status 6
 

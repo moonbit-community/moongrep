@@ -33,10 +33,11 @@ moonrun path/to/moongrep.wasm -- <command> [arguments]
 
 ### 顶层命令
 
-moongrep 提供四个命令：
+moongrep 提供五个命令：
 
 - `scan` 使用显式选择或默认规则扫描 MoonBit 源码。
 - `lint` 默认启用内嵌 builtin 规则扫描 MoonBit 源码。
+- `tokscan` 使用多个独立模式搜索连续 token 子序列。
 - `docs` 列出或打印内嵌文档。
 - `dump` 解析一个 MoonBit 实现项或表达式，并打印 CST 调试输出、写出结构化 dump
   记录，或通过退出状态报告解析是否成功。
@@ -53,10 +54,69 @@ moongrep 提供四个命令：
 
 - `scan` 使用扫描根 `.` 和默认规则目录 `./.moongrep/rules` 开始正常扫描。
 - `lint` 使用扫描根 `.` 并启用 builtin 规则开始正常扫描。
+- `tokscan` 打印 `tokscan` 帮助并以状态码 0 退出。
 - `docs` 打印 `docs` 帮助并以状态码 0 退出。
 - `dump` 打印 `dump` 帮助并以状态码 0 退出。
 
 帮助文本写入标准输出。
+
+## `tokscan`
+
+```text
+moongrep tokscan --pattern <pattern> [--pattern <pattern> ...]
+  [--exclude <name-or-path> ...] [--json] [scan-root]
+```
+
+`tokscan` 搜索连续 token 子序列。它接受可重复的 `--pattern` 和 `--exclude`、
+`--json`、一个可选扫描根和标准帮助选项。支持 `--pattern value` 和
+`--pattern=value`，以及 `--exclude value` 和 `--exclude=value`。扫描根默认为
+`.`，文件后缀、排序后的深度优先遍历、默认排除、符号链接去重、显式根路径和
+平台路径规则都与 `scan` 相同。排除项沿用 `scan` 的名称/路径匹配、规范化和平台
+大小写规则，不支持 glob。排除项只作用于递归发现的条目，显式根即使匹配排除项
+也仍会扫描。不接受规则文件、捕获或 guard。
+无参数运行 `tokscan` 时打印帮助，并以状态码 0 退出。
+`tokscan --json` 缺少模式时输出 JSON usage 错误并以状态码 2 退出。
+帮助始终为普通文本，包括 `tokscan --json --help`。
+
+每个模式必须通过词法分析，且规范化后至少包含一个 token。不要求通过语法分析，
+因此允许 `let = + )` 这样的不完整片段。所有嵌套层级均禁用元变量。比较时忽略
+位置、注释、换行 token 和 EOF，保留 token 种类以及 lexer 提供的字面量文本和
+转义表示。自动分号和显式分号等价。只移除顶层模式末尾因换行而插入的自动分号，
+其他分号仍参与比较。
+
+插值表达式和属性参数递归进行词法分析和规范化，忽略内部位置。插值的字面量片段
+保留 lexer 提供的表示；完整的插值或属性在外层搜索中仍然只占一个 token。
+允许属性参数为空。任何嵌套层级的词法错误都会使整个模式或源码块无效。
+`#moongrep.skip` 在这里作为普通属性参与搜索。
+
+每个模式预先构建 KMP 匹配表，每个 `///|` 源码块只分词和规范化一次供全部模式
+使用，命中不能跨块。输出每个模式的全部命中，包括重叠命中和多个模式命中的相同
+范围。顺序依次为文件遍历顺序、源码块顺序、命中起始位置、模式输入顺序。因此，
+重复输入模式会重复报告其命中。
+
+默认文本模式下，每条结果依次包含位置、`pattern:` 下的模式原文和 `source:` 下的上下文。
+范围覆盖首尾 token 的实际源码跨度，包含点前缀，列号按 Unicode 码点计数。
+高亮、前后两行上下文、长命中裁剪和 `NO_COLOR=1` 行为与 `scan` 共用。结果间空
+一行。例如：
+
+```text
+example.mbt:1:1-1:4
+pattern:
+  a a
+source:
+1 > a a a
+```
+
+读取源码文件前验证全部模式。按输入顺序报告首个无效模式，诊断包含从 1 开始的
+模式序号、原文和原因，状态码为 2。缺少模式也使用状态码 2。源码块出现词法错误
+时向标准错误写入警告，跳过整块并继续扫描。正常完成、无命中及只有警告时均以
+状态码 0 退出。文本模式无命中时打印 `no match hits`；JSON 模式每行输出一条
+命中，无颜色和结果间空行，无命中时 stdout 为空。命中只包含 `type`、`file`、
+`pattern`、`range`、`matched_source` 和 `source_context`。`pattern` 完整保留原文
+中的换行和转义。范围使用从 1 开始的 Unicode 码点列号，左闭右开。匹配源码及
+前后两行上下文完整保留，不裁剪长命中。词法警告写入 stderr，category 为
+`lexical`；致命错误复用下文的 error 协议。文件访问失败和输出失败分别使用
+状态码 6 和 7。
 
 ## `scan` 和 `lint`
 
@@ -347,22 +407,22 @@ description 末尾的换行字符会被移除，剩余每一行前面缩进两�
 
 ### 协议和模式识别
 
-对于 `scan`、`lint` 和 `dump`，`--json` 会选择结构化输出。该选项必须
+对于 `scan`、`lint`、`tokscan` 和 `dump`，`--json` 会选择结构化输出。该选项必须
 作为独立参数出现在选项终止符之前，例如 `scan -- --json` 和
-`dump -- --json` 都不会启用 JSON 模式。首个命令必须是 `scan`、`lint`
+`tokscan -- --json`、`dump -- --json` 都不会启用 JSON 模式。首个命令必须是 `scan`、`lint`、`tokscan`
 或 `dump`。
 
-对于 `scan` 和 `lint`，两个标准流中的每个非空应用输出行都是一个紧凑 JSON
+对于 `scan`、`lint` 和 `tokscan`，两个标准流中的每个非空应用输出行都是一个紧凑 JSON
 object。对于 `dump`，成功且未启用 exit-code 模式时，会向标准输出写出一个紧凑
 JSON object。成功的 help 和 `docs` 输出不属于此协议；特别是
-`dump --json --help` 仍打印普通帮助文本。
+`dump --json --help` 和 `tokscan --json --help` 仍打印普通帮助文本。
 
 模式识别发生在完整参数解析之前。因此，只要存在有效位置的 `--json`，未知
 选项、缺少选项值等解析失败也会输出 `error` 记录。
 
 ### Finding 记录
 
-每个命中按以下结构写入标准输出：
+`scan` 和 `lint` 的每个命中按以下结构写入标准输出：
 
 ```text
 {
@@ -383,15 +443,28 @@ JSON object。成功的 help 和 `docs` 输出不属于此协议；特别是
 
 finding 记录只包含上面列出的字段。`description` 末尾的换行字符会被移除。
 
+`tokscan` 的命中只包含以下字段，`range` 和 `source_context` 的结构同上：
+
+```text
+{ "type": "finding", "file": string, "pattern": string, "range": range,
+  "matched_source": string, "source_context": context_lines }
+```
+
+`pattern` 保留模式原文，包括换行和转义。重复和重叠模式分别输出，顺序与文本
+模式相同。
+
 ### Warning 记录
 
 warning 写入标准错误。源码解析 warning 的 category 是 `parse`，包含 `type`、
 `category`、`message`、`file` 和 `reason`；多源码块能够定位被跳过块时，还包含
 `block_start_line`。无效 `#moongrep.skip` payload warning 的 category 是
 `invalid_skip_payload`，包含 `type`、`category`、`message`、`file` 和 `range`。
+`tokscan` 的词法警告使用与源码解析警告相同的字段，category 为 `lexical`。
 
 ```text
 { "type": "warning", "category": "parse", "message": string,
+  "file": string, "reason": string, "block_start_line": integer? }
+{ "type": "warning", "category": "lexical", "message": string,
   "file": string, "reason": string, "block_start_line": integer? }
 { "type": "warning", "category": "invalid_skip_payload", "message": string,
   "file": string, "range": range }
@@ -569,6 +642,7 @@ error: <摘要>
 
 状态 2 表示命令行选择或校验失败。它包括：
 
+- `tokscan` 缺少模式、空模式或模式词法错误；
 - 缺少或未知顶层命令；
 - 未知选项、缺少选项值或多个扫描根；
 - 缺少前置 pattern、重复或不是有效 YAML 字符串映射的命令行 guard；
@@ -590,7 +664,8 @@ error: <摘要>
 
 状态 5 表示规则内容无效，包括 YAML 解析、schema 与重复 id 校验、单文件
 `--rule` 使用不支持的后缀，以及 pattern 或 guard 校验和编译失败。无效的命令行
-匿名 pattern 也使用该状态码。内嵌 builtin 规则自身失败时改用状态 1。
+匿名结构 pattern（`scan` 和 `lint`）也使用该状态码。内嵌 builtin 规则自身失败时
+改用状态 1。
 
 ### 退出状态 6
 
