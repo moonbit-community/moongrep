@@ -192,11 +192,6 @@ compared exactly and case-sensitively against the combined loaded rule ids on
 every platform. Every requested id must exist; the first unknown id is a usage
 error with status 2.
 
-The legacy builtin id `moonbitlang/unnessary_else` is a deprecated compatibility
-alias for `moonbitlang/unnecessary_else`. An exact loaded rule id takes
-precedence over this alias. Findings and verbose loaded-rule events always use
-the corrected builtin id.
-
 All rules with a disabled id are removed before rule compilation and scan
 planning. Repeated disabled ids are treated as one. Verbose loaded-rule events
 describe the rules that remain enabled.

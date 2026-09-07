@@ -137,14 +137,16 @@ source:
 6 | }
 ```
 
-## Legacy builtin rule ID alias
+## Misspelled builtin rule ID
 
-The former misspelled rule ID remains accepted by `--disable`, while the rule
-itself uses the corrected ID.
+The former misspelled rule ID is rejected by `--disable`.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --disable moonbitlang/unnessary_else testdata/builtin-rules-all/unnecessary_else.mbt
-no match hits
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --disable moonbitlang/unnessary_else testdata/builtin-rules-all/unnecessary_else.mbt 2>&1 >/dev/null
+error: unknown rule id in --disable
+  source: moonbitlang/unnessary_else
+  help: use the exact id of a loaded rule
+[2]
 ```
 
 ## Builtin rules JSON output

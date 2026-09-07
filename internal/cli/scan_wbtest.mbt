@@ -658,18 +658,27 @@ test "enabled compilation-invalid builtin remains an internal error" {
 }
 
 ///|
-test "legacy unnecessary_else id disables the corrected builtin rule id" {
-  let rules = @rule_builtin.load_rules()
-  let disabled = resolve_disabled_scan_rule_ids(rules, [
-    legacy_unnecessary_else_rule_id,
-  ])
-  let enabled = disable_scan_rules(rules, disabled)
-  let enabled_ids : Array[String] = []
-  for rule in enabled {
-    enabled_ids.push(rule.rule_id)
+test "misspelled unnecessary_else id is rejected" {
+  try
+    ignore(
+      disable_scan_rules(@rule_builtin.load_rules(), [
+        "moonbitlang/unnessary_else",
+      ]),
+    )
+  catch {
+    CliError::Usage(diagnostic~) =>
+      inspect(
+        render_cli_diagnostic(diagnostic),
+        content=(
+          #|error: unknown rule id in --disable
+          #|  source: moonbitlang/unnessary_else
+          #|  help: use the exact id of a loaded rule
+        ),
+      )
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected CLI usage error")
   }
-  assert_eq(enabled.length(), rules.length() - 1)
-  assert_false(enabled_ids.contains(unnecessary_else_rule_id))
 }
 
 ///|

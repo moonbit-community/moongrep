@@ -133,34 +133,13 @@ fn resolve_disabled_scan_rule_ids(
     loaded[raw.rule_id] = true
   }
   let disabled : Map[String, Bool] = Map([])
-  for requested_rule_id in disabled_rules {
-    match resolve_disabled_rule_id(loaded, requested_rule_id) {
-      Some(rule_id) => disabled[rule_id] = true
-      None => raise new_unknown_disabled_rule_error(requested_rule_id)
+  for rule_id in disabled_rules {
+    if !loaded.contains(rule_id) {
+      raise new_unknown_disabled_rule_error(rule_id)
     }
+    disabled[rule_id] = true
   }
   disabled
-}
-
-///|
-let legacy_unnecessary_else_rule_id : String = "moonbitlang/unnessary_else"
-
-///|
-let unnecessary_else_rule_id : String = "moonbitlang/unnecessary_else"
-
-///|
-fn resolve_disabled_rule_id(
-  loaded : Map[String, Bool],
-  requested_rule_id : String,
-) -> String? {
-  if loaded.contains(requested_rule_id) {
-    return Some(requested_rule_id)
-  }
-  if requested_rule_id == legacy_unnecessary_else_rule_id &&
-    loaded.contains(unnecessary_else_rule_id) {
-    return Some(unnecessary_else_rule_id)
-  }
-  None
 }
 
 ///|
