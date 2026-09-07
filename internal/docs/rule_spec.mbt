@@ -241,9 +241,9 @@ let _embed_rulespec_md : String =
   #|matching is not currently expressible as a structural shape.
   #|
   #|This shortcut applies only to ordinary `let` expressions. `let mut`, local
-  #|function definitions, `letrec`, and `defer` shapes use normal structural
-  #|matching. A header-only shape for one of those forms does not match a candidate
-  #|with a continuation; write the complete statement sequence when the
+  #|function definitions, `letrec`, `defer`, and `errdefer` shapes use normal
+  #|structural matching. A header-only shape for one of those forms does not match
+  #|a candidate with a continuation; write the complete statement sequence when the
   #|continuation matters. `proof_let` is an independent expression candidate, so a
   #|header match covers only the `proof_let` while later expressions remain
   #|searchable.
@@ -518,8 +518,8 @@ let _embed_rulespec_md : String =
   #|When an expression sequence consists exactly of a continuation owner followed
   #|by terminal `$_`, the placeholder matches the complete remaining suffix: zero,
   #|one, or more expressions. The continuation owners are ordinary `let`,
-  #|`let mut`, local function definitions, `letrec`, `guard`, and `defer`. The
-  #|placeholder remains non-binding, so neither `$_` nor `_` is added to the
+  #|`let mut`, local function definitions, `letrec`, `guard`, `defer`, and `errdefer`.
+  #|The placeholder remains non-binding, so neither `$_` nor `_` is added to the
   #|bindings. This rule also applies inside a nested block. It does not apply to a
   #|non-terminal `$_`, an owner with any other sibling pattern, or `proof_let`.
   #|Those uses still match exactly one expression.

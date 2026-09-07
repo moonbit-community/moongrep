@@ -194,10 +194,11 @@ patterns:
 这会匹配显式 unit body。它不同于上面的省略 body shape；省略 body 的形式会有意忽略候选 body。当前结构 shape
 无法表达“只匹配语法上省略 body 的 let”。
 
-这个快捷匹配只适用于普通 `let` 表达式。`let mut`、局部函数定义、`letrec` 和
-`defer` shape 使用普通结构匹配。这些形式的 header-only shape 不匹配带 continuation
-的候选；需要约束 continuation 时应写出完整语句序列。`proof_let` 是独立表达式候选，
-因此 header 命中只覆盖 `proof_let`，后续表达式仍可继续搜索。
+这个快捷匹配只适用于普通 `let` 表达式。`let mut`、局部函数定义、`letrec`、
+`defer` 和 `errdefer` shape 使用普通结构匹配。这些形式的 header-only shape
+不匹配带 continuation 的候选；需要约束 continuation 时应写出完整语句序列。
+`proof_let` 是独立表达式候选，因此 header 命中只覆盖 `proof_let`，后续表达式
+仍可继续搜索。
 
 ### 省略 body 的 guard shape
 
@@ -416,10 +417,10 @@ patterns:
 
 当表达式序列恰好由一个 continuation owner 和末尾 `$_` 组成时，该占位符会匹配
 完整的剩余 suffix，即零个、一个或多个表达式。continuation owner 包括普通 `let`、
-`let mut`、局部函数定义、`letrec`、`guard` 和 `defer`。该占位符仍然不绑定，因此
-bindings 中不会出现 `$_` 或 `_`。这条规则同样适用于嵌套 block；它不适用于非末尾
-`$_`、带其他 sibling pattern 的 owner，也不适用于 `proof_let`。这些位置的 `$_`
-仍然只匹配一个表达式。
+`let mut`、局部函数定义、`letrec`、`guard`、`defer` 和 `errdefer`。该占位符仍然
+不绑定，因此 bindings 中不会出现 `$_` 或 `_`。这条规则同样适用于嵌套 block；
+它不适用于非末尾 `$_`、带其他 sibling pattern 的 owner，也不适用于 `proof_let`。
+这些位置的 `$_` 仍然只匹配一个表达式。
 
 只有精确的 `$_` 具有这种内置行为。`__`、`___` 和 `__x` 等名称默认是字面量。`$__` 或 `$(__x:exp)` 等内联语法会把它们标记为元变量。
 
