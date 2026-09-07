@@ -47,19 +47,32 @@ fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
     }
   }
   lines.push("source:")
+  lines.append(
+    render_source_context(hit.source_context, finding.loc, no_color~),
+  )
+  lines.join("\n")
+}
+
+///|
+fn render_source_context(
+  context : SourceContext,
+  loc : @basic.Location,
+  no_color~ : Bool,
+) -> Array[String] {
+  let lines : Array[String] = []
   let mut line_number_width = 1
-  for context_line in hit.source_context.lines {
+  for context_line in context.lines {
     let width = context_line.line_number.to_string().length()
     if width > line_number_width {
       line_number_width = width
     }
   }
-  let collapse_match = finding.loc.end.lnum - finding.loc.start.lnum + 1 > 6
-  let first_omitted_line = finding.loc.start.lnum + 3
-  let last_omitted_line = finding.loc.end.lnum - 3
+  let collapse_match = loc.end.lnum - loc.start.lnum + 1 > 6
+  let first_omitted_line = loc.start.lnum + 3
+  let last_omitted_line = loc.end.lnum - 3
   let mut rendered_omission = false
   let mut previous_line_indent = ""
-  for context_line in hit.source_context.lines {
+  for context_line in context.lines {
     if collapse_match &&
       context_line.is_match &&
       context_line.line_number >= first_omitted_line &&
@@ -80,7 +93,7 @@ fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
       lines.push(
         render_source_context_line(
           context_line,
-          finding.loc,
+          loc,
           line_number_width,
           no_color~,
         ),
@@ -88,7 +101,7 @@ fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
       previous_line_indent = leading_whitespace(context_line.text)
     }
   }
-  lines.join("\n")
+  lines
 }
 
 ///|

@@ -6,17 +6,31 @@ async fn scan_path(
   verbose : Bool,
   receive : async (ScanEvent) -> Unit,
 ) -> Unit {
-  let visited = @fs_walk.VisitedDirectories::new()
-  scan_path_once(path, excludes, scan_plan, verbose, receive, visited)
+  visit_source_files(
+    path,
+    excludes,
+    file => scan_source_file(file, scan_plan, receive),
+    trace => emit_scan_trace(verbose, receive, trace),
+  )
 }
 
 ///|
-async fn scan_path_once(
+async fn visit_source_files(
   path : String,
   excludes : Array[String],
-  scan_plan : @rule_apply.ScanPlan,
-  verbose : Bool,
-  receive : async (ScanEvent) -> Unit,
+  process_file : async (String) -> Unit,
+  trace : async (ScanTrace) -> Unit,
+) -> Unit {
+  let visited = @fs_walk.VisitedDirectories::new()
+  visit_source_path_once(path, excludes, process_file, trace, visited)
+}
+
+///|
+async fn visit_source_path_once(
+  path : String,
+  excludes : Array[String],
+  process_file : async (String) -> Unit,
+  trace : async (ScanTrace) -> Unit,
   visited : @fs_walk.VisitedDirectories,
 ) -> Unit {
   let kind = @fs.kind(path) catch {
@@ -33,10 +47,10 @@ async fn scan_path_once(
           raise new_scan_input_error(path, "resolve scan directory", "\{err}")
       }
       if !should_enter {
-        emit_scan_trace(verbose, receive, PathSkipped(path))
+        trace(PathSkipped(path))
         return
       }
-      emit_scan_trace(verbose, receive, DirectoryEntered(path))
+      trace(DirectoryEntered(path))
       let entries = @fs.readdir(path, sort=true) catch {
         @os_error.OSError(_) as err =>
           raise new_scan_input_os_error(path, "read scan directory", err)
@@ -45,18 +59,18 @@ async fn scan_path_once(
       for entry in entries {
         let child_path = join_scan_path(path, entry)
         if !should_skip_entry(child_path, entry, excludes) {
-          scan_path_once(
-            child_path, excludes, scan_plan, verbose, receive, visited,
+          visit_source_path_once(
+            child_path, excludes, process_file, trace, visited,
           )
         } else {
-          emit_scan_trace(verbose, receive, PathSkipped(child_path))
+          trace(PathSkipped(child_path))
         }
       }
     }
     Regular =>
       if path.has_suffix(".mbt") {
-        emit_scan_trace(verbose, receive, FileStarted(path))
-        scan_source_file(path, scan_plan, receive)
+        trace(FileStarted(path))
+        process_file(path)
       }
     _ => ()
   }
