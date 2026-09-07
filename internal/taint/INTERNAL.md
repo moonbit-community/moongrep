@@ -370,7 +370,7 @@ When changing YAML taint behavior:
 5. add integration tests under `internal/rule/apply` or `internal/rule/taint_lowering`
 
 Use `moon test internal/taint/engine` as the tight loop for private state and evaluator
-work. Use `moon test taint` to check the compatibility facade and its complete
+work. Use `moon test internal/taint` to check the compatibility facade and its complete
 public surface. Package-boundary changes should run both plus `moon check`.
 Before finishing, run `moon info && moon fmt` and review the facade and all three
 subpackage interfaces. For changes visible through YAML rules, also run the

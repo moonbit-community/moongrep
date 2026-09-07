@@ -313,7 +313,7 @@ YAML 规则集成 boundary 添加聚焦测试。
 5. 在 `internal/rule/apply` 或 `internal/rule/taint_lowering` 下添加集成测试
 
 私有状态和求值器工作以 `moon test internal/taint/engine` 作为最短反馈循环。
-使用 `moon test taint` 检查兼容门面及完整公开接口。涉及包边界时，两者都要运行，
+使用 `moon test internal/taint` 检查兼容门面及完整公开接口。涉及包边界时，两者都要运行，
 并运行 `moon check`。结束前运行 `moon info && moon fmt`，检查门面和三个子包的接口。
 对于通过 YAML 规则可见的变化，还要运行相关的 `internal/rule/compile`、
 `internal/rule/taint_lowering` 和 `internal/rule/apply` 测试。
