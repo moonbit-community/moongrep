@@ -115,12 +115,13 @@ lambda、局部函数和 letrec body block 会生成不带花括号的 `Sequence
 花括号。
 
 sequence 只接受完整的多语句 `Expression` shape，或普通 `let` / `guard` 的
-omitted-continuation shortcut。`let`、`let mut`、`guard` 或其他 continuation owner
-header 后的末尾有名 expression metavar、特殊 target 或精确 `$_` 会吸收完整的剩余
-suffix；只有 `$_` 会丢弃该 suffix 而不绑定。
-`let mut`、局部函数、`letrec` 和 `defer` 不使用 omitted-continuation shortcut。
-这些 header 后存在语句时，遍历会生成 sequence suffix，而不会暴露 header-only
-direct 候选。`proof_let` 不是 continuation owner，仍可独立匹配。
+omitted-continuation shortcut。普通 `let`、`let mut`、局部函数、`letrec`、`guard`、
+`defer` 或 `errdefer` header 后的末尾有名 expression metavar、特殊 target 或精确
+`$_` 会吸收完整的剩余 suffix；只有 `$_` 会丢弃该 suffix 而不绑定。
+`let mut`、局部函数、`letrec`、`defer` 和 `errdefer` 不使用
+omitted-continuation shortcut。这些 header 后存在语句时，遍历会生成 sequence
+suffix，而不会暴露 header-only direct 候选。`proof_let` 不是 continuation owner，
+仍可独立匹配。
 
 ## 精确性
 

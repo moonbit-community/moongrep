@@ -140,10 +140,10 @@ the match location.
 
 A sequence accepts only a complete multi-statement `Expression` shape or the
 omitted-continuation shortcut for ordinary `let` and `guard`. A terminal named
-expression metavar, special target, or exact `$_` after `let`, `let mut`,
-`guard`, or another continuation-owning header absorbs the complete remaining
-suffix. Only `$_` discards that suffix instead of binding it.
-`let mut`, local functions, `letrec`, and `defer` do not get the
+expression metavar, special target, or exact `$_` after ordinary `let`, `let mut`,
+local functions, `letrec`, `guard`, `defer`, or `errdefer` absorbs the complete
+remaining suffix. Only `$_` discards that suffix instead of binding it.
+`let mut`, local functions, `letrec`, `defer`, and `errdefer` do not get the
 omitted-continuation shortcut. When one of these headers has following
 statements, traversal emits the sequence suffix instead of a header-only direct
 candidate. `proof_let` is not a continuation owner and remains independently
