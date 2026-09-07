@@ -81,7 +81,7 @@ moongrep lint [options] [scan-root]
 - `--exclude <name-or-path>`：跳过匹配的文件或目录条目。
 - `--disable <rule-id>`：禁用一个已加载规则 id。
 - `--verbose`：把规则加载和遍历事件写入标准错误。
-- `--output-json`：以 JSON Lines 格式输出命中。
+- `--json`：以 JSON Lines 格式输出命中。
 - `-h` 或 `--help`：打印命令帮助。
 
 两个命令都不接受 `--enable-builtin-rules`。内嵌 builtin 规则只能通过 `lint`
@@ -347,17 +347,17 @@ description 末尾的换行字符会被移除，剩余每一行前面缩进两�
 
 ### 协议和模式识别
 
-对于 `scan`、`lint` 和 `dump`，`--output-json` 会选择结构化输出。该选项必须
-作为独立参数出现在选项终止符之前，例如 `scan -- --output-json` 和
-`dump -- --output-json` 都不会启用 JSON 模式。首个命令必须是 `scan`、`lint`
+对于 `scan`、`lint` 和 `dump`，`--json` 会选择结构化输出。该选项必须
+作为独立参数出现在选项终止符之前，例如 `scan -- --json` 和
+`dump -- --json` 都不会启用 JSON 模式。首个命令必须是 `scan`、`lint`
 或 `dump`。
 
 对于 `scan` 和 `lint`，两个标准流中的每个非空应用输出行都是一个紧凑 JSON
 object。对于 `dump`，成功且未启用 exit-code 模式时，会向标准输出写出一个紧凑
 JSON object。成功的 help 和 `docs` 输出不属于此协议；特别是
-`dump --output-json --help` 仍打印普通帮助文本。
+`dump --json --help` 仍打印普通帮助文本。
 
-模式识别发生在完整参数解析之前。因此，只要存在有效位置的 `--output-json`，未知
+模式识别发生在完整参数解析之前。因此，只要存在有效位置的 `--json`，未知
 选项、缺少选项值等解析失败也会输出 `error` 记录。
 
 ### Finding 记录
@@ -410,7 +410,7 @@ warning 写入标准错误。源码解析 warning 的 category 是 `parse`，包
 
 ### Dump 记录
 
-成功的 `dump --output-json` 命令向标准输出恰好写出一条记录：
+成功的 `dump --json` 命令向标准输出恰好写出一条记录：
 
 ```text
 { "type": "dump", "kind": "impl" | "expr", "content": string }
@@ -420,7 +420,7 @@ warning 写入标准错误。源码解析 warning 的 category 是 `parse`，包
 输入选项；`content` 与文本模式打印的 CST `Repr` 文本完全相同。JSON 编码会转义
 其中的换行和其他特殊字符，因此整条记录只占一个物理输出行。
 
-成功解析后，`dump --exit-code --output-json` 仍保持静默。无效输入和用法错误使用
+成功解析后，`dump --exit-code --json` 仍保持静默。无效输入和用法错误使用
 下面的 error 记录。
 
 ### Error 记录
@@ -481,27 +481,27 @@ CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
 该命令只接受以下两种形式之一：
 
 ```text
-moongrep dump [--exit-code] [--output-json] --impl <source>
-moongrep dump [--exit-code] [--output-json] --expr <source>
+moongrep dump [--exit-code] [--json] --impl <source>
+moongrep dump [--exit-code] [--json] --expr <source>
 ```
 
 `--impl` 接受一个有效的 MoonBit 顶层项，`--expr` 接受一个有效的 MoonBit
 表达式。两种形式的解析结果都不能包含诊断或 recovery node。
 
 成功时，文本模式会把结果 untyped CST node 的 MoonBit `Repr` 调试渲染以 CST
-调试文本格式写入标准输出。启用 `--output-json` 时，同一渲染会作为一条紧凑
+调试文本格式写入标准输出。启用 `--json` 时，同一渲染会作为一条紧凑
 `dump` 记录的 `content`，其 `kind` 为 `impl` 或 `expr`。
 
 `--exit-code` 使用相同条件检查解析结果，但不渲染或写出 CST。检查成功时标准输出
-为空，并以状态码 0 退出。它优先于 `--output-json`：检查成功时两个输出流都为空。
-输入无效时仍向标准错误写入诊断，并以状态码 3 退出；存在 `--output-json` 时，
+为空，并以状态码 0 退出。它优先于 `--json`：检查成功时两个输出流都为空。
+输入无效时仍向标准错误写入诊断，并以状态码 3 退出；存在 `--json` 时，
 该诊断使用现有 `error` 记录 schema。
 
 同时提供 `--impl` 和 `--expr`，或只提供 `--exit-code` 而不提供输入选项，属于
 状态码 2 的用法错误。不带任何参数调用 `dump` 会打印帮助并以状态码 0 退出。
 词法或解析诊断、recovery node，以及 `--impl` 结果包含零个或多个顶层项时，
-都以状态码 3 退出。`dump --output-json` 未提供输入时输出 JSON usage error 并以
-状态码 2 退出；`dump --output-json --help` 仍打印普通帮助并以状态码 0 退出。
+都以状态码 3 退出。`dump --json` 未提供输入时输出 JSON usage error 并以
+状态码 2 退出；`dump --json --help` 仍打印普通帮助并以状态码 0 退出。
 
 ## 诊断和退出状态
 

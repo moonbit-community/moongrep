@@ -48,7 +48,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Write loaded rule ids and traversal progress to stderr.
-  --output-json        Write JSON Lines findings to stdout and diagnostics to stderr.
+  --json               Write JSON Lines findings to stdout and diagnostics to stderr.
   -r, --rules <rules>  Directory containing YAML rules.
   --rule <rule>        Single YAML rule file.
   --pattern <pattern>  Anonymous structural pattern to match.
@@ -74,7 +74,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Write loaded rule ids and traversal progress to stderr.
-  --output-json        Write JSON Lines findings to stdout and diagnostics to stderr.
+  --json               Write JSON Lines findings to stdout and diagnostics to stderr.
   -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]
   --rule <rule>        Single YAML rule file.
   --pattern <pattern>  Anonymous structural pattern to match.
@@ -97,7 +97,7 @@ Parse a MoonBit impl or expression and print untyped CST debug output.
 Options:
   -h, --help     Show help information.
   --exit-code    Check whether parsing succeeds without printing CST output.
-  --output-json  Write one compact JSON dump record to stdout and diagnostics to stderr.
+  --json         Write one compact JSON dump record to stdout and diagnostics to stderr.
   --impl <impl>  MoonBit top-level implementation item to parse.
   --expr <expr>  MoonBit expression to parse.
 ```

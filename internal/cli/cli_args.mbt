@@ -89,7 +89,7 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 ///|
 /// Reports whether command-line failures should use the JSON Lines protocol.
 ///
-/// Only a standalone `--output-json` for an initial `scan`, `lint`, or `dump`
+/// Only a standalone `--json` for an initial `scan`, `lint`, or `dump`
 /// command enables the protocol. Arguments after the `--` option terminator
 /// are not interpreted as options.
 pub fn output_json_requested(argv : Array[String]) -> Bool {
@@ -100,7 +100,7 @@ pub fn output_json_requested(argv : Array[String]) -> Bool {
   for index in 1..<argv.length() {
     match argv[index] {
       "--" => return false
-      "--output-json" => return true
+      "--json" => return true
       _ => ()
     }
   }
@@ -126,8 +126,8 @@ fn scan_like_command(
   ]
   flags.push(
     FlagArg(
-      "output-json",
-      long="output-json",
+      "json",
+      long="json",
       about="Write JSON Lines findings to stdout and diagnostics to stderr.",
     ),
   )
@@ -215,8 +215,8 @@ let dump_command : @argparse.Command = Command(
       about="Check whether parsing succeeds without printing CST output.",
     ),
     FlagArg(
-      "output-json",
-      long="output-json",
+      "json",
+      long="json",
       about="Write one compact JSON dump record to stdout and diagnostics to stderr.",
     ),
   ],
@@ -298,7 +298,7 @@ fn dump_cli_command(dump_matches : @argparse.Matches) -> CliCommand raise {
   let impl_source = last_cli_value(dump_matches.values, "impl")
   let expr_source = last_cli_value(dump_matches.values, "expr")
   let exit_code = cli_flag_enabled(dump_matches.flags, "exit-code")
-  let output_json = cli_flag_enabled(dump_matches.flags, "output-json")
+  let output_json = cli_flag_enabled(dump_matches.flags, "json")
   match (impl_source, expr_source) {
     (Some(source), None) => DumpImpl(source~, exit_code~, output_json~)
     (None, Some(source)) => DumpExpr(source~, exit_code~, output_json~)
@@ -315,7 +315,7 @@ fn scan_cli_options(
   argv : Array[String],
 ) -> CliOptions raise {
   let verbose = cli_flag_enabled(scan_matches.flags, "verbose")
-  let output_json = cli_flag_enabled(scan_matches.flags, "output-json")
+  let output_json = cli_flag_enabled(scan_matches.flags, "json")
   let no_color = no_color_enabled(env)
   let parsed_rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
@@ -462,7 +462,7 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// a rules directory. When no rule source is given, the rules directory
 /// defaults to `./.moongrep/rules`. An explicit `--rule <rule-file>`, at least
 /// one `--pattern <pattern>` suppresses that default. `--verbose` and
-/// `--output-json` are optional.
+/// `--json` are optional.
 /// `lint` accepts the other scan options, enables builtin rules automatically,
 /// and defaults to scanning the current directory when no arguments are given.
 /// Each `--exclude <name-or-path>` skips one matching child file or directory

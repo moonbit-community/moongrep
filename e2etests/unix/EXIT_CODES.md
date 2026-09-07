@@ -31,13 +31,13 @@ $ moonrun "$TESTDIR"/../moongrep.wasm -- docs MissingDoc 2> /dev/null
 [2]
 ```
 
-For `scan --output-json`, mode selection happens before argparse rejects an
+For `scan --json`, mode selection happens before argparse rejects an
 unknown option. Its complete multiline diagnostic is escaped inside one JSON
 record on standard error.
 
 ```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --unknown 2>&1 >/dev/null
-{"type":"error","category":"usage","exit_code":2,"message":"error: unexpected argument '--unknown' found\n\nUsage: moongrep scan [options] [scan-root]\n\nScan MoonBit source files.\n\nArguments:\n  scan-root  Directory or .mbt file to scan.\n\nOptions:\n  -h, --help           Show help information.\n  --verbose            Write loaded rule ids and traversal progress to stderr.\n  --output-json        Write JSON Lines findings to stdout and diagnostics to stderr.\n  -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]\n  --rule <rule>        Single YAML rule file.\n  --pattern <pattern>  Anonymous structural pattern to match.\n  --guard <guard>      YAML guard map for the preceding anonymous pattern.\n  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.\n  --disable <disable>  Rule id to disable after loading rules. May be repeated.\n"}
+$ moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --unknown 2>&1 >/dev/null
+{"type":"error","category":"usage","exit_code":2,"message":"error: unexpected argument '--unknown' found\n\nUsage: moongrep scan [options] [scan-root]\n\nScan MoonBit source files.\n\nArguments:\n  scan-root  Directory or .mbt file to scan.\n\nOptions:\n  -h, --help           Show help information.\n  --verbose            Write loaded rule ids and traversal progress to stderr.\n  --json               Write JSON Lines findings to stdout and diagnostics to stderr.\n  -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]\n  --rule <rule>        Single YAML rule file.\n  --pattern <pattern>  Anonymous structural pattern to match.\n  --guard <guard>      YAML guard map for the preceding anonymous pattern.\n  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.\n  --disable <disable>  Rule id to disable after loading rules. May be repeated.\n"}
 [2]
 ```
 
@@ -92,7 +92,7 @@ The same rule-content failure uses a structured JSON error record when
 requested.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rule testdata/exit-codes/invalid.yaml testdata/custom-rules 2>&1 >/dev/null
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rule testdata/exit-codes/invalid.yaml testdata/custom-rules 2>&1 >/dev/null
 {"type":"error","category":"rule_content","exit_code":5,"message":"invalid rule","source":"testdata/exit-codes/invalid.yaml","reason":"line 2, column 1: while parsing a node, did not find expected node content","help":"fix the rule and try again"}
 [5]
 ```
@@ -136,7 +136,7 @@ JSON mode also keeps scan-input failures on standard error and preserves status
 6.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules e2etests/rules/structural testdata/does-not-exist 2>&1 >/dev/null
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rules e2etests/rules/structural testdata/does-not-exist 2>&1 >/dev/null
 {"type":"error","category":"scan_input","exit_code":6,"message":"could not access scan path","source":"testdata/does-not-exist","reason":"No such file or directory","help":"check that the scan path exists and is readable"}
 [6]
 ```
