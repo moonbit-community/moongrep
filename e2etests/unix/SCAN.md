@@ -128,10 +128,10 @@ warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not 
 warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
 ```
 
-With `--output-json`, the same warnings are typed records on standard error.
+With `--json`, the same warnings are typed records on standard error.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules testdata/skip-structural/rules testdata/skip-structural/src 2>&1 >/dev/null
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rules testdata/skip-structural/rules testdata/skip-structural/src 2>&1 >/dev/null
 {"type":"warning","category":"invalid_skip_payload","message":"testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip","file":"testdata/skip-structural/src/hit.mbt","range":{"start":{"line":7,"column":1},"end":{"line":7,"column":22}}}
 {"type":"warning","category":"invalid_skip_payload","message":"testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip","file":"testdata/skip-structural/src/hit.mbt","range":{"start":{"line":13,"column":1},"end":{"line":13,"column":17}}}
 ```
@@ -235,7 +235,7 @@ A terminal named expression metavar captures the complete continuation even
 when the owning statement is inside a nested block.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern 'wrapper({ let item = source(); $(body:exp) })' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern 'wrapper({ let item = source(); $(body:exp) })' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
 2:3-6:5
 ```
 
@@ -244,7 +244,7 @@ single-expression, and multi-expression block once. Each range includes the
 block braces.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern 'let value = load(); $(body:exp)' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern 'let value = load(); $(body:exp)' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
 10:11-10:33
 14:11-17:4
 21:11-25:4
@@ -256,7 +256,7 @@ multi-expression suffixes all match, and each range covers the complete
 `wrapper` block expression.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern 'wrapper({ let value = load(); $_ })' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern 'wrapper({ let value = load(); $_ })' testdata/continuation-regressions | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*/\1:\2-\3:\4/p'
 10:3-10:34
 14:3-17:5
 21:3-25:5
@@ -316,21 +316,21 @@ The JSON range and matched source for a broad expression pattern therefore
 refer to the expression inside the body.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern '$(root:exp)' testdata/body-candidates/function.mbt | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*"matched_source":"\([^"]*\)".*/\1:\2-\3:\4 \5/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern '$(root:exp)' testdata/body-candidates/function.mbt | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*"matched_source":"\([^"]*\)".*/\1:\2-\3:\4 \5/p'
 3:3-3:13 f <| value
 ```
 
 An explicit block shape does not match those function body braces.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern '{ a; b }' testdata/body-candidates/function.mbt
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern '{ a; b }' testdata/body-candidates/function.mbt
 ```
 
 The same shape does match a block written inside the body, and its JSON range
 and matched source include the explicit braces.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern '{ a; b }' testdata/body-candidates/explicit.mbt | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*"matched_source":"\([^"]*\)".*/\1:\2-\3:\4 \5/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern '{ a; b }' testdata/body-candidates/explicit.mbt | sed -n 's/.*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)},"end":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}}.*"matched_source":"\([^"]*\)".*/\1:\2-\3:\4 \5/p'
 3:3-3:11 { a; b }
 ```
 
@@ -407,7 +407,7 @@ normalizing numeric values. A literal `1000` pattern therefore matches only the
 identically spelled call; the equivalent `1_000` call is omitted.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern 'literal(1000)' testdata/constant-spelling/sample.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern 'literal(1000)' testdata/constant-spelling/sample.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
 literal(1000)
 ```
 
@@ -415,7 +415,7 @@ The same comparison applies when a named `const` metavariable is repeated.
 Pairs with consistent spelling match, while `repeated(1000, 1_000)` does not.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --pattern 'repeated($(value:const), $(value:const))' testdata/constant-spelling/sample.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --pattern 'repeated($(value:const), $(value:const))' testdata/constant-spelling/sample.mbt | sed -n 's/.*"matched_source":"\(.*\)","source_context".*/\1/p'
 repeated(1000, 1000)
 repeated(1_000, 1_000)
 ```
@@ -519,7 +519,7 @@ rule metadata, exact ranges, matched source, and nearby source lines marked as
 matched or unmatched.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules e2etests/rules/structural testdata/render-structural
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rules e2etests/rules/structural testdata/render-structural
 {"type":"finding","file":"testdata/render-structural/hit.mbt","rule_id":"example","description":"Target call.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":11}},"matched_source":"target()","source_context":[{"line":1,"text":"fn sample {","is_match":false},{"line":2,"text":"  before()","is_match":false},{"line":3,"text":"  target()","is_match":true},{"line":4,"text":"  after()","is_match":false},{"line":5,"text":"}","is_match":false}]}
 ```
 
@@ -527,7 +527,7 @@ Verbose traversal messages and parse warnings are written to stderr, so
 discarding stderr leaves the JSON stream on stdout unchanged.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>/dev/null
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>/dev/null
 {"type":"finding","file":"testdata/parse-warning/hit.mbt","rule_id":"example","description":"Target call.","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":21}},"matched_source":"target()","source_context":[{"line":1,"text":"fn sample { target() }","is_match":true}]}
 ```
 
@@ -536,7 +536,7 @@ rule loading, directory entry, and file order; the parse warning explains why
 the malformed file was skipped.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>&1 >/dev/null
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --verbose --rules e2etests/rules/structural testdata/parse-warning 2>&1 >/dev/null
 {"type":"trace","event":"rule_loaded","rule_id":"example"}
 {"type":"trace","event":"directory_entered","path":"testdata/parse-warning"}
 {"type":"trace","event":"file_started","path":"testdata/parse-warning/bad.mbt"}
@@ -548,7 +548,7 @@ JSON mode writes no summary record when there are no matches. The empty stream
 therefore has a byte count of zero.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules e2etests/rules/structural testdata/prefilter-irrelevant | wc -c
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rules e2etests/rules/structural testdata/prefilter-irrelevant | wc -c
 0
 ```
 
@@ -591,7 +591,7 @@ Migrated CST fields preserve taint flows through foreach binders, `noraise`
 cases, array reads and writes, and `if` else branches.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --output-json --rules e2etests/rules/cst-regressions testdata/taint-cst-regressions | sed -n 's/.*"matched_source":"\([^"]*\)".*/\1/p'
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rules e2etests/rules/cst-regressions testdata/taint-cst-regressions | sed -n 's/.*"matched_source":"\([^"]*\)".*/\1/p'
 item
 result
 values[0]

@@ -179,8 +179,7 @@ test "cli args parse dump exit code mode" {
 
 ///|
 test "cli args parse dump output json mode before and after input" {
-  match
-    parse_cli_command(["dump", "--output-json", "--impl", "fn answer { 42 }"]) {
+  match parse_cli_command(["dump", "--json", "--impl", "fn answer { 42 }"]) {
     DumpImpl(source~, exit_code~, output_json~) => {
       inspect(source, content="fn answer { 42 }")
       assert_false(exit_code)
@@ -188,7 +187,7 @@ test "cli args parse dump output json mode before and after input" {
     }
     _ => fail("unexpected command")
   }
-  match parse_cli_command(["dump", "--expr", "x + 1", "--output-json"]) {
+  match parse_cli_command(["dump", "--expr", "x + 1", "--json"]) {
     DumpExpr(source~, exit_code~, output_json~) => {
       inspect(source, content="x + 1")
       assert_false(exit_code)
@@ -293,9 +292,7 @@ test "cli args parse scan verbose flag" {
 ///|
 test "cli args parse scan output json flag" {
   match
-    parse_cli_command([
-      "scan", "--rules", "custom-rules", "--output-json", "src",
-    ]) {
+    parse_cli_command(["scan", "--rules", "custom-rules", "--json", "src"]) {
     Scan(options) => {
       inspect(options.scan_root, content="src")
       assert_true(options.output_json)
@@ -307,28 +304,24 @@ test "cli args parse scan output json flag" {
 
 ///|
 test "cli detects JSON mode before parsing scan, lint, and dump arguments" {
-  assert_true(output_json_requested(["scan", "--output-json"]))
+  assert_true(output_json_requested(["scan", "--json"]))
   assert_true(
-    output_json_requested([
-      "scan", "src", "--unknown", "--output-json", "--rules",
-    ]),
+    output_json_requested(["scan", "src", "--unknown", "--json", "--rules"]),
   )
-  assert_true(output_json_requested(["lint", "--verbose", "--output-json"]))
-  assert_true(output_json_requested(["dump", "--output-json"]))
+  assert_true(output_json_requested(["lint", "--verbose", "--json"]))
+  assert_true(output_json_requested(["dump", "--json"]))
   assert_true(
-    output_json_requested([
-      "dump", "--expr", "x + 1", "--unknown", "--output-json",
-    ]),
+    output_json_requested(["dump", "--expr", "x + 1", "--unknown", "--json"]),
   )
   assert_false(output_json_requested([]))
-  assert_false(output_json_requested(["docs", "--output-json"]))
-  assert_false(output_json_requested(["--output-json", "scan"]))
-  assert_false(output_json_requested(["scan", "--output-json=true"]))
-  assert_false(output_json_requested(["dump", "--output-json=true"]))
-  assert_false(output_json_requested(["scan", "--", "--output-json"]))
-  assert_true(output_json_requested(["scan", "--output-json", "--"]))
-  assert_false(output_json_requested(["dump", "--", "--output-json"]))
-  assert_true(output_json_requested(["dump", "--output-json", "--"]))
+  assert_false(output_json_requested(["docs", "--json"]))
+  assert_false(output_json_requested(["--json", "scan"]))
+  assert_false(output_json_requested(["scan", "--json=true"]))
+  assert_false(output_json_requested(["dump", "--json=true"]))
+  assert_false(output_json_requested(["scan", "--", "--json"]))
+  assert_true(output_json_requested(["scan", "--json", "--"]))
+  assert_false(output_json_requested(["dump", "--", "--json"]))
+  assert_true(output_json_requested(["dump", "--json", "--"]))
 }
 
 ///|
@@ -619,7 +612,7 @@ test "cli args parse lint scan options in addition to builtin rules" {
       [
         "lint", "--rules", "custom-rules", "--rule", "custom-rules/example.yaml",
         "--pattern", "$(callee:id)()", "--guard", "{$callee: \"^safe_\"}", "--exclude",
-        "./vendor/", "--disable", "moonbitlang/match_option", "--verbose", "--output-json",
+        "./vendor/", "--disable", "moonbitlang/match_option", "--verbose", "--json",
         "src",
       ],
       env={ "NO_COLOR": "1" },

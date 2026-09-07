@@ -661,7 +661,7 @@ test "enabled compilation-invalid builtin remains an internal error" {
 test "misspelled unnecessary_else id is rejected" {
   try
     ignore(
-      disable_scan_rules(@rule_builtin.load_rules(), [
+      resolve_disabled_scan_rule_ids(@rule_builtin.load_rules(), [
         "moonbitlang/unnessary_else",
       ]),
     )

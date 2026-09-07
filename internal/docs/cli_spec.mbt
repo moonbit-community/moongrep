@@ -92,7 +92,7 @@ let _embed_clispec_md : String =
   #|- `--exclude <name-or-path>`: skip matching file or directory entries.
   #|- `--disable <rule-id>`: disable a loaded rule id.
   #|- `--verbose`: write rule-loading and traversal events to standard error.
-  #|- `--output-json`: write findings as JSON Lines records.
+  #|- `--json`: write findings as JSON Lines records.
   #|- `-h` or `--help`: print command help.
   #|
   #|`--enable-builtin-rules` is not accepted by either command. Embedded builtin
@@ -411,20 +411,20 @@ let _embed_clispec_md : String =
   #|
   #|### Protocol and Mode Detection
   #|
-  #|For `scan`, `lint`, and `dump`, `--output-json` selects structured output. The
+  #|For `scan`, `lint`, and `dump`, `--json` selects structured output. The
   #|option must be a standalone argument before an option terminator. For example,
-  #|`scan -- --output-json` and `dump -- --output-json` do not enable JSON mode.
+  #|`scan -- --json` and `dump -- --json` do not enable JSON mode.
   #|The initial command must be `scan`, `lint`, or `dump`.
   #|
   #|For `scan` and `lint`, every nonempty application-output line on both standard
   #|streams is a compact JSON object. For `dump`, a successful non-exit-code dump
   #|is one compact JSON object on standard output. Successful help and `docs`
   #|output are not part of this protocol. In particular,
-  #|`dump --output-json --help` still prints ordinary help text.
+  #|`dump --json --help` still prints ordinary help text.
   #|
   #|Mode detection happens before full argument parsing. An unknown option, a
   #|missing option value, or another parsing failure is therefore rendered as an
-  #|`error` record when a qualifying `--output-json` was present.
+  #|`error` record when a qualifying `--json` was present.
   #|
   #|### Finding Records
   #|
@@ -480,7 +480,7 @@ let _embed_clispec_md : String =
   #|
   #|### Dump Records
   #|
-  #|A successful `dump --output-json` command writes exactly one record to standard
+  #|A successful `dump --json` command writes exactly one record to standard
   #|output:
   #|
   #|```text
@@ -493,7 +493,7 @@ let _embed_clispec_md : String =
   #|newlines and other special characters, so the complete record occupies one
   #|physical output line.
   #|
-  #|`dump --exit-code --output-json` remains silent after a successful parse.
+  #|`dump --exit-code --json` remains silent after a successful parse.
   #|Invalid input and usage failures use the error record below.
   #|
   #|### Error Records
@@ -560,8 +560,8 @@ let _embed_clispec_md : String =
   #|The command accepts exactly one of these forms:
   #|
   #|```text
-  #|moongrep dump [--exit-code] [--output-json] --impl <source>
-  #|moongrep dump [--exit-code] [--output-json] --expr <source>
+  #|moongrep dump [--exit-code] [--json] --impl <source>
+  #|moongrep dump [--exit-code] [--json] --expr <source>
   #|```
   #|
   #|`--impl` accepts one valid MoonBit top-level item. `--expr` accepts one valid
@@ -570,22 +570,22 @@ let _embed_clispec_md : String =
   #|
   #|On success, text mode writes the MoonBit `Repr` debug rendering of the resulting
   #|untyped CST node to standard output in CST debug text format. With
-  #|`--output-json`, the same rendering is the `content` of one compact `dump`
+  #|`--json`, the same rendering is the `content` of one compact `dump`
   #|record whose `kind` is `impl` or `expr`.
   #|
   #|`--exit-code` checks the same parse conditions without rendering or writing the
-  #|CST. It takes precedence over `--output-json`: a successful check writes
+  #|CST. It takes precedence over `--json`: a successful check writes
   #|nothing to either output stream and exits with status 0. Invalid input still
   #|writes its diagnostic to standard error and exits with status 3; when
-  #|`--output-json` is present, that diagnostic uses the existing `error` record
+  #|`--json` is present, that diagnostic uses the existing `error` record
   #|schema.
   #|
   #|Providing both `--impl` and `--expr`, or using `--exit-code` without either
   #|input option, is a usage error with status 2. Invoking bare `dump` without any
   #|arguments prints help and exits with status 0. Lexical or parse diagnostics,
   #|recovery nodes, and an `--impl` result containing zero or multiple top-level
-  #|items exit with status 3. `dump --output-json` without an input is a JSON usage
-  #|error with status 2. `dump --output-json --help` still prints ordinary help and
+  #|items exit with status 3. `dump --json` without an input is a JSON usage
+  #|error with status 2. `dump --json --help` still prints ordinary help and
   #|exits with status 0.
   #|
   #|## Diagnostics and Exit Status
