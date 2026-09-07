@@ -219,9 +219,10 @@ let _embed_clispec_md : String =
   #|streaming order.
   #|
   #|Filesystem kind checks follow symbolic links, both at the scan root and below
-  #|it. Rendered paths retain the symbolic-link path. Traversal treats each path
-  #|independently, so multiple paths can scan the same target and a recursive
-  #|symbolic-link cycle can keep traversal running.
+  #|it. Rendered paths retain the symbolic-link path. Directory identities are
+  #|resolved with `realpath`, and each resolved directory is entered at most once
+  #|per scan. Symbolic-link cycles and later aliases of an already visited
+  #|directory are skipped.
   #|
   #|### Default Directory Exclusions
   #|
