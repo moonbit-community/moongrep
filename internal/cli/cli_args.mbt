@@ -71,6 +71,13 @@ pub(all) struct CliOptions {
 pub(all) enum CliCommand {
   Scan(CliOptions)
   Lint(CliOptions)
+  TokScan(
+    patterns~ : Array[String],
+    scan_root~ : String,
+    excludes~ : Array[String],
+    no_color~ : Bool,
+    output_json~ : Bool
+  )
   DocsList
   DocsShow(String)
   DumpImpl(source~ : String, exit_code~ : Bool, output_json~ : Bool)
@@ -89,12 +96,17 @@ pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
 ///|
 /// Reports whether command-line failures should use the JSON Lines protocol.
 ///
-/// Only a standalone `--json` for an initial `scan`, `lint`, or `dump`
+/// Only a standalone `--json` for an initial `scan`, `lint`, `tokscan`, or `dump`
 /// command enables the protocol. Arguments after the `--` option terminator
 /// are not interpreted as options.
 pub fn output_json_requested(argv : Array[String]) -> Bool {
   if argv.is_empty() ||
-    (argv[0] != "scan" && argv[0] != "lint" && argv[0] != "dump") {
+    (
+      argv[0] != "scan" &&
+      argv[0] != "lint" &&
+      argv[0] != "tokscan" &&
+      argv[0] != "dump"
+    ) {
     return false
   }
   for index in 1..<argv.length() {
@@ -187,6 +199,35 @@ let lint_command : @argparse.Command = scan_like_command(
 )
 
 ///|
+let tokscan_command : @argparse.Command = Command(
+  "tokscan",
+  about="Scan MoonBit source files with token-level matching.",
+  arg_required_else_help=true,
+  flags=[
+    FlagArg(
+      "json",
+      long="json",
+      about="Write JSON Lines findings to stdout and diagnostics to stderr.",
+    ),
+  ],
+  options=[
+    OptionArg(
+      "pattern",
+      action=Append,
+      about="Token pattern to match. May be repeated.",
+    ),
+    OptionArg(
+      "exclude",
+      action=Append,
+      about="File or directory name or path to skip while recursively scanning. May be repeated.",
+    ),
+  ],
+  positionals=[
+    PositionArg("scan-root", about="Directory or .mbt file to scan."),
+  ],
+)
+
+///|
 let docs_command : @argparse.Command = Command(
   "docs",
   about="Print embedded moongrep documentation.",
@@ -234,7 +275,9 @@ let dump_command : @argparse.Command = Command(
 let moongrep_command : @argparse.Command = Command(
   "moongrep",
   about="Scan MoonBit source files with structural and taint rules.",
-  subcommands=[scan_command, lint_command, docs_command, dump_command],
+  subcommands=[
+    scan_command, lint_command, tokscan_command, docs_command, dump_command,
+  ],
   subcommand_required=true,
 )
 
@@ -473,8 +516,10 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// rules option or single rule option appears multiple times, the last value
 /// wins. Repeated patterns, exclusions, and disabled rules are appended in
 /// order.
-/// Invoking `docs` or `dump` without any arguments prints that subcommand's
-/// help and exits successfully. Missing subcommands, other missing required
+/// `tokscan` accepts repeated token patterns and exclusions, `--json`, and an
+/// optional scan root.
+/// Invoking `tokscan`, `docs`, or `dump` without any arguments prints the
+/// subcommand's help and exits successfully. Missing subcommands, other missing required
 /// arguments, unknown options, or more than one scan root raise
 /// `CliError::Usage`.
 pub fn parse_cli_command(
@@ -492,6 +537,21 @@ pub fn parse_cli_command(
       Scan(scan_cli_options(scan_matches, env, argv))
     Some(("lint", lint_matches)) =>
       Lint(scan_cli_options(lint_matches, env, argv))
+    Some(("tokscan", tok_matches)) => {
+      let patterns = all_cli_values(tok_matches.values, "pattern")
+      if patterns.is_empty() {
+        raise new_usage_error("tokscan requires at least one --pattern")
+      }
+      TokScan(
+        patterns~,
+        scan_root=last_cli_value(tok_matches.values, "scan-root").unwrap_or("."),
+        excludes=normalize_scan_excludes(
+          all_cli_values(tok_matches.values, "exclude"),
+        ),
+        no_color=no_color_enabled(env),
+        output_json=cli_flag_enabled(tok_matches.flags, "json"),
+      )
+    }
     Some(("docs", docs_matches)) => docs_cli_command(docs_matches)
     Some(("dump", dump_matches)) => dump_cli_command(dump_matches)
     _ => raise new_usage_error("missing required command")

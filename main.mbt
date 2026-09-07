@@ -63,6 +63,14 @@ async fn run_cli(argv : Array[String]) -> Unit {
   match command {
     Scan(options) => @cli.run_scan_command(options)
     Lint(options) => @cli.run_lint_command(options)
+    TokScan(patterns~, scan_root~, excludes~, no_color~, output_json~) =>
+      @cli.run_tokscan_command(
+        patterns,
+        scan_root~,
+        excludes~,
+        no_color~,
+        output_json~,
+      )
     DocsList | DocsShow(_) =>
       write_cli_stdout(@cli.render_docs_command(command))
     DumpImpl(..) | DumpExpr(..) =>

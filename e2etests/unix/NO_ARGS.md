@@ -2,7 +2,7 @@
 
 ## moongrep subcommands without arguments
 
-The `docs` and `dump` subcommands print their help when invoked without
+The `tokscan`, `docs`, and `dump` subcommands print their help when invoked without
 arguments. `scan` and `lint` instead treat an omitted scan root as the current
 directory. `scan` uses its default rules directory, while `lint` enables
 builtin rules automatically.

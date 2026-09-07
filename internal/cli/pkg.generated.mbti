@@ -19,6 +19,8 @@ pub async fn run_lint_command(CliOptions) -> Unit
 
 pub async fn run_scan_command(CliOptions) -> Unit
 
+pub async fn run_tokscan_command(Array[String], scan_root~ : String, no_color~ : Bool, excludes? : Array[String], output_json? : Bool) -> Unit
+
 pub fn runtime_cli_args(Array[String]) -> Array[String]
 
 // Errors
@@ -41,6 +43,7 @@ pub impl Show for CliError
 pub(all) enum CliCommand {
   Scan(CliOptions)
   Lint(CliOptions)
+  TokScan(patterns~ : Array[String], scan_root~ : String, excludes~ : Array[String], no_color~ : Bool, output_json~ : Bool)
   DocsList
   DocsShow(String)
   DumpImpl(source~ : String, exit_code~ : Bool, output_json~ : Bool)

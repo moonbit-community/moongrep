@@ -12,11 +12,12 @@ Usage: moongrep <command>
 Scan MoonBit source files with structural and taint rules.
 
 Commands:
-  scan  Scan MoonBit source files.
-  lint  Scan MoonBit source files with embedded builtin rules.
-  docs  Print embedded moongrep documentation.
-  dump  Parse a MoonBit impl or expression and print untyped CST debug output.
-  help  Print help for the subcommand(s).
+  scan     Scan MoonBit source files.
+  lint     Scan MoonBit source files with embedded builtin rules.
+  tokscan  Scan MoonBit source files with token-level matching.
+  docs     Print embedded moongrep documentation.
+  dump     Parse a MoonBit impl or expression and print untyped CST debug output.
+  help     Print help for the subcommand(s).
 
 Options:
   -h, --help  Show help information.
@@ -100,4 +101,25 @@ Options:
   --json         Write one compact JSON dump record to stdout and diagnostics to stderr.
   --impl <impl>  MoonBit top-level implementation item to parse.
   --expr <expr>  MoonBit expression to parse.
+```
+
+## moongrep tokscan --help
+
+Token search accepts repeatable patterns and exclusions, JSON output, a scan
+root, and standard help.
+
+```mooncram
+$ moonrun "$TESTDIR/moongrep.wasm" -- tokscan --help
+Usage: moongrep tokscan [options] [scan-root]
+
+Scan MoonBit source files with token-level matching.
+
+Arguments:
+  scan-root  Directory or .mbt file to scan.
+
+Options:
+  -h, --help           Show help information.
+  --json               Write JSON Lines findings to stdout and diagnostics to stderr.
+  --pattern <pattern>  Token pattern to match. May be repeated.
+  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.
 ```

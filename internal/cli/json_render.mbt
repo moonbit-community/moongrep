@@ -77,25 +77,56 @@ fn render_scan_hit_json(hit : ScanHit) -> String {
 
 ///|
 fn render_scan_warning_json(warning : ScanWarning) -> String {
-  let record : Map[String, Json] = Map([])
-  record["type"] = Json::string("warning")
   match warning {
-    Parse(parse_warning) => {
-      record["category"] = Json::string("parse")
-      record["message"] = Json::string(scan_warning_message(warning))
-      record["file"] = Json::string(parse_warning.file)
-      record["reason"] = Json::string(parse_warning.reason)
-      if parse_warning.block_start_line is Some(line) {
-        record["block_start_line"] = ToJson::to_json(line)
-      }
-    }
+    Parse(parse_warning) =>
+      render_source_warning_json(parse_warning, category="parse")
     InvalidMoongrepSkipPayload(file, loc) => {
+      let record : Map[String, Json] = Map([])
+      record["type"] = Json::string("warning")
       record["category"] = Json::string("invalid_skip_payload")
       record["message"] = Json::string(scan_warning_message(warning))
       record["file"] = Json::string(file)
       record["range"] = ToJson::to_json(json_scan_range(loc))
+      Json::object(record).stringify()
     }
   }
+}
+
+///|
+fn render_source_warning_json(
+  warning : ParseWarning,
+  category~ : String,
+) -> String {
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("warning")
+  record["category"] = Json::string(category)
+  record["message"] = Json::string(scan_warning_message(Parse(warning)))
+  record["file"] = Json::string(warning.file)
+  record["reason"] = Json::string(warning.reason)
+  if warning.block_start_line is Some(line) {
+    record["block_start_line"] = ToJson::to_json(line)
+  }
+  Json::object(record).stringify()
+}
+
+///|
+fn render_tokscan_hit_json(
+  file : String,
+  loc : @basic.Location,
+  pattern : String,
+  source_lines : SourceLines,
+) -> String {
+  let record : Map[String, Json] = Map([])
+  record["type"] = Json::string("finding")
+  record["file"] = Json::string(file)
+  record["pattern"] = Json::string(pattern)
+  record["range"] = ToJson::to_json(json_scan_range(loc))
+  record["matched_source"] = Json::string(
+    matched_source_for_location(source_lines, loc),
+  )
+  record["source_context"] = ToJson::to_json(
+    json_source_context(source_context_for_location(source_lines, loc)),
+  )
   Json::object(record).stringify()
 }
 
