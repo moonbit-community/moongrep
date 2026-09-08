@@ -1,7 +1,4 @@
-rule(
-  name: "embed",
-  command: "moon runwasm moonbit-community/embed $input -o $output",
-)
+rule(name: "embed", command: "moonx moonbit-community/embed $input -o $output")
 
 dev_build(rule: "embed", input: "catch_all.yaml", output: "catch_all.mbt")
 
