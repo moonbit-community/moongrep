@@ -22,7 +22,3 @@ license = "Apache-2.0"
 keywords = [ "linter", "grep", "refactoring", "static-analysis" ]
 
 description = "Experimental MoonBit structural search and taint-analysis tool"
-
-options(
-  exclude: [ "testdata", "e2etests" ],
-)
