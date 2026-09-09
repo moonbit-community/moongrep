@@ -186,7 +186,7 @@ fn matching_parameter_has_binder(node : @untyped_cst.CstNode) -> Bool {
 
 ///|
 fn bind_multiple(
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
   name : String,
   values : Array[@untyped_cst.CstNode],
 ) -> Bool {
@@ -194,16 +194,14 @@ fn bind_multiple(
   if bindings.get(name) is Some(existing) {
     bound_value_equal(existing, value)
   } else {
-    bindings[name] = value
+    bindings.values[name] = value
     true
   }
 }
 
 ///|
-fn replace_bindings(
-  target : @hashmap.HashMap[String, BoundValue],
-  source : @hashmap.HashMap[String, BoundValue],
-) -> Unit {
-  target.clear()
-  source.each(fn(name, value) { target[name] = value })
+fn replace_bindings(target : MatchContext, source : MatchContext) -> Unit {
+  target.values.clear()
+  source.values.each(fn(name, value) { target.values[name] = value })
+  target.target = source.target
 }

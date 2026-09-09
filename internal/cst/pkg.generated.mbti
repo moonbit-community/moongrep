@@ -34,8 +34,6 @@ pub fn items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn name_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
 
-pub fn names_introduced_to_target(ExprMatchCandidate, ExprMatchCandidate) -> Array[String]
-
 pub fn normalized_expr_identifier_name(@untyped_cst.CstNode) -> String?
 
 pub fn normalized_long_ident(@untyped_cst.CstNode) -> String?
@@ -64,12 +62,6 @@ pub fn toplevel_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
 
-pub fn visit_scoped_expr_match_candidate(ExprMatchCandidate, Array[String], (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
-
-pub fn visit_scoped_expr_match_candidate_children(ExprMatchCandidate, Array[String], (ScopedExprMatchCandidate) -> Unit) -> Unit
-
-pub fn visit_scoped_expr_match_candidate_roots(@untyped_cst.CstNode, (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
-
 // Errors
 
 // Types and methods
@@ -82,7 +74,7 @@ pub(all) struct AttributeInfo {
 
 pub(all) enum ExprMatchCandidate {
   Direct(@untyped_cst.CstNode)
-  Sequence(Array[@untyped_cst.CstNode])
+  Sequence(ArrayView[@untyped_cst.CstNode])
 }
 
 pub(all) enum NodeVisitAction {
@@ -91,11 +83,44 @@ pub(all) enum NodeVisitAction {
   NodeVisitReturn
 }
 
-pub(all) struct ScopedExprMatchCandidate {
-  candidate : ExprMatchCandidate
-  shadowed_names : Array[String]
+pub struct SourceIndex {
+  // private fields
 }
+pub fn SourceIndex::candidate(Self, Int) -> ExprMatchCandidate
+pub fn SourceIndex::children(Self, Int, full? : Bool) -> Int
+pub fn SourceIndex::continuation(Self, Int, Int) -> Int
+pub fn SourceIndex::direct(Self, Int) -> Int
+pub fn SourceIndex::new(@untyped_cst.CstNode) -> Self
+pub fn SourceIndex::node(Self, Int) -> @untyped_cst.CstNode
+pub fn SourceIndex::node_id(Self, @untyped_cst.CstNode) -> Int
+pub fn SourceIndex::resolve(Self, Int, String) -> Int?
+pub fn SourceIndex::roots(Self) -> Int
+pub fn SourceIndex::scan(Self, Int) -> Int
+pub fn SourceIndex::scope(Self, Int) -> Int
+pub fn SourceIndex::state_count(Self) -> Int
+pub fn SourceIndex::step(Self, Int) -> SourceStep
+pub fn SourceIndex::target(Self, Int) -> Int
+pub fn SourceIndex::visit(Self, Int, next? : Int) -> Int
+pub fn SourceIndex::walk(Self, Int, (Int) -> NodeVisitAction) -> Unit
+
+pub(all) enum SourceStep {
+  End
+  Visit(Int, Int)
+  Concat(Int, Int)
+  Scan(Int)
+  Finish(Int)
+  AfterContinue(Int, Int)
+} derive(Eq, Hash)
 
 // Type aliases
+pub type BindingId = Int
+
+pub type CursorId = Int
+
+pub type NodeId = Int
+
+pub type RegionId = Int
+
+pub type ScopeId = Int
 
 // Traits

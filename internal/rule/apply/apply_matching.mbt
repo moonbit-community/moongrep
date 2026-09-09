@@ -1,36 +1,4 @@
 ///|
-fn names_contain(names : Array[String], needle : String) -> Bool {
-  for name in names {
-    if name == needle {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn match_candidate_rule_pattern(
-  pattern : CompiledRulePattern,
-  candidate : @cst.ExprMatchCandidate,
-  initial_bindings : @hashmap.HashMap[String, @bound_value_model.BoundValue]?,
-) -> @matching.ExprMatch? {
-  let matched = if initial_bindings is Some(bindings) {
-    @matching.match_expr_pattern_candidate_with_bindings(
-      pattern.compiled,
-      candidate,
-      bindings,
-    )
-  } else {
-    @matching.match_expr_pattern_candidate(pattern.compiled, candidate)
-  }
-  match matched {
-    Some(result) if cst_guards_match(pattern.guards, result.bindings) =>
-      Some(result)
-    _ => None
-  }
-}
-
-///|
 fn cst_guards_match(
   guards : Array[CompiledRuleGuard],
   bindings : @hashmap.HashMap[String, @bound_value_model.BoundValue],

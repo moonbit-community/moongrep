@@ -16,108 +16,89 @@ priv suberror RuleApplyError {
 } derive(Debug)
 
 ///|
-priv enum RuleTraversalAction {
-  RuleContinue
-  RulePrune
-}
-
-///|
 pub fn apply_structural_scan_plan_to_node(
   file : String,
   node : @untyped_cst.CstNode,
   plan : ScanPlan,
 ) -> Array[RuleFinding] {
+  if plan.structural_entries.is_empty() {
+    return []
+  }
+  apply_scan_session(file, node, ScanSession::new(plan, node))
+}
+
+///|
+fn apply_scan_session(
+  file : String,
+  node : @untyped_cst.CstNode,
+  session : ScanSession,
+) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
-  apply_toplevel_structural_rule_entries_to_node(
-    file,
-    plan.structural_entries,
-    node,
-    hits,
-  )
-  @cst.visit_scoped_expr_match_candidate_roots(node, fn(scoped_candidate) {
-    apply_cst_structural_rule_entries_to_scoped_candidate(
-      file,
-      plan.structural_entries,
-      scoped_candidate,
-      hits,
-    )
-    @cst.NodeVisitPrune
+  let toplevel = if node.kind is @untyped_cst.Impls {
+    @cst.toplevel_nodes(node)
+  } else {
+    [node]
+  }
+  for node in toplevel {
+    if node.kind.is_impl() {
+      for entry in session.plan.structural_entries {
+        if !entry.structural.inside_toplevel.is_empty() {
+          session.apply_toplevel_group(file, entry, node, hits)
+        }
+      }
+    }
+  }
+  let entries = session.plan.structural_entries.filter(entry => {
+    entry.structural.inside_toplevel.is_empty()
   })
+  let pending = [(session.index.roots(), entries)]
+  while pending.pop() is Some((cursor, entries)) {
+    if entries.is_empty() {
+      continue
+    }
+    match session.index.step(cursor) {
+      End => ()
+      Scan(_) | Finish(_) | AfterContinue(_, _) =>
+        abort("expected an ordinary root cursor")
+      Concat(left, right) => {
+        pending.push((right, entries))
+        pending.push((left, entries))
+      }
+      Visit(region, next) => {
+        pending.push((next, entries))
+        let children : Array[CstStructuralRuleEntry] = []
+        for entry in entries {
+          match session.candidate(entry.group, region, 0) {
+            GroupHit(index, loc) =>
+              push_structural_hit(file, entry.rule, index, loc, hits)
+            GroupNegative => ()
+            GroupMiss => children.push(entry)
+          }
+        }
+        if !children.is_empty() {
+          pending.push((session.index.children(region), children))
+        }
+      }
+    }
+  }
   hits
 }
 
 ///|
-fn apply_toplevel_structural_rule_entries_to_node(
+fn push_structural_hit(
   file : String,
-  entries : Array[CstStructuralRuleEntry],
-  node : @untyped_cst.CstNode,
+  rule : CompiledRule,
+  index : Int,
+  loc : @basic.Location,
   hits : Array[RuleFinding],
 ) -> Unit {
-  if node.kind is @untyped_cst.Impls {
-    for child in @cst.toplevel_nodes(node) {
-      apply_toplevel_structural_rule_entries_to_node(file, entries, child, hits)
-    }
-    return
-  }
-  if node.kind.is_impl() {
-    for entry in entries {
-      if !entry.structural.inside_toplevel.is_empty() {
-        apply_toplevel_group(file, entry, node, hits)
-      }
-    }
-  }
-}
-
-///|
-fn apply_cst_structural_rule_entries_to_scoped_candidate(
-  file : String,
-  entries : Array[CstStructuralRuleEntry],
-  scoped_candidate : @cst.ScopedExprMatchCandidate,
-  hits : Array[RuleFinding],
-) -> Unit {
-  let child_entries : Array[CstStructuralRuleEntry] = []
-  for entry in entries {
-    match
-      apply_cst_structural_rule_entry_to_scoped_candidate(
-        file, entry, scoped_candidate, hits,
-      ) {
-      RuleContinue => child_entries.push(entry)
-      RulePrune => ()
-    }
-  }
-  if child_entries.length() == 0 {
-    return
-  }
-  @cst.visit_scoped_expr_match_candidate_children(
-    scoped_candidate.candidate,
-    scoped_candidate.shadowed_names,
-    fn(child) {
-      apply_cst_structural_rule_entries_to_scoped_candidate(
-        file, child_entries, child, hits,
-      )
-    },
-  )
-}
-
-///|
-fn apply_cst_structural_rule_entry_to_scoped_candidate(
-  file : String,
-  entry : CstStructuralRuleEntry,
-  scoped_candidate : @cst.ScopedExprMatchCandidate,
-  hits : Array[RuleFinding],
-) -> RuleTraversalAction {
-  if !entry.structural.inside_toplevel.is_empty() {
-    return RulePrune
-  }
-  let env = empty_capture_environment()
-  match evaluate_group_candidate(entry.group, scoped_candidate.candidate, env) {
-    GroupHit(index, loc) => {
-      push_structural_hit(file, entry.rule, index, loc, hits)
-      RulePrune
-    }
-    GroupNegative => RulePrune
-    GroupMiss => RuleContinue
-  }
+  hits.push({
+    file,
+    rule_id: rule.rule_id,
+    description: rule.description,
+    pattern_index: index,
+    loc,
+  })
 }
 
 ///|

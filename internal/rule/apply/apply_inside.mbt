@@ -1,74 +1,44 @@
 ///|
-fn inside_target_match_candidate(
-  context : @cst.ExprMatchCandidate,
-  target : @bound_value_model.BoundValue,
-) -> @cst.ExprMatchCandidate {
-  match target {
-    Single(target) =>
-      if target.kind is @untyped_cst.Expression {
-        @cst.Sequence(@cst.expression_nodes(target))
-      } else if target.kind is @untyped_cst.Expr_Block &&
-        match_candidate_contains_function_body_target(context, target) {
-        @cst.Sequence(@cst.sequence_items(target))
-      } else {
-        @cst.Direct(target)
-      }
-    Multiple(targets) => @cst.Sequence(targets)
-  }
-}
-
-///|
-fn match_candidate_contains_function_body_target(
-  context : @cst.ExprMatchCandidate,
-  target : @untyped_cst.CstNode,
-) -> Bool {
-  match context {
-    @cst.Direct(node) => node_contains_function_body_target(node, target)
-    @cst.Sequence(items) => {
-      for item in items {
-        if node_contains_function_body_target(item, target) {
-          return true
+fn ScanSession::apply_toplevel_group(
+  self : ScanSession,
+  file : String,
+  entry : CstStructuralRuleEntry,
+  node : @untyped_cst.CstNode,
+  hits : Array[RuleFinding],
+) -> Unit {
+  let region = self.index.direct(self.index.node_id(node))
+  for
+    indexed in entry.inside_pattern_buckets.patterns_for_candidate(
+      self.index.candidate(region),
+    ) {
+    if self.match_pattern(indexed.pattern, region, 0) is Some(matched) {
+      if matched.target is Some(target) {
+        let env = self.target_environment(
+          indexed.pattern,
+          matched,
+          0,
+          entry.group,
+        )
+        if self.scan(entry.group, target.region, env) {
+          // Publish only after the entire selected context passes its negatives.
+          if self.plan.groups[entry.group].has_positive {
+            self.index.walk(self.index.scan(target.region), fn(candidate) {
+              match self.candidate(entry.group, candidate, env) {
+                GroupHit(index, loc) => {
+                  push_structural_hit(file, entry.rule, index, loc, hits)
+                  @cst.NodeVisitPrune
+                }
+                GroupNegative => @cst.NodeVisitPrune
+                GroupMiss => @cst.NodeVisitContinue
+              }
+            })
+          } else {
+            push_structural_hit(file, entry.rule, 0, matched.result.loc, hits)
+          }
         }
       }
-      false
+      // Only the first matching top-level shape selects a context.
+      return
     }
   }
-}
-
-///|
-fn node_contains_function_body_target(
-  node : @untyped_cst.CstNode,
-  target : @untyped_cst.CstNode,
-) -> Bool {
-  let body = match node.kind {
-    @untyped_cst.Impl_Function
-    | @untyped_cst.Impl_Test
-    | @untyped_cst.Expr_Function
-    | @untyped_cst.Expr_LetFn
-    | @untyped_cst.Binding_LetRec => @cst.raw_child(node, "body")
-    @untyped_cst.Impl_ImplMethod =>
-      @cst.raw_child(node, "method").bind(method_node => {
-        @cst.raw_child(method_node, "body")
-      })
-    _ => None
-  }
-  if body is Some(found) && same_cst_span(found, target) {
-    return true
-  }
-  for entry in node.children {
-    if node_contains_function_body_target(entry.1, target) {
-      return true
-    }
-  }
-  false
-}
-
-///|
-fn same_cst_span(
-  left : @untyped_cst.CstNode,
-  right : @untyped_cst.CstNode,
-) -> Bool {
-  left.source_span.0 == right.source_span.0 &&
-  left.source_span.1 == right.source_span.1 &&
-  left.loc.start.fname == right.loc.start.fname
 }

@@ -344,7 +344,6 @@ fn unbucket_group(group : PlannedStructuralGroup) -> PlannedStructuralGroup {
     ..group,
     positive: unbucket(group.positive),
     negative: unbucket(group.negative),
-    children: group.children.map(child => child.map(unbucket_group)),
   }
 }
 
@@ -373,10 +372,7 @@ test "recursive buckets and prefilters preserve findings" {
   let plan = ScanPlan::from_rules(rules)
   let unbucketed : ScanPlan = {
     ..plan,
-    structural_entries: plan.structural_entries.map(e => {
-      ..e,
-      group: unbucket_group(e.group),
-    }),
+    groups: plan.groups.map(unbucket_group),
   }
   for
     body in [
