@@ -34,6 +34,8 @@ pub fn items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn name_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
 
+pub fn names_introduced_to_target(ExprMatchCandidate, ExprMatchCandidate) -> Array[String]
+
 pub fn normalized_expr_identifier_name(@untyped_cst.CstNode) -> String?
 
 pub fn normalized_long_ident(@untyped_cst.CstNode) -> String?
