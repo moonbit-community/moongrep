@@ -6,18 +6,19 @@ let _embed_cstyle_forward_array_iteration_yaml : String =
   #|description: |
   #|  C-style forward array iteration that can be rewritten as simple for-in loops.
   #|
-  #|inside-expr:
+  #|patterns:
   #|  - shape: |
   #|      for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
   #|        __TARGET__
   #|      }
   #|
-  #|patterns:
-  #|  - shape: |
-  #|      $(arr:id)[$(counter:id)]
+  #|    then:
+  #|      patterns:
+  #|        - shape: |
+  #|            $(arr:id)[$(counter:id)]
   #|
-  #|patterns-not:
-  #|  - shape: $(counter:id)
+  #|      patterns-not:
+  #|        - shape: $(counter:id)
   #|
 
 ///|
