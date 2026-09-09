@@ -80,46 +80,18 @@ unfilterable pattern inside a compiled structural rule.
 
 ## Structural Rule Compilation
 
-`compile_structural_prefilter` derives alternatives only from positive
-requirements.
+Each positive root-to-leaf path contributes one alternative. Literal
+requirements from shapes along that path are combined with AND; paths are
+combined with OR. A then group containing only negatives contributes no child
+requirements. Negatives and guards never contribute required literals.
+inside-toplevel alternatives are combined with these positive paths using a
+Cartesian product. Deduplication preserves literal order within each path.
 
-Without an inside context, each positive `patterns` item contributes one
-alternative:
-
-```text
-alternative(pattern) = required_literals(pattern)
-```
-
-With `inside-expr` or `inside-toplevel`, each inside alternative is combined
-with each positive pattern:
-
-```text
-alternative(inside, pattern) =
-  required_literals(inside) + required_literals(pattern)
-```
-
-This is a Cartesian product. Flattening all inside and inner literals into one
-conjunction would incorrectly require literals from mutually exclusive
-branches.
-
-When an inside-context rule has no positive patterns, each inside pattern still
-contributes its own alternative. This supports rules that consist of an inside
-context plus `patterns-not`. A rule with neither an inside context nor positive
-patterns produces an empty outer array and remains relevant everywhere.
-
-`patterns-not` never contributes required literals. A negative pattern
-describes text whose presence may reject a structural match; its presence is
-not required for a finding. Guards and `patterns-not-mode` likewise do not add
-source anchors.
-
-The rule compiler rejects definitions that contain both `inside-expr` and
-`inside-toplevel`. The prefilter assumes that invariant. For a valid compiled
-rule, it uses the non-empty inside-context collection and combines it with the
-positive patterns as described above.
-
-Within each alternative, duplicate literals are removed while preserving their
-first-seen order. Duplicates between different alternatives are retained
-because the alternatives remain independent branches.
+ScanPlan recursively builds positive and negative CST buckets for every group.
+Bucket merges preserve original YAML indices. Only complete shape/guard/then
+success prunes a positive subtree. Existence scans without negative constraints
+stop at the first success; groups with negatives scan all uncovered regions
+before succeeding. Findings use the root entry index and location.
 
 ## Taint Rule Compilation
 
