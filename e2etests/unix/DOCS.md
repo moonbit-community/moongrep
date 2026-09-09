@@ -11,3 +11,9 @@ $ moonrun "$TESTDIR"/../moongrep.wasm -- docs CLISpec | grep -E '^# Command-Line
 ## JSON Lines Output
 ## Diagnostics and Exit Status
 ```
+
+The embedded rule specification stays synchronized with its source.
+
+```mooncram
+$ cd "$TESTDIR"/../.. && diff -u internal/docs/RuleSpec.md <(moonrun "$TESTDIR"/../moongrep.wasm -- docs RuleSpec)
+```
