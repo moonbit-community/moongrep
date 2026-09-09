@@ -2,6 +2,7 @@
 package "moonbit-community/moongrep/internal/cst"
 
 import {
+  "moonbitlang/core/debug",
   "moonbitlang/parser/untyped_cst",
 }
 
@@ -85,6 +86,16 @@ pub(all) enum ExprMatchCandidate {
   Sequence(Array[@untyped_cst.CstNode])
 }
 
+pub(all) enum IdentifierBinding {
+  Lexical(Int?)
+  NonLexical
+} derive(Eq, Hash, @debug.Debug)
+
+pub(all) struct IdentifierSource {
+  name : String
+  binding : IdentifierBinding
+} derive(Eq, Hash, @debug.Debug)
+
 pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
@@ -96,6 +107,45 @@ pub(all) struct ScopedExprMatchCandidate {
   shadowed_names : Array[String]
 }
 
+pub struct SourceIndex {
+  // private fields
+}
+pub fn SourceIndex::candidate(Self, Int) -> ExprMatchCandidate
+pub fn SourceIndex::children(Self, Int, full? : Bool) -> Int
+pub fn SourceIndex::continuation(Self, Int, Int) -> Int
+pub fn SourceIndex::direct(Self, Int) -> Int
+pub fn SourceIndex::identifier_source(Self, @untyped_cst.CstNode) -> IdentifierSource?
+pub fn SourceIndex::new(@untyped_cst.CstNode) -> Self
+pub fn SourceIndex::node(Self, Int) -> @untyped_cst.CstNode
+pub fn SourceIndex::node_id(Self, @untyped_cst.CstNode) -> Int
+pub fn SourceIndex::resolve(Self, Int, String) -> Int?
+pub fn SourceIndex::roots(Self) -> Int
+pub fn SourceIndex::scan(Self, Int) -> Int
+pub fn SourceIndex::scope(Self, Int) -> Int
+pub fn SourceIndex::state_count(Self) -> Int
+pub fn SourceIndex::step(Self, Int) -> SourceStep
+pub fn SourceIndex::target(Self, Int) -> Int
+pub fn SourceIndex::visit(Self, Int, next? : Int) -> Int
+pub fn SourceIndex::walk(Self, Int, (Int) -> NodeVisitAction) -> Unit
+
+pub(all) enum SourceStep {
+  End
+  Visit(Int, Int)
+  Concat(Int, Int)
+  Scan(Int)
+  Finish(Int)
+  AfterContinue(Int, Int)
+} derive(Eq, Hash)
+
 // Type aliases
+pub type BindingId = Int
+
+pub type CursorId = Int
+
+pub type NodeId = Int
+
+pub type RegionId = Int
+
+pub type ScopeId = Int
 
 // Traits
