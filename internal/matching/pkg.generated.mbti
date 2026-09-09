@@ -4,6 +4,7 @@ package "moonbit-community/moongrep/internal/matching"
 import {
   "moonbit-community/moongrep/internal/cst",
   "moonbit-community/moongrep/model",
+  "moonbitlang/core/debug",
   "moonbitlang/core/hashmap",
   "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
@@ -15,6 +16,8 @@ pub fn match_expr_pattern(CompiledExprPattern, @untyped_cst.CstNode) -> ExprMatc
 pub fn match_expr_pattern_candidate(CompiledExprPattern, @cst.ExprMatchCandidate) -> ExprMatch?
 
 pub fn match_expr_pattern_candidate_with_bindings(CompiledExprPattern, @cst.ExprMatchCandidate, @hashmap.HashMap[String, @model.BoundValue]) -> ExprMatch?
+
+pub fn match_indexed_expr_pattern(CompiledExprPattern, @cst.SourceIndex, Int, @hashmap.HashMap[String, @model.BoundValue], @hashmap.HashMap[String, IdentifierCaptureSource]) -> IndexedExprMatch?
 
 pub fn parse_metavar_syntax(String) -> MetavarSyntax
 
@@ -44,9 +47,20 @@ pub(all) struct ExprMatch {
   loc : @basic.Location
 }
 
+pub(all) enum IdentifierCaptureSource {
+  SingleIdentifier(@cst.IdentifierSource)
+  MultipleIdentifiers(Array[@cst.IdentifierSource])
+} derive(Eq, Hash, @debug.Debug)
+
 pub(all) struct IgnoredPatternField {
   parent_kind : @untyped_cst.NodeKind
   child_name : String
+}
+
+pub(all) struct IndexedExprMatch {
+  result : ExprMatch
+  target : TargetRef?
+  sources : @hashmap.HashMap[String, IdentifierCaptureSource]
 }
 
 pub(all) struct MetavarEntry {
@@ -101,6 +115,11 @@ pub(all) enum ResolvedMetavar {
   ResolvedWildcard(MetavarKind?)
   ResolvedNamed(MetavarEntry)
   ResolvedSpecialExpr(String)
+}
+
+pub(all) struct TargetRef {
+  region : Int
+  scope : Int
 }
 
 // Type aliases
