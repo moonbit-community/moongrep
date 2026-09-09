@@ -26,7 +26,7 @@ fn compile_bucket_structural_patterns(
   source : String,
 ) -> Array[CompiledRulePattern] raise {
   match compile_bucket_rule_source(source).definition {
-    Structural(structural) => structural.patterns
+    Structural(structural) => structural.group.patterns.map(p => p.pattern)
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -35,10 +35,10 @@ fn compile_bucket_structural_patterns(
 fn compile_bucket_inside_pattern(source : String) -> CompiledRulePattern raise {
   match compile_bucket_rule_source(source).definition {
     Structural(structural) =>
-      if structural.inside_expr.get(0) is Some(pattern) {
-        pattern
+      if structural.group.patterns.get(0) is Some(pattern) {
+        pattern.pattern
       } else {
-        fail("expected inside-expr")
+        fail("expected then pattern")
       }
     Taint(_) => fail("expected structural rule")
   }
@@ -108,11 +108,11 @@ test "CST bucket treats broad root placeholders as wildcard" {
   let target_rule_source =
     #|id: example
     #|description: Target root.
-    #|inside-expr:
-    #|  - shape: __TARGET__
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: __TARGET__
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let exp_pattern = compile_bucket_structural_patterns(exp_rule_source)[0]
   let ignore_pattern = compile_bucket_structural_patterns(ignore_rule_source)[0]
   let target_pattern = compile_bucket_inside_pattern(target_rule_source)

@@ -62,16 +62,7 @@ fn apply_toplevel_structural_rule_entries_to_node(
   if node.kind.is_impl() {
     for entry in entries {
       if !entry.structural.inside_toplevel.is_empty() {
-        apply_inside_toplevel_cst_bucketed(
-          file,
-          entry.rule,
-          entry.structural,
-          entry.inside_pattern_buckets,
-          entry.pattern_buckets,
-          entry.negative_pattern_buckets,
-          node,
-          hits,
-        )
+        apply_toplevel_group(file, entry, node, hits)
       }
     }
   }
@@ -115,30 +106,17 @@ fn apply_cst_structural_rule_entry_to_scoped_candidate(
   scoped_candidate : @cst.ScopedExprMatchCandidate,
   hits : Array[RuleFinding],
 ) -> RuleTraversalAction {
-  if !entry.structural.inside_expr.is_empty() {
-    apply_inside_expr_cst_bucketed(
-      file,
-      entry.rule,
-      entry.structural,
-      entry.inside_pattern_buckets,
-      entry.pattern_buckets,
-      entry.negative_pattern_buckets,
-      scoped_candidate.candidate,
-      hits,
-    )
-    RuleContinue
-  } else if !entry.structural.inside_toplevel.is_empty() {
-    RulePrune
-  } else {
-    apply_cst_patterns_at_candidate(
-      file,
-      entry.rule,
-      entry.pattern_buckets,
-      entry.negative_pattern_buckets,
-      scoped_candidate.candidate,
-      None,
-      hits,
-    )
+  if !entry.structural.inside_toplevel.is_empty() {
+    return RulePrune
+  }
+  let env = empty_capture_environment()
+  match evaluate_group_candidate(entry.group, scoped_candidate.candidate, env) {
+    GroupHit(index, loc) => {
+      push_structural_hit(file, entry.rule, index, loc, hits)
+      RulePrune
+    }
+    GroupNegative => RulePrune
+    GroupMiss => RuleContinue
   }
 }
 
