@@ -96,6 +96,44 @@ pub(all) struct ScopedExprMatchCandidate {
   shadowed_names : Array[String]
 }
 
+pub struct SourceIndex {
+  // private fields
+}
+pub fn SourceIndex::candidate(Self, Int) -> ExprMatchCandidate
+pub fn SourceIndex::children(Self, Int, full? : Bool) -> Int
+pub fn SourceIndex::continuation(Self, Int, Int) -> Int
+pub fn SourceIndex::direct(Self, Int) -> Int
+pub fn SourceIndex::new(@untyped_cst.CstNode) -> Self
+pub fn SourceIndex::node(Self, Int) -> @untyped_cst.CstNode
+pub fn SourceIndex::node_id(Self, @untyped_cst.CstNode) -> Int
+pub fn SourceIndex::resolve(Self, Int, String) -> Int?
+pub fn SourceIndex::roots(Self) -> Int
+pub fn SourceIndex::scan(Self, Int) -> Int
+pub fn SourceIndex::scope(Self, Int) -> Int
+pub fn SourceIndex::state_count(Self) -> Int
+pub fn SourceIndex::step(Self, Int) -> SourceStep
+pub fn SourceIndex::target(Self, Int) -> Int
+pub fn SourceIndex::visit(Self, Int, next? : Int) -> Int
+pub fn SourceIndex::walk(Self, Int, (Int) -> NodeVisitAction) -> Unit
+
+pub(all) enum SourceStep {
+  End
+  Visit(Int, Int)
+  Concat(Int, Int)
+  Scan(Int)
+  Finish(Int)
+  AfterContinue(Int, Int)
+} derive(Eq, Hash)
+
 // Type aliases
+pub type BindingId = Int
+
+pub type CursorId = Int
+
+pub type NodeId = Int
+
+pub type RegionId = Int
+
+pub type ScopeId = Int
 
 // Traits
