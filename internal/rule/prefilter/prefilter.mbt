@@ -120,38 +120,39 @@ pub fn compile_expr_pattern_prefilter(
 
 ///|
 fn compile_structural_prefilter(rule : CompiledStructuralRule) -> RulePrefilter {
-  let alternatives : Array[Array[String]] = []
-  let inside_patterns = if !rule.inside_toplevel.is_empty() {
-    rule.inside_toplevel
-  } else {
-    rule.inside_expr
+  let paths = structural_group_literals(rule.group)
+  if rule.inside_toplevel.is_empty() {
+    return { alternatives: paths, }
   }
-  if inside_patterns.is_empty() {
-    for pattern in rule.patterns {
-      alternatives.push(
-        unique_literals(required_literals_from_compiled_pattern(pattern)),
-      )
-    }
-  } else {
-    for inside in inside_patterns {
-      let inside_literals = required_literals_from_compiled_pattern(inside)
-      if rule.patterns.is_empty() {
-        alternatives.push(unique_literals(inside_literals))
-      } else {
-        for pattern in rule.patterns {
-          alternatives.push(
-            unique_literals(
-              concat_string_arrays(
-                inside_literals,
-                required_literals_from_compiled_pattern(pattern),
-              ),
-            ),
-          )
-        }
-      }
+  let alternatives : Array[Array[String]] = []
+  for inside in rule.inside_toplevel {
+    let outer = required_literals_from_compiled_pattern(inside)
+    for path in paths {
+      alternatives.push(unique_literals(concat_string_arrays(outer, path)))
     }
   }
   { alternatives, }
+}
+
+///|
+fn structural_group_literals(
+  group : @model.CompiledStructuralPatternGroup,
+) -> Array[Array[String]] {
+  if group.patterns.is_empty() {
+    return [[]]
+  }
+  let alternatives : Array[Array[String]] = []
+  for entry in group.patterns {
+    let outer = required_literals_from_compiled_pattern(entry.pattern)
+    let paths = match entry.then_body {
+      Some(body) => structural_group_literals(body)
+      None => [[]]
+    }
+    for path in paths {
+      alternatives.push(unique_literals(concat_string_arrays(outer, path)))
+    }
+  }
+  alternatives
 }
 
 ///|
