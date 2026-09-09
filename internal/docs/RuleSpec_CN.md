@@ -57,62 +57,23 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ## YAML Schema
 
-### 顶层键
+根字段仅接受 id、description、patterns、patterns-not、inside-toplevel、taint。
+id 为不含斜杠的非空字符串，description 为字符串。结构规则要求正向 patterns，
+除非同时有 inside-toplevel 和 patterns-not。所有出现的结构模式数组必须非空。
+taint 与结构字段互斥。
 
-只接受这些顶层键：
-
-- `id`（必需）：非空 YAML 字符串，且不能包含 `/`
-- `description`（必需）：YAML 字符串
-- `patterns`（结构规则可选）：非空 YAML 数组
-- `patterns-not`（结构规则可选）：与 `patterns` 使用相同条目 schema 的非空 YAML 数组
-- `inside-expr`（结构规则可选）：非空 YAML 数组，使用与 `patterns`
-  相同的 `shape` 和可选 `guard` 对象 schema；条目是有序的外层表达式备选项
-- `inside-toplevel`（结构规则可选）：非空 YAML 数组，使用与
-  `inside-expr` 相同的 `shape` 和可选 `guard`，并额外支持可选的
-  `match-mode`；每个 shape 解析为一个 MoonBit 顶层项
-- `taint`（污点规则必需）：YAML 映射
-
-未知顶层键会被拒绝。
-
-每条规则必须且只能选择一种规则模式：
-
-- 结构模式：`patterns`，可选搭配 `patterns-not`；或 `inside-expr` /
-  `inside-toplevel` 搭配 `patterns`、`patterns-not`，或两者同时存在
-- 污点模式：`taint`
-
-`patterns` 和 `taint` 互斥。`inside-expr`、`inside-toplevel` 和
-`patterns-not` 只对结构规则有效；它们在污点规则中会被拒绝。
-`inside-expr` 和 `inside-toplevel` 互斥。`patterns-not` 必须和
-`patterns`、`inside-expr` 或 `inside-toplevel` 一起出现；没有
-`patterns` 的 `inside-expr` 或 `inside-toplevel` 规则必须包含
-`patterns-not`。
-
-`id` 是其文件目录内的本地规则名。`description` 也是必需字段且必须是字符串。它的内容会按 YAML 提供的结果保留，包括 block scalar 产生的尾随换行。
-
-### Pattern Objects
-
-结构规则中的 `patterns`、`patterns-not` 和 `inside-expr` 使用以下对象
-schema。`inside-toplevel` 额外支持下文说明的 `match-mode`。
-
-只接受这些键：
-
-- `shape`（必需）：包含一个 MoonBit 表达式片段的 YAML 字符串；
-  `inside-toplevel` 中则包含一个顶层项
-- `guard`（可选）：从 `$` 前缀捕获名到正则字符串的 YAML 映射
-- `match-mode`（可选，仅限 `inside-toplevel`）：`exact` 或 `partial`
-
-pattern object 中的未知键会被拒绝。
-`patterns`、`patterns-not`、`inside-expr` 和 taint 子句中出现
-`match-mode` 会被拒绝。
-
-Taint `sources`、`sinks` 和 `sanitizers` 同样使用 `shape` 键。这些字段不接受 `guard`。
+正向条目接受 shape、guard、then。负向条目接受 shape、guard。
+inside-toplevel 条目接受 shape、guard、match-mode（exact 或 partial）。
+taint 子句仅接受 shape。then 不是根字段，也不接受 match-mode。
+shape 必须是字符串；guard 是带 $ 前缀的捕获名到正则字符串的映射。
+未知字段和错误类型均被拒绝。
 
 ## Shapes
 
 普通 `shape` 必须是一个单独的 MoonBit 表达式片段。每个
 `inside-toplevel` 条目的 `shape` 必须且只能是一个 MoonBit 顶层项。
 
-有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `inside-expr` shape 不表示整个文件、顶层声明、包片段或 import 列表。每个 `inside-toplevel` shape 可以是一个函数、顶层 `let`、顶层 `const`、`test`、方法 `impl` 或 view。它只能表示一个顶层项，不能表示整个文件或 import 列表。
+有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `then` shape 不表示整个文件、顶层声明、包片段或 import 列表。每个 `inside-toplevel` shape 可以是一个函数、顶层 `let`、顶层 `const`、`test`、方法 `impl` 或 view。它只能表示一个顶层项，不能表示整个文件或 import 列表。
 
 shape 是结构性的：
 
@@ -139,7 +100,7 @@ block 表达式候选。body 内的语句组成 sequence 候选，其中的每�
 `fn sample { a; b }` 的函数体容器，但会匹配 `fn sample { { a; b } }` 中的
 嵌套 block。该显式 block 的 finding range 包含花括号。
 
-普通正向 pattern、`patterns-not`、`inside-expr` target 遍历和 expression query
+普通正向 pattern、`patterns-not`、`then` target 遍历和 expression query
 都使用同一套候选及 range 规则。
 
 ### 省略 body 的 let shape
@@ -345,7 +306,7 @@ guard 不能引用 ellipsis 捕获。inside context 会像其他 binding 一样�
 - `__SOURCE__`
 
 `$_` 是下文描述的忽略占位符。`__TARGET__` 和 `__SOURCE__` 保留已有内置含义。
-`__TARGET__` 只在 `inside-expr` 和 `inside-toplevel` 中有效；`__SOURCE__`
+`__TARGET__` 只在 `then` 和 `inside-toplevel` 中有效；`__SOURCE__`
 只在 taint sink 和 sanitizer shape 中有效。
 
 ### 元变量可以绑定的位置
@@ -596,7 +557,7 @@ patterns:
 ## Guard
 
 结构规则的 pattern object（包括 `patterns`、`patterns-not`、
-`inside-expr` 和 `inside-toplevel`）可以包含可选的 `guard` 映射。guard 的键是带
+`then` 和 `inside-toplevel`）可以包含可选的 `guard` 映射。guard 的键是带
 `$` 前缀的捕获名，值是正则字符串：
 
 ```yaml
@@ -609,7 +570,7 @@ patterns:
 
 只有 `id` 和 `const` 捕获可以被 guard 过滤。guard 键如果引用 `exp` 捕获、
 `arg` 捕获、`pat` 捕获、`type` 捕获或未知名称，会在规则编译时报错。内部 `patterns` 可以
-guard 由 `inside-expr` 或 `inside-toplevel` 建立的 `id` 和 `const` 捕获。
+guard 由 `then` 或 `inside-toplevel` 建立的 `id` 和 `const` 捕获。
 
 Guard 会在结构 CST 匹配成功后检查。单个 pattern object 中的所有 guard 都必须
 匹配，即 AND 语义。正则使用包含匹配语义；如果需要整串匹配，请使用 `^...$`
@@ -621,7 +582,7 @@ Guard 会在结构 CST 匹配成功后检查。单个 pattern object 中的所�
 
 ## 结构规则
 
-结构规则具有非空 `patterns` 数组，或者具有 `inside-expr` 或
+结构规则具有非空 `patterns` 数组，或者具有
 `inside-toplevel` 并搭配非空 `patterns`、非空 `patterns-not`，或两者同时存在。
 
 ```yaml
@@ -668,66 +629,84 @@ patterns-not:
 
 负向 pattern 只匹配当前候选根。在上面的例子中，`blocked` 根先未命中所有正向 pattern，随后命中 `patterns-not`。该分支被剪枝，`blocked(target())` 不会搜索内部的 `target()`。如果某个 `blocked(...)` 节点本身也能命中正向 pattern，它会被报告，并且不会检查 `patterns-not`。需要排除同根形状时，应把正向 pattern 写得更窄。
 
-与 `inside-expr` 或 `inside-toplevel` 一起使用时，负向匹配会带着外层匹配建立的绑定开始。如果规则同时有 `patterns`，捕获到的 `__TARGET__` 子树中的每个表达式都使用相同的步进顺序：先运行正向 pattern；只有正向 pattern 全部失败后，才检查 `patterns-not`。当外层上下文、`patterns` 和 `patterns-not` 同时存在时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝整个外层匹配。`patterns-not` 也可以与只有 `inside-expr` 或 `inside-toplevel`、没有 `patterns` 的规则一起使用；这种形式见下文。
+与 `then` 或 `inside-toplevel` 一起使用时，负向匹配会带着外层匹配建立的绑定开始。如果规则同时有 `patterns`，捕获到的 `__TARGET__` 子树中的每个表达式都使用相同的步进顺序：先运行正向 pattern；只有正向 pattern 全部失败后，才检查 `patterns-not`。当外层上下文、`patterns` 和 `patterns-not` 同时存在时，正向命中的整个子树会覆盖负向匹配；任何出现在这些正向覆盖子树之外的负向命中都会拒绝整个外层匹配。`patterns-not` 也可以与只有 `then` 或 `inside-toplevel`、没有 `patterns` 的规则一起使用；这种形式见下文。
 
-### `inside-expr`
+### `then`
 
-`inside-expr` 将结构规则限制在更大的表达式上下文内部匹配。它可以搭配
-`patterns`、`patterns-not`，或两者同时使用。
+每个正向 `patterns` 条目都可以带一个 `then` 对象。对象只接受 `patterns`
+和 `patterns-not`，至少出现一个数组，且出现的数组必须非空。正向子条目可以
+继续嵌套 `then`，支持任意有限深度。错误包含完整 YAML 路径，例如
+`patterns[0].then.patterns[1].then`。
 
 ```yaml
-id: wrapped-target
-description: |
-  Match a target call inside either supported context.
-inside-expr:
-  - shape: wrapper($(prefix:exp), __TARGET__)
-  - shape: container($(prefix:exp), __TARGET__)
+id: nested-target
+description: Match a target inside selected wrappers.
 patterns:
-  - shape: target.call($(prefix:exp))
+  - shape: wrapper($(name:id), __TARGET__)
+    then:
+      patterns:
+        - shape: container(__TARGET__)
+          then:
+            patterns:
+              - shape: target()
+                guard:
+                  $name: '^safe_'
+            patterns-not:
+              - shape: danger()
 ```
 
-`inside-expr` 是由 pattern object 组成的非空 YAML 数组。每个 `shape`
-都会作为一个 MoonBit 表达式片段解析；可选 `guard` 会过滤该外层 shape
-声明的 `id` 和 `const` 捕获。数组条目是有序备选项。
+带 `then` 的 shape 必须恰有一个处于可绑定完整表达式位置的 `__TARGET__`。
+叶子和负向条目禁止该占位符。负向条目、taint 子句和 `inside-toplevel`
+条目本身不接受 `then`；`inside-toplevel` 内部的正向条目可以嵌套。
 
-额外规则：
+每个候选按 YAML 顺序尝试正向条目。只有 shape、guard、then 全部成功才算
+命中；失败则尝试同级后续条目，成功则剪枝整个匹配子树。正向全部失败后才
+检查负向，再决定是否遍历子节点。某层失败只令所属条目失败，不会直接否决祖先。
 
-- 每个 `inside-expr` 条目都必须在可绑定位置包含且只包含一个
-  `__TARGET__`。
-- `__TARGET__` 必须占据一个完整表达式位置，例如完整调用参数、receiver 或块表达式。如果它只作为标签或其他非表达式值出现，就没有目标子树可供搜索。
-- 当末尾的 `__TARGET__` 位于 continuation owner 之后，例如
-  `let ...; __TARGET__`、`let mut ...; __TARGET__` 或
-  `guard ...; __TARGET__` 时，它会选择候选中完整的剩余 suffix。该 suffix
-  会作为不含合成块花括号的表达式序列进行搜索；空 suffix 表示空序列。
-- `__TARGET__` 是保留名称，不能用作内联元变量名。
-- `patterns` 和 `patterns-not` 条目不能在可绑定位置包含 `__TARGET__`。
-- 选中的 `inside-expr` 条目所声明的捕获在匹配内部 `patterns` 和
-  `patterns-not` 时可见；内部 shape 通过重复相同的内联元变量形式引用它们。
-- 内部 `patterns` 或 `patterns-not` 复用的每个捕获，都必须由所有
-  `inside-expr` 备选项以相同 kind 声明；这也适用于命名 ellipsis
-  捕获及其 ellipsis kind。未被内部条目引用的额外外层捕获可以因备选项而异。
+| 子规则组成 | 成功条件 |
+| --- | --- |
+| 只有 `patterns` | 至少一个完整正向条目命中 |
+| 只有 `patterns-not` | 没有负向命中，空目标也成功 |
+| 两者都有 | 至少一个正向命中，且不存在未覆盖的负向命中 |
 
-运行时行为：
+成功正向条目覆盖其整个匹配子树，包括自身带有 `then` 的情况。所有适用的负向
+检查通过后才发布 finding。普通根级负向仅剪枝；`inside-toplevel` 保留整体否决。
 
-- 当前表达式按 YAML 顺序尝试可用的 `inside-expr` 条目
-- shape 不匹配或 guard 失败时继续尝试下一项
-- 首个同时通过 shape 和 guard 的条目会选定 `__TARGET__` 子树和绑定
-- 一旦选定条目，即使内部匹配没有产生 finding，也不会尝试后续外层备选项
-- 当存在 `patterns` 时，捕获子树中的每个表达式会先用
-  选中条目建立的绑定运行有序正向 pattern；正向命中会被记录，其命中子树会覆盖嵌套的负向匹配
-- 当同时存在 `patterns` 和 `patterns-not` 时，只有正向 pattern 全部失败的候选才会用选中的外层绑定检查 `patterns-not`；正向命中子树之外的负向命中会拒绝整个外层匹配
-- 当不存在 `patterns` 时，捕获子树中的每个表达式都会用选中的外层绑定检查 `patterns-not`；如果没有任何负向 pattern 匹配，外层表达式产生一个命中
-- 如果内部 pattern 通过相同的 `$(name:id)` inline 形式引用了继承来的 `id` 捕获，并且从 `__TARGET__` 到候选表达式的路径上出现了同名（按规范化后的 identifier 名称计算）的词法绑定，则跳过该候选
+捕获对整条后代链可见，中间 shape 无需重复引用。重复元变量要求类型和值一致，
+包括命名省略号类型。guard 可以直接引用祖先 id / const。本层新增捕获不回传
+父层，也不影响兄弟。祖先 id 被词法绑定遮蔽时，引用它的候选失败；遮蔽包括
+当前 shape 到新目标之间引入的绑定，并跨层保留。
 
-每个成功匹配的外层表达式最多产生一个 finding，其 `loc` 是外层表达式位置。
-存在 `patterns` 时，遍历顺序中的第一个内部正向命中决定 `pattern_index`；
-同一外层表达式中的后续正向命中不再产生额外 finding。只有
-`patterns-not` 时，`pattern_index` 为 `0`。
+continuation 所有者（let、let mut、guard）之后的目标选择完整剩余表达式序列，
+允许为空。函数体保持序列匹配，显式 block 保持 block 匹配。目标可以等于当前
+候选；递归沿有限规则树下降，无需源码范围缩小。then 失败不会重试同一 shape
+的其他省略号划分。
+
+每次 finding 使用根 `patterns` 条目的位置与从零开始的下标。内部多次命中仅
+报告一次。例如以下规则含多个备选，其中第一个 then 只有负向约束：
+
+```yaml
+id: alternatives
+description: Accept either a clean wrapper or a container with a target.
+patterns:
+  - shape: wrapper(__TARGET__)
+    then:
+      patterns-not:
+        - shape: danger()
+  - shape: container(__TARGET__)
+    then:
+      patterns:
+        - shape: target()
+```
+
+旧 `inside-expr` 字段已移除，使用时会收到迁移提示。将每个旧外层备选移到根
+patterns，把原 patterns / patterns-not 放入该条目的 then，保持顺序和 guard。
+这会改变备选回退、成功后的遍历剪枝及 pattern_index，不能视为等价字段改名。
 
 ### `inside-toplevel`
 
 `inside-toplevel` 将结构规则限制在选定的 MoonBit 顶层项内部匹配。它是
-非空有序数组，使用与 `inside-expr` 相同的对象 schema 和 target 子树语义。
+非空有序数组，使用与 `then` 相同的对象 schema 和 target 子树语义。
 每个条目的 `shape` 解析为且只能解析为一个顶层项，不解析为表达式。
 
 ```yaml
@@ -782,19 +761,18 @@ partial 默认值。
 
 额外规则：
 
-- `inside-toplevel` 和 `inside-expr` 互斥。
 - 每个 `inside-toplevel` 条目都必须在顶层项内的可绑定表达式位置包含且
   只包含一个 `__TARGET__`。
 - 顶层项本身可以声明 `id` 和 `const` 捕获，可选 `guard` 可以过滤这些捕获。
 - 选中的 `inside-toplevel` 条目声明的捕获在内部 `patterns` 和
-  `patterns-not` 中保持可见，并使用与 `inside-expr` 相同的所有备选项
-  声明及 kind 一致性规则。
+  `patterns-not` 及其后代中保持可见；被引用的继承变量在所有顶层备选项
+  中都必须声明且 kind 一致。
 - taint 规则不支持 `inside-toplevel`。
 
 候选顶层项按 YAML 顺序尝试可用的 `inside-toplevel` 条目。首个同时通过
 shape 和 guard 的条目会选定 target 与绑定；选定后不会再尝试后续条目。
 随后会在 `__TARGET__` 捕获到的表达式子树中继续搜索，并沿用
-`inside-expr` 的继承绑定和负向覆盖行为。报告方式不同：带 `patterns`
+`then` 的继承绑定和负向覆盖行为。报告方式不同：带 `patterns`
 时，每个内部正向命中都会产生一个 finding，其 `loc` 是内部匹配位置；
 只有 `patterns-not` 时，会在匹配到的顶层项位置产生一个 finding。
 
@@ -907,21 +885,14 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - `id`、`description` 或 `shape` 不是 YAML 字符串
 - `id` 为空或包含 `/`
 - 规则没有选择结构模式或污点模式
-- taint 规则中出现 `inside-expr`
 - taint 规则中出现 `inside-toplevel`
-- 同时出现 `inside-expr` 和 `inside-toplevel`
-- `inside-expr` 或 `inside-toplevel` 不是数组或为空
-- `inside-expr` 或 `inside-toplevel` 条目不是映射
 - `match-mode` 出现在 `inside-toplevel` 条目之外
 - `match-mode` 的值不是 `exact` 或 `partial`
 - 非函数顶层 shape 使用 `match-mode: partial`
-- `inside-expr` 出现时没有 `patterns` 或 `patterns-not`
 - `inside-toplevel` 出现时没有 `patterns` 或 `patterns-not`
 - `patterns` 不是数组或为空
 - `patterns` 条目不是映射
 - `patterns-not` 不是数组或为空
-- `patterns-not` 没有和 `patterns`、`inside-expr` 或 `inside-toplevel`
-  一起出现
 - taint 规则中出现 `patterns-not`
 - 出现不支持的顶层键
 - `patterns-not` 条目不是映射
@@ -948,13 +919,14 @@ taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
 - ellipsis 没有占据完整的无字段名有序列表项
 - ellipsis kind 与列表位置不兼容、与另一个 typed occurrence 冲突，或和普通元变量共用名称
 - guard 正则无效
-- `inside-expr` 条目没有且只有一个可绑定的 `__TARGET__`
 - `inside-toplevel` 条目没有且只有一个可绑定的 `__TARGET__`
-- 结构规则的 `patterns` 或 `patterns-not` 条目包含可绑定的 `__TARGET__`
+- 结构规则叶子或负向条目包含可绑定的 `__TARGET__`
+- 带 then 的 shape 没有恰好一个可绑定目标
+- then 对象含未知字段、错误数组或没有子模式
 - 结构规则的 `patterns` 或 `patterns-not` 条目用不同 kind 使用了继承自
-  `inside-expr` 或 `inside-toplevel` 的元变量名
-- `patterns` 或 `patterns-not` 复用的捕获在某个外层备选项中缺失，或命名
-  ellipsis 在不同备选项中使用了不同 ellipsis kind
+  `then` 或 `inside-toplevel` 的元变量名
+- 后代 shape 或 guard 引用的继承捕获在某个 inside-toplevel 备选中缺失，
+  或类型不一致，包括 ellipsis kind
 - taint source 包含可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有且只有一个可绑定的 `__SOURCE__`
 - taint sink 或 sanitizer 没有将 `__SOURCE__` 放在整个 receiver 或整个参数值的位置
@@ -996,10 +968,11 @@ patterns:
 id: unsafe-wrapper
 description: |
   Match a sink only under an unsafe wrapper.
-inside-expr:
-  - shape: unsafe(__TARGET__)
 patterns:
-  - shape: sink($_)
+  - shape: unsafe(__TARGET__)
+    then:
+      patterns:
+        - shape: sink($_)
 ```
 
 该规则首先寻找 `unsafe(...)`，然后只在 `__TARGET__` 捕获的表达式内搜索 `sink(...)`。
