@@ -1,0 +1,12 @@
+id: split-constructor
+description: Type and constructor captures remain separate across rule levels.
+inside-toplevel:
+  - shape: 'fn $_ { match $_ { $(Type:id)::$(Ctor:id)($_) => __TARGET__ } }'
+patterns:
+  - shape: middle(__TARGET__)
+    then:
+      patterns:
+        - shape: sink($_)
+          guard:
+            $Type: '^Option$'
+            $Ctor: '^Some$'

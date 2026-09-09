@@ -1,0 +1,7 @@
+id: field-origin
+description: Local variables do not shadow accessor names.
+patterns:
+  - shape: wrapper($_.$(field:id), __TARGET__)
+    then:
+      patterns:
+        - shape: sink($_.$(field:id))

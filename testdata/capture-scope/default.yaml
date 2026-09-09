@@ -1,0 +1,6 @@
+id: default-origin
+description: A default value sees the preceding parameter.
+inside-toplevel:
+  - shape: 'fn $_($(name:id) : Int, next~ : Int = __TARGET__) { $_ }'
+patterns:
+  - shape: sink($(name:id))

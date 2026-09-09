@@ -1,0 +1,7 @@
+id: condition-origin
+description: Conditional binders do not bind names in the else branch.
+patterns:
+  - shape: if $_ is Some($(name:id)) { $_ } else { __TARGET__ }
+    then:
+      patterns:
+        - shape: sink($(name:id))

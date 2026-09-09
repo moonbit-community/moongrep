@@ -1,0 +1,7 @@
+id: for-update-origin
+description: An update target refers to the loop variable.
+patterns:
+  - shape: for $_ = $_; $_; $(name:id) = $_ { __TARGET__ }
+    then:
+      patterns:
+        - shape: sink($(name:id))

@@ -1,0 +1,6 @@
+id: parameter-origin
+description: A parameter binding survives only where it is still visible.
+inside-toplevel:
+  - shape: 'fn $_($(name:id) : Int) { __TARGET__ }'
+patterns:
+  - shape: let $_ = $_; sink($(name:id))
