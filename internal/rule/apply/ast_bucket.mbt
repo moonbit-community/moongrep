@@ -20,11 +20,9 @@
 // pattern in the YAML `patterns` array still wins and is reported as the same
 // `pattern_index`.
 //
-// Ordered `inside-expr` and `inside-toplevel` alternatives use these buckets as
-// a fast outer-context filter too. Wildcard and matching keyed alternatives are
-// merged by YAML index before matching, so the first successful shape and guard
-// still selects `__TARGET__`. Matching inside that target subtree then uses the
-// inner pattern buckets and inherited bindings from the selected outer match.
+// Each recursive group has its own positive and negative buckets. Complete
+// shape/guard/then success determines priority; a failed child group permits
+// the next indexed positive entry to be tried.
 
 ///|
 priv struct IndexedCompiledRulePattern {
