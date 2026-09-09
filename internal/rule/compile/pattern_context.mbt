@@ -19,5 +19,10 @@ fn PatternCompileContext::invalid_pattern(
   self : PatternCompileContext,
   info : String,
 ) -> RuleLoadError {
+  let info = if self.location.contains(".then.") {
+    "\{self.location}: \{info}"
+  } else {
+    info
+  }
   RuleLoadError::InvalidPattern(path=self.path, shape=self.shape, info~)
 }

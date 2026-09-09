@@ -33,8 +33,6 @@ pub fn compile_expr_pattern(
 ) -> @matching.CompiledExprPattern raise {
   compile_structural_expr_pattern(
     pattern_compile_context(pattern, "patterns[0]", pattern),
-    "",
-    [],
   )
 }
 
@@ -77,86 +75,153 @@ fn compile_structural_rule(
   path : String,
   spec : StructuralRuleSpec,
 ) -> CompiledStructuralRule raise {
-  if !spec.inside_expr.is_empty() && !spec.inside_toplevel.is_empty() {
-    raise RuleLoadError::InvalidRule(
-      path~,
-      info="inside-expr and inside-toplevel are mutually exclusive",
-    )
-  }
-  let (inside_expr, inside_expr_shapes) = compile_inside_context_patterns(
-    path,
-    spec.inside_expr,
-    "inside-expr",
-    is_toplevel=false,
-  )
-  let (inside_toplevel, inside_toplevel_shapes) = compile_inside_context_patterns(
+  let (inside_toplevel, outer_shapes) = compile_inside_toplevel_patterns(
     path,
     spec.inside_toplevel,
-    "inside-toplevel",
-    is_toplevel=true,
   )
-  // Metavars from the outer context remain visible while matching each target
-  // expression. A metavar reused by an inner pattern must be declared with the
-  // same kind by every ordered outer alternative.
-  let outer_context = if !inside_toplevel.is_empty() {
-    "inside-toplevel"
-  } else {
-    "inside-expr"
-  }
-  let outer_shapes = if !inside_toplevel_shapes.is_empty() {
-    inside_toplevel_shapes
-  } else {
-    inside_expr_shapes
-  }
-  let patterns : Array[CompiledRulePattern] = []
-  for index in 0..<spec.patterns.length() {
-    let pattern = spec.patterns[index]
+  let group = compile_structural_group(
+    path,
+    spec.group,
+    "",
+    outer_shapes,
+    !inside_toplevel.is_empty(),
+  )
+  { inside_toplevel, group, }
+}
+
+///|
+fn compile_structural_group(
+  path : String,
+  group : @model.StructuralPatternGroupSpec,
+  prefix : String,
+  ancestors : Array[MetavarShape],
+  reject_negative : Bool,
+) -> @model.CompiledStructuralPatternGroup raise {
+  let patterns = group.patterns.mapi(fn(index, entry) raise {
     let context = pattern_compile_context(
       path,
-      "patterns[\{index}]",
-      pattern.shape,
+      "\{prefix}patterns[\{index}]",
+      entry.pattern.shape,
     )
-    let compiled = compile_structural_expr_pattern(
-      context, outer_context, outer_shapes,
+    let shape = compile_metavar_shape(context)
+    let visible = structural_visible_shapes(
+      context,
+      shape,
+      entry.pattern.guards,
+      ancestors,
     )
-    patterns.push(compile_rule_pattern(pattern, compiled, context))
-  }
-  let patterns_not : Array[CompiledRulePattern] = []
-  for index in 0..<spec.patterns_not.length() {
-    let pattern = spec.patterns_not[index]
+    let count = count_bindable_expr_identifier_in_node(shape.cst, "__TARGET__")
+    let placeholders = if entry.then_body is Some(_) {
+      if count != 1 {
+        raise context.invalid_pattern(
+          "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
+        )
+      }
+      ["__TARGET__"]
+    } else {
+      if count != 0 {
+        raise context.invalid_pattern("the pattern must not contain __TARGET__")
+      }
+      []
+    }
+    let compiled = build_compiled_expr_pattern(
+      shape,
+      special_expr_placeholders=placeholders,
+    )
+    let pattern : CompiledRulePattern = {
+      source: entry.pattern,
+      compiled,
+      guards: compile_guards(entry.pattern.guards, context, visible[0].metavars),
+    }
+    let then_body = entry.then_body.map(fn(body) raise {
+      compile_structural_group(
+        path,
+        body,
+        "\{context.location}.then.",
+        visible,
+        true,
+      )
+    })
+    @model.CompiledStructuralPattern::{ pattern, then_body, }
+  })
+  let patterns_not = group.patterns_not.mapi(fn(index, pattern) raise {
     let context = pattern_compile_context(
       path,
-      "patterns-not[\{index}]",
+      "\{prefix}patterns-not[\{index}]",
       pattern.shape,
     )
-    let compiled = compile_structural_expr_pattern(
-      context, outer_context, outer_shapes,
+    let shape = compile_metavar_shape(context)
+    let visible = structural_visible_shapes(
+      context,
+      shape,
+      pattern.guards,
+      ancestors,
     )
-    patterns_not.push(compile_rule_pattern(pattern, compiled, context))
-  }
+    if count_bindable_expr_identifier_in_node(shape.cst, "__TARGET__") != 0 {
+      raise context.invalid_pattern("the pattern must not contain __TARGET__")
+    }
+    CompiledRulePattern::{
+      source: pattern,
+      compiled: build_compiled_expr_pattern(shape),
+      guards: compile_guards(pattern.guards, context, visible[0].metavars),
+    }
+  })
   {
-    inside_expr,
-    inside_toplevel,
     patterns,
     patterns_not,
-    patterns_not_mode: spec.patterns_not_mode,
+    patterns_not_mode: if reject_negative {
+      RejectUncoveredNegative
+    } else {
+      PruneOnNegative
+    },
   }
+}
+
+///|
+// Keep one visible environment per top-level alternative. Local registrations
+// are separate from these environments, so siblings cannot introduce captures.
+fn structural_visible_shapes(
+  context : PatternCompileContext,
+  shape : MetavarShape,
+  guards : Map[String, String],
+  ancestors : Array[MetavarShape],
+) -> Array[MetavarShape] raise {
+  let referenced = shape.metavars.copy()
+  for raw_name, _ in guards {
+    let name = guard_metavar_name(context, raw_name)
+    if referenced.kind_of(name) is None {
+      for ancestor in ancestors {
+        if ancestor.metavars.kind_of(name) is Some(kind) {
+          ignore(referenced.register(name, kind))
+          break
+        }
+      }
+    }
+  }
+  ensure_inherited_inside_context_metavar_forms_for_all(
+    context.path,
+    context.location,
+    "ancestor",
+    { ..shape, metavars: referenced, },
+    ancestors,
+  )
+  if ancestors.is_empty() {
+    return [shape]
+  }
+  ancestors.map(fn(ancestor) {
+    let metavars = ancestor.metavars.copy()
+    for entry in shape.metavars.entries {
+      ignore(metavars.register(entry.name, entry.kind))
+    }
+    { ..shape, metavars, }
+  })
 }
 
 ///|
 fn compile_structural_expr_pattern(
   context : PatternCompileContext,
-  outer_context : String,
-  outer_shapes : Array[MetavarShape],
 ) -> @matching.CompiledExprPattern raise {
   let compiled_shape = compile_metavar_shape(context)
-  ensure_inherited_inside_context_metavar_forms_for_all(
-    context.path,
-    context.location,
-    outer_context,
-    compiled_shape,
-    outer_shapes,
-  )
   if count_bindable_expr_identifier_in_node(compiled_shape.cst, "__TARGET__") !=
     0 {
     raise context.invalid_pattern("the pattern must not contain __TARGET__")
@@ -165,11 +230,9 @@ fn compile_structural_expr_pattern(
 }
 
 ///|
-fn compile_inside_context_patterns(
+fn compile_inside_toplevel_patterns(
   path : String,
   patterns : Array[RulePatternSpec],
-  clause : String,
-  is_toplevel~ : Bool,
 ) -> (Array[CompiledRulePattern], Array[MetavarShape]) raise {
   let compiled_patterns : Array[CompiledRulePattern] = []
   let compiled_shapes : Array[MetavarShape] = []
@@ -177,20 +240,16 @@ fn compile_inside_context_patterns(
     let pattern = patterns[index]
     let context = pattern_compile_context(
       path,
-      "\{clause}[\{index}]",
+      "inside-toplevel[\{index}]",
       pattern.shape,
     )
-    let compiled_shape = if is_toplevel {
-      compile_toplevel_metavar_shape(context)
-    } else {
-      compile_metavar_shape(context)
-    }
+    let compiled_shape = compile_toplevel_metavar_shape(context)
     let cst = compiled_shape.cst
-    let ignored_fields = if is_toplevel {
-      inside_toplevel_ignored_fields(context, pattern.match_mode, cst)
-    } else {
-      []
-    }
+    let ignored_fields = inside_toplevel_ignored_fields(
+      context,
+      pattern.match_mode,
+      cst,
+    )
     let target_count = count_bindable_expr_identifier_in_node(cst, "__TARGET__")
     if target_count != 1 {
       raise context.invalid_pattern(
@@ -488,7 +547,7 @@ fn validate_declared_metavar(
     )
   } else if name == "__TARGET__" {
     raise context.invalid_pattern(
-      "the pattern cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
+      "the pattern cannot declare metavar __TARGET__ because it is reserved for then target traversal",
     )
   } else if reserve_source && name == "__SOURCE__" {
     raise context.invalid_pattern(

@@ -16,10 +16,10 @@ fn compile_expr_pattern_through_rule(
   guard rules is [rule] else { fail("expected one compiled rule") }
   match rule.definition {
     Structural(structural) => {
-      guard structural.patterns is [pattern] else {
+      guard structural.group.patterns is [pattern] else {
         fail("expected one compiled structural pattern")
       }
-      pattern.compiled
+      pattern.pattern.compiled
     }
     Taint(_) => fail("expected a structural rule")
   }
