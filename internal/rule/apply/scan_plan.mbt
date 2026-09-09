@@ -2,8 +2,7 @@
 priv struct CstStructuralRuleEntry {
   rule : CompiledRule
   structural : CompiledStructuralRule
-  pattern_buckets : ExprPatternBuckets
-  negative_pattern_buckets : ExprPatternBuckets
+  group : PlannedStructuralGroup
   inside_pattern_buckets : ExprPatternBuckets
 }
 
@@ -98,18 +97,38 @@ fn cst_structural_rule_entry(
   rule : CompiledRule,
   structural : CompiledStructuralRule,
 ) -> CstStructuralRuleEntry {
-  let inside_patterns = if !structural.inside_expr.is_empty() {
-    structural.inside_expr
-  } else {
-    structural.inside_toplevel
-  }
   {
     rule,
     structural,
-    pattern_buckets: ExprPatternBuckets::from_patterns(structural.patterns),
-    negative_pattern_buckets: ExprPatternBuckets::from_patterns(
-      structural.patterns_not,
+    group: plan_structural_group(structural.group),
+    inside_pattern_buckets: ExprPatternBuckets::from_patterns(
+      structural.inside_toplevel,
     ),
-    inside_pattern_buckets: ExprPatternBuckets::from_patterns(inside_patterns),
+  }
+}
+
+///|
+priv struct PlannedStructuralGroup {
+  positive : ExprPatternBuckets
+  negative : ExprPatternBuckets
+  children : Array[PlannedStructuralGroup?]
+  has_positive : Bool
+  has_negative : Bool
+  reject_negative : Bool
+}
+
+///|
+fn plan_structural_group(
+  group : @model.CompiledStructuralPatternGroup,
+) -> PlannedStructuralGroup {
+  {
+    positive: ExprPatternBuckets::from_patterns(
+      group.patterns.map(p => p.pattern),
+    ),
+    negative: ExprPatternBuckets::from_patterns(group.patterns_not),
+    children: group.patterns.map(p => p.then_body.map(plan_structural_group)),
+    has_positive: !group.patterns.is_empty(),
+    has_negative: !group.patterns_not.is_empty(),
+    reject_negative: group.patterns_not_mode is RejectUncoveredNegative,
   }
 }
