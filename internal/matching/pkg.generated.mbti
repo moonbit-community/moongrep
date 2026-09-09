@@ -122,6 +122,12 @@ pub(all) struct TargetRef {
   scope : Int
 }
 
+pub struct ValueInterner {
+  // private fields
+}
+pub fn ValueInterner::intern(Self, @model.BoundValue) -> Int
+pub fn ValueInterner::new() -> Self
+
 // Type aliases
 
 // Traits
