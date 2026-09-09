@@ -23,11 +23,11 @@ test "validate reports invalid pattern shape and info for every clause kind" {
   let inside_expr_source =
     #|id: inside-expr
     #|description: Invalid expression context.
-    #|inside-expr:
-    #|  - shape: wrapper()
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper()
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   expect_compile_invalid_pattern(
     inside_expr_source, "wrapper()", "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
@@ -93,7 +93,7 @@ test "validate compiles bare and typed ellipsis metavars" {
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      let metavars = rule.patterns[0].compiled.metavars
+      let metavars = rule.group.patterns[0].pattern.compiled.metavars
       assert_eq(metavars.entries.length(), 2)
       debug_inspect(metavars.names(Ellipsis(AnyItem)), content="[\"args\"]")
       debug_inspect(metavars.names(Ellipsis(ArgItem)), content="[\"values\"]")
@@ -113,7 +113,7 @@ test "validate typed ellipsis occurrence determines bare occurrence kind" {
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      let metavars = rule.patterns[0].compiled.metavars
+      let metavars = rule.group.patterns[0].pattern.compiled.metavars
       assert_eq(metavars.entries.length(), 1)
       debug_inspect(metavars.names(Ellipsis(ExpItem)), content="[\"items\"]")
     }
@@ -141,7 +141,7 @@ test "validate keeps mixed metavar kinds in first occurrence order" {
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      let metavars = rule.patterns[0].compiled.metavars
+      let metavars = rule.group.patterns[0].pattern.compiled.metavars
       debug_inspect(
         [
           for entry in metavars.entries => entry.name
@@ -247,15 +247,15 @@ test "validate keeps ellipsis in true tuple lists" {
   match rules[0].definition {
     Structural(rule) => {
       assert_true(
-        rule.patterns[0].compiled.metavars.kind_of("items") ==
+        rule.group.patterns[0].pattern.compiled.metavars.kind_of("items") ==
         Some(Ellipsis(ExpItem)),
       )
       assert_true(
-        rule.patterns[1].compiled.metavars.kind_of("patterns") ==
+        rule.group.patterns[1].pattern.compiled.metavars.kind_of("patterns") ==
         Some(Ellipsis(PatItem)),
       )
       assert_true(
-        rule.patterns[2].compiled.metavars.kind_of("Types") ==
+        rule.group.patterns[2].pattern.compiled.metavars.kind_of("Types") ==
         Some(Ellipsis(TypeItem)),
       )
     }
@@ -334,7 +334,7 @@ test "validate accepts all-underscore metavar names" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Expr),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
         content="[\"__\", \"___\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -353,23 +353,23 @@ test "validate does not collect $_ ignore placeholders" {
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Expr),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
         content="[]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Identifier),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
         content="[]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Constant),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
         content="[]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Argument),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Argument),
         content="[]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Type),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Type),
         content="[]",
       )
     }
@@ -386,7 +386,7 @@ test "validate rejects reserved target and source metavar names" {
     #|  - shape: $(__TARGET__:exp)
     #|
   expect_compile_invalid(
-    target_source, "the pattern cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal",
+    target_source, "the pattern cannot declare metavar __TARGET__ because it is reserved for then target traversal",
   )
   let source_source =
     #|id: example
