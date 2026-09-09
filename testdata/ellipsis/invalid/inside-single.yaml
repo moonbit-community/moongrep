@@ -1,6 +1,7 @@
 id: invalid-inside-single
 description: Invalid inherited ellipsis form.
-inside-expr:
-  - shape: wrapper($$$items, __TARGET__)
 patterns:
-  - shape: target($(items:exp))
+  - shape: wrapper($$$items, __TARGET__)
+    then:
+      patterns:
+        - shape: target($(items:exp))

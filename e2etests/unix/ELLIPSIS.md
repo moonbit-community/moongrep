@@ -228,7 +228,7 @@ fn() { body }
 
 ## Rule contexts and prefiltering
 
-An ellipsis captured by `inside-expr` can be reused by the target pattern. The
+An ellipsis captured by `then` can be reused by the target pattern. The
 target matches when its arguments repeat the wrapper prefix, including the
 empty prefix, and rejects a differing final argument.
 
@@ -514,7 +514,7 @@ error: invalid anonymous pattern
 [5]
 ```
 
-`__TARGET__` is reserved for the target inserted by `inside-expr` traversal and
+`__TARGET__` is reserved for the target inserted by `then` traversal and
 cannot be declared as an ellipsis name.
 
 ```mooncram
@@ -523,7 +523,7 @@ error: invalid anonymous pattern
   source: --pattern
   pattern:
     inspect($$$__TARGET__)
-  reason: the pattern cannot declare metavar __TARGET__ because it is reserved for inside-expr target traversal
+  reason: the pattern cannot declare metavar __TARGET__ because it is reserved for then target traversal
   help: fix the pattern passed to --pattern and try again
 [5]
 ```
@@ -582,7 +582,7 @@ capture contract and is rejected while loading the rule.
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-kind.yaml testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid rule
   source: testdata/ellipsis/invalid/inside-kind.yaml
-  reason: patterns[0] cannot use inherited inside-expr[0] ellipsis metavar items with a different kind
+  reason: patterns[0].then.patterns[0] cannot use inherited ancestor[0] ellipsis metavar items with a different kind
   help: fix the rule and try again
 [5]
 ```
@@ -594,7 +594,7 @@ the target pattern.
 $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/ellipsis/invalid/inside-single.yaml testdata/ellipsis/sample.mbt 2>&1 >/dev/null
 error: invalid rule
   source: testdata/ellipsis/invalid/inside-single.yaml
-  reason: patterns[0] cannot use inherited inside-expr[0] ellipsis metavar items as exp
+  reason: patterns[0].then.patterns[0] cannot use inherited ancestor[0] ellipsis metavar items as exp
   help: fix the rule and try again
 [5]
 ```
