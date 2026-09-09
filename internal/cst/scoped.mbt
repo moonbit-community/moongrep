@@ -893,3 +893,48 @@ fn add_unique_name(names : Array[String], name : String) -> Unit {
   }
   names.push(name)
 }
+
+///|
+/// Names bound on the lexical path from a matched shape to its selected target.
+pub fn names_introduced_to_target(
+  context : ExprMatchCandidate,
+  target : ExprMatchCandidate,
+) -> Array[String] {
+  let mut result : Array[String] = []
+  let visitor = fn(scoped : ScopedExprMatchCandidate) {
+    if same_match_candidate(scoped.candidate, target) {
+      result = scoped.shadowed_names
+      NodeVisitReturn
+    } else {
+      NodeVisitContinue
+    }
+  }
+  match context {
+    Direct(node) if !node.kind.is_expr() =>
+      ignore(visit_match_candidate_roots_with_shadow(node, [], visitor))
+    _ => visit_scoped_expr_match_candidate(context, [], visitor)
+  }
+  result
+}
+
+///|
+fn same_match_candidate(
+  left : ExprMatchCandidate,
+  right : ExprMatchCandidate,
+) -> Bool {
+  match (left, right) {
+    (Direct(a), Direct(b)) => a.kind == b.kind && a.source_span == b.source_span
+    (Sequence(a), Sequence(b)) => {
+      if a.length() != b.length() {
+        return false
+      }
+      for index in 0..<a.length() {
+        if a[index].source_span != b[index].source_span {
+          return false
+        }
+      }
+      true
+    }
+    _ => false
+  }
+}
