@@ -87,30 +87,32 @@ pub(all) struct RulePatternSpec {
 ///
 /// `PruneOnNegative` means negative patterns prune only candidate branches after
 /// all positive patterns miss. `RejectUncoveredNegative` is derived for inside
-/// context rules with both positive and negative patterns: positive subtrees
+/// groups: positive subtrees
 /// cover negative matches, while uncovered negative matches reject the whole
-/// outer `inside-expr` or `inside-toplevel` match.
+/// enclosing `then` group or `inside-toplevel` match.
 pub(all) enum StructuralPatternsNotMode {
   PruneOnNegative
   RejectUncoveredNegative
 }
 
 ///|
-/// Raw structural-rule definition loaded from YAML.
-///
-/// `inside_expr` is an ordered array of alternative pattern objects whose
-/// shapes must each contain a single `__TARGET__` placeholder. The normal
-/// `patterns` are then matched inside the target selected by the first matching
-/// outer alternative. `inside_toplevel` is the top-level-item equivalent and
-/// is mutually exclusive with `inside_expr`. Empty arrays mean that the
-/// corresponding outer context is absent. `patterns_not` holds negative
-/// structural patterns that suppress otherwise successful structural matches.
-pub(all) struct StructuralRuleSpec {
-  inside_expr : Array[RulePatternSpec]
-  inside_toplevel : Array[RulePatternSpec]
-  patterns : Array[RulePatternSpec]
+/// A positive structural clause, optionally constrained by a nested group.
+pub(all) struct StructuralPatternSpec {
+  pattern : RulePatternSpec
+  then_body : StructuralPatternGroupSpec?
+}
+
+///|
+pub(all) struct StructuralPatternGroupSpec {
+  patterns : Array[StructuralPatternSpec]
   patterns_not : Array[RulePatternSpec]
-  patterns_not_mode : StructuralPatternsNotMode
+}
+
+///|
+/// Raw structural rule and its optional top-level context.
+pub(all) struct StructuralRuleSpec {
+  inside_toplevel : Array[RulePatternSpec]
+  group : StructuralPatternGroupSpec
 }
 
 ///|
@@ -180,9 +182,19 @@ pub(all) struct CompiledRuleGuard {
 ///|
 /// A structural rule after shape parsing and metavar validation.
 pub(all) struct CompiledStructuralRule {
-  inside_expr : Array[CompiledRulePattern]
   inside_toplevel : Array[CompiledRulePattern]
-  patterns : Array[CompiledRulePattern]
+  group : CompiledStructuralPatternGroup
+}
+
+///|
+pub(all) struct CompiledStructuralPattern {
+  pattern : CompiledRulePattern
+  then_body : CompiledStructuralPatternGroup?
+}
+
+///|
+pub(all) struct CompiledStructuralPatternGroup {
+  patterns : Array[CompiledStructuralPattern]
   patterns_not : Array[CompiledRulePattern]
   patterns_not_mode : StructuralPatternsNotMode
 }
