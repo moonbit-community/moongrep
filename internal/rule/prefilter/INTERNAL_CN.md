@@ -73,39 +73,13 @@ structural rule 中不可筛选 pattern 的保守行为相同。
 
 ## Structural Rule 编译
 
-`compile_structural_prefilter` 只从正向要求推导备选项。
+每条正向根到叶路径贡献一个备选。同一路径各 shape 的必要字面量取 AND，
+不同路径取 OR。纯负向 then 不增加子层要求；负向和 guard 不贡献必要字面量。
+inside-toplevel 各备选与这些正向路径取笛卡尔积；路径内去重保持顺序。
 
-没有 inside context 时，每个正向 `patterns` 条目生成一个备选项：
-
-```text
-alternative(pattern) = required_literals(pattern)
-```
-
-存在 `inside-expr` 或 `inside-toplevel` 时，每个 inside 备选项会和每个正向
-pattern 组合：
-
-```text
-alternative(inside, pattern) =
-  required_literals(inside) + required_literals(pattern)
-```
-
-这是笛卡尔积。不能把所有 inside 和内部 pattern 的字面量压成一个合取，否则会错误地
-同时要求来自互斥分支的字面量。
-
-当含 inside context 的规则没有正向 pattern 时，每个 inside pattern 仍会独立生成
-一个备选项。这样可以支持由 inside context 加 `patterns-not` 组成的规则。既没有
-inside context 也没有正向 pattern 的规则会生成空外层数组，并在任何源码中保持相关。
-
-`patterns-not` 永远不会贡献必需字面量。负向 pattern 描述的是“出现后可能拒绝一次
-structural 匹配”的文本，它并不是产生 finding 的必要条件。Guard 和
-`patterns-not-mode` 同样不会添加源码锚点。
-
-规则编译器会拒绝同时含 `inside-expr` 和 `inside-toplevel` 的 definition；
-prefilter 假定这个不变量成立。对于合法的编译结果，它使用非空的 inside context
-集合，并按上述方式与正向 pattern 组合。
-
-每个备选项内部会去除重复字面量，同时保持首次出现顺序。不同备选项之间的重复项会保留，
-因为这些备选项仍是互相独立的分支。
+ScanPlan 为每个 group 递归建立正负 CST 分桶，合并保持 YAML 原下标。
+只有 shape / guard / then 完整成功才剪枝。无负向约束的存在性扫描首个成功
+即可停止；含负向约束时检查所有未覆盖区域后才成功。报告使用根条目下标和位置。
 
 ## Taint Rule 编译
 
