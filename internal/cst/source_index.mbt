@@ -288,8 +288,7 @@ pub fn SourceIndex::candidate(
 ) -> ExprMatchCandidate {
   match self.regions[region] {
     Node(id) => Direct(self.node(id))
-    Slice(list, start, end) =>
-      Sequence(self.sequences[list].values[start:end].to_owned())
+    Slice(list, start, end) => Sequence(self.sequences[list].values[start:end])
   }
 }
 

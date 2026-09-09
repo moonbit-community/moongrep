@@ -35,8 +35,6 @@ pub fn items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn name_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
 
-pub fn names_introduced_to_target(ExprMatchCandidate, ExprMatchCandidate) -> Array[String]
-
 pub fn normalized_expr_identifier_name(@untyped_cst.CstNode) -> String?
 
 pub fn normalized_long_ident(@untyped_cst.CstNode) -> String?
@@ -65,12 +63,6 @@ pub fn toplevel_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
 
-pub fn visit_scoped_expr_match_candidate(ExprMatchCandidate, Array[String], (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
-
-pub fn visit_scoped_expr_match_candidate_children(ExprMatchCandidate, Array[String], (ScopedExprMatchCandidate) -> Unit) -> Unit
-
-pub fn visit_scoped_expr_match_candidate_roots(@untyped_cst.CstNode, (ScopedExprMatchCandidate) -> NodeVisitAction) -> Unit
-
 // Errors
 
 // Types and methods
@@ -83,7 +75,7 @@ pub(all) struct AttributeInfo {
 
 pub(all) enum ExprMatchCandidate {
   Direct(@untyped_cst.CstNode)
-  Sequence(Array[@untyped_cst.CstNode])
+  Sequence(ArrayView[@untyped_cst.CstNode])
 }
 
 pub(all) enum IdentifierBinding {
@@ -100,11 +92,6 @@ pub(all) enum NodeVisitAction {
   NodeVisitContinue
   NodeVisitPrune
   NodeVisitReturn
-}
-
-pub(all) struct ScopedExprMatchCandidate {
-  candidate : ExprMatchCandidate
-  shadowed_names : Array[String]
 }
 
 pub struct SourceIndex {
