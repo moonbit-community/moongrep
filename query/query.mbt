@@ -73,28 +73,16 @@ fn collect_node_matches(
   cst : @untyped_cst.CstNode,
   matches : Array[Map[String, BoundValue]],
 ) -> Unit {
-  @cst.visit_scoped_expr_match_candidate_roots(cst, fn(scoped_candidate) {
-    collect_scoped_candidate_matches(pattern, scoped_candidate, matches)
-    @cst.NodeVisitPrune
+  let index = @cst.SourceIndex::new(cst)
+  index.walk(index.roots(), fn(region) {
+    if @matching.match_expr_pattern_candidate(pattern, index.candidate(region))
+      is Some(result) {
+      matches.push(capture_map_from_bindings(result.bindings))
+      @cst.NodeVisitPrune
+    } else {
+      @cst.NodeVisitContinue
+    }
   })
-}
-
-///|
-fn collect_scoped_candidate_matches(
-  pattern : @matching.CompiledExprPattern,
-  scoped_candidate : @cst.ScopedExprMatchCandidate,
-  matches : Array[Map[String, BoundValue]],
-) -> Unit {
-  if @matching.match_expr_pattern_candidate(pattern, scoped_candidate.candidate)
-    is Some(result) {
-    matches.push(capture_map_from_bindings(result.bindings))
-  } else {
-    @cst.visit_scoped_expr_match_candidate_children(
-      scoped_candidate.candidate,
-      scoped_candidate.shadowed_names,
-      fn(child) { collect_scoped_candidate_matches(pattern, child, matches) },
-    )
-  }
 }
 
 ///|
