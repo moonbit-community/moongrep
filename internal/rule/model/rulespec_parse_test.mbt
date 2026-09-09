@@ -130,11 +130,13 @@ test "model parses structural rule and prefixes yaml id with rule directory" {
   inspect(rule.description, content="Repeated equality.\n")
   match rule.definition {
     Structural(spec) => {
-      assert_eq(spec.patterns.length(), 1)
-      inspect(spec.patterns[0].shape, content="$(_expr:exp) == $(_expr:exp)")
-      assert_eq(spec.patterns[0].guards.length(), 0)
-      assert_eq(spec.patterns_not.length(), 0)
-      assert_true(spec.inside_expr.is_empty())
+      assert_eq(spec.group.patterns.length(), 1)
+      inspect(
+        spec.group.patterns[0].pattern.shape,
+        content="$(_expr:exp) == $(_expr:exp)",
+      )
+      assert_eq(spec.group.patterns[0].pattern.guards.length(), 0)
+      assert_eq(spec.group.patterns_not.length(), 0)
       assert_true(spec.inside_toplevel.is_empty())
     }
     Taint(_) => fail("expected structural rule")
@@ -155,7 +157,10 @@ test "model preserves metavar shape text" {
   )
   match rule.definition {
     Structural(spec) =>
-      inspect(spec.patterns[0].shape, content="$(counter:id) + $(body:exp)")
+      inspect(
+        spec.group.patterns[0].pattern.shape,
+        content="$(counter:id) + $(body:exp)",
+      )
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -357,8 +362,14 @@ test "model parses structural pattern guard map" {
   )
   match rule.definition {
     Structural(spec) => {
-      inspect(spec.patterns[0].guards["$callee"], content="^@html\\.render$")
-      inspect(spec.patterns[0].guards["$value"], content="danger|raw")
+      inspect(
+        spec.group.patterns[0].pattern.guards["$callee"],
+        content="^@html\\.render$",
+      )
+      inspect(
+        spec.group.patterns[0].pattern.guards["$value"],
+        content="danger|raw",
+      )
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -382,21 +393,21 @@ test "model parses structural patterns-not shape and guard map" {
   )
   match rule.definition {
     Structural(spec) => {
-      assert_eq(spec.patterns.length(), 1)
-      assert_eq(spec.patterns_not.length(), 1)
+      assert_eq(spec.group.patterns.length(), 1)
+      assert_eq(spec.group.patterns_not.length(), 1)
       inspect(
-        spec.patterns_not[0].shape,
+        spec.group.patterns_not[0].shape,
         content="safe($(callee:id), $(literal:const))",
       )
-      inspect(spec.patterns_not[0].guards["$callee"], content="^allow_")
-      inspect(spec.patterns_not[0].guards["$literal"], content="^ok$")
+      inspect(spec.group.patterns_not[0].guards["$callee"], content="^allow_")
+      inspect(spec.group.patterns_not[0].guards["$literal"], content="^ok$")
     }
     Taint(_) => fail("expected structural rule")
   }
 }
 
 ///|
-test "model defaults patterns-not mode to prune on negative" {
+test "model parses root positives and negatives" {
   let source =
     #|id: example
     #|description: Example.
@@ -409,29 +420,32 @@ test "model defaults patterns-not mode to prune on negative" {
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
-    Structural(spec) => assert_true(spec.patterns_not_mode is PruneOnNegative)
+    Structural(spec) => assert_eq(spec.group.patterns_not.length(), 1)
     Taint(_) => fail("expected structural rule")
   }
 }
 
 ///|
-test "model derives reject-uncovered-negative for inside expr positives and negatives" {
+test "model parses then positives and negatives" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: arr[$(name:id)]
-    #|patterns-not:
-    #|  - shape: $(name:id)
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: arr[$(name:id)]
+    #|      patterns-not:
+    #|        - shape: $(name:id)
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
     Structural(spec) =>
-      assert_true(spec.patterns_not_mode is RejectUncoveredNegative)
+      assert_eq(
+        spec.group.patterns[0].then_body.unwrap().patterns_not.length(),
+        1,
+      )
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -456,7 +470,6 @@ test "model parses inside toplevel shape and guard map" {
     Structural(spec) => {
       assert_eq(spec.inside_toplevel.length(), 1)
       let inside_toplevel = spec.inside_toplevel[0]
-      assert_true(spec.inside_expr.is_empty())
       inspect(
         inside_toplevel.shape,
         content="fn $(name:id)($(param:id) : Int) -> Int { __TARGET__ }\n",
@@ -537,14 +550,14 @@ test "model rejects match mode outside inside toplevel" {
   let inside_expr =
     #|id: example
     #|description: Invalid expression matching mode.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(__TARGET__)
     #|    match-mode: partial
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   expect_invalid_rule_info(
-    inside_expr, "inside-expr[0] contains unsupported key match-mode",
+    inside_expr, "patterns[0] contains unsupported key match-mode",
   )
   let taint =
     #|id: example
@@ -578,8 +591,7 @@ test "model derives reject-uncovered-negative for inside toplevel positives and 
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
-    Structural(spec) =>
-      assert_true(spec.patterns_not_mode is RejectUncoveredNegative)
+    Structural(spec) => assert_eq(spec.group.patterns_not.length(), 1)
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -599,27 +611,33 @@ test "model rejects patterns-not-mode as an unsupported top-level key" {
 }
 
 ///|
-test "model allows inside expr with only patterns-not" {
+test "model allows then with only patterns-not" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
-    #|patterns-not:
-    #|  - shape: block($(name:id))
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: block($(name:id))
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
     Structural(spec) => {
-      assert_eq(spec.inside_expr.length(), 1)
-      let inside_expr = spec.inside_expr[0]
+      assert_eq(spec.group.patterns.length(), 1)
+      let inside_expr = spec.group.patterns[0].pattern
       inspect(inside_expr.shape, content="wrapper($(name:id), __TARGET__)")
       assert_eq(inside_expr.guards.length(), 0)
-      assert_eq(spec.patterns.length(), 0)
-      assert_eq(spec.patterns_not.length(), 1)
-      inspect(spec.patterns_not[0].shape, content="block($(name:id))")
+      assert_eq(spec.group.patterns[0].then_body.unwrap().patterns.length(), 0)
+      assert_eq(
+        spec.group.patterns[0].then_body.unwrap().patterns_not.length(),
+        1,
+      )
+      inspect(
+        spec.group.patterns[0].then_body.unwrap().patterns_not[0].shape,
+        content="block($(name:id))",
+      )
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -645,34 +663,34 @@ test "model allows inside toplevel with only patterns-not" {
       let inside_toplevel = spec.inside_toplevel[0]
       inspect(inside_toplevel.shape, content="fn $(name:id) { __TARGET__ }\n")
       assert_eq(inside_toplevel.guards.length(), 0)
-      assert_eq(spec.patterns.length(), 0)
-      assert_eq(spec.patterns_not.length(), 1)
-      inspect(spec.patterns_not[0].shape, content="block($(name:id))")
+      assert_eq(spec.group.patterns.length(), 0)
+      assert_eq(spec.group.patterns_not.length(), 1)
+      inspect(spec.group.patterns_not[0].shape, content="block($(name:id))")
     }
     Taint(_) => fail("expected structural rule")
   }
 }
 
 ///|
-test "model parses inside expr shape and guard map" {
+test "model parses then shape and guard map" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), $(lit:const), __TARGET__)
     #|    guard:
     #|      $name: "^safe_"
     #|      $lit: "^ok$"
-    #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
     Structural(spec) => {
-      assert_eq(spec.inside_expr.length(), 1)
-      let inside_expr = spec.inside_expr[0]
+      assert_eq(spec.group.patterns.length(), 1)
+      let inside_expr = spec.group.patterns[0].pattern
       inspect(
         inside_expr.shape,
         content="wrapper($(name:id), $(lit:const), __TARGET__)",
@@ -768,15 +786,17 @@ test "model rejects invalid inside toplevel combinations" {
   let with_inside_expr =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
     #|inside-toplevel:
     #|  - shape: fn sample { __TARGET__ }
-    #|patterns:
-    #|  - shape: call()
-    #|
-  expect_invalid_rule_info(
-    with_inside_expr, "inside-expr and inside-toplevel are mutually exclusive",
+  ignore(
+    RawRuleSpec::from_str(
+      "/tmp/rules/example.yaml", "/tmp/rules", with_inside_expr,
+    ),
   )
   let inside_only =
     #|id: example
@@ -790,7 +810,7 @@ test "model rejects invalid inside toplevel combinations" {
 }
 
 ///|
-test "model rejects scalar inside expr" {
+test "model rejects scalar then" {
   let source =
     #|id: example
     #|description: Example.
@@ -798,83 +818,85 @@ test "model rejects scalar inside expr" {
     #|patterns:
     #|  - shape: call($(name:id))
     #|
-  expect_invalid_rule_info(source, "inside-expr must be an array")
+  expect_invalid_rule_info(
+    source, "inside-expr has been removed; move each alternative into patterns and put its child patterns / patterns-not in then",
+  )
 }
 
 ///|
-test "model rejects malformed inside expr object schema" {
+test "model rejects malformed then object schema" {
   let missing_shape =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - guard:
     #|      $name: "^safe_"
-    #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   expect_invalid_rule_info(
-    missing_shape, "missing required key inside-expr[0].shape",
+    missing_shape, "missing required key patterns[0].shape",
   )
   let non_string_shape =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: 1
     #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|  - shape: 1
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   expect_invalid_rule_info(
-    non_string_shape, "inside-expr[0].shape must be a string",
+    non_string_shape, "patterns[0].shape must be a string",
   )
   let unsupported_key =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    extra: nope
-    #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   expect_invalid_rule_info(
-    unsupported_key, "inside-expr[0] contains unsupported key extra",
+    unsupported_key, "patterns[0] contains unsupported key extra",
   )
   let non_mapping_guard =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard: nope
-    #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   expect_invalid_rule_info(
-    non_mapping_guard, "inside-expr[0].guard must be a mapping",
+    non_mapping_guard, "patterns[0].guard must be a mapping",
   )
   let non_string_guard_value =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      $name: 1
-    #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   expect_invalid_rule_info(
-    non_string_guard_value, "inside-expr[0].guard.$name must be a string",
+    non_string_guard_value, "patterns[0].guard.$name must be a string",
   )
   let bare_guard_key =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      name: "^safe_"
-    #|patterns:
-    #|  - shape: call($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
   expect_invalid_rule_info(
-    bare_guard_key, "inside-expr[0].guard.name must be a $-prefixed metavar name",
+    bare_guard_key, "patterns[0].guard.name must be a $-prefixed metavar name",
   )
 }
 
@@ -918,7 +940,7 @@ test "model rejects invalid patterns-not combinations" {
     #|  - shape: x
     #|
   expect_invalid_rule_info(
-    only_patterns_not, "patterns-not requires patterns, inside-expr, or inside-toplevel",
+    only_patterns_not, "patterns-not requires patterns or inside-toplevel",
   )
   let taint_patterns_not =
     #|id: example
@@ -941,7 +963,7 @@ test "model rejects invalid patterns-not combinations" {
     #|  - shape: wrapper(__TARGET__)
     #|
   expect_invalid_rule_info(
-    inside_only, "inside-expr requires patterns or patterns-not",
+    inside_only, "inside-expr has been removed; move each alternative into patterns and put its child patterns / patterns-not in then",
   )
 }
 
@@ -1023,7 +1045,7 @@ test "model rejects multi document and missing required keys" {
     #|description: Example.
     #|
   expect_invalid_rule_info(
-    missing_definition, "rule must contain patterns, patterns-not with inside-expr or inside-toplevel, or taint",
+    missing_definition, "rule must contain patterns, patterns-not with inside-toplevel, or taint",
   )
 }
 
@@ -1086,30 +1108,36 @@ test "model rejects malformed taint schema" {
 }
 
 ///|
-test "model parses ordered inside expr alternatives" {
+test "model parses ordered then alternatives" {
   let source =
     #|id: example
     #|description: Multiple expression contexts.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
     #|  - shape: container($(name:id), __TARGET__)
     #|    guard:
     #|      $name: "^safe_"
-    #|patterns:
-    #|  - shape: target()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let rule = RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
     Structural(spec) => {
-      assert_eq(spec.inside_expr.length(), 2)
-      inspect(spec.inside_expr[0].shape, content="wrapper(__TARGET__)")
+      assert_eq(spec.group.patterns.length(), 2)
       inspect(
-        spec.inside_expr[1].shape,
+        spec.group.patterns[0].pattern.shape,
+        content="wrapper(__TARGET__)",
+      )
+      inspect(
+        spec.group.patterns[1].pattern.shape,
         content="container($(name:id), __TARGET__)",
       )
-      inspect(spec.inside_expr[1].guards["$name"], content="^safe_")
+      inspect(spec.group.patterns[1].pattern.guards["$name"], content="^safe_")
       assert_true(spec.inside_toplevel.is_empty())
     }
     Taint(_) => fail("expected structural rule")
@@ -1141,7 +1169,6 @@ test "model parses ordered inside toplevel alternatives" {
         spec.inside_toplevel[1].shape,
         content="let $(name:id) = wrapper(__TARGET__)",
       )
-      assert_true(spec.inside_expr.is_empty())
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -1157,7 +1184,9 @@ test "model rejects old and empty inside context forms" {
     #|patterns:
     #|  - shape: target()
     #|
-  expect_invalid_rule_info(old_expr_mapping, "inside-expr must be an array")
+  expect_invalid_rule_info(
+    old_expr_mapping, "inside-expr has been removed; move each alternative into patterns and put its child patterns / patterns-not in then",
+  )
   let old_toplevel_mapping =
     #|id: example
     #|description: Example.
@@ -1176,7 +1205,9 @@ test "model rejects old and empty inside context forms" {
     #|patterns:
     #|  - shape: target()
     #|
-  expect_invalid_rule_info(empty_expr, "inside-expr must not be empty")
+  expect_invalid_rule_info(
+    empty_expr, "inside-expr has been removed; move each alternative into patterns and put its child patterns / patterns-not in then",
+  )
   let empty_toplevel =
     #|id: example
     #|description: Example.
@@ -1192,13 +1223,13 @@ test "model indexes malformed inside context alternatives" {
   let non_mapping =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
-    #|  - container(__TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|
-  expect_invalid_rule_info(non_mapping, "inside-expr[1] must be a mapping")
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
+    #|  - container(__TARGET__)
+  expect_invalid_rule_info(non_mapping, "patterns[1] must be a mapping")
   let unsupported_key =
     #|id: example
     #|description: Example.
@@ -1215,15 +1246,18 @@ test "model indexes malformed inside context alternatives" {
   let invalid_guard =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
     #|  - shape: container($(name:id), __TARGET__)
     #|    guard:
     #|      name: "^safe_"
-    #|patterns:
-    #|  - shape: target()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   expect_invalid_rule_info(
-    invalid_guard, "inside-expr[1].guard.name must be a $-prefixed metavar name",
+    invalid_guard, "patterns[1].guard.name must be a $-prefixed metavar name",
   )
 }
