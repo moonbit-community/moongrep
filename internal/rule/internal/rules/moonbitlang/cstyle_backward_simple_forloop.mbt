@@ -6,13 +6,14 @@ let _embed_cstyle_backward_simple_forloop_yaml : String =
   #|description: |
   #|  C-style backward for loops that can be rewritten as simple for-in loops.
   #|
-  #|inside-expr:
+  #|patterns:
   #|  - shape: |
   #|      for $(counter:id) = $(start:exp); $(counter:id) > $(limit:exp); $(counter:id) = $(counter:id) - 1 {
   #|        __TARGET__
   #|      }
-  #|patterns-not:
-  #|  - shape: $(counter:id)
+  #|    then:
+  #|      patterns-not:
+  #|        - shape: $(counter:id)
   #|
 
 ///|
