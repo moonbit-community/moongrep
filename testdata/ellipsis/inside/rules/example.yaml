@@ -1,7 +1,8 @@
 id: ellipsis-inside
 description: |
   Reuse the surrounding argument prefix inside the target.
-inside-expr:
-  - shape: wrapper($$$args, __TARGET__)
 patterns:
-  - shape: target($$$args)
+  - shape: wrapper($$$args, __TARGET__)
+    then:
+      patterns:
+        - shape: target($$$args)
