@@ -17,4 +17,6 @@ import {
 
 import {
   "moonbit-community/moongrep/internal/rule/compile",
+  "moonbitlang/core/bench",
+  "moonbit-community/moongrep/internal/rule/builtin",
 } for "wbtest"
