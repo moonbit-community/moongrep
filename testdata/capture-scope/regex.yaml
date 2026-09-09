@@ -1,0 +1,12 @@
+id: regex-origin
+description: Explicit regex captures retain their declaration binding.
+inside-toplevel:
+  - shape: 'fn $_ { lexscan $_ { (re"a", before=$(name:id)) => __TARGET__ } }'
+  - shape: 'fn $_ { lexscan $_ { (re"a", after=$(name:id)) => __TARGET__ } }'
+  - shape: 'fn $_ { if $_ =~ (re"a", before=$(name:id)) { __TARGET__ } }'
+  - shape: 'fn $_ { if $_ =~ (re"a", after=$(name:id)) { __TARGET__ } }'
+patterns:
+  - shape: middle(__TARGET__)
+    then:
+      patterns:
+        - shape: sink($(name:id))

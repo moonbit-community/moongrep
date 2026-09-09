@@ -1,0 +1,7 @@
+id: list-origin
+description: Every inherited identifier list element keeps its binding.
+patterns:
+  - shape: wrapper($$$(names:id), __TARGET__)
+    then:
+      patterns:
+        - shape: sink($$$(names:id))

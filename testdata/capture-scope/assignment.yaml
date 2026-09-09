@@ -1,0 +1,8 @@
+id: assignment-origin
+description: Assignments match only the captured variable binding.
+patterns:
+  - shape: wrapper($(name:id), __TARGET__)
+    then:
+      patterns:
+        - shape: let mut $_ = $_; $(name:id) = 1
+        - shape: let mut $_ = $_; $(name:id) += 1

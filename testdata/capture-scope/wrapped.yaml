@@ -1,0 +1,12 @@
+id: wrapped-origin
+description: Alias and quantifier captures retain their declaration binding.
+inside-toplevel:
+  - shape: 'fn $_ { match $_ { Some(_) as $(name:id) => __TARGET__ } }'
+  - shape: 'fn $_ { lexmatch $_ { (re"a" as $(name:id)) => __TARGET__ } }'
+  - shape: 'fn $_ { ∀ $(name:id) : Int, __TARGET__ }'
+  - shape: 'fn $_ { ∃ $(name:id) : Int, __TARGET__ }'
+patterns:
+  - shape: middle(__TARGET__)
+    then:
+      patterns:
+        - shape: sink($(name:id))

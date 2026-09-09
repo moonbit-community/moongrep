@@ -1,0 +1,7 @@
+id: sequence-origin
+description: Each inherited occurrence keeps its original binding.
+patterns:
+  - shape: wrapper($(name:id), __TARGET__)
+    then:
+      patterns:
+        - shape: let $_ = $_; sink($(name:id))
