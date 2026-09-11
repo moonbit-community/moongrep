@@ -64,15 +64,15 @@ test "apply reports ordinary let continuation without function braces" {
 }
 
 ///|
-test "inside expr continuation target matches a complete multi-statement sequence" {
+test "then continuation target matches a complete multi-statement sequence" {
   let rule_source =
     #|id: example
     #|description: Matching continuation sequence.
-    #|inside-expr:
-    #|  - shape: let $(name:id) = source(); __TARGET__
     #|patterns:
-    #|  - shape: consume($(name:id)); finish($(name:id))
-    #|
+    #|  - shape: let $(name:id) = source(); __TARGET__
+    #|    then:
+    #|      patterns:
+    #|        - shape: consume($(name:id)); finish($(name:id))
   let source =
     #|fn sample {
     #|  let item = source()
@@ -92,15 +92,15 @@ test "inside expr continuation target matches a complete multi-statement sequenc
 }
 
 ///|
-test "inside expr continuation target matches inside a nested block" {
+test "then continuation target matches inside a nested block" {
   let rule_source =
     #|id: example
     #|description: Matching a nested continuation sequence.
-    #|inside-expr:
-    #|  - shape: wrapper({ let $(name:id) = source(); __TARGET__ })
     #|patterns:
-    #|  - shape: consume($(name:id)); finish($(name:id))
-    #|
+    #|  - shape: wrapper({ let $(name:id) = source(); __TARGET__ })
+    #|    then:
+    #|      patterns:
+    #|        - shape: consume($(name:id)); finish($(name:id))
   let source =
     #|fn sample {
     #|  wrapper({
@@ -117,7 +117,7 @@ test "inside expr continuation target matches inside a nested block" {
 }
 
 ///|
-test "inside expr multi-statement continuation targets traverse expressions" {
+test "then multi-statement continuation targets traverse expressions" {
   let cases = [
     (
       "let mut $(name:id) = source(); __TARGET__", "target($(name:id))", "fn sample {\n  let mut item = source()\n  skip()\n  target(item)\n}\n",
@@ -133,10 +133,11 @@ test "inside expr multi-statement continuation targets traverse expressions" {
     let rule_source =
       $|id: example
       $|description: Traversing a continuation target.
-      $|inside-expr:
-      $|  - shape: \{inside_shape}
       $|patterns:
-      $|  - shape: \{pattern_shape}
+      $|  - shape: \{inside_shape}
+      $|    then:
+      $|      patterns:
+      $|        - shape: \{pattern_shape}
       $|
     let hits = apply_structural_rule_findings(source, rule_source)
     assert_eq(hits.length(), 1)
@@ -145,15 +146,15 @@ test "inside expr multi-statement continuation targets traverse expressions" {
 }
 
 ///|
-test "inside expr empty continuation target supports patterns-not only" {
+test "then empty continuation target supports patterns-not only" {
   let rule_source =
     #|id: example
     #|description: Empty clean continuation.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: let $(name:id) = source(); __TARGET__
-    #|patterns-not:
-    #|  - shape: danger($(name:id))
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: danger($(name:id))
   let source =
     #|fn sample {
     #|  prepare()
@@ -168,15 +169,15 @@ test "inside expr empty continuation target supports patterns-not only" {
 }
 
 ///|
-test "inside expr single-statement continuation target preserves location" {
+test "then single-statement continuation target preserves location" {
   let rule_source =
     #|id: example
     #|description: Single continuation expression.
-    #|inside-expr:
-    #|  - shape: let $(name:id) = source(); __TARGET__
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: let $(name:id) = source(); __TARGET__
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  let item = source()
@@ -345,15 +346,15 @@ test "inside toplevel target traversal skips function body wrapper blocks" {
 }
 
 ///|
-test "inside expr target traversal distinguishes lambda bodies from blocks" {
+test "then target traversal distinguishes lambda bodies from blocks" {
   let rule_source =
     #|id: example
     #|description: Explicit block in a lambda.
-    #|inside-expr:
-    #|  - shape: wrapper(fn() { __TARGET__ })
     #|patterns:
-    #|  - shape: "{ target(); other() }"
-    #|
+    #|  - shape: wrapper(fn() { __TARGET__ })
+    #|    then:
+    #|      patterns:
+    #|        - shape: "{ target(); other() }"
   let source =
     #|fn sample {
     #|  wrapper(fn() { target(); other() });
@@ -366,15 +367,15 @@ test "inside expr target traversal distinguishes lambda bodies from blocks" {
 }
 
 ///|
-test "inside expr negative patterns use lambda body candidates" {
+test "then negative patterns use lambda body candidates" {
   let rule_source =
     #|id: example
     #|description: Lambda without an explicit blocked block.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(fn() { __TARGET__ })
-    #|patterns-not:
-    #|  - shape: "{ target(); other() }"
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: "{ target(); other() }"
   let source =
     #|fn sample {
     #|  wrapper(fn() { target(); other() });

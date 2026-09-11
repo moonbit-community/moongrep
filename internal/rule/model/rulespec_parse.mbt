@@ -55,22 +55,16 @@ fn expect_rule_definition(
   let has_taint = doc.contains("taint")
   let has_inside_expr = doc.contains("inside-expr")
   let has_inside_toplevel = doc.contains("inside-toplevel")
-  if has_taint && has_inside_expr {
+  if has_inside_expr {
     raise invalid_rule(
       path~,
-      info="inside-expr is only supported for structural rules",
+      info="inside-expr has been removed; move each alternative into patterns and put its child patterns / patterns-not in then",
     )
   }
   if has_taint && has_inside_toplevel {
     raise invalid_rule(
       path~,
       info="inside-toplevel is only supported for structural rules",
-    )
-  }
-  if has_inside_expr && has_inside_toplevel {
-    raise invalid_rule(
-      path~,
-      info="inside-expr and inside-toplevel are mutually exclusive",
     )
   }
   if has_taint && has_patterns_not {
@@ -87,15 +81,12 @@ fn expect_rule_definition(
   }
   if has_taint {
     Taint(expect_taint_rule(doc, path))
-  } else if has_patterns ||
-    has_patterns_not ||
-    has_inside_expr ||
-    has_inside_toplevel {
+  } else if has_patterns || has_patterns_not || has_inside_toplevel {
     Structural(expect_structural_rule(doc, path))
   } else {
     raise invalid_rule(
       path~,
-      info="rule must contain patterns, patterns-not with inside-expr or inside-toplevel, or taint",
+      info="rule must contain patterns, patterns-not with inside-toplevel, or taint",
     )
   }
 }
@@ -105,101 +96,89 @@ fn expect_structural_rule(
   doc : Map[String, @yaml.Yaml],
   path : String,
 ) -> StructuralRuleSpec raise {
-  let has_patterns = doc.contains("patterns")
-  let has_patterns_not = doc.contains("patterns-not")
-  let patterns = if doc.get("patterns") is Some(value) {
-    parse_rule_clause_array(
-      expect_yaml_array_value(value, path, "patterns"),
-      path,
-      "patterns",
-      allow_guard=true,
-      allow_match_mode=false,
-    )
-  } else {
-    []
-  }
-  if has_patterns && patterns.is_empty() {
-    raise invalid_rule(path~, info="patterns must not be empty")
-  }
-  let patterns_not = if doc.get("patterns-not") is Some(value) {
-    parse_rule_clause_array(
-      expect_yaml_array_value(value, path, "patterns-not"),
-      path,
-      "patterns-not",
-      allow_guard=true,
-      allow_match_mode=false,
-    )
-  } else {
-    []
-  }
-  if has_patterns_not && patterns_not.is_empty() {
-    raise invalid_rule(path~, info="patterns-not must not be empty")
-  }
-  let inside_expr = expect_inside_expr(doc, path)
   let inside_toplevel = expect_inside_toplevel(doc, path)
-  if !has_patterns &&
-    has_patterns_not &&
-    inside_expr.is_empty() &&
-    inside_toplevel.is_empty() {
-    raise invalid_rule(
-      path~,
-      info="patterns-not requires patterns, inside-expr, or inside-toplevel",
-    )
-  }
-  if !has_patterns && patterns_not.is_empty() && !inside_expr.is_empty() {
-    raise invalid_rule(
-      path~,
-      info="inside-expr requires patterns or patterns-not",
-    )
-  }
-  if !has_patterns && patterns_not.is_empty() && !inside_toplevel.is_empty() {
+  if !doc.contains("patterns") &&
+    !doc.contains("patterns-not") &&
+    !inside_toplevel.is_empty() {
     raise invalid_rule(
       path~,
       info="inside-toplevel requires patterns or patterns-not",
     )
   }
-  let patterns_not_mode = expect_patterns_not_mode(
-    inside_expr, inside_toplevel, patterns, patterns_not,
-  )
-  { inside_expr, inside_toplevel, patterns, patterns_not, patterns_not_mode, }
-}
-
-///|
-fn expect_patterns_not_mode(
-  inside_expr : Array[RulePatternSpec],
-  inside_toplevel : Array[RulePatternSpec],
-  patterns : Array[RulePatternSpec],
-  patterns_not : Array[RulePatternSpec],
-) -> StructuralPatternsNotMode {
-  if (!inside_expr.is_empty() || !inside_toplevel.is_empty()) &&
-    !patterns.is_empty() &&
-    !patterns_not.is_empty() {
-    RejectUncoveredNegative
-  } else {
-    PruneOnNegative
+  let group = parse_structural_group(doc, path, "")
+  if group.patterns.is_empty() && inside_toplevel.is_empty() {
+    raise invalid_rule(
+      path~,
+      info="patterns-not requires patterns or inside-toplevel",
+    )
   }
+  { inside_toplevel, group, }
 }
 
 ///|
-fn expect_inside_expr(
+fn parse_structural_group(
   doc : Map[String, @yaml.Yaml],
   path : String,
-) -> Array[RulePatternSpec] raise {
-  if doc.get("inside-expr") is Some(value) {
-    let patterns = parse_rule_clause_array(
-      expect_yaml_array_value(value, path, "inside-expr"),
+  context : String,
+) -> StructuralPatternGroupSpec raise {
+  let prefix = if context == "" { "" } else { "\{context}." }
+  if !doc.contains("patterns") && !doc.contains("patterns-not") {
+    raise invalid_rule(
+      path~,
+      info="\{context} requires patterns or patterns-not",
+    )
+  }
+  let patterns : Array[StructuralPatternSpec] = []
+  if doc.get("patterns") is Some(value) {
+    let values = expect_yaml_array_value(value, path, "\{prefix}patterns")
+    if values.is_empty() {
+      raise invalid_rule(path~, info="\{prefix}patterns must not be empty")
+    }
+    for index, value in values {
+      let location = "\{prefix}patterns[\{index}]"
+      guard value is Map(clause) else {
+        raise invalid_rule(path~, info="\{location} must be a mapping")
+      }
+      ensure_allowed_keys(path, location, clause, ["shape", "guard", "then"])
+      let clause_fields = clause.copy()
+      clause_fields.remove("then")
+      let pattern = parse_rule_clause_map(
+        clause_fields,
+        path,
+        location,
+        allow_guard=true,
+        allow_match_mode=false,
+      )
+      let then_body = match clause.get("then") {
+        None => None
+        Some(Map(body)) => {
+          ensure_allowed_keys(path, "\{location}.then", body, [
+            "patterns", "patterns-not",
+          ])
+          Some(parse_structural_group(body, path, "\{location}.then"))
+        }
+        Some(_) =>
+          raise invalid_rule(path~, info="\{location}.then must be a mapping")
+      }
+      patterns.push({ pattern, then_body, })
+    }
+  }
+  let patterns_not = if doc.get("patterns-not") is Some(value) {
+    let values = expect_yaml_array_value(value, path, "\{prefix}patterns-not")
+    if values.is_empty() {
+      raise invalid_rule(path~, info="\{prefix}patterns-not must not be empty")
+    }
+    parse_rule_clause_array(
+      values,
       path,
-      "inside-expr",
+      "\{prefix}patterns-not",
       allow_guard=true,
       allow_match_mode=false,
     )
-    if patterns.is_empty() {
-      raise invalid_rule(path~, info="inside-expr must not be empty")
-    }
-    patterns
   } else {
     []
   }
+  { patterns, patterns_not, }
 }
 
 ///|

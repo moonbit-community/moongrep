@@ -15,14 +15,28 @@ The caller's map remains unchanged.
 
 `match_expr_pattern_candidate` and
 `match_expr_pattern_candidate_with_bindings` apply the same state rules to
-`Direct(CstNode)` and `Sequence(Array[CstNode])` candidates. Every successful
+`Direct(CstNode)` and `Sequence(ArrayView[CstNode])` candidates. Every successful
 `ExprMatch` carries the exact candidate `loc`; sequence locations merge the
 first and last statement and therefore exclude container braces.
 
 Ordinary nodes bind as they walk left to right. Ordered child lists use a small
 backtracking matcher when they contain ellipses: each candidate length runs
 against a copied binding map, and only the first complete successful branch is
-committed.
+committed. Indexed matching uses the same atomic implementation and copies a
+`MatchContext` containing both captures and an optional `TargetRef`.
+`__TARGET__` records its original source reference as it binds. A continuation
+records its owning statement list, start, and end, including empty tails.
+Backtracking commits or rolls back the target with the capture map. A failed
+`then` never asks the atomic matcher for another ellipsis split.
+
+Standalone matching leaves the index absent. Queries and taint therefore keep
+the same atomic matcher without requiring a search index for a single-node call.
+The public `BoundValue` and `ExprMatch` contents still retain original CST nodes.
+
+`ValueInterner` represents the same equality as `bound_value_equal`, including
+normalized identity nodes and the distinction between `Single` and `Multiple`.
+Its hash table compares complete keys on collisions. Rule environments use
+these identities for sharing; queries continue to return original values.
 
 ## Placeholder Dispatch
 
@@ -132,11 +146,16 @@ used as a labelled `body` container can bind a single whole-body expression
 placeholder to the candidate block. This preserves multi-statement body
 captures used by loop and function-context rules.
 
-Expression matching is preceded by the candidate traversal in `internal/cst/scoped.mbt`.
+Expression matching uses the candidate traversal in `internal/cst/source_traversal.mbt`.
 Function, method, test, lambda, local-function, and letrec body blocks produce a
 brace-free `Sequence` candidate instead of a direct block candidate. Explicit
 nested blocks remain `Direct(Expr_Block)` candidates and keep their braces in
-the match location.
+the match location. `SourceIndex` stores lexical scopes and target roles once;
+matching no longer searches a subtree by source span to locate a target.
+Scope resolution is initialized on demand, so ordinary queries need only the
+candidate graph. Full recursive scans also retain the previous visitor's
+completion and resume edges, including repeated publication of the same
+location. Those edges share candidate and region evaluation states.
 
 A sequence accepts only a complete multi-statement `Expression` shape or the
 omitted-continuation shortcut for ordinary `let` and `guard`. A terminal named

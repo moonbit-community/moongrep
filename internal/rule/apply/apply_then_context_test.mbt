@@ -1,16 +1,16 @@
 ///|
-test "apply inside expr and inner guards filter inherited bindings" {
+test "apply then and inner guards filter inherited bindings" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Guarded wrapper.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: call($(name:id))
-    #|    guard:
-    #|      $name: "^safe_.*ok$"
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id))
+    #|          guard:
+    #|            $name: "^safe_.*ok$"
   let source =
     #|fn sample {
     #|  wrapper(safe_ok, call(safe_ok));
@@ -27,18 +27,18 @@ test "apply inside expr and inner guards filter inherited bindings" {
 }
 
 ///|
-test "apply inside expr guard filters outer context matches" {
+test "apply then guard filters outer context matches" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Guarded outer wrapper.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      $name: "^safe_"
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   let source =
     #|fn sample {
     #|  wrapper(safe_ok, call());
@@ -55,19 +55,19 @@ test "apply inside expr guard filters outer context matches" {
 }
 
 ///|
-test "apply structural rule matches guards inside expr" {
+test "apply structural rule matches guards then" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Guarded wrapper.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: call($(name:id), $(value:const))
-    #|    guard:
-    #|      $name: "^safe_.*ok$"
-    #|      $value: "^(42|true)$"
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id), $(value:const))
+    #|          guard:
+    #|            $name: "^safe_.*ok$"
+    #|            $value: "^(42|true)$"
   let source =
     #|fn sample {
     #|  wrapper(safe_ok, call(safe_ok, 42));
@@ -83,16 +83,16 @@ test "apply structural rule matches guards inside expr" {
 }
 
 ///|
-test "inside expr reports the outer context location" {
+test "then reports the outer context location" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Nested target call.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target(secret)
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target(secret)
   let source =
     #|fn sample {
     #|  wrapper(holder(target(secret)))
@@ -106,17 +106,17 @@ test "inside expr reports the outer context location" {
 }
 
 ///|
-test "inside expr merges inner hits and keeps the first pattern index" {
+test "then merges inner hits and keeps the root pattern index" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped calls.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: second()
-    #|  - shape: first()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: second()
+    #|        - shape: first()
   let source =
     #|fn sample {
     #|  wrapper({
@@ -127,23 +127,23 @@ test "inside expr merges inner hits and keeps the first pattern index" {
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
   assert_eq(hits.length(), 1)
-  assert_eq(hits[0].pattern_index, 1)
-  inspect(finding_signature(hits[0]), content="sample.mbt|example|1|2:3-5:5")
+  assert_eq(hits[0].pattern_index, 0)
+  inspect(finding_signature(hits[0]), content="sample.mbt|example|0|2:3-5:5")
 }
 
 ///|
-test "inside expr positive root ignores descendant patterns-not" {
+test "then positive root ignores descendant patterns-not" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped holder positive wins before descendant negative.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: holder($(value:exp))
-    #|patterns-not:
-    #|  - shape: danger()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: holder($(value:exp))
+    #|      patterns-not:
+    #|        - shape: danger()
   let source =
     #|fn sample {
     #|  wrapper(holder(danger()))
@@ -155,18 +155,18 @@ test "inside expr positive root ignores descendant patterns-not" {
 }
 
 ///|
-test "inside expr positive root wins over same-root patterns-not" {
+test "then positive root wins over same-root patterns-not" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target roots match before negative patterns run.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target($(value:exp))
-    #|patterns-not:
-    #|  - shape: target(blocked)
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(value:exp))
+    #|      patterns-not:
+    #|        - shape: target(blocked)
   let source =
     #|fn sample {
     #|  wrapper(target(allowed));
@@ -180,18 +180,18 @@ test "inside expr positive root wins over same-root patterns-not" {
 }
 
 ///|
-test "inside expr patterns-not rejects outer on uncovered negative" {
+test "then patterns-not rejects outer on uncovered negative" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped targets outside blocked branches.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|patterns-not:
-    #|  - shape: blocker($(value:exp))
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
+    #|      patterns-not:
+    #|        - shape: blocker($(value:exp))
   let source =
     #|fn sample {
     #|  wrapper({
@@ -212,18 +212,18 @@ test "inside expr patterns-not rejects outer on uncovered negative" {
 }
 
 ///|
-test "inside expr positive array access wins over patterns-not identifier" {
+test "then positive array access wins over patterns-not identifier" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped array access.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: $(array:exp)[$(index:exp)]
-    #|patterns-not:
-    #|  - shape: $(counter:id)
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: $(array:exp)[$(index:exp)]
+    #|      patterns-not:
+    #|        - shape: $(counter:id)
   let source =
     #|fn sample {
     #|  wrapper(arr[i])
@@ -235,18 +235,18 @@ test "inside expr positive array access wins over patterns-not identifier" {
 }
 
 ///|
-test "inside expr rejects only uncovered negative and accepts covered array access" {
+test "then rejects only uncovered negative and accepts covered array access" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Covered array index use.
-    #|inside-expr:
-    #|  - shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
-    #|  - shape: arr[$(counter:id)]
-    #|patterns-not:
-    #|  - shape: $(counter:id)
-    #|
+    #|  - shape: wrapper($(counter:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: arr[$(counter:id)]
+    #|      patterns-not:
+    #|        - shape: $(counter:id)
   let source =
     #|fn sample {
     #|  wrapper(i, arr[i])
@@ -258,18 +258,18 @@ test "inside expr rejects only uncovered negative and accepts covered array acce
 }
 
 ///|
-test "inside expr rejects uncovered inherited id outside positive coverage" {
+test "then rejects uncovered inherited id outside positive coverage" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Uncovered index use rejects the wrapper.
-    #|inside-expr:
-    #|  - shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
-    #|  - shape: arr[$(counter:id)]
-    #|patterns-not:
-    #|  - shape: $(counter:id)
-    #|
+    #|  - shape: wrapper($(counter:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: arr[$(counter:id)]
+    #|      patterns-not:
+    #|        - shape: $(counter:id)
   let source =
     #|fn sample {
     #|  wrapper(i, {
@@ -283,18 +283,18 @@ test "inside expr rejects uncovered inherited id outside positive coverage" {
 }
 
 ///|
-test "inside expr merges multiple covered positive hits" {
+test "then merges multiple covered positive hits" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Multiple covered index uses.
-    #|inside-expr:
-    #|  - shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
-    #|  - shape: arr[$(counter:id)]
-    #|patterns-not:
-    #|  - shape: $(counter:id)
-    #|
+    #|  - shape: wrapper($(counter:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: arr[$(counter:id)]
+    #|      patterns-not:
+    #|        - shape: $(counter:id)
   let source =
     #|fn sample {
     #|  wrapper(i, {
@@ -309,18 +309,18 @@ test "inside expr merges multiple covered positive hits" {
 }
 
 ///|
-test "inside expr reject-uncovered-negative respects shadowed inherited identifiers" {
+test "then reject-uncovered-negative respects shadowed inherited identifiers" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Shadowed index use belongs to inner binding.
-    #|inside-expr:
-    #|  - shape: wrapper($(counter:id), __TARGET__)
     #|patterns:
-    #|  - shape: arr[$(counter:id)]
-    #|patterns-not:
-    #|  - shape: $(counter:id)
-    #|
+    #|  - shape: wrapper($(counter:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: arr[$(counter:id)]
+    #|      patterns-not:
+    #|        - shape: $(counter:id)
   let source =
     #|fn sample {
     #|  wrapper(i, {
@@ -336,22 +336,22 @@ test "inside expr reject-uncovered-negative respects shadowed inherited identifi
 }
 
 ///|
-test "inside expr accepts only loop counter uses covered by array access" {
+test "then accepts only loop counter uses covered by array access" {
   let rule_source =
     #|id: example
     #|description: |
     #|  C-style forward array iteration.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: |
     #|      for $(counter:id) = 0; $(counter:id) < $(arr:id).length(); $(counter:id) = $(counter:id) + 1 {
     #|        __TARGET__
     #|      }
-    #|patterns:
-    #|  - shape: |
-    #|      $(arr:id)[$(counter:id)]
-    #|patterns-not:
-    #|  - shape: $(counter:id)
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: |
+    #|            $(arr:id)[$(counter:id)]
+    #|      patterns-not:
+    #|        - shape: $(counter:id)
   let source =
     #|fn sample(arr) {
     #|  for i = 0; i < arr.length(); i = i + 1 {
@@ -369,16 +369,16 @@ test "inside expr accepts only loop counter uses covered by array access" {
 }
 
 ///|
-test "inside expr with only patterns-not reports outer when target subtree is clean" {
+test "then with only patterns-not reports outer when target subtree is clean" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target without danger.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(__TARGET__)
-    #|patterns-not:
-    #|  - shape: danger()
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: danger()
   let source =
     #|fn sample {
     #|  wrapper(safe());
@@ -392,16 +392,16 @@ test "inside expr with only patterns-not reports outer when target subtree is cl
 }
 
 ///|
-test "inside expr only patterns-not respects shadowed inherited identifiers" {
+test "then only patterns-not respects shadowed inherited identifiers" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target without same-name target call.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
-    #|patterns-not:
-    #|  - shape: target($(name:id))
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, {
@@ -417,16 +417,16 @@ test "inside expr only patterns-not respects shadowed inherited identifiers" {
 }
 
 ///|
-test "inside expr condition binders shadow inherited identifiers" {
+test "then condition binders shadow inherited identifiers" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, if maybe is Some(x) { target(x) } else { fallback });
@@ -452,16 +452,16 @@ test "inside expr condition binders shadow inherited identifiers" {
 }
 
 ///|
-test "inside expr patterns-not ignores condition-shadowed inherited identifiers" {
+test "then patterns-not ignores condition-shadowed inherited identifiers" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target without same-name target call.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
-    #|patterns-not:
-    #|  - shape: target($(name:id))
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, if maybe is Some(x) { target(x) } else { fallback });
@@ -484,16 +484,16 @@ test "inside expr patterns-not ignores condition-shadowed inherited identifiers"
 }
 
 ///|
-test "inside expr preserves source order of outer locations" {
+test "then preserves source order of outer locations" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let source =
     #|fn sample {
     #|  wrapper(holder(target()));
@@ -515,16 +515,16 @@ test "inside expr preserves source order of outer locations" {
 }
 
 ///|
-test "apply structural rule supports inside expr inherited bindings" {
+test "apply structural rule supports then inherited bindings" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target.call($(prefix:exp))
-    #|
+    #|  - shape: wrapper($(prefix:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target.call($(prefix:exp))
   let source =
     #|fn sample {
     #|  wrapper(make(), target.call(make()));
@@ -540,16 +540,16 @@ test "apply structural rule supports inside expr inherited bindings" {
 }
 
 ///|
-test "apply inside expr inherits ellipsis sequence bindings" {
+test "apply then inherits ellipsis sequence bindings" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Reuse an outer argument prefix inside the target.
-    #|inside-expr:
-    #|  - shape: wrapper($$$args, __TARGET__)
     #|patterns:
-    #|  - shape: target($$$args)
-    #|
+    #|  - shape: wrapper($$$args, __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($$$args)
   let source =
     #|fn sample {
     #|  wrapper(a, b, target(a, b));
@@ -565,16 +565,16 @@ test "apply inside expr inherits ellipsis sequence bindings" {
 }
 
 ///|
-test "inside expr plain names do not reference inherited bindings" {
+test "then plain names do not reference inherited bindings" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Plain names remain literal.
-    #|inside-expr:
-    #|  - shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target.call(prefix)
-    #|
+    #|  - shape: wrapper($(prefix:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target.call(prefix)
   let source =
     #|fn sample {
     #|  wrapper(token, target.call(token))
@@ -589,16 +589,16 @@ test "inside expr plain names do not reference inherited bindings" {
 }
 
 ///|
-test "apply structural rule inherits inside expr identifier bindings" {
+test "apply structural rule inherits then identifier bindings" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(prefix:id), __TARGET__)
     #|patterns:
-    #|  - shape: target.call($(prefix:id))
-    #|
+    #|  - shape: wrapper($(prefix:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target.call($(prefix:id))
   let source =
     #|fn sample {
     #|  wrapper(token, target.call(token));
@@ -614,16 +614,16 @@ test "apply structural rule inherits inside expr identifier bindings" {
 }
 
 ///|
-test "inside expr inherited id is blocked after lexical let shadow" {
+test "then inherited id is blocked after lexical let shadow" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, {
@@ -637,16 +637,16 @@ test "inside expr inherited id is blocked after lexical let shadow" {
 }
 
 ///|
-test "inside expr inherited id still matches without shadow" {
+test "then inherited id still matches without shadow" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, target(x))
@@ -657,16 +657,16 @@ test "inside expr inherited id still matches without shadow" {
 }
 
 ///|
-test "inside expr later shadow does not block earlier candidate" {
+test "then later shadow does not block earlier candidate" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, {
@@ -681,17 +681,17 @@ test "inside expr later shadow does not block earlier candidate" {
 }
 
 ///|
-test "inside expr only blocks patterns referencing shadowed outer id" {
+test "then only blocks patterns referencing shadowed outer id" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(left:id), $(right:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(right:id))
-    #|  - shape: target($(left:id))
-    #|
+    #|  - shape: wrapper($(left:id), $(right:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(right:id))
+    #|        - shape: target($(left:id))
   let source =
     #|fn sample {
     #|  wrapper(x, y, {
@@ -707,16 +707,16 @@ test "inside expr only blocks patterns referencing shadowed outer id" {
 }
 
 ///|
-test "inside expr traverses guard target children" {
+test "then traverses guard target children" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Guard target call.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let source =
     #|fn sample {
     #|  wrapper({
@@ -734,16 +734,16 @@ test "inside expr traverses guard target children" {
 }
 
 ///|
-test "inside expr traverses reverse pipe target children" {
+test "then traverses reverse pipe target children" {
   let rule_source =
     #|id: example
     #|description: |
     #|  Reverse pipe target call.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let source =
     #|fn sample {
     #|  wrapper(sink <| target())
@@ -758,16 +758,16 @@ test "inside expr traverses reverse pipe target children" {
 }
 
 ///|
-test "inside expr traverses list comprehension target children" {
+test "then traverses list comprehension target children" {
   let rule_source =
     #|id: example
     #|description: |
     #|  List comprehension target call.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
     #|patterns:
-    #|  - shape: target(item)
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target(item)
   let source =
     #|fn sample {
     #|  wrapper([for item in items if allow(item) => target(item)])
@@ -787,11 +787,11 @@ test "default structural matcher carries inside target bindings" {
     #|id: example
     #|description: |
     #|  Wrapped target using same expression.
-    #|inside-expr:
-    #|  - shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target($(prefix:exp))
-    #|
+    #|  - shape: wrapper($(prefix:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(prefix:exp))
   let source =
     #|fn sample {
     #|  wrapper(if ready { a } else { b }, target(if ready { a } else { b }));
@@ -808,11 +808,11 @@ test "default structural matcher respects shadowed inherited identifiers" {
     #|id: example
     #|description: |
     #|  Wrapped target call.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(x, {
@@ -827,16 +827,19 @@ test "default structural matcher respects shadowed inherited identifiers" {
 }
 
 ///|
-test "inside expr tries multiple outer shapes in yaml order" {
+test "then tries multiple outer shapes in yaml order" {
   let rule_source =
     #|id: example
     #|description: Multiple expression contexts.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
-    #|  - shape: container(__TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
+    #|  - shape: container(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let source =
     #|fn sample {
     #|  wrapper(target());
@@ -850,16 +853,19 @@ test "inside expr tries multiple outer shapes in yaml order" {
 }
 
 ///|
-test "inside expr selects the first overlapping outer alternative" {
+test "then selects the first overlapping outer alternative" {
   let rule_source =
     #|id: example
     #|description: Ordered overlapping contexts.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), $_, __TARGET__)
-    #|  - shape: wrapper($_, $(name:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), $_, __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
+    #|  - shape: wrapper($_, $(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(first, second, target(first));
@@ -867,25 +873,28 @@ test "inside expr selects the first overlapping outer alternative" {
     #|}
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
-  assert_eq(hits.length(), 1)
+  assert_eq(hits.length(), 2)
   assert_eq(hits[0].loc.start.lnum, 2)
 }
 
 ///|
-test "inside expr falls through when an earlier outer guard fails" {
+test "then falls through when an earlier outer guard fails" {
   let rule_source =
     #|id: example
     #|description: Guarded ordered contexts.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      $name: "^primary$"
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      $name: "^fallback$"
-    #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(fallback, target(fallback))
@@ -897,36 +906,43 @@ test "inside expr falls through when an earlier outer guard fails" {
 }
 
 ///|
-test "inside expr does not try later alternatives after inner matching fails" {
+test "then tries later alternatives after inner matching fails" {
   let rule_source =
     #|id: example
-    #|description: No fallback after outer selection.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), $_, __TARGET__)
-    #|  - shape: wrapper($_, $(name:id), __TARGET__)
+    #|description: Fallback after a failed child group.
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), $_, __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
+    #|  - shape: wrapper($_, $(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let source =
     #|fn sample {
     #|  wrapper(first, second, target(second))
     #|}
     #|
   let hits = apply_structural_rule_findings(source, rule_source)
-  assert_eq(hits.length(), 0)
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 1)
 }
 
 ///|
-test "inside expr alternatives support patterns-not only" {
+test "then alternatives support patterns-not only" {
   let rule_source =
     #|id: example
     #|description: Clean ordered contexts.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: danger()
     #|  - shape: container(__TARGET__)
-    #|patterns-not:
-    #|  - shape: danger()
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: danger()
   let source =
     #|fn sample {
     #|  wrapper(safe());
@@ -942,17 +958,21 @@ test "inside expr alternatives support patterns-not only" {
 }
 
 ///|
-test "inside expr alternatives preserve outer locations and inner pattern indexes" {
+test "then alternatives preserve outer locations and root pattern indexes" {
   let rule_source =
     #|id: example
     #|description: Ordered context metadata.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
-    #|  - shape: container(__TARGET__)
     #|patterns:
-    #|  - shape: first()
-    #|  - shape: second()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: first()
+    #|        - shape: second()
+    #|  - shape: container(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: first()
+    #|        - shape: second()
   let source =
     #|fn sample {
     #|  container(holder(second()))

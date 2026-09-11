@@ -1,10 +1,11 @@
 id: example
 description: |
   Local println shadows the builtin.
-inside-expr:
+patterns:
   - shape: |
       let println = $_
       __TARGET__
-patterns:
-  - shape: |
-      println($_)
+    then:
+      patterns:
+        - shape: |
+            println($_)

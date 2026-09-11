@@ -50,13 +50,21 @@ because metavars have already been classified and can be excluded from literal
 collection.
 
 `compile_expr_pattern` creates the same context as one anonymous
-`patterns[0]` entry and calls `compile_structural_expr_pattern`. Ordinary
-structural `patterns` and `patterns-not` use that helper too. The helper parses
-the expression, classifies metavars, validates inherited inside-context
-bindings when present, rejects `__TARGET__`, and builds the matcher pattern.
-The direct entry passes no outer shapes, so inherited-binding validation is a
-no-op. Its caller may build a single-pattern prefilter separately through
+`patterns[0]` entry and calls `compile_structural_expr_pattern`. This helper is
+used only by the single-expression entry point: it parses the expression,
+classifies metavars, rejects `__TARGET__`, and builds the matcher pattern.
+Its caller may build a single-pattern prefilter separately through
 `internal/rule/prefilter`.
+
+`compile_structural_rule` compiles `inside-toplevel` alternatives through
+`compile_inside_toplevel_patterns`, which parses top-level shapes, determines
+ignored fields from the match mode, and uses `inside-toplevel[index]` diagnostic
+paths. It then passes the outer shapes to `compile_structural_group`, which
+compiles `patterns`, `patterns-not`, and nested `then` groups recursively.
+Each expression shape is compiled with `compile_metavar_shape`;
+`structural_visible_shapes` validates inherited captures and builds the visible
+environments. The group compiler validates `__TARGET__` according to whether
+the entry has a `then` body and compiles guards and matcher patterns.
 
 ## Shape Parsing
 
@@ -87,7 +95,7 @@ As before the CST migration, a `Type_Name` starts with an uppercase identifier
 token. Explicit `type` metavars and typed type ellipsis metavars therefore need
 an uppercase name. Lowercase and keyword names remain rejected by the parser.
 
-Ordinary `patterns`, `patterns-not`, every `inside-expr` entry, and taint clause
+Ordinary `patterns`, `patterns-not`, every `then` entry, and taint clause
 shape are exactly one MoonBit expression. Each `inside-toplevel` shape is
 exactly one top-level item. The compiler keeps the parser's `CstNode` directly;
 there is no typed-syntax lowering or local tree conversion.
@@ -168,35 +176,23 @@ reserved. The exact built-ins listed above are reserved.
 
 ## Structural Rules
 
-`compile_structural_rule` compiles every ordered `inside-expr` or
-`inside-toplevel` alternative before inner positive and negative patterns when
-an inside context exists.
+StructuralRuleSpec contains the optional ordered inside_toplevel array and a
+recursive StructuralPatternGroupSpec. Each positive StructuralPatternSpec
+contains an atomic RulePatternSpec and an optional then_body. Negatives remain
+atomic. The compiled model has corresponding recursive types.
 
-Each inside-context shape is compiled as a normal pattern with:
+Compilation descends each group independently. A shape with then requires one
+bindable __TARGET__; leaves and negatives forbid it. Shape registrations are
+kept separate from ancestor environments. Descendants can reuse ancestor names
+with identical kinds, including ellipsis kinds, and guards can read ancestor
+id/const captures without a local declaration. New names stay in their branch.
+For inside-toplevel, visible environments retain every alternative so all
+referenced inherited names, even in deep guards, must exist with compatible
+kinds in every alternative. Diagnostics include the complete child YAML path.
 
-- the guards declared on its pattern object
-- `__TARGET__` registered as a special expression placeholder in its
-  `MetavarRegistry`
-
-Every alternative must contain exactly one `__TARGET__` in a complete
-expression-identifier position as counted by
-`count_bindable_expr_identifier_in_node`. This is the same position where the
-runtime matcher dispatches a special expression metavar. Pattern variables,
-binders, labels, and other literal name nodes do not count. The broader
-`count_supported_name_in_node` remains in use for `__SOURCE__` validation.
-
-Metavars declared by the selected inside alternative are visible during
-target-expression matching. Inner `patterns` and `patterns-not` must repeat the
-same inline form to reuse the binding. Reused captures must be declared by
-every outer alternative with the same kind, including named ellipsis captures.
-`ensure_inherited_inside_context_metavar_forms_for_all` checks both
-cross-alternative availability and kind consistency. Captures not referenced
-by inner patterns remain branch-local and need not agree.
-
-Normal `patterns` and `patterns-not` are compiled independently after the
-inside context through the same helper used by `compile_expr_pattern`. They
-must not contain `__TARGET__` in a complete expression position; the same
-spelling in a non-expression literal name remains literal.
+Negative mode is derived per group: root negatives prune; nested groups and
+inside-toplevel reject uncovered negatives. Guard compilation uses the visible
+environment; matcher compilation uses only the current shape's registrations.
 
 ## Guards
 
@@ -283,7 +279,7 @@ When changing inside-context behavior:
 3. preserve ordered first-match selection, including guard fallthrough but no
    fallback after an outer alternative is selected
 4. test rules with positive patterns, negative patterns, and negative-only
-   `inside-expr` / `inside-toplevel`
+   `then` / `inside-toplevel`
 5. check `internal/rule/apply` root buckets and `internal/rule/prefilter` outer-by-inner
    alternatives
 

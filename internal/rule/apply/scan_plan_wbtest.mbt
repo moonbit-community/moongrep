@@ -329,3 +329,68 @@ test "taint sink pattern indexes reject invalid ids" {
   expect_invalid_taint_sink_id(@taint.SinkId::PatternIndex(-1), 2)
   expect_invalid_taint_sink_id(@taint.SinkId::PatternIndex(2), 2)
 }
+
+///|
+fn unbucket_group(group : PlannedStructuralGroup) -> PlannedStructuralGroup {
+  let unbucket = fn(buckets : ExprPatternBuckets) {
+    let all = buckets.wildcard.copy()
+    for keyed in buckets.keyed {
+      all.append(keyed.patterns)
+    }
+    all.sort_by((a, b) => a.pattern_index.compare(b.pattern_index))
+    { ..buckets, wildcard: all, keyed: [], }
+  }
+  {
+    ..group,
+    positive: unbucket(group.positive),
+    negative: unbucket(group.negative),
+  }
+}
+
+///|
+test "recursive buckets and prefilters preserve findings" {
+  let source =
+    #|id: recursive
+    #|description: Ordered recursive buckets.
+    #|patterns:
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: "123"
+    #|        - shape: holder(__TARGET__)
+    #|          then:
+    #|            patterns:
+    #|              - shape: target()
+    #|        - shape: $(x:id)
+    #|          guard:
+    #|            $x: '^accepted$'
+    #|      patterns-not:
+    #|        - shape: danger()
+    #|  - shape: wrapper($_)
+    #|  - shape: target()
+  let rules = compile_scan_plan_rules([source])
+  let plan = ScanPlan::from_rules(rules)
+  let unbucketed : ScanPlan = {
+    ..plan,
+    groups: plan.groups.map(unbucket_group),
+  }
+  for
+    body in [
+      "wrapper(holder(target()))", "wrapper({ holder(target()); danger() })", "wrapper(accepted)",
+      "wrapper(123)", "target()", "missing()",
+    ] {
+    let text = "fn sample { " + body + " }"
+    let node = parse_scan_plan_root(text)
+    let expected = scan_plan_finding_signatures(
+      apply_structural_scan_plan_to_node("sample.mbt", node, unbucketed),
+    )
+    let actual = scan_plan_finding_signatures(
+      apply_structural_scan_plan_to_node(
+        "sample.mbt",
+        node,
+        plan.filter_source(text),
+      ),
+    )
+    assert_eq(actual, expected)
+  }
+}

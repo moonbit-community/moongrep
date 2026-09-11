@@ -3,44 +3,52 @@ test "validate rejects inherited type metavar kind mismatch" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: |
     #|      let value : $(T:type) = __TARGET__
-    #|patterns:
-    #|  - shape: target($T)
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($T)
   expect_compile_invalid_rule(
-    source, "patterns[0] cannot use inherited inside-expr[0] metavar T as id because it was declared as type",
+    source, "patterns[0].then.patterns[0] cannot use inherited ancestor[0] metavar T as id because it was declared as type",
   )
 }
 
 ///|
-test "validate allows inherited inside expr metavars with matching inline forms" {
+test "validate allows inherited then metavars with matching inline forms" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper($(value:exp), $(name:id), $(lit:const), $(arg:arg), __TARGET__)
     #|patterns:
-    #|  - shape: target($(value:exp), $(name:id), $(lit:const), $(arg:arg))
-    #|
+    #|  - shape: wrapper($(value:exp), $(name:id), $(lit:const), $(arg:arg), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(value:exp), $(name:id), $(lit:const), $(arg:arg))
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Expr),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Expr,
+        ),
         content="[\"value\"]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Identifier),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Identifier,
+        ),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Constant),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Constant,
+        ),
         content="[\"lit\"]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Argument),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Argument,
+        ),
         content="[\"arg\"]",
       )
     }
@@ -49,23 +57,23 @@ test "validate allows inherited inside expr metavars with matching inline forms"
 }
 
 ///|
-test "validate compiles inside expr id and const guards" {
+test "validate compiles then id and const guards" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), $(lit:const), __TARGET__)
     #|    guard:
     #|      $name: "^safe_"
     #|      $lit: "^ok$"
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.inside_expr.length(), 1)
-      let inside_expr = rule.inside_expr[0]
+      assert_eq(rule.group.patterns.length(), 1)
+      let inside_expr = rule.group.patterns[0].pattern
       assert_eq(inside_expr.guards.length(), 2)
       debug_inspect(
         inside_expr.compiled.metavars.names(Identifier),
@@ -103,7 +111,6 @@ test "validate compiles inside toplevel function shape" {
         inside_toplevel.compiled.metavars.names(Identifier),
         content="[\"param\", \"name\"]",
       )
-      assert_true(rule.inside_expr.is_empty())
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -228,15 +235,15 @@ test "validate compiles patterns-not metavars and guards" {
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns.length(), 1)
-      assert_eq(rule.patterns_not.length(), 1)
-      assert_eq(rule.patterns_not[0].guards.length(), 2)
+      assert_eq(rule.group.patterns.length(), 1)
+      assert_eq(rule.group.patterns_not.length(), 1)
+      assert_eq(rule.group.patterns_not[0].guards.length(), 2)
       debug_inspect(
-        rule.patterns_not[0].compiled.metavars.names(Identifier),
+        rule.group.patterns_not[0].compiled.metavars.names(Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.patterns_not[0].compiled.metavars.names(Constant),
+        rule.group.patterns_not[0].compiled.metavars.names(Constant),
         content="[\"lit\"]",
       )
     }
@@ -245,22 +252,27 @@ test "validate compiles patterns-not metavars and guards" {
 }
 
 ///|
-test "validate patterns-not inherits inside expr metavars without positive patterns" {
+test "validate patterns-not inherits then metavars without positive patterns" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
-    #|patterns-not:
-    #|  - shape: blocked($(name:id))
-    #|
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: blocked($(name:id))
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns.length(), 0)
-      assert_eq(rule.patterns_not.length(), 1)
+      assert_eq(rule.group.patterns[0].then_body.unwrap().patterns.length(), 0)
+      assert_eq(
+        rule.group.patterns[0].then_body.unwrap().patterns_not.length(),
+        1,
+      )
       debug_inspect(
-        rule.patterns_not[0].compiled.metavars.names(Identifier),
+        rule.group.patterns[0].then_body.unwrap().patterns_not[0].compiled.metavars.names(
+          Identifier,
+        ),
         content="[\"name\"]",
       )
     }
@@ -282,10 +294,10 @@ test "validate patterns-not inherits inside toplevel metavars without positive p
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns.length(), 0)
-      assert_eq(rule.patterns_not.length(), 1)
+      assert_eq(rule.group.patterns.length(), 0)
+      assert_eq(rule.group.patterns_not.length(), 1)
       debug_inspect(
-        rule.patterns_not[0].compiled.metavars.names(Identifier),
+        rule.group.patterns_not[0].compiled.metavars.names(Identifier),
         content="[\"name\"]",
       )
     }
@@ -318,70 +330,72 @@ test "validate rejects inherited inside toplevel kind mismatch" {
     #|  - shape: target($(name:exp))
     #|
   expect_compile_invalid(
-    source, "patterns[0] cannot use inherited inside-toplevel[0] metavar name as exp because it was declared as id",
+    source, "patterns[0] cannot use inherited ancestor[0] metavar name as exp because it was declared as id",
   )
 }
 
 ///|
-test "validate rejects inherited inside expr kind mismatch in patterns-not" {
+test "validate rejects inherited then kind mismatch in patterns-not" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper($(prefix:exp), __TARGET__)
-    #|patterns-not:
-    #|  - shape: target($(prefix:id))
-    #|
-  expect_compile_invalid(
-    source, "patterns-not[0] cannot use inherited inside-expr[0] metavar prefix as id because it was declared as exp",
-  )
-}
-
-///|
-test "validate rejects inherited inside expr metavars with different inline forms" {
-  let source =
-    #|id: example
-    #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper($(prefix:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target($(prefix:id))
-    #|
+    #|  - shape: wrapper($(prefix:exp), __TARGET__)
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: target($(prefix:id))
   expect_compile_invalid(
-    source, "patterns[0] cannot use inherited inside-expr[0] metavar prefix as id because it was declared as exp",
+    source, "patterns[0].then.patterns-not[0] cannot use inherited ancestor[0] metavar prefix as id because it was declared as exp",
   )
 }
 
 ///|
-test "validate rejects inherited inside expr argument kind mismatch" {
+test "validate rejects inherited then metavars with different inline forms" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
+    #|  - shape: wrapper($(prefix:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(prefix:id))
+  expect_compile_invalid(
+    source, "patterns[0].then.patterns[0] cannot use inherited ancestor[0] metavar prefix as id because it was declared as exp",
+  )
+}
+
+///|
+test "validate rejects inherited then argument kind mismatch" {
+  let source =
+    #|id: example
+    #|description: Example.
+    #|patterns:
     #|  - shape: wrapper($(arg:arg), __TARGET__)
-    #|patterns:
-    #|  - shape: target($(arg:exp))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(arg:exp))
   expect_compile_invalid(
-    source, "patterns[0] cannot use inherited inside-expr[0] metavar arg as exp because it was declared as arg",
+    source, "patterns[0].then.patterns[0] cannot use inherited ancestor[0] metavar arg as exp because it was declared as arg",
   )
 }
 
 ///|
-test "validate inside expr constant metavars use matching inline forms" {
+test "validate then constant metavars use matching inline forms" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper($(lit:const), __TARGET__)
     #|patterns:
-    #|  - shape: target($(lit:const))
-    #|
+    #|  - shape: wrapper($(lit:const), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(lit:const))
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Constant),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Constant,
+        ),
         content="[\"lit\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -389,55 +403,55 @@ test "validate inside expr constant metavars use matching inline forms" {
 }
 
 ///|
-test "validate inside expr requires exactly one target" {
+test "validate then requires exactly one target" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper(x)
     #|patterns:
-    #|  - shape: x
-    #|
+    #|  - shape: wrapper(x)
+    #|    then:
+    #|      patterns:
+    #|        - shape: x
   expect_compile_invalid(
     source, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
 }
 
 ///|
-test "validate inside expr counts only bindable target expressions" {
+test "validate then counts only bindable target expressions" {
   let pattern_only =
     #|id: example
     #|description: Pattern-only target spelling.
-    #|inside-expr:
-    #|  - shape: match input { __TARGET__ => body }
     #|patterns:
-    #|  - shape: marker()
-    #|
+    #|  - shape: match input { __TARGET__ => body }
+    #|    then:
+    #|      patterns:
+    #|        - shape: marker()
   expect_compile_invalid(
     pattern_only, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let binder_only =
     #|id: example
     #|description: Binder-only target spelling.
-    #|inside-expr:
-    #|  - shape: let __TARGET__ = value; body
     #|patterns:
-    #|  - shape: marker()
-    #|
+    #|  - shape: let __TARGET__ = value; body
+    #|    then:
+    #|      patterns:
+    #|        - shape: marker()
   expect_compile_invalid(
     binder_only, "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
   let pattern_and_expression =
     #|id: example
     #|description: One bindable target plus a pattern spelling.
-    #|inside-expr:
-    #|  - shape: match input { __TARGET__ => __TARGET__ }
     #|patterns:
-    #|  - shape: marker()
-    #|
+    #|  - shape: match input { __TARGET__ => __TARGET__ }
+    #|    then:
+    #|      patterns:
+    #|        - shape: marker()
   let rules = compile_one(pattern_and_expression)
   match rules[0].definition {
-    Structural(rule) => assert_eq(rule.inside_expr.length(), 1)
+    Structural(rule) => assert_eq(rule.group.patterns.length(), 1)
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -509,8 +523,8 @@ test "validate ordinary patterns reject only bindable target expressions" {
   let rules = compile_one(non_expression_names)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns.length(), 1)
-      assert_eq(rule.patterns_not.length(), 1)
+      assert_eq(rule.group.patterns.length(), 1)
+      assert_eq(rule.group.patterns_not.length(), 1)
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -541,28 +555,35 @@ test "validate rejects standalone expression as inside toplevel shape" {
 }
 
 ///|
-test "validate allows inner guard to reference inside expr id and const captures" {
+test "validate allows inner guard to reference then id and const captures" {
   let source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), $(lit:const), __TARGET__)
     #|patterns:
-    #|  - shape: call($(name:id), $(lit:const))
-    #|    guard:
-    #|      $name: "^safe_"
-    #|      $lit: "^ok$"
-    #|
+    #|  - shape: wrapper($(name:id), $(lit:const), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: call($(name:id), $(lit:const))
+    #|          guard:
+    #|            $name: "^safe_"
+    #|            $lit: "^ok$"
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns[0].guards.length(), 2)
+      assert_eq(
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.guards.length(),
+        2,
+      )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Identifier),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Identifier,
+        ),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Constant),
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+          Constant,
+        ),
         content="[\"lit\"]",
       )
     }
@@ -586,13 +607,13 @@ test "validate allows inner guard to reference inside toplevel id and const capt
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.patterns[0].guards.length(), 2)
+      assert_eq(rule.group.patterns[0].pattern.guards.length(), 2)
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Identifier),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.patterns[0].compiled.metavars.names(Constant),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
         content="[\"lit\"]",
       )
     }
@@ -601,99 +622,102 @@ test "validate allows inner guard to reference inside toplevel id and const capt
 }
 
 ///|
-test "validate rejects unsupported inside expr guard captures" {
+test "validate rejects unsupported then guard captures" {
   let unknown_source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      $other: "^safe_"
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   expect_compile_invalid(
-    unknown_source, "inside-expr[0].guard.$other references unknown metavar",
+    unknown_source, "patterns[0].guard.$other references unknown metavar",
   )
   let exp_source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(value:exp), __TARGET__)
     #|    guard:
     #|      $value: "^safe_"
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   expect_compile_invalid(
-    exp_source, "inside-expr[0].guard.$value cannot reference exp metavar value",
+    exp_source, "patterns[0].guard.$value cannot reference exp metavar value",
   )
   let arg_source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(value:arg), __TARGET__)
     #|    guard:
     #|      $value: "^safe_"
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   expect_compile_invalid(
-    arg_source, "inside-expr[0].guard.$value cannot reference arg metavar value",
+    arg_source, "patterns[0].guard.$value cannot reference arg metavar value",
   )
   let pat_source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: match input { $(item:pat) => __TARGET__ }
     #|    guard:
     #|      $item: "^Some"
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   expect_compile_invalid(
-    pat_source, "inside-expr[0].guard.$item cannot reference pat metavar item",
+    pat_source, "patterns[0].guard.$item cannot reference pat metavar item",
   )
   let invalid_regex_source =
     #|id: example
     #|description: Example.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
     #|    guard:
     #|      $name: "("
-    #|patterns:
-    #|  - shape: call()
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: call()
   expect_compile_invalid(
-    invalid_regex_source, "inside-expr[0].guard.$name has invalid regex",
+    invalid_regex_source, "patterns[0].guard.$name has invalid regex",
   )
 }
 
 ///|
-test "validate compiles ordered inside expr alternatives independently" {
+test "validate compiles ordered then alternatives independently" {
   let source =
     #|id: example
     #|description: Multiple expression contexts.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
     #|  - shape: container($(name:id), __TARGET__)
     #|    guard:
     #|      $name: "^safe_"
-    #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
-      assert_eq(rule.inside_expr.length(), 2)
-      assert_eq(rule.inside_expr[0].guards.length(), 0)
-      assert_eq(rule.inside_expr[1].guards.length(), 1)
+      assert_eq(rule.group.patterns.length(), 2)
+      assert_eq(rule.group.patterns[0].pattern.guards.length(), 0)
+      assert_eq(rule.group.patterns[1].pattern.guards.length(), 1)
       debug_inspect(
-        rule.inside_expr[0].compiled.metavars.names(Identifier),
+        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.inside_expr[1].compiled.metavars.names(Identifier),
+        rule.group.patterns[1].pattern.compiled.metavars.names(Identifier),
         content="[\"name\"]",
       )
     }
@@ -730,70 +754,79 @@ test "validate compiles ordered inside toplevel alternatives independently" {
 }
 
 ///|
-test "validate requires reused inside captures in every outer alternative" {
+test "validate keeps then sibling captures independent" {
   let missing =
     #|id: example
     #|description: Missing inherited capture.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
-    #|  - shape: container(__TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
-  expect_compile_invalid(
-    missing, "patterns[0] cannot use inherited inside-expr metavar name as id because inside-expr[1] does not declare it",
-  )
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
+    #|  - shape: container(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
+  ignore(compile_one(missing))
   let wrong_kind =
     #|id: example
     #|description: Conflicting inherited capture.
-    #|inside-expr:
-    #|  - shape: wrapper($(name:id), __TARGET__)
-    #|  - shape: container($(name:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target($(name:id))
-    #|
+    #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
+    #|  - shape: container($(name:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($(name:id))
   expect_compile_invalid(
-    wrong_kind, "patterns[0] cannot use inherited inside-expr[1] metavar name as id because it was declared as exp",
+    wrong_kind, "patterns[1].then.patterns[0] cannot use inherited ancestor[0] metavar name as id because it was declared as exp",
   )
   let missing_from_patterns_not =
     #|id: example
     #|description: Missing inherited negative capture.
-    #|inside-expr:
+    #|patterns:
     #|  - shape: wrapper($(name:id), __TARGET__)
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: blocked($(name:id))
     #|  - shape: container(__TARGET__)
-    #|patterns-not:
-    #|  - shape: blocked($(name:id))
-    #|
-  expect_compile_invalid(
-    missing_from_patterns_not, "patterns-not[0] cannot use inherited inside-expr metavar name as id because inside-expr[1] does not declare it",
-  )
+    #|    then:
+    #|      patterns-not:
+    #|        - shape: blocked($(name:id))
+  ignore(compile_one(missing_from_patterns_not))
 }
 
 ///|
-test "validate requires reused ellipsis captures in every outer alternative" {
+test "validate keeps then sibling ellipsis captures independent" {
   let missing =
     #|id: example
     #|description: Missing inherited ellipsis.
-    #|inside-expr:
-    #|  - shape: wrapper($$$(items:exp), __TARGET__)
-    #|  - shape: container(__TARGET__)
     #|patterns:
-    #|  - shape: target($$$(items:exp))
-    #|
-  expect_compile_invalid(
-    missing, "patterns[0] cannot use inherited inside-expr ellipsis metavar items because inside-expr[1] does not declare it with kind exp",
-  )
+    #|  - shape: wrapper($$$(items:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($$$(items:exp))
+    #|  - shape: container(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($$$(items:exp))
+  ignore(compile_one(missing))
   let wrong_kind =
     #|id: example
     #|description: Conflicting inherited ellipsis.
-    #|inside-expr:
-    #|  - shape: wrapper($$$(items:exp), __TARGET__)
-    #|  - shape: container($$$(items:id), __TARGET__)
     #|patterns:
-    #|  - shape: target($$$(items:exp))
-    #|
+    #|  - shape: wrapper($$$(items:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($$$(items:exp))
+    #|  - shape: container($$$(items:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target($$$(items:exp))
   expect_compile_invalid(
-    wrong_kind, "patterns[0] cannot use inherited inside-expr[1] ellipsis metavar items with a different kind",
+    wrong_kind, "patterns[1].then.patterns[0] cannot use inherited ancestor[0] ellipsis metavar items with a different kind",
   )
 }
 
@@ -802,25 +835,30 @@ test "validate merges bare ellipsis kinds across compatible inside reuse" {
   let source =
     #|id: compatible-ellipsis
     #|description: Compatible inherited ellipsis.
-    #|inside-expr:
-    #|  - shape: wrapper([$$$items], [$$$(items:exp)], __TARGET__)
-    #|  - shape: container([$$$(items:exp)], __TARGET__)
     #|patterns:
-    #|  - shape: target([$$$items], [$$$(items:exp)])
-    #|
+    #|  - shape: wrapper([$$$items], [$$$(items:exp)], __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target([$$$items], [$$$(items:exp)])
+    #|  - shape: container([$$$(items:exp)], __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target([$$$items], [$$$(items:exp)])
   let rules = compile_one(source)
   match rules[0].definition {
     Structural(rule) => {
       assert_true(
-        rule.inside_expr[0].compiled.metavars.kind_of("items") ==
+        rule.group.patterns[0].pattern.compiled.metavars.kind_of("items") ==
         Some(Ellipsis(ExpItem)),
       )
       assert_true(
-        rule.inside_expr[1].compiled.metavars.kind_of("items") ==
+        rule.group.patterns[1].pattern.compiled.metavars.kind_of("items") ==
         Some(Ellipsis(ExpItem)),
       )
       assert_true(
-        rule.patterns[0].compiled.metavars.kind_of("items") ==
+        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.kind_of(
+          "items",
+        ) ==
         Some(Ellipsis(ExpItem)),
       )
     }
@@ -833,15 +871,18 @@ test "validate allows unreferenced outer captures to differ by alternative" {
   let source =
     #|id: example
     #|description: Branch-local captures.
-    #|inside-expr:
-    #|  - shape: wrapper($(left:id), __TARGET__)
-    #|  - shape: container($(right:exp), __TARGET__)
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper($(left:id), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
+    #|  - shape: container($(right:exp), __TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   let rules = compile_one(source)
   match rules[0].definition {
-    Structural(rule) => assert_eq(rule.inside_expr.length(), 2)
+    Structural(rule) => assert_eq(rule.group.patterns.length(), 2)
     Taint(_) => fail("expected structural rule")
   }
 }
@@ -851,12 +892,15 @@ test "validate reports target error shape from later outer alternatives" {
   let source =
     #|id: example
     #|description: Missing target in second context.
-    #|inside-expr:
-    #|  - shape: wrapper(__TARGET__)
-    #|  - shape: container(no_target)
     #|patterns:
-    #|  - shape: target()
-    #|
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
+    #|  - shape: container(no_target)
+    #|    then:
+    #|      patterns:
+    #|        - shape: target()
   expect_compile_invalid_pattern(
     source, "container(no_target)", "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
   )
