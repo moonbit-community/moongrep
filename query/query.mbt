@@ -73,9 +73,8 @@ fn collect_node_matches(
   cst : @untyped_cst.CstNode,
   matches : Array[Map[String, BoundValue]],
 ) -> Unit {
-  let index = @cst.SourceIndex::new(cst)
-  index.walk(index.roots(), fn(region) {
-    if @matching.match_expr_pattern_candidate(pattern, index.candidate(region))
+  @cst.visit_expr_match_candidate_roots(cst, fn(candidate) {
+    if @matching.match_expr_pattern_candidate(pattern, candidate)
       is Some(result) {
       matches.push(capture_map_from_bindings(result.bindings))
       @cst.NodeVisitPrune
