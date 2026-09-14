@@ -1,5 +1,45 @@
 # Recursive scan benchmark comparison
 
+## Lightweight execution follow-up
+
+A root structural entry is plain when it has no `inside-toplevel` clause and no
+positive root pattern has `then`. A plan containing only plain structural entries
+uses direct CST traversal and standalone matching. Mixed plans retain one source
+index for recursive entries, while plain entries bypass environment projection
+and candidate/region caches. Public CST queries use the same direct traversal.
+Direct traversal and ordinary indexed traversal share one private semantic
+kernel; the indexed adapter maps its candidates back to cached source regions.
+
+Release timing is a publication check, not a CI gate. Compare alternating builds
+on the same host and MoonBit toolchain, run each build three times, and use the
+median benchmark mean. Ordinary structural and query cases must remain within
+1.15 times the pre-index baseline. Recursive failure must remain within 1.10
+times the indexed baseline, and the builtin mixed case within 1.05 times that
+baseline. CI checks findings, order, candidate traversal compatibility, and cache
+expansion counts instead of elapsed time.
+
+Measured on Windows on 2026-09-14 with `moon 0.1.20260907`. Runs alternated
+between extracted baseline trees and the working tree. The ordinary and query
+baseline is `8050e53`; the recursive and builtin baseline is indexed commit
+`dd6fb20`. Each value below is the median of three benchmark means.
+
+| Backend | Case | Baseline | Working tree | Ratio | Limit |
+| --- | --- | ---: | ---: | ---: | ---: |
+| native | ordinary structural scan | 76.17 µs | 67.73 µs | 0.89× | 1.15× |
+| native | query captures from CST | 56.88 µs | 55.89 µs | 0.98× | 1.15× |
+| native | recursive failure bytes=84 depth=8 | 930.12 µs | 941.61 µs | 1.01× | 1.10× |
+| native | builtin structural scan | 174.66 µs | 143.17 µs | 0.82× | 1.05× |
+| wasm | ordinary structural scan | 66.49 µs | 57.32 µs | 0.86× | 1.15× |
+| wasm | query captures from CST | 57.05 µs | 51.60 µs | 0.90× | 1.15× |
+| wasm | recursive failure bytes=84 depth=8 | 857.34 µs | 853.53 µs | 1.00× | 1.10× |
+| wasm | builtin structural scan | 183.10 µs | 138.18 µs | 0.75× | 1.05× |
+
+All eight acceptance ratios pass. These numbers describe this host only; the
+historical Linux measurements below remain useful for the indexed evaluator's
+original before/after comparison.
+
+## Indexed evaluator baseline
+
 Measured on Linux with `moon 0.1.20260907` using release builds. The baseline is
 commit `8050e53` with the same benchmark fixtures added. Each case ran before/after
 in its own process, with parsing and rule planning outside the timed loop.
