@@ -72,8 +72,8 @@ pub struct SourceIndex {
   priv step_ids : Map[SourceStep, CursorId]
   priv child_cursors : Map[(RegionId, Bool), CursorId]
   priv root_cursors : Map[NodeId, CursorId]
-  priv descendant_cursors : Map[(NodeId, Bool), CursorId]
-  priv sequence_cursors : Map[(Int, Int, Int, Bool), CursorId]
+  priv descendant_cursors : Map[NodeId, CursorId]
+  priv sequence_cursors : Map[(Int, Int, Int), CursorId]
   priv direct_cursors : Map[(NodeId, TraversalLayer), CursorId]
 }
 
@@ -85,6 +85,9 @@ fn is_source_index_child(
   label : String?,
   child : @untyped_cst.CstNode,
 ) -> Bool {
+  if is_indexable_cst_child(label, child) {
+    return true
+  }
   if label == Some("doc") ||
     is_location_label(label) ||
     is_pure_punctuation_kind(child.kind) {
@@ -93,10 +96,6 @@ fn is_source_index_child(
   // Split type and constructor captures use the raw names, even when the parser
   // also provides their combined semantic_name.
   if parent.kind is @untyped_cst.Pattern_Constr && label == Some("name") {
-    return true
-  }
-  if !is_syntax_kind(child.kind) ||
-    child.kind is @untyped_cst.Syntax_Interpolation {
     return true
   }
   let semantics : Array[(String?, @untyped_cst.CstNode)] = []

@@ -1,6 +1,5 @@
 ///|
 priv enum TraversalLayer {
-  Ordinary
   Matching
   Expression
 } derive(Eq, Hash)
@@ -15,53 +14,89 @@ fn SourceIndex::node_roots(self : SourceIndex, id : NodeId) -> CursorId {
   if self.root_cursors.get(id) is Some(cursor) {
     return cursor
   }
-  let node = self.node(id)
-  let cursor = if node.kind.is_expr() || node.kind is @untyped_cst.Expression {
-    self.visit(
-      if node.kind is @untyped_cst.Expression {
-        self.target(id)
-      } else {
-        self.direct(id)
-      },
-    )
-  } else {
-    match node.kind {
-      @untyped_cst.Impl_Function | @untyped_cst.Impl_Test =>
-        self.function_body_cursor(id)
-      @untyped_cst.Impl_ImplMethod =>
-        self
-        .raw(id, "method")
-        .map(method_node => self.function_body_cursor(method_node))
-        .unwrap_or(0)
-      @untyped_cst.Impl_Let | @untyped_cst.Impl_Const =>
-        self.raw(id, "expr").map(expr => self.node_roots(expr)).unwrap_or(0)
-      _ =>
-        self.join_nodes(
-          self.nodes[id].children.map(entry => entry.1),
-          roots=true,
-        )
-    }
-  }
+  let regions : Array[RegionId] = []
+  ignore(
+    visit_candidate_roots(IndexedTraversal(self), self.node(id), fn(
+      candidate,
+      position,
+    ) {
+      regions.push(self.candidate_region(candidate, position))
+      NodeVisitPrune
+    }),
+  )
+  let cursor = self.regions_cursor(regions)
   self.root_cursors[id] = cursor
   cursor
+}
+
+///|
+fn SourceIndex::candidate_region(
+  self : SourceIndex,
+  candidate : ExprMatchCandidate,
+  position : SequencePosition?,
+) -> RegionId {
+  match candidate {
+    Direct(node) => self.direct(self.node_id(node))
+    Sequence(values) =>
+      match position {
+        Some(position) =>
+          self.slice(
+            position.list,
+            position.start,
+            position.start + values.length(),
+          )
+        None => abort("indexed sequence candidate has no source position")
+      }
+  }
+}
+
+///|
+fn SourceIndex::regions_cursor(
+  self : SourceIndex,
+  regions : Array[RegionId],
+) -> CursorId {
+  let mut cursor = 0
+  for i = regions.length() - 1; i >= 0; i = i - 1 {
+    cursor = self.visit(regions[i], next=cursor)
+  }
+  cursor
+}
+
+///|
+fn SourceIndex::ordinary_children(
+  self : SourceIndex,
+  region : RegionId,
+) -> CursorId {
+  let position = match self.regions[region] {
+    Node(_) => None
+    Slice(list, start, _) => Some({ list, start, })
+  }
+  let regions : Array[RegionId] = []
+  ignore(
+    visit_candidate_children(
+      IndexedTraversal(self),
+      self.candidate(region),
+      position,
+      fn(candidate, position) {
+        regions.push(self.candidate_region(candidate, position))
+        NodeVisitPrune
+      },
+    ),
+  )
+  self.regions_cursor(regions)
 }
 
 ///|
 fn SourceIndex::function_body_cursor(
   self : SourceIndex,
   id : NodeId,
-  full? : Bool = false,
 ) -> CursorId {
   self
   .raw(id, "body")
   .map(body => {
     if self.node(body).kind.is_expr() ||
       self.node(body).kind is @untyped_cst.Expression {
-      if full {
-        self.scan(self.target(body))
-      } else {
-        self.visit(self.target(body))
-      }
+      self.scan(self.target(body))
     } else {
       self.node_roots(body)
     }
@@ -73,40 +108,21 @@ fn SourceIndex::function_body_cursor(
 fn SourceIndex::join_nodes(
   self : SourceIndex,
   nodes : Array[NodeId],
-  roots? : Bool = false,
-  full? : Bool = false,
 ) -> CursorId {
   let mut cursor = 0
   for i = nodes.length() - 1; i >= 0; i = i - 1 {
-    let child = if roots {
-      self.node_roots(nodes[i])
-    } else {
-      self.descendants(nodes[i], full~)
-    }
-    cursor = self.concat(child, cursor)
+    cursor = self.concat(self.descendants(nodes[i]), cursor)
   }
-  if full {
-    self.finish(cursor)
-  } else {
-    cursor
-  }
+  self.finish(cursor)
 }
 
 ///|
-fn SourceIndex::descendants(
-  self : SourceIndex,
-  id : NodeId,
-  full? : Bool = false,
-) -> CursorId {
-  if self.descendant_cursors.get((id, full)) is Some(cursor) {
+fn SourceIndex::descendants(self : SourceIndex, id : NodeId) -> CursorId {
+  if self.descendant_cursors.get(id) is Some(cursor) {
     return cursor
   }
   let cursor = if self.node(id).kind.is_expr() {
-    if full {
-      self.expression_visit(id)
-    } else {
-      self.visit(self.direct(id))
-    }
+    self.expression_visit(id)
   } else {
     self.join_nodes(
       self.nodes[id].children.filter_map(entry => {
@@ -116,10 +132,9 @@ fn SourceIndex::descendants(
           Some(entry.1)
         }
       }),
-      full~,
     )
   }
-  self.descendant_cursors[(id, full)] = cursor
+  self.descendant_cursors[id] = cursor
   cursor
 }
 
@@ -128,11 +143,10 @@ fn SourceIndex::named_cursor(
   self : SourceIndex,
   id : NodeId,
   label : String,
-  full? : Bool = false,
 ) -> CursorId {
   self
   .semantic_child(id, label)
-  .map(child => self.descendants(child, full~))
+  .map(child => self.descendants(child))
   .unwrap_or(0)
 }
 
@@ -141,23 +155,15 @@ fn SourceIndex::binding_cursor(
   self : SourceIndex,
   id : NodeId,
   label : String,
-  full? : Bool = false,
 ) -> CursorId {
   let mut cursor = 0
   if self.raw(id, label) is Some(list) {
     let bindings = self.raw_all(list, "item")
     for i = bindings.length() - 1; i >= 0; i = i - 1 {
-      cursor = self.concat(
-        self.named_cursor(bindings[i], "expr", full~),
-        cursor,
-      )
+      cursor = self.concat(self.named_cursor(bindings[i], "expr"), cursor)
     }
   }
-  if full {
-    self.finish(cursor)
-  } else {
-    cursor
-  }
+  self.finish(cursor)
 }
 
 ///|
@@ -165,7 +171,6 @@ fn SourceIndex::case_cursor(
   self : SourceIndex,
   id : NodeId,
   label : String,
-  full? : Bool = false,
 ) -> CursorId {
   let cases : Array[NodeId] = []
   for list in self.raw_all(id, label) {
@@ -178,14 +183,10 @@ fn SourceIndex::case_cursor(
   }
   let mut cursor = 0
   for i = cases.length() - 1; i >= 0; i = i - 1 {
-    cursor = self.concat(self.named_cursor(cases[i], "body", full~), cursor)
-    cursor = self.concat(self.named_cursor(cases[i], "cond", full~), cursor)
+    cursor = self.concat(self.named_cursor(cases[i], "body"), cursor)
+    cursor = self.concat(self.named_cursor(cases[i], "cond"), cursor)
   }
-  if full {
-    self.finish(cursor)
-  } else {
-    cursor
-  }
+  self.finish(cursor)
 }
 
 ///|
@@ -197,31 +198,31 @@ pub fn SourceIndex::children(
   if self.child_cursors.get((region, full)) is Some(cursor) {
     return cursor
   }
-  let cursor = match self.regions[region] {
-    Node(id) =>
-      self.direct_children(id, layer=if full { Matching } else { Ordinary })
-    Slice(list, start, end) =>
-      if start == end {
-        0
-      } else {
-        let first = self.sequences[list].nodes[start]
-        if continuation_owner(self.node(first).kind) && start + 1 < end {
-          self.concat(
-            self.direct_children(
-              first,
-              layer=if full { Matching } else { Ordinary },
-            ),
-            self.sequence_cursor(list, start + 1, end, full~),
-          )
+  let cursor = if full {
+    let cursor = match self.regions[region] {
+      Node(id) => self.direct_children(id, Matching)
+      Slice(list, start, end) =>
+        if start == end {
+          0
         } else {
-          self.sequence_cursor(list, start, end, full~)
+          let first = self.sequences[list].nodes[start]
+          if continuation_owner(self.node(first).kind) && start + 1 < end {
+            self.concat(
+              self.direct_children(first, Matching),
+              self.sequence_cursor(list, start + 1, end),
+            )
+          } else {
+            self.sequence_cursor(list, start, end)
+          }
         }
-      }
-  }
-  let cursor = if full && self.regions[region] is Slice(_, _, _) {
-    self.finish(cursor)
+    }
+    if self.regions[region] is Slice(_, _, _) {
+      self.finish(cursor)
+    } else {
+      cursor
+    }
   } else {
-    cursor
+    self.ordinary_children(region)
   }
   self.child_cursors[(region, full)] = cursor
   cursor
@@ -235,30 +236,23 @@ fn SourceIndex::sequence_cursor(
   list : Int,
   start : Int,
   end : Int,
-  full? : Bool = false,
 ) -> CursorId {
-  if self.sequence_cursors.get((list, start, end, full)) is Some(cursor) {
+  if self.sequence_cursors.get((list, start, end)) is Some(cursor) {
     return cursor
   }
   let mut cursor = 0
   for i = end - 1; i >= start; i = i - 1 {
-    if self.sequence_cursors.get((list, i, end, full)) is Some(found) {
+    if self.sequence_cursors.get((list, i, end)) is Some(found) {
       cursor = found
       continue
     }
     let id = self.sequences[list].nodes[i]
     cursor = if continuation_owner(self.node(id).kind) && i + 1 < end {
-      if full {
-        self.scan(self.slice(list, i, end))
-      } else {
-        self.visit(self.slice(list, i, end))
-      }
-    } else if full {
-      self.concat(self.scan(self.direct(id)), cursor)
+      self.scan(self.slice(list, i, end))
     } else {
-      self.visit(self.direct(id), next=cursor)
+      self.concat(self.scan(self.direct(id)), cursor)
     }
-    self.sequence_cursors[(list, i, end, full)] = cursor
+    self.sequence_cursors[(list, i, end)] = cursor
   }
   cursor
 }
@@ -267,12 +261,11 @@ fn SourceIndex::sequence_cursor(
 fn SourceIndex::direct_children(
   self : SourceIndex,
   id : NodeId,
-  layer? : TraversalLayer = Ordinary,
+  layer : TraversalLayer,
 ) -> CursorId {
   if self.direct_cursors.get((id, layer)) is Some(cursor) {
     return cursor
   }
-  let full = layer != Ordinary
   let node = self.node(id)
   let pieces : Array[CursorId] = []
   match node.kind {
@@ -280,89 +273,82 @@ fn SourceIndex::direct_children(
       if self.nodes[id].sequence is Some(list) {
         pieces.push(
           if layer == Expression {
-            self.join_nodes(self.sequences[list].nodes, full=true)
-          } else if full {
-            self.scan(self.slice(list, 0, self.sequences[list].nodes.length()))
+            self.join_nodes(self.sequences[list].nodes)
           } else {
-            self.visit(self.slice(list, 0, self.sequences[list].nodes.length()))
+            self.scan(self.slice(list, 0, self.sequences[list].nodes.length()))
           },
         )
       }
     @untyped_cst.Expr_Function | @untyped_cst.Expr_LetFn =>
       pieces.push(
         if layer == Expression {
-          self.named_cursor(id, "body", full=true)
+          self.named_cursor(id, "body")
         } else {
-          self.function_body_cursor(id, full~)
+          self.function_body_cursor(id)
         },
       )
     @untyped_cst.Expr_LetAnd =>
       for binding in self.raw_all(id, "binding") {
         pieces.push(
           if layer == Expression {
-            self.named_cursor(binding, "body", full=true)
+            self.named_cursor(binding, "body")
           } else {
-            self.function_body_cursor(binding, full~)
+            self.function_body_cursor(binding)
           },
         )
         pieces.push(
           self
           .raw(binding, "expr")
           .map(expr => {
-            if full {
-              if layer == Expression {
-                self.descendants(expr, full=true)
-              } else {
-                self.scan(self.target(expr))
-              }
+            if layer == Expression {
+              self.descendants(expr)
             } else {
-              self.node_roots(expr)
+              self.scan(self.target(expr))
             }
           })
           .unwrap_or(0),
         )
       }
     @untyped_cst.Expr_Infix if operator_name(node) == Some("&&") => {
-      pieces.push(self.named_cursor(id, "lhs", full~))
-      pieces.push(self.named_cursor(id, "rhs", full~))
+      pieces.push(self.named_cursor(id, "lhs"))
+      pieces.push(self.named_cursor(id, "rhs"))
     }
     @untyped_cst.Expr_If | @untyped_cst.Expr_While =>
       for label in ["cond", "body", "else"] {
-        pieces.push(self.named_cursor(id, label, full~))
+        pieces.push(self.named_cursor(id, label))
       }
     @untyped_cst.Expr_For
     | @untyped_cst.Expr_ForEach
     | @untyped_cst.Expr_ListComprehension => {
       if self.raw(id, "pattern") is Some(_) {
-        pieces.push(self.named_cursor(id, "expr", full~))
+        pieces.push(self.named_cursor(id, "expr"))
       }
-      pieces.push(self.binding_cursor(id, "init", full~))
+      pieces.push(self.binding_cursor(id, "init"))
       if self.raw(id, "pattern") is None {
-        pieces.push(self.named_cursor(id, "cond", full~))
+        pieces.push(self.named_cursor(id, "cond"))
       }
-      pieces.push(self.binding_cursor(id, "continue", full~))
+      pieces.push(self.binding_cursor(id, "continue"))
       if node.kind is @untyped_cst.Expr_ListComprehension {
-        pieces.push(self.named_cursor(id, "guard", full~))
+        pieces.push(self.named_cursor(id, "guard"))
       }
-      pieces.push(self.named_cursor(id, "body", full~))
+      pieces.push(self.named_cursor(id, "body"))
       if !(node.kind is @untyped_cst.Expr_ListComprehension) {
-        pieces.push(self.named_cursor(id, "else", full~))
-        pieces.push(self.named_cursor(id, "where", full~))
+        pieces.push(self.named_cursor(id, "else"))
+        pieces.push(self.named_cursor(id, "where"))
       }
     }
     @untyped_cst.Expr_Match
     | @untyped_cst.Expr_LexMatch
     | @untyped_cst.Expr_LexScan => {
-      pieces.push(self.named_cursor(id, "expr", full~))
-      pieces.push(self.case_cursor(id, "case", full~))
+      pieces.push(self.named_cursor(id, "expr"))
+      pieces.push(self.case_cursor(id, "case"))
     }
     @untyped_cst.Expr_Try => {
-      pieces.push(self.named_cursor(id, "body", full~))
-      pieces.push(self.case_cursor(id, "case", full~))
-      pieces.push(self.case_cursor(id, "else", full~))
+      pieces.push(self.named_cursor(id, "body"))
+      pieces.push(self.case_cursor(id, "case"))
+      pieces.push(self.case_cursor(id, "else"))
     }
-    @untyped_cst.Expr_Quantifier =>
-      pieces.push(self.named_cursor(id, "body", full~))
+    @untyped_cst.Expr_Quantifier => pieces.push(self.named_cursor(id, "body"))
     _ =>
       pieces.push(
         self.join_nodes(
@@ -373,19 +359,18 @@ fn SourceIndex::direct_children(
               Some(entry.1)
             }
           }),
-          full~,
         ),
       )
   }
   let mut cursor = pieces.last().unwrap_or(0)
   for i = pieces.length() - 2; i >= 0; i = i - 1 {
-    cursor = if full && cursor == 0 {
+    cursor = if cursor == 0 {
       self.finish(pieces[i])
     } else {
       self.concat(pieces[i], cursor)
     }
   }
-  if full && node.kind is @untyped_cst.Expr_LetAnd {
+  if node.kind is @untyped_cst.Expr_LetAnd {
     cursor = self.finish(cursor)
   }
   self.direct_cursors[(id, layer)] = cursor
@@ -398,6 +383,6 @@ fn SourceIndex::direct_children(
 // and the additional candidates keep their original order without rematching.
 fn SourceIndex::expression_visit(self : SourceIndex, id : NodeId) -> CursorId {
   let first = self.scan(self.direct(id))
-  let second = self.direct_children(id, layer=Expression)
+  let second = self.direct_children(id, Expression)
   self.intern_step(AfterContinue(first, second))
 }

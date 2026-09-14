@@ -58,6 +58,7 @@ test "explicit regex binders share semantic declaration identity across shadowin
         index.resolve(index.scope(index.direct(index.node_id(syntax))), "item"),
         parameter,
       )
+      ignore(assert_direct_indexed_compatible(root))
     }
   }
 }
