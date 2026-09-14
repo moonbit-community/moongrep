@@ -62,6 +62,10 @@ pub fn toplevel_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
 
 pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
 
+pub fn visit_expr_match_candidate_children(ExprMatchCandidate, (ExprMatchCandidate) -> Unit) -> Unit
+
+pub fn visit_expr_match_candidate_roots(@untyped_cst.CstNode, (ExprMatchCandidate) -> NodeVisitAction) -> Unit
+
 // Errors
 
 // Types and methods

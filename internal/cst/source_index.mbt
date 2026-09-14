@@ -71,8 +71,8 @@ pub struct SourceIndex {
   priv step_ids : Map[SourceStep, CursorId]
   priv child_cursors : Map[(RegionId, Bool), CursorId]
   priv root_cursors : Map[NodeId, CursorId]
-  priv descendant_cursors : Map[(NodeId, Bool), CursorId]
-  priv sequence_cursors : Map[(Int, Int, Int, Bool), CursorId]
+  priv descendant_cursors : Map[NodeId, CursorId]
+  priv sequence_cursors : Map[(Int, Int, Int), CursorId]
   priv direct_cursors : Map[(NodeId, TraversalLayer), CursorId]
 }
 
@@ -102,15 +102,7 @@ pub fn SourceIndex::new(root : @untyped_cst.CstNode) -> SourceIndex {
   let pending = [root_id]
   while pending.pop() is Some(id) {
     for (label, child) in self.nodes[id].node.children {
-      // Tokens and location metadata cannot be expression targets or binders.
-      // Interpolations retain their parsed expression subtree for the matcher.
-      if (
-          is_syntax_kind(child.kind) &&
-          !(child.kind is @untyped_cst.Syntax_Interpolation)
-        ) ||
-        is_pure_punctuation_kind(child.kind) ||
-        is_location_label(label) ||
-        label == Some("doc") {
+      if !is_indexable_cst_child(label, child) {
         continue
       }
       let child_id = self.add_node(child)
