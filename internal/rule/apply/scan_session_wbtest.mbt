@@ -227,3 +227,54 @@ test "success failure and negative rejection scale across source and rule chains
     }
   }
 }
+
+///|
+test "mixed scans keep plain entries out of evaluation caches" {
+  let rules = compile_scan_plan_rules([
+    (
+      #|id: plain-before
+      #|description: First plain rule.
+      #|patterns:
+      #|  - shape: wrapper($_)
+    ),
+    (
+      #|id: recursive
+      #|description: Recursive middle rule.
+      #|patterns:
+      #|  - shape: wrapper(__TARGET__)
+      #|    then:
+      #|      patterns:
+      #|        - shape: target()
+    ),
+    (
+      #|id: plain-after
+      #|description: Last plain rule.
+      #|patterns:
+      #|  - shape: wrapper($_)
+    ),
+  ])
+  let plan = ScanPlan::from_rules(rules)
+  let root = parse_scan_plan_root("fn sample { wrapper(target()) }")
+  let session = ScanSession::new(plan, root)
+  let findings = apply_scan_session("mixed.mbt", root, session)
+  debug_inspect(
+    findings.map(finding => finding.rule_id),
+    content="[\"plain-before\", \"recursive\", \"plain-after\"]",
+  )
+  let plain_groups = plan.structural_entries.filter_map(entry => {
+    if entry.plain_root {
+      Some(entry.group)
+    } else {
+      None
+    }
+  })
+  for key, _ in session.candidates {
+    assert_false(plain_groups.contains(key.group))
+  }
+  for key, _ in session.regions {
+    assert_false(plain_groups.contains(key.group))
+  }
+  for key, _ in session.projections {
+    assert_false(plain_groups.contains(key.1))
+  }
+}

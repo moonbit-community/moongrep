@@ -4,6 +4,7 @@ priv struct CstStructuralRuleEntry {
   structural : CompiledStructuralRule
   group : Int
   inside_pattern_buckets : ExprPatternBuckets
+  plain_root : Bool
 }
 
 ///|
@@ -71,6 +72,16 @@ pub fn ScanPlan::is_empty(self : ScanPlan) -> Bool {
 }
 
 ///|
+fn ScanPlan::has_only_plain_structural_entries(self : ScanPlan) -> Bool {
+  for entry in self.structural_entries {
+    if !entry.plain_root {
+      return false
+    }
+  }
+  true
+}
+
+///|
 fn scan_plan_rule_matches_source(
   rule : CompiledRule,
   source : StringView,
@@ -115,7 +126,21 @@ fn cst_structural_rule_entry(
     inside_pattern_buckets: ExprPatternBuckets::from_patterns(
       structural.inside_toplevel,
     ),
+    plain_root: structural_rule_has_plain_root(structural),
   }
+}
+
+///|
+fn structural_rule_has_plain_root(rule : CompiledStructuralRule) -> Bool {
+  if !rule.inside_toplevel.is_empty() {
+    return false
+  }
+  for pattern in rule.group.patterns {
+    if pattern.then_body is Some(_) {
+      return false
+    }
+  }
+  true
 }
 
 ///|

@@ -24,6 +24,9 @@ pub fn apply_structural_scan_plan_to_node(
   if plan.structural_entries.is_empty() {
     return []
   }
+  if plan.has_only_plain_structural_entries() {
+    return apply_plain_structural_entries_to_node(file, node, plan)
+  }
   apply_scan_session(file, node, ScanSession::new(plan, node))
 }
 
@@ -68,7 +71,15 @@ fn apply_scan_session(
         pending.push((next, entries))
         let children : Array[CstStructuralRuleEntry] = []
         for entry in entries {
-          match session.candidate(entry.group, region, 0) {
+          let result = if entry.plain_root {
+            evaluate_plain_group_candidate(
+              session.plan.groups[entry.group],
+              session.index.candidate(region),
+            )
+          } else {
+            session.candidate(entry.group, region, 0)
+          }
+          match result {
             GroupHit(index, loc) =>
               push_structural_hit(file, entry.rule, index, loc, hits)
             GroupNegative => ()
