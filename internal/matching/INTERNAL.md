@@ -146,16 +146,17 @@ used as a labelled `body` container can bind a single whole-body expression
 placeholder to the candidate block. This preserves multi-statement body
 captures used by loop and function-context rules.
 
-Expression matching uses the candidate traversal in `internal/cst/source_traversal.mbt`.
-Function, method, test, lambda, local-function, and letrec body blocks produce a
-brace-free `Sequence` candidate instead of a direct block candidate. Explicit
-nested blocks remain `Direct(Expr_Block)` candidates and keep their braces in
-the match location. `SourceIndex` stores lexical scopes and target roles once;
-matching no longer searches a subtree by source span to locate a target.
-Scope resolution is initialized on demand, so ordinary queries need only the
-candidate graph. Full recursive scans also retain the previous visitor's
-completion and resume edges, including repeated publication of the same
-location. Those edges share candidate and region evaluation states.
+Expression matching has equivalent direct and indexed candidate traversals in
+`internal/cst`. Function, method, test, lambda, local-function, and letrec body
+blocks produce a brace-free `Sequence` candidate instead of a direct block
+candidate. Explicit nested blocks remain `Direct(Expr_Block)` candidates and
+keep their braces in the match location. Plain rules and queries walk the CST
+directly without IDs, scopes, or traversal caches. Recursive and
+`inside-toplevel` rules use `SourceIndex`, which stores lexical scopes and target
+roles once; matching no longer searches a subtree by source span to locate a
+target. Full recursive scans also retain the previous visitor's completion and
+resume edges, including repeated publication of the same location. Those edges
+share candidate and region evaluation states.
 
 A sequence accepts only a complete multi-statement `Expression` shape or the
 omitted-continuation shortcut for ordinary `let` and `guard`. A terminal named

@@ -6,9 +6,17 @@ Capture names have stable integer IDs. Planning uses a work list and computes
 each group's transitive capture dependencies bottom up, including guards and
 negative patterns. Filtering a plan keeps these IDs unchanged.
 
-Each call to structural application owns a `ScanSession`. Related rules share
-its source index, capture interner, environment interner, and evaluation caches.
-No source node, binding environment, or evaluation cache survives in `ScanPlan`.
+Root groups with no `then` and no `inside-toplevel` are marked as plain entries.
+If every retained structural entry is plain, application walks the CST directly
+and does not create a `SourceIndex` or `ScanSession`. Plain groups try positives,
+guards, and negatives in source order with the standalone matcher.
+
+All other plans use one `ScanSession`. Related recursive and top-level-context
+rules share its source index, capture interner, environment interner, and
+evaluation caches. In a mixed plan, plain entries consume the indexed traversal's
+borrowed candidate but still use standalone matching; they never create a
+candidate key, environment projection, or evaluation frame. No source node,
+binding environment, or evaluation cache survives in `ScanPlan`.
 
 ## Source regions and scopes
 
@@ -16,6 +24,12 @@ No source node, binding environment, or evaluation cache survives in `ScanPlan`.
 is an owning statement list plus start/end offsets, including empty ranges.
 Candidates borrow statement views. Shared suffix cursors avoid reconstructing
 or rescanning all later statements for each continuation.
+
+`internal/cst/direct_traversal.mbt` follows the same ordinary candidate boundaries
+and control actions directly from the CST. It creates no node IDs, span buckets,
+sequence index, scopes, or cursor cache. Sequence and continuation candidates use
+`ArrayView`, so descending through a continuation does not copy its suffix. Plain
+plans and `ExprQuery::captures_from_cst` use this traversal.
 
 The index distinguishes function body containers from explicit blocks and keeps
 the previous candidates, locations, and order. Original CST references flow
@@ -31,11 +45,12 @@ recursive groups, and statement continuations use the same scope implementation
 for traversal and selected targets.
 
 The old full visitor could resume expression traversal after a matching visitor
-returned Continue. These control edges are represented by `AfterContinue` and
+returned Continue. Indexed control edges are represented by `AfterContinue` and
 `Finish` cursors. This preserves additional candidates and repeated findings
-inside top-level contexts. Ordinary query/root traversal uses the same child
-selection rules without those resume edges. The compatibility snapshots were
-recorded from the implementation before this refactor.
+inside top-level contexts. The indexed ordinary traversal and direct traversal
+use the same child selection rules without those resume edges. Compatibility
+tests compare their complete order, immediate child boundaries, pruning, and
+early return.
 
 ## Capture environments
 
@@ -65,14 +80,18 @@ states are essential: caching only candidates would still repeatedly traverse
 overlapping subtrees. The explicit evaluation stack advances into child groups
 or source successors, even when a selected target equals its candidate.
 
-Evaluation never appends findings. Nested `then` returns a semantic decision.
+Indexed evaluation never appends findings. Nested `then` returns a semantic decision.
 Top-level contexts first check their complete region for uncovered negatives,
 then publish root findings using cached candidates and the original traversal
-order. Ordinary rules keep their cross-rule publication and pruning order.
+order. Plain rules keep their cross-rule publication and pruning order by carrying
+only the entries that missed into each directly visited child subtree. Mixed
+plans make the same decision per entry during their one indexed root traversal.
 
 ## Verification
 
-The regression suite covers continuation bounds, lexical shadowing, deep capture
+The regression suite covers direct/indexed traversal compatibility, plain/indexed
+finding equivalence, mixed-plan ordering and cache exclusion, continuation bounds,
+lexical shadowing, deep capture
 dependencies, different values and binding identities at the same region,
 ellipsis rollback, priority, negative coverage, and legacy publication order.
 A test-only uncached interpreter compares complete findings on 216 generated
