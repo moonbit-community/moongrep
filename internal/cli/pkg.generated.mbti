@@ -43,8 +43,8 @@ pub(all) enum CliCommand {
   Lint(CliOptions)
   DocsList
   DocsShow(String)
-  DumpImpl(source~ : String, exit_code~ : Bool, output_json~ : Bool)
-  DumpExpr(source~ : String, exit_code~ : Bool, output_json~ : Bool)
+  DumpImpl(source~ : String, strict_check~ : Bool, exit_code~ : Bool, output_json~ : Bool)
+  DumpExpr(source~ : String, strict_check~ : Bool, exit_code~ : Bool, output_json~ : Bool)
 }
 
 pub(all) enum CliDiagnostic {

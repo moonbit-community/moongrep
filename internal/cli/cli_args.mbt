@@ -73,8 +73,18 @@ pub(all) enum CliCommand {
   Lint(CliOptions)
   DocsList
   DocsShow(String)
-  DumpImpl(source~ : String, exit_code~ : Bool, output_json~ : Bool)
-  DumpExpr(source~ : String, exit_code~ : Bool, output_json~ : Bool)
+  DumpImpl(
+    source~ : String,
+    strict_check~ : Bool,
+    exit_code~ : Bool,
+    output_json~ : Bool
+  )
+  DumpExpr(
+    source~ : String,
+    strict_check~ : Bool,
+    exit_code~ : Bool,
+    output_json~ : Bool
+  )
 }
 
 ///|
@@ -215,6 +225,11 @@ let dump_command : @argparse.Command = Command(
       about="Check whether parsing succeeds without printing CST output.",
     ),
     FlagArg(
+      "strict-check",
+      long="strict-check",
+      about="Apply scan's additional pattern validation to the dump input.",
+    ),
+    FlagArg(
       "json",
       long="json",
       about="Write one compact JSON dump record to stdout and diagnostics to stderr.",
@@ -297,11 +312,14 @@ fn docs_cli_command(docs_matches : @argparse.Matches) -> CliCommand raise {
 fn dump_cli_command(dump_matches : @argparse.Matches) -> CliCommand raise {
   let impl_source = last_cli_value(dump_matches.values, "impl")
   let expr_source = last_cli_value(dump_matches.values, "expr")
+  let strict_check = cli_flag_enabled(dump_matches.flags, "strict-check")
   let exit_code = cli_flag_enabled(dump_matches.flags, "exit-code")
   let output_json = cli_flag_enabled(dump_matches.flags, "json")
   match (impl_source, expr_source) {
-    (Some(source), None) => DumpImpl(source~, exit_code~, output_json~)
-    (None, Some(source)) => DumpExpr(source~, exit_code~, output_json~)
+    (Some(source), None) =>
+      DumpImpl(source~, strict_check~, exit_code~, output_json~)
+    (None, Some(source)) =>
+      DumpExpr(source~, strict_check~, exit_code~, output_json~)
     (Some(_), Some(_)) =>
       raise new_usage_error("dump --impl cannot be combined with --expr")
     (None, None) => raise new_usage_error("missing dump --impl or --expr")
