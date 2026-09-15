@@ -1,4 +1,22 @@
 ///|
+priv struct TestScopedCandidate {
+  candidate : ExprMatchCandidate
+  shadowed_names : Array[String]
+}
+
+///|
+fn test_scope_names(index : SourceIndex, scope : ScopeId) -> Array[String] {
+  let names : Array[String] = []
+  for current = scope; current >= 0; current = index.scopes[current].parent {
+    let name = index.scopes[current].name
+    if !names.contains(name) {
+      names.push(name)
+    }
+  }
+  names
+}
+
+///|
 fn scoped_names_at_call(
   source : String,
   callee : String,
@@ -8,31 +26,32 @@ fn scoped_names_at_call(
     fail("unexpected parse diagnostics for `\{source}`")
   }
   let mut result : Array[String]? = None
-  visit_scoped_expr_match_candidate(
-    Direct(expression_root(parsed.root())),
-    [],
-    fn(item) {
-      match item.candidate {
-        Direct(expr) if expr.kind is @untyped_cst.Expr_Apply &&
-          raw_child(expr, "func").bind(normalized_expr_identifier_name) ==
-          Some(callee) => {
-          result = Some(item.shadowed_names)
-          NodeVisitReturn
-        }
-        _ => NodeVisitContinue
+  let index = SourceIndex::new(parsed.root())
+  index.walk(index.roots(), fn(region) {
+    match index.candidate(region) {
+      Direct(expr) if expr.kind is @untyped_cst.Expr_Apply &&
+        raw_child(expr, "func").bind(normalized_expr_identifier_name) ==
+        Some(callee) => {
+        result = Some(test_scope_names(index, index.scope(region)))
+        NodeVisitReturn
       }
-    },
-  )
+      _ => NodeVisitContinue
+    }
+  })
   result
 }
 
 ///|
 fn collect_scoped_expr_match_candidate_roots_for_test(
   root : @untyped_cst.CstNode,
-  output : Array[ScopedExprMatchCandidate],
+  output : Array[TestScopedCandidate],
 ) -> Unit {
-  visit_scoped_expr_match_candidate_roots(root, fn(item) {
-    output.push(item)
+  let index = SourceIndex::new(root)
+  index.walk(index.roots(), fn(region) {
+    output.push({
+      candidate: index.candidate(region),
+      shadowed_names: test_scope_names(index, index.scope(region)),
+    })
     NodeVisitContinue
   })
 }
@@ -63,7 +82,7 @@ fn parse_scoped_structure(source : String) -> @untyped_cst.CstNode raise {
 
 ///|
 fn direct_candidate_count(
-  candidates : Array[ScopedExprMatchCandidate],
+  candidates : Array[TestScopedCandidate],
   expected : (@untyped_cst.NodeKind) -> Bool,
 ) -> Int {
   let mut count = 0
@@ -158,7 +177,7 @@ test "try, lex, regex, and quantifier binders shadow nested expressions" {
 
 ///|
 test "function bodies are sequences while nested blocks stay direct" {
-  let plain : Array[ScopedExprMatchCandidate] = []
+  let plain : Array[TestScopedCandidate] = []
   collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { first(); second() }"),
     plain,
@@ -171,7 +190,7 @@ test "function bodies are sequences while nested blocks stay direct" {
     direct_candidate_count(plain, kind => kind is @untyped_cst.Expr_Block),
     0,
   )
-  let nested : Array[ScopedExprMatchCandidate] = []
+  let nested : Array[TestScopedCandidate] = []
   collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { { first(); second() } }"),
     nested,
@@ -192,7 +211,7 @@ test "function bodies are sequences while nested blocks stay direct" {
 ///|
 test "continuation owners expose suffixes instead of header-only candidates" {
   let source = "fn sample { before(); let mut value = source(); body(value); defer cleanup(); after(); errdefer on_error(); recovered(); proof_let witness = fact(); finish(witness) }"
-  let candidates : Array[ScopedExprMatchCandidate] = []
+  let candidates : Array[TestScopedCandidate] = []
   collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure(source),
     candidates,
@@ -238,7 +257,7 @@ test "continuation owners expose suffixes instead of header-only candidates" {
 
 ///|
 test "sequence continuations apply bindings to later candidates" {
-  let candidates : Array[ScopedExprMatchCandidate] = []
+  let candidates : Array[TestScopedCandidate] = []
   collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { let value = source(); target(value) }"),
     candidates,

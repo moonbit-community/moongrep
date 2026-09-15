@@ -16,6 +16,8 @@ pub fn match_expr_pattern_candidate(CompiledExprPattern, @cst.ExprMatchCandidate
 
 pub fn match_expr_pattern_candidate_with_bindings(CompiledExprPattern, @cst.ExprMatchCandidate, @hashmap.HashMap[String, @model.BoundValue]) -> ExprMatch?
 
+pub fn match_indexed_expr_pattern(CompiledExprPattern, @cst.SourceIndex, Int, @hashmap.HashMap[String, @model.BoundValue]) -> IndexedExprMatch?
+
 pub fn parse_metavar_syntax(String) -> MetavarSyntax
 
 // Errors
@@ -47,6 +49,11 @@ pub(all) struct ExprMatch {
 pub(all) struct IgnoredPatternField {
   parent_kind : @untyped_cst.NodeKind
   child_name : String
+}
+
+pub(all) struct IndexedExprMatch {
+  result : ExprMatch
+  target : TargetRef?
 }
 
 pub(all) struct MetavarEntry {
@@ -102,6 +109,17 @@ pub(all) enum ResolvedMetavar {
   ResolvedNamed(MetavarEntry)
   ResolvedSpecialExpr(String)
 }
+
+pub(all) struct TargetRef {
+  region : Int
+  scope : Int
+}
+
+pub struct ValueInterner {
+  // private fields
+}
+pub fn ValueInterner::intern(Self, @model.BoundValue) -> Int
+pub fn ValueInterner::new() -> Self
 
 // Type aliases
 

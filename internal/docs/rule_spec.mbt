@@ -80,35 +80,12 @@ let _embed_rulespec_md : String =
   #|
   #|### Top-Level Keys
   #|
-  #|Only these top-level keys are accepted:
-  #|
-  #|- `id` (required): non-empty YAML string that must not contain `/`
-  #|- `description` (required): YAML string
-  #|- `patterns` (optional for structural rules): non-empty YAML array
-  #|- `patterns-not` (optional for structural rules): non-empty YAML array using
-  #|  the same object schema as `patterns`
-  #|- `inside-expr` (optional for structural rules): non-empty YAML array using the
-  #|  same `shape` and optional `guard` object schema as `patterns`; entries are
-  #|  ordered alternative outer expression contexts
-  #|- `inside-toplevel` (optional for structural rules): non-empty YAML array using
-  #|  the same `shape` and optional `guard` keys as `inside-expr`, plus optional
-  #|  `match-mode`; each shape is parsed as one MoonBit top-level item
-  #|- `taint` (required for taint rules): YAML mapping
-  #|
-  #|Unknown top-level keys are rejected.
-  #|
-  #|Each rule must choose exactly one rule mode:
-  #|
-  #|- structural mode: `patterns`, optionally with `patterns-not`; or
-  #|  `inside-expr` or `inside-toplevel` with `patterns`, `patterns-not`, or both
-  #|- taint mode: `taint`
-  #|
-  #|`patterns` and `taint` are mutually exclusive. `inside-expr`,
-  #|`inside-toplevel`, and `patterns-not` are valid only on structural rules; they
-  #|are rejected on taint rules. `inside-expr` and `inside-toplevel` are mutually
-  #|exclusive. `patterns-not` must appear with `patterns`, `inside-expr`, or
-  #|`inside-toplevel`. An `inside-expr` or `inside-toplevel` rule without
-  #|`patterns` must include `patterns-not`.
+  #|Allowed root keys are `id`, `description`, `patterns`, `patterns-not`,
+  #|`inside-toplevel`, and `taint`. A structural rule requires positive `patterns`,
+  #|unless it has `inside-toplevel` and `patterns-not`. Present pattern arrays must
+  #|be non-empty. `taint` is mutually exclusive with structural fields.
+  #|`inside-toplevel` is an ordered array of shape/guard objects with optional
+  #|`match-mode`. `then` belongs to positive pattern objects, never the rule root.
   #|
   #|`id` is the local rule name within its file directory. `description` is also
   #|required and must be a string. Its content is preserved as supplied by YAML,
@@ -116,7 +93,7 @@ let _embed_rulespec_md : String =
   #|
   #|### Pattern Objects
   #|
-  #|Structural entries in `patterns`, `patterns-not`, and `inside-expr` use this
+  #|Structural entries in `patterns` and `patterns-not` use this
   #|object schema. `inside-toplevel` adds the `match-mode` key described below.
   #|
   #|Only these keys are accepted:
@@ -124,10 +101,11 @@ let _embed_rulespec_md : String =
   #|- `shape` (required): YAML string containing one MoonBit expression snippet,
   #|  or one top-level item for `inside-toplevel`
   #|- `guard` (optional): YAML mapping from `$`-prefixed capture name to regex string
+  #|- `then` (optional, positive `patterns` only): recursive child group
   #|- `match-mode` (optional, `inside-toplevel` only): `exact` or `partial`
   #|
   #|Unknown keys inside a pattern object are rejected.
-  #|`match-mode` is rejected in `patterns`, `patterns-not`, `inside-expr`, and
+  #|`match-mode` is rejected in `patterns`, `patterns-not`, `then`, and
   #|taint clauses.
   #|
   #|Taint `sources`, `sinks`, and `sanitizers` use the same `shape` key. A `guard`
@@ -141,7 +119,7 @@ let _embed_rulespec_md : String =
   #|Valid expression shapes include calls, method calls, field accesses,
   #|operators, blocks, conditionals, loops, matches, lambdas, collection literals,
   #|record expressions, and other expression-sized MoonBit syntax. Ordinary
-  #|`patterns`, `patterns-not`, and `inside-expr` shapes are not a whole file,
+  #|`patterns` and `patterns-not` shapes are not a whole file,
   #|top-level declaration, package fragment, or import list.
   #|
   #|Each `inside-toplevel` shape is parsed as one top-level item, such as a
@@ -183,7 +161,7 @@ let _embed_rulespec_md : String =
   #|its braces.
   #|
   #|The same candidates and ranges are used by ordinary positive patterns,
-  #|`patterns-not`, `inside-expr` target traversal, and expression queries.
+  #|`patterns-not`, `then` target traversal, and expression queries.
   #|
   #|### Let Shapes With Omitted Bodies
   #|
@@ -427,7 +405,7 @@ let _embed_rulespec_md : String =
   #|
   #|`$_` is the ignore placeholder described below. `__TARGET__` and `__SOURCE__`
   #|keep their existing built-in meanings. `__TARGET__` is only valid in
-  #|`inside-expr` and `inside-toplevel`; `__SOURCE__` is only valid in taint sink
+  #|`then` and `inside-toplevel`; `__SOURCE__` is only valid in taint sink
   #|and sanitizer shapes.
   #|
   #|### Where Metavars Can Bind
@@ -744,7 +722,7 @@ let _embed_rulespec_md : String =
   #|Only `id` and `const` captures can be guarded. A guard key that refers to an
   #|`exp` capture, an `arg` capture, a `pat` capture, a `type` capture, or an unknown name is
   #|rejected during rule compilation. Inner `patterns` may guard `id` and `const`
-  #|captures established by `inside-expr` or `inside-toplevel`.
+  #|captures established by `then` or `inside-toplevel`.
   #|
   #|Guards are checked after the structural CST match succeeds. All guards in a
   #|single pattern object must match; this is AND semantics. Regex matching uses
@@ -758,7 +736,7 @@ let _embed_rulespec_md : String =
   #|
   #|## Structural Rules
   #|
-  #|A structural rule has a non-empty `patterns` array, or has `inside-expr` or
+  #|A structural rule has a non-empty `patterns` array, or has
   #|`inside-toplevel` with non-empty `patterns`, non-empty `patterns-not`, or both.
   #|
   #|```yaml
@@ -824,7 +802,7 @@ let _embed_rulespec_md : String =
   #|reported and would not be checked against `patterns-not`; use a narrower
   #|positive pattern when same-root shapes must be excluded.
   #|
-  #|With `inside-expr` or `inside-toplevel`, negative matching starts with the
+  #|With `then` or `inside-toplevel`, negative matching starts with the
   #|bindings established by the outer match. If the rule also has `patterns`, each
   #|expression in the captured `__TARGET__` subtree uses the same positive-first
   #|ordering: positive patterns run first, and `patterns-not` is checked only when
@@ -832,89 +810,101 @@ let _embed_rulespec_md : String =
   #|`patterns`, and `patterns-not` are all present, positive matches cover their
   #|whole matched subtrees, and any negative match found outside those covered
   #|positive subtrees rejects the whole outer match. `patterns-not` is also valid
-  #|with `inside-expr` or `inside-toplevel` and no `patterns`; that form is
+  #|inside `then`, or with `inside-toplevel` and no root `patterns`; that form is
   #|described below.
   #|
-  #|### `inside-expr`
+  #|### `then`
   #|
-  #|`inside-expr` restricts a structural rule to matches inside a larger expression
-  #|context. It may be used with `patterns`, with `patterns-not`, or with both.
+  #|Each positive `patterns` entry may have a `then` object. Its only keys are
+  #|`patterns` and `patterns-not`. At least one array must be present, and every
+  #|present array must be non-empty. Nested positive entries may themselves have
+  #|`then`, with any finite depth. Unknown keys and invalid types are rejected with
+  #|the complete YAML path, for example `patterns[0].then.patterns[1].then`.
   #|
   #|```yaml
-  #|id: wrapped-target
-  #|description: |
-  #|  Match a target call inside either supported context.
-  #|inside-expr:
-  #|  - shape: wrapper($(prefix:exp), __TARGET__)
-  #|  - shape: container($(prefix:exp), __TARGET__)
+  #|id: nested-target
+  #|description: Match a target inside selected wrappers.
   #|patterns:
-  #|  - shape: target.call($(prefix:exp))
+  #|  - shape: wrapper($(name:id), __TARGET__)
+  #|    then:
+  #|      patterns:
+  #|        - shape: container(__TARGET__)
+  #|          then:
+  #|            patterns:
+  #|              - shape: target()
+  #|                guard:
+  #|                  $name: '^safe_'
+  #|            patterns-not:
+  #|              - shape: danger()
   #|```
   #|
-  #|`inside-expr` is a non-empty YAML array of pattern objects. Each `shape` is
-  #|parsed as one MoonBit expression snippet, and its optional `guard` filters `id`
-  #|and `const` captures declared by that outer shape. Entries are ordered
-  #|alternatives.
+  #|A shape with `then` must contain exactly one `__TARGET__` in a bindable whole
+  #|expression position. Leaves and negative patterns prohibit that placeholder.
+  #|`then` is forbidden on negative patterns, taint clauses, and the
+  #|`inside-toplevel` entries themselves. The positive patterns inside an
+  #|`inside-toplevel` rule may use it.
   #|
-  #|Additional rules:
+  #|At each candidate, positive entries are tried in YAML order. Shape, guard, and
+  #|`then` must all succeed. Failure tries the next sibling; success prunes the
+  #|whole matched subtree. If every positive entry fails, negative patterns are
+  #|checked before scanning children. A failed nested group only fails its owning
+  #|pattern, so other alternatives and descendant candidates remain eligible.
   #|
-  #|- Every `inside-expr` entry must contain exactly one `__TARGET__` occurrence in
-  #|  a binding-capable position.
-  #|- `__TARGET__` must occupy a whole expression position, such as a whole call
-  #|  argument, receiver, or block expression. If it appears only as a label or
-  #|  other non-expression value, no target subtree can be searched.
-  #|- When terminal `__TARGET__` follows a continuation owner, as in
-  #|  `let ...; __TARGET__`, `let mut ...; __TARGET__`, or
-  #|  `guard ...; __TARGET__`, it selects the complete remaining candidate suffix.
-  #|  That suffix is searched as an expression sequence without synthetic block
-  #|  braces. An empty suffix is an empty sequence.
-  #|- `__TARGET__` is reserved and must not be used as an metavar name.
-  #|- Entries in `patterns` and `patterns-not` must not contain `__TARGET__` in a
-  #|  binding-capable position.
-  #|- Captures declared by the selected `inside-expr` entry remain visible when
-  #|  matching the inner pattern entries; inner shapes reference them by repeating
-  #|  the same metavar form.
-  #|- Any capture reused by an inner `patterns` or `patterns-not` entry must be
-  #|  declared by every `inside-expr` alternative with the same kind. This includes
-  #|  named ellipsis captures and their ellipsis kinds. Outer captures that are not
-  #|  referenced by an inner entry may differ between alternatives.
+  #|| Nested group | Success condition |
+  #|| --- | --- |
+  #|| Only `patterns` | At least one complete positive entry matches |
+  #|| Only `patterns-not` | No negative matches; an empty target succeeds |
+  #|| Both | At least one positive match and no uncovered negative matches |
   #|
-  #|Runtime behavior:
+  #|A successful positive entry covers its entire matched subtree, even when it
+  #|has its own `then`. Negative rejection is local to its group. Root negatives
+  #|without `inside-toplevel` only prune branches; `inside-toplevel` retains whole
+  #|context rejection. Findings are committed only after all applicable negative
+  #|checks succeed.
   #|
-  #|- the current expression tries eligible `inside-expr` entries in YAML order
-  #|- an entry whose shape does not match, or whose guard fails, falls through to
-  #|  the next entry
-  #|- the first entry whose shape and guard both match selects the captured
-  #|  `__TARGET__` subtree and bindings
-  #|- once an entry is selected, later alternatives are not tried even if inner
-  #|  matching produces no finding
-  #|- when `patterns` is present, each expression in the captured subtree first
-  #|  tries the ordered positive patterns using the bindings established by
-  #|  the selected outer entry; a positive hit is recorded and its matched subtree
-  #|  covers any nested negative matches
-  #|- when `patterns` and `patterns-not` are both present, a candidate that fails
-  #|  all positive patterns is then checked against `patterns-not` using the
-  #|  the selected outer bindings; a negative match outside a positive-hit subtree
-  #|  rejects the whole outer match
-  #|- when `patterns` is absent, every expression in the captured subtree is
-  #|  checked against `patterns-not` using the selected outer bindings; if none of
-  #|  them match, the outer expression produces one hit
-  #|- if an inner positive or negative pattern references an inherited `id` capture
-  #|  with the same inline `$(name:id)` form, that candidate is skipped when the
-  #|  path from `__TARGET__` to the candidate crosses a lexical binder with the
-  #|  same normalized identifier name
+  #|Captures remain visible to all descendants, including through intermediate
+  #|shapes that do not reference them. Reusing a name requires the same kind and
+  #|bound value, including named ellipsis kinds. Guards may read ancestor `id` or
+  #|`const` captures without repeating them in the current shape. New captures do
+  #|not escape to parents or siblings. A candidate referencing an ancestor id
+  #|shadowed by a lexical binding fails. Shadowing includes bindings between the
+  #|current shape and its target, and remains in effect across further levels.
   #|
-  #|Each successful outer expression produces at most one finding. Its `loc` is
-  #|the outer expression location. With `patterns`, the first inner positive hit in
-  #|traversal order determines `pattern_index`; later positive hits in the same
-  #|outer expression do not produce additional findings. With only `patterns-not`,
-  #|`pattern_index` is `0`.
+  #|A target after a continuation owner (`let`, `let mut`, or `guard`) selects the
+  #|remaining expression sequence, which may be empty. Function bodies retain
+  #|sequence matching; explicit blocks retain block matching. A target may select
+  #|the whole current candidate: recursion descends the finite rule tree and need
+  #|not shrink the source range. A failed `then` does not retry another ellipsis
+  #|partition of the same shape.
+  #|
+  #|Each finding uses the root `patterns` entry's location and zero-based index.
+  #|Multiple internal matches produce only one outer finding. For example:
+  #|
+  #|```yaml
+  #|id: alternatives
+  #|description: Accept either a clean wrapper or a container with a target.
+  #|patterns:
+  #|  - shape: wrapper(__TARGET__)
+  #|    then:
+  #|      patterns-not:
+  #|        - shape: danger()
+  #|  - shape: container(__TARGET__)
+  #|    then:
+  #|      patterns:
+  #|        - shape: target()
+  #|```
+  #|
+  #|The removed `inside-expr` key produces a migration error. Move each old outer
+  #|alternative into root `patterns` and place the former child `patterns` and
+  #|`patterns-not` in that entry's `then`. Preserve alternative order and guards.
+  #|This changes fallback, successful-subtree pruning, and `pattern_index`; it is
+  #|not a behavior-preserving field rename.
   #|
   #|### `inside-toplevel`
   #|
   #|`inside-toplevel` restricts a structural rule to matches inside selected
   #|MoonBit top-level items. It is a non-empty ordered array using the same object
-  #|schema and target-subtree semantics as `inside-expr`. Each entry's `shape` is
+  #|shape/guard schema; its selected target is scanned with the root group. Each entry's `shape` is
   #|parsed as exactly one top-level item, not as an expression.
   #|
   #|```yaml
@@ -971,7 +961,6 @@ let _embed_rulespec_md : String =
   #|
   #|Additional rules:
   #|
-  #|- `inside-toplevel` and `inside-expr` are mutually exclusive.
   #|- Every `inside-toplevel` entry must contain exactly one `__TARGET__`
   #|  occurrence in a binding-capable expression position within the top-level
   #|  item.
@@ -979,14 +968,14 @@ let _embed_rulespec_md : String =
   #|  optional `guard` may filter those captures.
   #|- Captures declared by the selected `inside-toplevel` entry remain visible to
   #|  inner `patterns` and `patterns-not`, using the same all-alternatives
-  #|  declaration and kind-consistency rules as `inside-expr`.
+  #|  declaration and kind-consistency rules across all top-level alternatives, including references in nested groups and guards.
   #|- `inside-toplevel` is not supported on taint rules.
   #|
   #|The candidate top-level item tries eligible `inside-toplevel` entries in YAML
   #|order. The first entry whose shape and guard both match selects the target and
   #|bindings; later alternatives are not tried after selection. The expression
   #|subtree captured by `__TARGET__` is searched with the same inherited-binding
-  #|and negative-coverage behavior as `inside-expr`.
+  #|and negative-coverage behavior as `then`.
   #|Reporting differs: with `patterns`, every inner positive hit produces a
   #|finding whose `loc` is the inner match location. With only `patterns-not`, one
   #|finding is produced at the matched top-level item location.
@@ -1117,21 +1106,14 @@ let _embed_rulespec_md : String =
   #|- `id`, `description`, or `shape` is not a YAML string
   #|- `id` is empty or contains `/`
   #|- the rule does not choose structural or taint mode
-  #|- `inside-expr` appears on a taint rule
   #|- `inside-toplevel` appears on a taint rule
-  #|- both `inside-expr` and `inside-toplevel` appear
-  #|- `inside-expr` or `inside-toplevel` is not an array or is empty
-  #|- an `inside-expr` or `inside-toplevel` entry is not a mapping
   #|- `match-mode` appears outside an `inside-toplevel` entry
   #|- `match-mode` is not `exact` or `partial`
   #|- `match-mode: partial` is used with a non-function top-level shape
-  #|- `inside-expr` is present without `patterns` or `patterns-not`
   #|- `inside-toplevel` is present without `patterns` or `patterns-not`
   #|- `patterns` is not an array or is empty
   #|- a `patterns` entry is not a mapping
   #|- `patterns-not` is not an array or is empty
-  #|- `patterns-not` appears without `patterns`, `inside-expr`, or
-  #|  `inside-toplevel`
   #|- `patterns-not` appears on a taint rule
   #|- an unsupported top-level key appears
   #|- a `patterns-not` entry is not a mapping
@@ -1161,16 +1143,16 @@ let _embed_rulespec_md : String =
   #|- an ellipsis kind is incompatible with its list position, conflicts with
   #|  another typed occurrence, or shares a name with a normal metavar
   #|- a guard regex is invalid
-  #|- an `inside-expr` entry does not contain exactly one binding-capable
-  #|  `__TARGET__`
   #|- an `inside-toplevel` entry does not contain exactly one binding-capable
   #|  `__TARGET__`
-  #|- a structural `patterns` or `patterns-not` entry contains binding-capable
+  #|- a structural leaf or `patterns-not` entry contains binding-capable
   #|  `__TARGET__`
+  #|- a positive shape with `then` does not have exactly one bindable target
+  #|- a `then` object has unknown keys, invalid arrays, or no child patterns
   #|- a structural `patterns` or `patterns-not` entry uses an inherited
-  #|  `inside-expr` or `inside-toplevel` metavar name with a different kind
-  #|- a capture reused by `patterns` or `patterns-not` is missing from any outer
-  #|  alternative, or a named ellipsis is declared with a different ellipsis kind
+  #|  `then` or `inside-toplevel` metavar name with a different kind
+  #|- an inherited capture referenced by any descendant shape or guard is missing
+  #|  from an `inside-toplevel` alternative, or has an incompatible kind
   #|- a taint source contains binding-capable `__SOURCE__`
   #|- a taint sink or sanitizer does not contain exactly one binding-capable
   #|  `__SOURCE__`
@@ -1216,10 +1198,11 @@ let _embed_rulespec_md : String =
   #|id: unsafe-wrapper
   #|description: |
   #|  Match a sink only under an unsafe wrapper.
-  #|inside-expr:
-  #|  - shape: unsafe(__TARGET__)
   #|patterns:
-  #|  - shape: sink($_)
+  #|  - shape: unsafe(__TARGET__)
+  #|    then:
+  #|      patterns:
+  #|        - shape: sink($_)
   #|```
   #|
   #|The rule first finds `unsafe(...)`, then searches only the expression captured
@@ -1250,10 +1233,11 @@ let _embed_rulespec_md : String =
   #|id: wrapper-without-danger
   #|description: |
   #|  Match wrappers whose payload contains no danger call.
-  #|inside-expr:
+  #|patterns:
   #|  - shape: wrapper(__TARGET__)
-  #|patterns-not:
-  #|  - shape: danger()
+  #|    then:
+  #|      patterns-not:
+  #|        - shape: danger()
   #|```
   #|
   #|The rule first finds `wrapper(...)`, then scans the `__TARGET__` subtree for

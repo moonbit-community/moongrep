@@ -1,8 +1,9 @@
 id: example
 description: |
   Wrapper payload without danger.
-inside-expr:
+patterns:
   - shape: wrapper(__TARGET__)
-patterns-not:
-  - shape: danger()
+    then:
+      patterns-not:
+        - shape: danger()
 

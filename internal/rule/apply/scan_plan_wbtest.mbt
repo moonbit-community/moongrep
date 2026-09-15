@@ -329,3 +329,190 @@ test "taint sink pattern indexes reject invalid ids" {
   expect_invalid_taint_sink_id(@taint.SinkId::PatternIndex(-1), 2)
   expect_invalid_taint_sink_id(@taint.SinkId::PatternIndex(2), 2)
 }
+
+///|
+fn unbucket_group(group : PlannedStructuralGroup) -> PlannedStructuralGroup {
+  let unbucket = fn(buckets : ExprPatternBuckets) {
+    let all = buckets.wildcard.copy()
+    for keyed in buckets.keyed {
+      all.append(keyed.patterns)
+    }
+    all.sort_by((a, b) => a.pattern_index.compare(b.pattern_index))
+    { ..buckets, wildcard: all, keyed: [], }
+  }
+  {
+    ..group,
+    positive: unbucket(group.positive),
+    negative: unbucket(group.negative),
+  }
+}
+
+///|
+test "recursive buckets and prefilters preserve findings" {
+  let source =
+    #|id: recursive
+    #|description: Ordered recursive buckets.
+    #|patterns:
+    #|  - shape: wrapper(__TARGET__)
+    #|    then:
+    #|      patterns:
+    #|        - shape: "123"
+    #|        - shape: holder(__TARGET__)
+    #|          then:
+    #|            patterns:
+    #|              - shape: target()
+    #|        - shape: $(x:id)
+    #|          guard:
+    #|            $x: '^accepted$'
+    #|      patterns-not:
+    #|        - shape: danger()
+    #|  - shape: wrapper($_)
+    #|  - shape: target()
+  let rules = compile_scan_plan_rules([source])
+  let plan = ScanPlan::from_rules(rules)
+  let unbucketed : ScanPlan = {
+    ..plan,
+    groups: plan.groups.map(unbucket_group),
+  }
+  for
+    body in [
+      "wrapper(holder(target()))", "wrapper({ holder(target()); danger() })", "wrapper(accepted)",
+      "wrapper(123)", "target()", "missing()",
+    ] {
+    let text = "fn sample { " + body + " }"
+    let node = parse_scan_plan_root(text)
+    let expected = scan_plan_finding_signatures(
+      apply_structural_scan_plan_to_node("sample.mbt", node, unbucketed),
+    )
+    let actual = scan_plan_finding_signatures(
+      apply_structural_scan_plan_to_node(
+        "sample.mbt",
+        node,
+        plan.filter_source(text),
+      ),
+    )
+    assert_eq(actual, expected)
+  }
+}
+
+///|
+fn force_indexed_root_entries(plan : ScanPlan) -> ScanPlan {
+  {
+    ..plan,
+    structural_entries: plan.structural_entries.map(entry => {
+      ..entry,
+      plain_root: false,
+    }),
+  }
+}
+
+///|
+test "scan plan identifies plain roots and preserves them when filtered" {
+  let rules = compile_scan_plan_rules([
+    (
+      #|id: plain
+      #|description: Plain root.
+      #|patterns:
+      #|  - shape: plain()
+    ),
+    (
+      #|id: recursive
+      #|description: Recursive root.
+      #|patterns:
+      #|  - shape: wrapper(__TARGET__)
+      #|    then:
+      #|      patterns:
+      #|        - shape: target()
+    ),
+    (
+      #|id: inside
+      #|description: Top-level context.
+      #|inside-toplevel:
+      #|  - shape: fn sample { __TARGET__ }
+      #|patterns:
+      #|  - shape: target()
+    ),
+  ])
+  let plan = ScanPlan::from_rules(rules)
+  debug_inspect(
+    plan.structural_entries.map(entry => entry.plain_root),
+    content="[true, false, false]",
+  )
+  let filtered = plan.filter_source(
+    "fn sample { plain(); wrapper(target()); target() }",
+  )
+  debug_inspect(
+    filtered.structural_entries.map(entry => entry.plain_root),
+    content="[true, false, false]",
+  )
+}
+
+///|
+test "plain execution agrees with forced indexed execution" {
+  let rules = compile_scan_plan_rules([
+    (
+      #|id: positive
+      #|description: Ordered positives.
+      #|patterns:
+      #|  - shape: target()
+      #|  - shape: fallback()
+    ),
+    (
+      #|id: guarded
+      #|description: Guarded call.
+      #|patterns:
+      #|  - shape: $(callee:id)($(value:const))
+      #|    guard:
+      #|      $callee: '^safe$'
+      #|      $value: '^(ok|42)$'
+    ),
+    (
+      #|id: negative
+      #|description: Pruned wrapper.
+      #|patterns:
+      #|  - shape: target()
+      #|patterns-not:
+      #|  - shape: blocked($_)
+    ),
+    (
+      #|id: sequence
+      #|description: Exact sequence.
+      #|patterns:
+      #|  - shape: "first(); second()"
+    ),
+    (
+      #|id: continuation
+      #|description: Let continuation.
+      #|patterns:
+      #|  - shape: let $(name:id) = source()
+    ),
+  ])
+  let source =
+    #|fn sample {
+    #|  safe("ok");
+    #|  safe("no");
+    #|  blocked(target());
+    #|  target();
+    #|  { first(); second() }
+    #|}
+    #|fn continued {
+    #|  let value = source()
+    #|  target()
+    #|  fallback()
+    #|}
+    #|
+  let root = parse_scan_plan_root(source)
+  let plan = ScanPlan::from_rules(rules)
+  assert_true(plan.has_only_plain_structural_entries())
+  let direct = apply_structural_scan_plan_to_node("plain.mbt", root, plan)
+  let indexed = apply_structural_scan_plan_to_node(
+    "plain.mbt",
+    root,
+    force_indexed_root_entries(plan),
+  )
+  assert_true(!direct.is_empty())
+  assert_eq(
+    direct.map(complete_finding_signature),
+    indexed.map(complete_finding_signature),
+  )
+}

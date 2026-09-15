@@ -25,7 +25,19 @@ pub fn match_expr_pattern_candidate_with_bindings(
   candidate : @cst.ExprMatchCandidate,
   initial_bindings : @hashmap.HashMap[String, BoundValue],
 ) -> ExprMatch? {
-  let bindings = initial_bindings.copy()
+  match_candidate_in_context(
+    compiled,
+    candidate,
+    MatchContext::new(initial_bindings),
+  )
+}
+
+///|
+fn match_candidate_in_context(
+  compiled : CompiledExprPattern,
+  candidate : @cst.ExprMatchCandidate,
+  bindings : MatchContext,
+) -> ExprMatch? {
   match candidate {
     @cst.Direct(node) => {
       let pattern = @cst.unwrap_groups(compiled.cst)
@@ -42,7 +54,7 @@ pub fn match_expr_pattern_candidate_with_bindings(
         match_node(pattern, node, compiled, bindings)
       }
       if matched {
-        Some({ root: node, bindings, loc: node.loc, })
+        Some({ root: node, bindings: bindings.values, loc: node.loc, })
       } else {
         None
       }
@@ -55,7 +67,7 @@ pub fn match_expr_pattern_candidate_with_bindings(
           [_] => first.loc
           [] => first.loc
         }
-        Some({ root: first, bindings, loc, })
+        Some({ root: first, bindings: bindings.values, loc, })
       } else {
         None
       }
@@ -77,9 +89,9 @@ fn match_candidate_from_node(
 ///|
 fn match_sequence_candidate(
   raw_pattern : @untyped_cst.CstNode,
-  candidate_items : Array[@untyped_cst.CstNode],
+  candidate_items : ArrayView[@untyped_cst.CstNode],
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   let pattern = @cst.unwrap_groups(raw_pattern)
   if pattern.kind is @untyped_cst.Expression {
@@ -113,9 +125,9 @@ fn match_sequence_candidate(
 ///|
 fn match_sequence_continuation_tail(
   pattern_items : Array[@untyped_cst.CstNode],
-  candidate_items : Array[@untyped_cst.CstNode],
+  candidate_items : ArrayView[@untyped_cst.CstNode],
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard pattern_items is [pattern_header, pattern_body] else { return None }
   guard sequence_continuation_owner(pattern_header.kind) else { return None }
@@ -134,6 +146,9 @@ fn match_sequence_continuation_tail(
   }
   let continuation = candidate_items[1:].to_owned()
   if bind_multiple(branch, tail_name, continuation) {
+    if tail_name == "__TARGET__" {
+      branch.select_continuation(candidate_header, candidate_items.length())
+    }
     replace_bindings(bindings, branch)
     Some(true)
   } else {
@@ -175,7 +190,7 @@ fn match_node(
   raw_pattern : @untyped_cst.CstNode,
   raw_candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   let pattern = @cst.unwrap_groups(raw_pattern)
   let candidate = @cst.unwrap_groups(raw_candidate)
@@ -223,7 +238,7 @@ fn match_split_pattern_constructor_identity(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard pattern.kind is @untyped_cst.Pattern_Constr else { return None }
   let pattern_names = @cst.raw_children(pattern, "name")
@@ -285,7 +300,7 @@ fn match_constructor_identity_placeholder(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard pattern.kind is (@untyped_cst.Expr_Constr | @untyped_cst.Pattern_Constr) else {
     return None
@@ -332,7 +347,7 @@ fn match_type_placeholder(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard type_placeholder_raw(pattern) is Some(raw) else { return None }
   guard resolved_named_metavar(compiled, raw, Type) is Some(name) else {
@@ -362,7 +377,7 @@ fn match_argument_placeholder(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard pattern.kind is @untyped_cst.Argument_Positional else { return None }
   guard argument_placeholder_raw(pattern) is Some(raw) else { return None }
@@ -384,7 +399,7 @@ fn match_expr_placeholder(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard pattern.kind is @untyped_cst.Expr_Ident else { return None }
   guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
@@ -397,8 +412,13 @@ fn match_expr_placeholder(
   }
   match compiled.metavars.resolve(name) {
     Some(ResolvedWildcard(_)) => Some(true)
-    Some(ResolvedSpecialExpr(logical)) =>
-      Some(bind_value(bindings, logical, candidate))
+    Some(ResolvedSpecialExpr(logical)) => {
+      let matched = bind_value(bindings, logical, candidate)
+      if matched && logical == "__TARGET__" {
+        bindings.select_node(candidate)
+      }
+      Some(matched)
+    }
     Some(ResolvedNamed({ name: logical, kind: Expr, })) =>
       Some(bind_value(bindings, logical, candidate))
     Some(ResolvedNamed({ name: logical, kind: Identifier, })) =>
@@ -431,7 +451,7 @@ fn match_pattern_placeholder(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool? {
   guard pattern.kind is @untyped_cst.Pattern_Var else { return None }
   guard @cst.normalized_pattern_identifier_name(pattern) is Some(name) else {
@@ -466,7 +486,7 @@ fn match_expression_container(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   if pattern.kind is @untyped_cst.Expr_Block &&
     !(candidate.kind is @untyped_cst.Expr_Block) {
@@ -535,7 +555,7 @@ fn sequence_items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
 
 ///|
 fn unlabelled(
-  nodes : Array[@untyped_cst.CstNode],
+  nodes : ArrayView[@untyped_cst.CstNode],
 ) -> Array[(String?, @untyped_cst.CstNode)] {
   let result : Array[(String?, @untyped_cst.CstNode)] = []
   for node in nodes {
@@ -549,7 +569,7 @@ fn structural_match(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   if pattern.kind != candidate.kind {
     return false
@@ -574,7 +594,7 @@ fn match_children(
   pattern : Array[(String?, @untyped_cst.CstNode)],
   candidate : Array[(String?, @untyped_cst.CstNode)],
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   let filtered_pattern = without_ignored_fields(parent_kind, pattern, compiled)
   let filtered_candidate = without_ignored_fields(
@@ -610,7 +630,7 @@ fn match_children_from(
   pattern_index : Int,
   candidate_index : Int,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   if pattern_index == pattern.length() {
     return candidate_index == candidate.length()
@@ -691,7 +711,7 @@ fn match_child_node(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   if label == Some("body") &&
     pattern.kind is @untyped_cst.Expr_Block &&
@@ -761,7 +781,7 @@ fn match_name_node(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
   compiled : CompiledExprPattern,
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
 ) -> Bool {
   guard @cst.normalized_name(pattern) is Some(pattern_name) else {
     return false
@@ -811,7 +831,7 @@ fn last_separator(name : String) -> Int? {
 
 ///|
 fn bind_value(
-  bindings : @hashmap.HashMap[String, BoundValue],
+  bindings : MatchContext,
   name : String,
   value : @untyped_cst.CstNode,
 ) -> Bool {
@@ -819,7 +839,7 @@ fn bind_value(
   if bindings.get(name) is Some(existing) {
     bound_value_equal(existing, value)
   } else {
-    bindings[name] = value
+    bindings.values[name] = value
     true
   }
 }

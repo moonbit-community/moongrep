@@ -1,12 +1,12 @@
 ## Integration scenarios
 
-An `inside-expr` rule first binds a local declaration and then searches the
+A pattern with `then` first binds a local declaration and then searches the
 remaining expression for the target call. The result reports the complete
 declaration-plus-target outer expression as its match location.
 
 ```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/inside-expr-target/rules testdata/inside-expr-target/src
-testdata/inside-expr-target/src/hit.mbt:2:3-3:15
+$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/then-target/rules testdata/then-target/src
+testdata/then-target/src/hit.mbt:2:3-3:15
 rule: example
 description:
   Local println shadows the builtin.
@@ -107,7 +107,7 @@ source:
 5 | 
 ```
 
-For `patterns-not` combined with `inside-expr`, the exclusion is evaluated
+For `patterns-not` inside `then`, the exclusion is evaluated
 inside each wrapper. The wrapper around `safe()` is reported, while wrappers
 containing `danger()` are omitted.
 

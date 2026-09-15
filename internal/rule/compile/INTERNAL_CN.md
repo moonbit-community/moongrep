@@ -44,11 +44,16 @@ prefilter 必须基于编译后的 definition。此时 metavar 已经完成分�
 收集中排除。原始 YAML 不具备这个条件。
 
 `compile_expr_pattern` 会创建与单个匿名 `patterns[0]` 条目相同的上下文，并调用
-`compile_structural_expr_pattern`。普通 structural `patterns` 和
-`patterns-not` 也使用这个 helper。该 helper 负责解析表达式、分类 metavar、在存在
-inside context 时校验继承绑定、拒绝 `__TARGET__`，并构造 matcher pattern。
-直接入口不传入外层 shape，因此继承绑定校验为空操作；调用方可再通过
+`compile_structural_expr_pattern`。这个 helper 仅供单表达式入口使用，负责解析表达式、
+分类 metavar、拒绝 `__TARGET__`，并构造 matcher pattern。调用方可再通过
 `internal/rule/prefilter` 单独构造单模式 prefilter。
+
+`compile_structural_rule` 通过 `compile_inside_toplevel_patterns` 编译
+`inside-toplevel` 备选项：解析顶层 shape，按 match mode 确定忽略字段，并使用
+`inside-toplevel[index]` 诊断路径。随后把外层 shape 传给 `compile_structural_group`，
+递归编译 `patterns`、`patterns-not` 和嵌套 `then` group。每个表达式 shape 通过
+`compile_metavar_shape` 编译；`structural_visible_shapes` 校验继承捕获并构造可见环境。
+group 编译器根据条目是否带有 `then` 主体校验 `__TARGET__`，并编译 guard 和 matcher pattern。
 
 ## Shape 解析
 
@@ -77,7 +82,7 @@ metavar，收集器会遍历 parser CST，并使用全局起点、`is_interpolat
 `type` metavar 和带 `type` kind 的 ellipsis metavar 都必须使用大写名称；小写名称
 和关键字名称仍会被 parser 拒绝。
 
-普通 `patterns`、`patterns-not`、每个 `inside-expr` 条目和 taint 子句的 shape
+普通 `patterns`、`patterns-not`、每个 `then` 条目和 taint 子句的 shape
 都必须正好是一个 MoonBit 表达式。每个 `inside-toplevel` shape 必须正好是一个
 顶层项。编译器直接保留 parser 的 `CstNode`，不再 lower 到 typed syntax，也不再
 转换成本地树类型。
@@ -146,30 +151,18 @@ inside-context 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target �
 
 ## Structural Rule
 
-`compile_structural_rule` 会在存在 inside context 时，先编译
-`inside-expr` 或 `inside-toplevel` 的所有有序备选项，再编译内部
-positive / negative pattern。
+StructuralRuleSpec 保存 inside_toplevel 和递归 StructuralPatternGroupSpec。
+正向 StructuralPatternSpec 包含原子 RulePatternSpec 与可选 then_body；负向
+仍为原子条目。编译后采用对应递归类型。
 
-每个 inside-context shape 会被编译成普通 pattern，并使用：
+编译按 group 下降，兄弟环境独立。带 then 的 shape 要求一个可绑定 TARGET，
+叶子和负向禁止它。当前 shape 注册表与祖先可见环境分离，后代复用元变量时
+类型必须一致，包括省略号类型。guard 可直接读祖先 id / const，无需本地声明。
+inside-toplevel 保存每个备选的环境，所有深层 shape 和 guard 引用的继承变量
+都必须在每个备选中存在且类型一致。错误包含完整 YAML 路径。
 
-- 它的 pattern object 上声明的 guard
-- 在其 `MetavarRegistry` 中注册为特殊表达式占位符的 `__TARGET__`
-
-每个备选项都必须包含恰好一个由
-`count_bindable_expr_identifier_in_node` 统计到的完整表达式标识符位置
-`__TARGET__`。这与运行时 matcher 分派特殊表达式元变量的位置相同。
-Pattern variable、binder、label 和其他字面名称节点不计入其中。更广义的
-`count_supported_name_in_node` 仍用于 `__SOURCE__` 校验。
-
-选中的 inside 备选项中声明的 metavar 在匹配目标表达式时可见。内部的
-`patterns` 和 `patterns-not` 必须重复相同 inline 形式才能复用该绑定。
-被复用的捕获必须由每个外层备选项以相同 kind 声明，包括命名 ellipsis
-捕获。`ensure_inherited_inside_context_metavar_forms_for_all` 同时检查跨备选项
-可用性和 kind 一致性。内部未引用的捕获保持分支局部，不要求一致。
-
-普通 `patterns` 和 `patterns-not` 会在 inside context 之后，通过与
-`compile_expr_pattern` 相同的 helper 独立编译。它们不能在完整表达式位置包含
-`__TARGET__`；非表达式字面名称中的相同拼写仍按字面处理。
+负向模式按 group 推导：根负向剪枝，嵌套与 inside-toplevel 拒绝未覆盖负向。
+guard 使用可见环境编译，matcher 仅使用当前 shape 的注册表。
 
 ## Guard
 
@@ -246,7 +239,7 @@ call argument，并用 label 确认选中的是同一个 labelled slot。
 2. 对 `patterns` 和 `patterns-not` 都保留继承 metavar 的 kind 检查
 3. 保持有序首项选择语义：guard 失败可以继续，但外层条目一旦选中就不回退
 4. 测试含 positive pattern、negative pattern 和 negative-only
-   `inside-expr` / `inside-toplevel` 的规则
+   `then` / `inside-toplevel` 的规则
 5. 检查 `internal/rule/apply` root buckets，以及 `internal/rule/prefilter` 的外层×内层备选项
 
 修改 taint target 行为时：
