@@ -1,10 +1,10 @@
 ///|
 pub fn render_dump_command(command : CliCommand) -> String raise {
   match command {
-    DumpImpl(source~, exit_code~, output_json~) =>
-      render_dump_impl_debug(source, exit_code, output_json)
-    DumpExpr(source~, exit_code~, output_json~) =>
-      render_dump_expr_debug(source, exit_code, output_json)
+    DumpImpl(source~, strict_check~, exit_code~, output_json~) =>
+      render_dump_impl_debug(source, strict_check, exit_code, output_json)
+    DumpExpr(source~, strict_check~, exit_code~, output_json~) =>
+      render_dump_expr_debug(source, strict_check, exit_code, output_json)
     _ => raise new_internal_error("invalid dump command")
   }
 }
@@ -12,21 +12,61 @@ pub fn render_dump_command(command : CliCommand) -> String raise {
 ///|
 fn render_dump_impl_debug(
   source : String,
+  strict_check : Bool,
   exit_code : Bool,
   output_json : Bool,
 ) -> String raise {
   let node = parse_dump_impl(source)
+  if strict_check {
+    strict_check_dump_impl_pattern(source)
+  }
   render_dump_node(node, "impl", exit_code, output_json)
 }
 
 ///|
 fn render_dump_expr_debug(
   source : String,
+  strict_check : Bool,
   exit_code : Bool,
   output_json : Bool,
 ) -> String raise {
   let node = parse_dump_expr(source)
+  if strict_check {
+    strict_check_dump_expr_pattern(source)
+  }
   render_dump_node(node, "expr", exit_code, output_json)
+}
+
+///|
+fn strict_check_dump_impl_pattern(source : String) -> Unit raise {
+  ignore(
+    @rule_compile.compile_inside_toplevel_pattern(source) catch {
+      @rule_model.RuleLoadError::InvalidPattern(path=_, shape=_, info~) =>
+        raise new_invalid_dump_pattern_error("dump --impl", source, info)
+      @rule_model.RuleLoadError::InvalidRule(path=_, info~) =>
+        raise new_invalid_dump_pattern_error("dump --impl", source, info)
+      err =>
+        raise new_internal_error(
+          "unexpected dump --impl pattern validation failure: \{err}",
+        )
+    },
+  )
+}
+
+///|
+fn strict_check_dump_expr_pattern(source : String) -> Unit raise {
+  ignore(
+    @rule_compile.compile_expr_pattern(source) catch {
+      @rule_model.RuleLoadError::InvalidPattern(path=_, shape=_, info~) =>
+        raise new_invalid_dump_pattern_error("dump --expr", source, info)
+      @rule_model.RuleLoadError::InvalidRule(path=_, info~) =>
+        raise new_invalid_dump_pattern_error("dump --expr", source, info)
+      err =>
+        raise new_internal_error(
+          "unexpected dump --expr pattern validation failure: \{err}",
+        )
+    },
+  )
 }
 
 ///|

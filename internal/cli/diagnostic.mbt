@@ -284,6 +284,32 @@ fn new_dump_input_error(source : String, reason : String) -> CliError {
 }
 
 ///|
+fn dump_pattern_help(source : String) -> String {
+  if source == "dump --impl" {
+    "fix the pattern passed to --impl and try again"
+  } else {
+    "fix the pattern passed to --expr and try again"
+  }
+}
+
+///|
+fn new_invalid_dump_pattern_error(
+  source : String,
+  pattern : String,
+  reason : String,
+) -> CliError {
+  RuleContent(
+    diagnostic=new_cli_diagnostic(
+      "invalid dump pattern",
+      Some(source),
+      Some(reason),
+      Some(dump_pattern_help(source)),
+      pattern~,
+    ),
+  )
+}
+
+///|
 fn new_empty_rule_directory_error(path : String) -> CliError {
   RuleSource(
     diagnostic=new_cli_diagnostic(
