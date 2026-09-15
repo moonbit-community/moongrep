@@ -6,7 +6,7 @@ JSON expression and implementation dumps each occupy one physical stdout line
 and carry the corresponding `kind`. Successful commands leave stderr empty.
 
 ```mooncram
-$ $stdoutPath = Join-Path $env:TESTDIR 'dump-stdout.tmp'; $stderrPath = Join-Path $env:TESTDIR 'dump-stderr.tmp'; moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --expr 'x + 1' 1>$stdoutPath 2>$stderrPath; $dumpStatus = $LASTEXITCODE; $dumpOutput = @(Get-Content $stdoutPath); $dumpError = @(Get-Content $stderrPath); $record = $dumpOutput[0] | ConvertFrom-Json; "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; "record: $($record.type) $($record.kind) $($record.content.Contains('Expr_Infix'))"; Remove-Item $stdoutPath, $stderrPath; $global:LASTEXITCODE = $dumpStatus
+$ $stdoutPath = Join-Path $env:TESTDIR 'dump-stdout.tmp'; $stderrPath = Join-Path $env:TESTDIR 'dump-stderr.tmp'; moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --strict-check --expr 'x + 1' 1>$stdoutPath 2>$stderrPath; $dumpStatus = $LASTEXITCODE; $dumpOutput = @(Get-Content $stdoutPath); $dumpError = @(Get-Content $stderrPath); $record = $dumpOutput[0] | ConvertFrom-Json; "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; "record: $($record.type) $($record.kind) $($record.content.Contains('Expr_Infix'))"; Remove-Item $stdoutPath, $stderrPath; $global:LASTEXITCODE = $dumpStatus
 status: 0
 stdout count: 1
 stderr count: 0
@@ -27,12 +27,24 @@ Invalid input writes one `dump_input` record to stderr, leaves stdout empty,
 and exits with status 3.
 
 ```mooncram
-$ $dumpStreams = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --expr 'value +' 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput = @($dumpStreams | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }); $dumpError = @($dumpStreams | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; $dumpError | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
+$ $dumpStreams = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --strict-check --expr 'value +' 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput = @($dumpStreams | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }); $dumpError = @($dumpStreams | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; $dumpError | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
 status: 3
 stdout count: 0
 stderr count: 1
 {"type":"error","category":"dump_input","exit_code":3,"message":"could not parse dump input","source":"dump --expr","reason":"Unexpected end of file, missing simple expression here.","help":"provide one valid MoonBit expression"}
 [3]
+```
+
+Strict pattern failures retain the original input in a `rule_content` JSON
+diagnostic and exit with status 5.
+
+```mooncram
+$ $dumpStreams = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --strict-check --impl 'fn answer { 42 }' 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput = @($dumpStreams | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }); $dumpError = @($dumpStreams | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }); "status: $dumpStatus"; "stdout count: $($dumpOutput.Count)"; "stderr count: $($dumpError.Count)"; $dumpError | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
+status: 5
+stdout count: 0
+stderr count: 1
+{"type":"error","category":"rule_content","exit_code":5,"message":"invalid dump pattern","source":"dump --impl","pattern":"fn answer { 42 }","reason":"the pattern must contain exactly one __TARGET__ placeholder in a supported expression position","help":"fix the pattern passed to --impl and try again"}
+[5]
 ```
 
 Missing input uses the shared JSON usage schema and status 2.
@@ -49,8 +61,8 @@ stderr count: 1
 Help stays textual and includes the new option.
 
 ```mooncram
-$ moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --help | Where-Object { $_ -match '^  --json' }
-  --json         Write one compact JSON dump record to stdout and diagnostics to stderr.
+$ moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --json --help | Where-Object { $_ -match '^  --strict-check' }
+  --strict-check  Apply scan's additional pattern validation to the dump input.
 ```
 
 ## Successful expression check
@@ -59,7 +71,7 @@ Exit-code mode validates an expression without writing CST output. The command
 exits successfully and leaves both output streams empty.
 
 ```mooncram
-$ $dumpOutput = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --exit-code --expr 'x + 1' 2>&1); $dumpStatus = $LASTEXITCODE; "status: $dumpStatus"; "output count: $($dumpOutput.Count)"
+$ $dumpOutput = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --exit-code --strict-check --expr 'x + 1' 2>&1); $dumpStatus = $LASTEXITCODE; "status: $dumpStatus"; "output count: $($dumpOutput.Count)"
 status: 0
 output count: 0
 ```
@@ -78,7 +90,7 @@ The flag also accepts a valid top-level implementation item when it appears
 after the input option.
 
 ```mooncram
-$ $dumpOutput = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --impl 'fn answer { 42 }' --exit-code 2>&1); $dumpStatus = $LASTEXITCODE; "status: $dumpStatus"; "output count: $($dumpOutput.Count)"
+$ $dumpOutput = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --impl 'fn answer { __TARGET__ }' --strict-check --exit-code 2>&1); $dumpStatus = $LASTEXITCODE; "status: $dumpStatus"; "output count: $($dumpOutput.Count)"
 status: 0
 output count: 0
 ```
@@ -88,7 +100,7 @@ output count: 0
 Invalid input still writes its diagnostic and exits with dump-input status 3.
 
 ```mooncram
-$ $dumpOutput = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --exit-code --expr 'value +' 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
+$ $dumpOutput = @(moonrun "$env:TESTDIR/../moongrep.wasm" -- dump --exit-code --strict-check --expr 'value +' 2>&1); $dumpStatus = $LASTEXITCODE; $dumpOutput | ForEach-Object { [Console]::Out.WriteLine([string]$_) }; $global:LASTEXITCODE = $dumpStatus
 error: could not parse dump input
   source: dump --expr
   reason: Unexpected end of file, missing simple expression here.
