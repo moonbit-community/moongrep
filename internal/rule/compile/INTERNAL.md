@@ -9,15 +9,18 @@ and its callers, not for rule authors.
 `internal/rule/compile` is the validation and normalization boundary between pattern
 source text and executable matcher or rule values.
 
-The package exposes two public entry points:
+The package exposes three public entry points:
 
 - `compile_rules(raw_rules)`
 - `compile_expr_pattern(pattern)`
+- `compile_inside_toplevel_pattern(pattern)`
 
 `compile_rules` takes `RawRuleSpec` values from `internal/rule/model` and produces
 `CompiledRule` values. `compile_expr_pattern` compiles one ordinary structural
 expression shape directly to `matching.CompiledExprPattern` without creating
 rule metadata, guards, or a rule-level prefilter.
+`compile_inside_toplevel_pattern` does the same for one top-level shape using
+the default `inside-toplevel` match mode and target-placeholder validation.
 
 Compilation is deliberately narrow. This package:
 
@@ -57,6 +60,12 @@ bindings when present, rejects `__TARGET__`, and builds the matcher pattern.
 The direct entry passes no outer shapes, so inherited-binding validation is a
 no-op. Its caller may build a single-pattern prefilter separately through
 `internal/rule/prefilter`.
+
+`compile_inside_toplevel_pattern` creates the same context as one
+`inside-toplevel[0]` entry and calls the shared inside-context compiler. It
+requires exactly one bindable expression-position `__TARGET__`, registers that
+placeholder with the matcher, and resolves the default function match mode to
+partial matching. It does not accept guards or an explicit match mode.
 
 ## Shape Parsing
 

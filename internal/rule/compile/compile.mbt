@@ -39,6 +39,25 @@ pub fn compile_expr_pattern(
 }
 
 ///|
+/// Compiles one structural top-level inside-context pattern.
+///
+/// The pattern uses the same default `inside-toplevel` semantics as one rule
+/// entry, including exactly one `__TARGET__` placeholder in a supported
+/// expression position. It does not create rule metadata, guards, or a
+/// rule-level prefilter.
+pub fn compile_inside_toplevel_pattern(
+  pattern : String,
+) -> @matching.CompiledExprPattern raise {
+  let context = pattern_compile_context(pattern, "inside-toplevel[0]", pattern)
+  let (compiled, _) = compile_inside_context_pattern(
+    context,
+    Default,
+    is_toplevel=true,
+  )
+  compiled
+}
+
+///|
 /// Validates and compiles raw YAML rule specs into executable rules.
 ///
 /// This step parses each `shape`, discovers metavars, rejects reserved
@@ -180,35 +199,48 @@ fn compile_inside_context_patterns(
       "\{clause}[\{index}]",
       pattern.shape,
     )
-    let compiled_shape = if is_toplevel {
-      compile_toplevel_metavar_shape(context)
-    } else {
-      compile_metavar_shape(context)
-    }
-    let cst = compiled_shape.cst
-    let ignored_fields = if is_toplevel {
-      inside_toplevel_ignored_fields(context, pattern.match_mode, cst)
-    } else {
-      []
-    }
-    let target_count = count_bindable_expr_identifier_in_node(cst, "__TARGET__")
-    if target_count != 1 {
-      raise context.invalid_pattern(
-        "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
-      )
-    }
-    compiled_patterns.push(
-      compile_pattern(
-        pattern,
-        compiled_shape,
-        context,
-        special_expr_placeholders=["__TARGET__"],
-        ignored_fields~,
-      ),
+    let (compiled, compiled_shape) = compile_inside_context_pattern(
+      context,
+      pattern.match_mode,
+      is_toplevel~,
     )
+    compiled_patterns.push(compile_rule_pattern(pattern, compiled, context))
     compiled_shapes.push(compiled_shape)
   }
   (compiled_patterns, compiled_shapes)
+}
+
+///|
+fn compile_inside_context_pattern(
+  context : PatternCompileContext,
+  match_mode : InsideToplevelMatchMode,
+  is_toplevel~ : Bool,
+) -> (@matching.CompiledExprPattern, MetavarShape) raise {
+  let compiled_shape = if is_toplevel {
+    compile_toplevel_metavar_shape(context)
+  } else {
+    compile_metavar_shape(context)
+  }
+  let cst = compiled_shape.cst
+  let ignored_fields = if is_toplevel {
+    inside_toplevel_ignored_fields(context, match_mode, cst)
+  } else {
+    []
+  }
+  let target_count = count_bindable_expr_identifier_in_node(cst, "__TARGET__")
+  if target_count != 1 {
+    raise context.invalid_pattern(
+      "the pattern must contain exactly one __TARGET__ placeholder in a supported expression position",
+    )
+  }
+  (
+    build_compiled_expr_pattern(
+      compiled_shape,
+      special_expr_placeholders=["__TARGET__"],
+      ignored_fields~,
+    ),
+    compiled_shape,
+  )
 }
 
 ///|

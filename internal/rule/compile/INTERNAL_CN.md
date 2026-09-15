@@ -7,14 +7,17 @@
 
 `internal/rule/compile` 是 pattern 源文本与可执行 matcher / 规则之间的校验与规范化边界。
 
-这个包提供两个公开入口：
+这个包提供三个公开入口：
 
 - `compile_rules(raw_rules)`
 - `compile_expr_pattern(pattern)`
+- `compile_inside_toplevel_pattern(pattern)`
 
 `compile_rules` 从 `internal/rule/model` 接收 `RawRuleSpec` 并生成 `CompiledRule`。
 `compile_expr_pattern` 则把一个普通 structural expression shape 直接编译成
 `matching.CompiledExprPattern`，不构造规则元数据、guard 或规则级 prefilter。
+`compile_inside_toplevel_pattern` 对一个顶层 shape 执行同样的直接编译，并使用
+默认 `inside-toplevel` match mode 和 target 占位符校验。
 
 编译职责有意保持收窄。这个包会：
 
@@ -49,6 +52,11 @@ prefilter 必须基于编译后的 definition。此时 metavar 已经完成分�
 inside context 时校验继承绑定、拒绝 `__TARGET__`，并构造 matcher pattern。
 直接入口不传入外层 shape，因此继承绑定校验为空操作；调用方可再通过
 `internal/rule/prefilter` 单独构造单模式 prefilter。
+
+`compile_inside_toplevel_pattern` 会创建与单个 `inside-toplevel[0]` 条目相同的
+上下文，并调用共享的 inside-context 编译流程。它要求恰好一个位于可绑定表达式
+位置的 `__TARGET__`，向 matcher 注册该占位符，并把函数的默认 match mode 解析为
+partial matching。该入口不接受 guard 或显式 match mode。
 
 ## Shape 解析
 

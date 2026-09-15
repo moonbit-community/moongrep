@@ -9,6 +9,8 @@ import {
 // Values
 pub fn compile_expr_pattern(String) -> @matching.CompiledExprPattern raise
 
+pub fn compile_inside_toplevel_pattern(String) -> @matching.CompiledExprPattern raise
+
 pub fn compile_rules(Array[@model.RawRuleSpec]) -> Array[@model.CompiledRule] raise
 
 // Errors
