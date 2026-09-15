@@ -190,26 +190,33 @@ moongrep dump --impl 'fn answer { 42 }'
 moongrep dump --expr 'x + 1'
 moongrep dump --json --expr 'x + 1'
 moongrep dump --exit-code --expr 'x + 1'
+moongrep dump --strict-check --impl 'fn wrapper { __TARGET__ }'
 ```
 
 命令行参数概要：
 
 ```text
-moongrep dump [--exit-code] [--json] (--impl <impl> | --expr <expr>)
+moongrep dump [--exit-code] [--strict-check] [--json] (--impl <impl> | --expr <expr>)
 ```
 
 使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_cst`
 调试输出。使用 `--expr <expr>` 可以解析一个 MoonBit 表达式，并打印它的
 `untyped_cst` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
 
+使用 `--strict-check` 会在普通 dump 解析成功后执行 `scan` 使用的附加 pattern
+校验。`--expr` 输入按普通 structural pattern 校验；`--impl` 输入按默认
+`inside-toplevel` 语义校验，并且必须在可绑定表达式位置恰好包含一个
+`__TARGET__`。严格检查不会改变成功输出的 CST 文本或 JSON 内容。
+
 使用 `--json` 会写出一条紧凑记录，其中 `type` 为 `"dump"`，`kind` 为
 `"impl"` 或 `"expr"`，`content` 包含相同的 CST `Repr` 文本。JSON 转义保证整条
 记录只占一个物理输出行。
 
 使用 `--exit-code` 可以执行相同的解析校验而不打印 CST。检查成功时不输出 CST，
-即使同时提供 `--json`，两个输出流也都为空，并以退出码 0 退出；输入无效时
-仍打印诊断并以退出码 3 退出，存在 `--json` 时使用现有 JSON `error` 记录
-schema。
+即使同时提供 `--json` 或 `--strict-check`，两个输出流也都为空，并以退出码 0
+退出。无效 dump 语法仍以退出码 3 退出；仅被 `--strict-check` 拒绝的 pattern
+以退出码 5 退出，并输出 `invalid dump pattern` 诊断。存在 `--json` 时，两类失败
+都使用现有 JSON `error` 记录 schema。
 
 不带参数调用 `moongrep dump` 会打印 `dump` 帮助，并以退出码 0 成功退出。用法
 错误，例如组合使用 `--impl` 和 `--expr`，会打印消息并以退出码 2 退出。解析或
@@ -227,7 +234,7 @@ usage error；`dump --json --help` 仍打印普通帮助。
 | 2 | 命令行用法错误 |
 | 3 | 无效 `dump` 输入 |
 | 4 | 规则来源不存在、不可读或类型错误，或规则目录不包含 `.yaml` 或 `.yml` 文件 |
-| 5 | YAML 为空白或无效、单文件 `--rule` 后缀不受支持，或规则 schema、pattern、guard、编译后的规则内容无效 |
+| 5 | YAML 为空白或无效、单文件 `--rule` 后缀不受支持、规则 schema、pattern、guard、编译后的规则内容无效，或严格 dump pattern 无效 |
 | 6 | 扫描输入不存在或不可读 |
 | 7 | 标准输出或标准错误写入失败 |
 

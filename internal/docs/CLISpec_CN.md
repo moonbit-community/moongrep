@@ -39,7 +39,7 @@ moongrep 提供四个命令：
 - `lint` 默认启用内嵌 builtin 规则扫描 MoonBit 源码。
 - `docs` 列出或打印内嵌文档。
 - `dump` 解析一个 MoonBit 实现项或表达式，并打印 CST 调试输出、写出结构化 dump
-  记录，或通过退出状态报告解析是否成功。
+  记录，或通过退出状态报告校验是否成功。
 
 不带命令运行 moongrep 时，程序会打印缺少子命令的诊断和顶层帮助，然后以状态码
 2 退出。
@@ -274,14 +274,14 @@ warning。除非同一项还带有裸 `#moongrep.skip`，结构规则会继续�
 写入 `no match hits`，JSON 模式则保持标准输出为空。
 
 帮助、内嵌文档、文本 dump 输出和 JSON dump 记录也写入标准输出。成功的
-`dump --exit-code` 检查保持两个输出流都为空。
+`dump --exit-code` 检查（包括请求的严格 pattern 校验）保持两个输出流都为空。
 
 ### 标准错误和 Verbose 事件
 
 所有导致命令以非零状态退出的失败诊断都写入标准错误，包括命令行用法、未知文档、
-dump 解析、规则加载、规则编译、文件系统、输出以及未预期的运行期诊断。扫描解析
-warning 和无效 `#moongrep.skip` warning 也总会写入标准错误。`--verbose` 会添加
-以下标准错误事件：
+dump 解析与严格 pattern 校验、规则加载、规则编译、文件系统、输出以及未预期的
+运行期诊断。扫描解析 warning 和无效 `#moongrep.skip` warning 也总会写入标准
+错误。`--verbose` 会添加以下标准错误事件：
 
 - 遍历开始前，对每个已启用的编译规则输出
   `moongrep scan: loaded rule <id>`；
@@ -420,8 +420,8 @@ warning 写入标准错误。源码解析 warning 的 category 是 `parse`，包
 输入选项；`content` 与文本模式打印的 CST `Repr` 文本完全相同。JSON 编码会转义
 其中的换行和其他特殊字符，因此整条记录只占一个物理输出行。
 
-成功解析后，`dump --exit-code --json` 仍保持静默。无效输入和用法错误使用
-下面的 error 记录。
+所有请求的检查成功后，`dump --exit-code --json` 仍保持静默。无效输入、严格
+pattern 校验失败和用法错误使用下面的 error 记录。
 
 ### Error 记录
 
@@ -481,27 +481,40 @@ CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
 该命令只接受以下两种形式之一：
 
 ```text
-moongrep dump [--exit-code] [--json] --impl <source>
-moongrep dump [--exit-code] [--json] --expr <source>
+moongrep dump [--exit-code] [--strict-check] [--json] --impl <source>
+moongrep dump [--exit-code] [--strict-check] [--json] --expr <source>
 ```
 
 `--impl` 接受一个有效的 MoonBit 顶层项，`--expr` 接受一个有效的 MoonBit
 表达式。两种形式的解析结果都不能包含诊断或 recovery node。
 
+不使用 `--strict-check` 时，上述解析检查就是全部校验，命令行为保持不变。使用
+`--strict-check` 时，`dump` 会先完成解析检查，再执行 `scan` 使用的附加 pattern
+校验。`--expr` 输入按普通 structural expression pattern 编译；`--impl` 输入按
+默认 `inside-toplevel` 语义编译：shape 必须在受支持的表达式位置恰好包含一个
+`__TARGET__`，函数 shape 使用默认 partial match mode。严格检查不接受 guard 或
+match-mode 选项。
+
+严格校验不会替代 dump 解析。成功命令始终渲染第一次解析得到的 CST node，因此
+启用 `--strict-check` 不会改变文本或 JSON dump 内容。
+
 成功时，文本模式会把结果 untyped CST node 的 MoonBit `Repr` 调试渲染以 CST
 调试文本格式写入标准输出。启用 `--json` 时，同一渲染会作为一条紧凑
 `dump` 记录的 `content`，其 `kind` 为 `impl` 或 `expr`。
 
-`--exit-code` 使用相同条件检查解析结果，但不渲染或写出 CST。检查成功时标准输出
-为空，并以状态码 0 退出。它优先于 `--json`：检查成功时两个输出流都为空。
-输入无效时仍向标准错误写入诊断，并以状态码 3 退出；存在 `--json` 时，
-该诊断使用现有 `error` 记录 schema。
+`--exit-code` 检查相同的已选条件，但不渲染或写出 CST。它优先于 `--json`：
+检查成功时两个输出流都为空，并以状态码 0 退出。基础解析失败仍向标准错误写入
+`dump_input` 诊断并以状态码 3 退出；随后的严格 pattern 校验失败会写出
+`invalid dump pattern` 诊断，其 category 为 `rule_content`，`pattern` 字段为
+原始输入，并以状态码 5 退出。存在 `--json` 时，两类诊断都使用现有 `error`
+记录 schema。
 
-同时提供 `--impl` 和 `--expr`，或只提供 `--exit-code` 而不提供输入选项，属于
-状态码 2 的用法错误。不带任何参数调用 `dump` 会打印帮助并以状态码 0 退出。
-词法或解析诊断、recovery node，以及 `--impl` 结果包含零个或多个顶层项时，
-都以状态码 3 退出。`dump --json` 未提供输入时输出 JSON usage error 并以
-状态码 2 退出；`dump --json --help` 仍打印普通帮助并以状态码 0 退出。
+同时提供 `--impl` 和 `--expr`，或只提供 `--exit-code`、`--strict-check` 或
+`--json` 而不提供输入选项，属于状态码 2 的用法错误。不带任何参数调用 `dump`
+会打印帮助并以状态码 0 退出。词法或解析诊断、recovery node，以及 `--impl`
+结果包含零个或多个顶层项时，都在严格校验运行前以状态码 3 退出。`dump --json`
+未提供输入时输出 JSON usage error 并以状态码 2 退出；`dump --json --help` 仍打印
+普通帮助并以状态码 0 退出。
 
 ## 诊断和退出状态
 
@@ -543,7 +556,7 @@ error: <摘要>
 | 2 | 命令行用法错误 |
 | 3 | 无效 `dump` 输入 |
 | 4 | 规则来源错误 |
-| 5 | 规则内容错误 |
+| 5 | 规则内容或严格 dump pattern 错误 |
 | 6 | 扫描输入错误 |
 | 7 | 输出错误 |
 
@@ -553,7 +566,7 @@ error: <摘要>
 
 - 帮助输出；
 - 成功的 `docs` 列表或查找；
-- 成功的 CST dump 或 `dump --exit-code` 解析检查；
+- 成功的 CST dump 或 `dump --exit-code` 检查，包括请求的严格 pattern 校验；
 - 有命中的扫描；
 - 没有命中的扫描；
 - 产生源码解析 warning 或无效属性 warning 的扫描。
@@ -579,7 +592,8 @@ error: <摘要>
 ### 退出状态 3
 
 状态 3 表示 `dump` 收到了无效 MoonBit 输入。词法或语法诊断、recovery node，
-以及 `--impl` 结果不是恰好一个顶层项时，都使用该状态码。
+以及 `--impl` 结果不是恰好一个顶层项时，都使用该状态码。这些检查在严格 pattern
+校验之前运行。
 
 ### 退出状态 4
 
@@ -590,7 +604,8 @@ error: <摘要>
 
 状态 5 表示规则内容无效，包括 YAML 解析、schema 与重复 id 校验、单文件
 `--rule` 使用不支持的后缀，以及 pattern 或 guard 校验和编译失败。无效的命令行
-匿名 pattern 也使用该状态码。内嵌 builtin 规则自身失败时改用状态 1。
+匿名 pattern 和 `dump --strict-check` pattern 失败也使用该状态码。内嵌 builtin
+规则自身失败时改用状态 1。
 
 ### 退出状态 6
 

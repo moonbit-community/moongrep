@@ -239,12 +239,13 @@ moongrep dump --impl 'fn answer { 42 }'
 moongrep dump --expr 'x + 1'
 moongrep dump --json --expr 'x + 1'
 moongrep dump --exit-code --expr 'x + 1'
+moongrep dump --strict-check --impl 'fn wrapper { __TARGET__ }'
 ```
 
 Command-line synopsis:
 
 ```text
-moongrep dump [--exit-code] [--json] (--impl <impl> | --expr <expr>)
+moongrep dump [--exit-code] [--strict-check] [--json] (--impl <impl> | --expr <expr>)
 ```
 
 Use `--impl <impl>` to parse a MoonBit top-level implementation item and print
@@ -252,15 +253,23 @@ its `untyped_cst` debug output. Use `--expr <expr>` to parse a MoonBit
 expression and print its `untyped_cst` debug output. To produce a dump, provide
 exactly one of these mutually exclusive options.
 
+Use `--strict-check` to apply the extra pattern validation used by `scan` after
+the normal dump parse succeeds. An `--expr` input is checked as an ordinary
+structural pattern. An `--impl` input is checked with default
+`inside-toplevel` semantics and must contain exactly one bindable expression
+position named `__TARGET__`. Strict checking does not change successful CST
+text or JSON content.
+
 Use `--json` to write one compact record with `type` set to `"dump"`,
 `kind` set to `"impl"` or `"expr"`, and `content` containing the same CST
 `Repr` text. JSON escaping keeps the record on one physical output line.
 
 Use `--exit-code` to perform the same parse validation without printing the CST.
 A successful check writes nothing to either output stream and exits with code
-0, even when `--json` is also present. Invalid input still prints its
-diagnostic and exits with code 3; with `--json`, it uses the existing
-JSON `error` record schema.
+0, even when `--json` or `--strict-check` is also present. Invalid dump syntax
+still exits with code 3. A pattern rejected only by `--strict-check` exits with
+code 5 and an `invalid dump pattern` diagnostic; with `--json`, either failure
+uses the existing JSON `error` record schema.
 
 Invoking `moongrep dump` without arguments prints the `dump` help and exits
 successfully with code 0. Usage errors, such as combining `--impl` with
@@ -279,7 +288,7 @@ recoverable scan-warning outcomes. Failures use these fixed categories:
 | 2 | Command-line usage error |
 | 3 | Invalid `dump` input |
 | 4 | Missing, unreadable, or incorrectly typed rule source, or a rule directory containing no `.yaml` or `.yml` files |
-| 5 | Blank or invalid YAML, an unsupported single-file `--rule` suffix, or invalid rule schema, pattern, guard, or compiled rule content |
+| 5 | Blank or invalid YAML, an unsupported single-file `--rule` suffix, invalid rule schema, pattern, guard, or compiled rule content, or an invalid strict dump pattern |
 | 6 | Missing or unreadable scan input |
 | 7 | Standard-output or standard-error write failure |
 

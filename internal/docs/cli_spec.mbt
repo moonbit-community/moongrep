@@ -46,8 +46,8 @@ let _embed_clispec_md : String =
   #|- `lint` scans MoonBit source with embedded builtin rules enabled by default.
   #|- `docs` lists or prints embedded documentation.
   #|- `dump` parses one MoonBit implementation item or expression and either
-  #|  prints CST debug output, writes a structured dump record, or reports parse
-  #|  success through its exit status.
+  #|  prints CST debug output, writes a structured dump record, or reports
+  #|  validation success through its exit status.
   #|
   #|Running moongrep without a command prints a missing-subcommand diagnostic and
   #|top-level help, then exits with status 2.
@@ -325,17 +325,17 @@ let _embed_clispec_md : String =
   #|mode leaves standard output empty for the same scan.
   #|
   #|Help, embedded documentation, text dump output, and JSON dump records are also
-  #|written to standard output. A successful `dump --exit-code` check leaves both
-  #|output streams empty.
+  #|written to standard output. A successful `dump --exit-code` check, including
+  #|any requested strict pattern validation, leaves both output streams empty.
   #|
   #|### Standard Error and Verbose Events
   #|
   #|Every failure diagnostic that terminates the command with a nonzero status is
   #|written to standard error. This includes command-line usage, unknown-document,
-  #|dump parse, rule-loading, rule-compilation, filesystem, output, and unexpected
-  #|runtime diagnostics. Scan parse warnings and invalid-`#moongrep.skip` warnings
-  #|are also always written to standard error. `--verbose` adds these standard-error
-  #|events:
+  #|dump parsing and strict pattern validation, rule-loading, rule-compilation,
+  #|filesystem, output, and unexpected runtime diagnostics. Scan parse warnings
+  #|and invalid-`#moongrep.skip` warnings are also always written to standard
+  #|error. `--verbose` adds these standard-error events:
   #|
   #|- `moongrep scan: loaded rule <id>` for each enabled compiled rule, before
   #|  traversal starts;
@@ -494,8 +494,9 @@ let _embed_clispec_md : String =
   #|newlines and other special characters, so the complete record occupies one
   #|physical output line.
   #|
-  #|`dump --exit-code --json` remains silent after a successful parse.
-  #|Invalid input and usage failures use the error record below.
+  #|`dump --exit-code --json` remains silent after all requested checks succeed.
+  #|Invalid input, strict pattern validation, and usage failures use the error
+  #|record below.
   #|
   #|### Error Records
   #|
@@ -561,33 +562,49 @@ let _embed_clispec_md : String =
   #|The command accepts exactly one of these forms:
   #|
   #|```text
-  #|moongrep dump [--exit-code] [--json] --impl <source>
-  #|moongrep dump [--exit-code] [--json] --expr <source>
+  #|moongrep dump [--exit-code] [--strict-check] [--json] --impl <source>
+  #|moongrep dump [--exit-code] [--strict-check] [--json] --expr <source>
   #|```
   #|
   #|`--impl` accepts one valid MoonBit top-level item. `--expr` accepts one valid
   #|MoonBit expression. Both forms require a parse without diagnostics or recovery
   #|nodes.
   #|
+  #|Without `--strict-check`, these parse checks are the complete validation and
+  #|the command behaves as before. With `--strict-check`, `dump` performs the parse
+  #|checks first and then applies the additional pattern validation used by
+  #|`scan`. For `--expr`, the input is compiled as an ordinary structural
+  #|expression pattern. For `--impl`, it is compiled with the default
+  #|`inside-toplevel` semantics: the shape must contain exactly one `__TARGET__`
+  #|in a supported expression position, and function shapes use the default
+  #|partial match mode. Strict checking does not accept guards or a match-mode
+  #|option.
+  #|
+  #|Strict validation does not replace the dump parse. A successful command always
+  #|renders the CST node produced by the first parse, so enabling `--strict-check`
+  #|does not change text or JSON dump content.
+  #|
   #|On success, text mode writes the MoonBit `Repr` debug rendering of the resulting
   #|untyped CST node to standard output in CST debug text format. With
   #|`--json`, the same rendering is the `content` of one compact `dump`
   #|record whose `kind` is `impl` or `expr`.
   #|
-  #|`--exit-code` checks the same parse conditions without rendering or writing the
-  #|CST. It takes precedence over `--json`: a successful check writes
-  #|nothing to either output stream and exits with status 0. Invalid input still
-  #|writes its diagnostic to standard error and exits with status 3; when
-  #|`--json` is present, that diagnostic uses the existing `error` record
-  #|schema.
+  #|`--exit-code` checks the same selected conditions without rendering or writing
+  #|the CST. It takes precedence over `--json`: a successful check writes nothing
+  #|to either output stream and exits with status 0. A base parse failure still
+  #|writes a `dump_input` diagnostic to standard error and exits with status 3. A
+  #|subsequent strict pattern failure writes an `invalid dump pattern` diagnostic
+  #|with category `rule_content`, the original input in `pattern`, and exits with
+  #|status 5. When `--json` is present, either diagnostic uses the existing
+  #|`error` record schema.
   #|
-  #|Providing both `--impl` and `--expr`, or using `--exit-code` without either
-  #|input option, is a usage error with status 2. Invoking bare `dump` without any
-  #|arguments prints help and exits with status 0. Lexical or parse diagnostics,
-  #|recovery nodes, and an `--impl` result containing zero or multiple top-level
-  #|items exit with status 3. `dump --json` without an input is a JSON usage
-  #|error with status 2. `dump --json --help` still prints ordinary help and
-  #|exits with status 0.
+  #|Providing both `--impl` and `--expr`, or using `--exit-code`, `--strict-check`,
+  #|or `--json` without either input option, is a usage error with status 2.
+  #|Invoking bare `dump` without any arguments prints help and exits with status 0.
+  #|Lexical or parse diagnostics, recovery nodes, and an `--impl` result containing
+  #|zero or multiple top-level items exit with status 3 before strict validation
+  #|runs. `dump --json` without an input is a JSON usage error with status 2.
+  #|`dump --json --help` still prints ordinary help and exits with status 0.
   #|
   #|## Diagnostics and Exit Status
   #|
@@ -635,7 +652,7 @@ let _embed_clispec_md : String =
   #|| 2 | Command-line usage failure |
   #|| 3 | Invalid `dump` input |
   #|| 4 | Rule-source failure |
-  #|| 5 | Invalid rule content |
+  #|| 5 | Invalid rule content or strict dump pattern |
   #|| 6 | Scan-input failure |
   #|| 7 | Output failure |
   #|
@@ -645,7 +662,8 @@ let _embed_clispec_md : String =
   #|
   #|- help output;
   #|- successful `docs` listing or lookup;
-  #|- a successful CST dump or `dump --exit-code` parse check;
+  #|- a successful CST dump or `dump --exit-code` check, including requested
+  #|  strict pattern validation;
   #|- scans with findings;
   #|- scans with no findings; and
   #|- scans that emitted source parse or invalid-attribute warnings.
@@ -674,7 +692,8 @@ let _embed_clispec_md : String =
   #|
   #|Status 3 means `dump` received invalid MoonBit input. Lexical or syntax
   #|diagnostics, recovery nodes, and an `--impl` result containing anything other
-  #|than one top-level item use this status.
+  #|than one top-level item use this status. These checks run before strict pattern
+  #|validation.
   #|
   #|### Exit Status 4
   #|
@@ -687,8 +706,8 @@ let _embed_clispec_md : String =
   #|Status 5 means rule content is invalid. It covers YAML parsing, schema and
   #|duplicate-id validation, an unsupported single-file `--rule` suffix, and pattern
   #|or guard validation and compilation. This status also applies to invalid
-  #|anonymous command-line patterns. A failure in the embedded builtin rules instead
-  #|uses status 1.
+  #|anonymous command-line patterns and to `dump --strict-check` pattern failures.
+  #|A failure in the embedded builtin rules instead uses status 1.
   #|
   #|### Exit Status 6
   #|
