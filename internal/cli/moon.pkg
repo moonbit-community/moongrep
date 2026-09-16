@@ -10,11 +10,9 @@ import {
   "moonbit-community/moongrep/internal/rule/model" @rule_model,
   "moonbit-community/yaml",
   "moonbitlang/async/fs",
-  "moonbitlang/async/io",
   "moonbitlang/async/os_error",
   "moonbitlang/async/stdio",
   "moonbitlang/core/argparse",
-  "moonbitlang/core/json",
   "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
   "moonbitlang/x/path",
@@ -23,6 +21,7 @@ import {
 
 import {
   "moonbitlang/async",
+  "moonbitlang/core/json",
 } for "wbtest"
 
 supported_targets = "+wasm+native"
