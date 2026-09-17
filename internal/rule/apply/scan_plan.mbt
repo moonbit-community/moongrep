@@ -193,9 +193,11 @@ fn plan_structural_group(
   let offset = groups.length()
   let pending = [root]
   let children : Array[Array[Int?]] = []
-  for i = 0; i < pending.length(); i = i + 1 {
+  // New child groups extend the work list while it is being traversed.
+  for i = 0 {
+    guard pending.get(i) is Some(group) else { break }
     let child_ids : Array[Int?] = []
-    for pattern in pending[i].patterns {
+    for pattern in group.patterns {
       if pattern.then_body is Some(body) {
         child_ids.push(Some(offset + pending.length()))
         pending.push(body)
@@ -204,7 +206,6 @@ fn plan_structural_group(
       }
     }
     children.push(child_ids)
-    let group = pending[i]
     let needed : Array[Int] = []
     let patterns = group.patterns.map(p => p.pattern)
     for pattern in patterns + group.patterns_not {
@@ -222,6 +223,7 @@ fn plan_structural_group(
       has_positive: !group.patterns.is_empty(),
       reject_negative: group.patterns_not_mode is RejectUncoveredNegative,
     })
+    continue i + 1
   }
   for i = groups.length() - 1; i >= offset; i = i - 1 {
     for child in children[i - offset] {
