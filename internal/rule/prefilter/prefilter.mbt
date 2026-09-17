@@ -144,9 +144,10 @@ fn structural_group_literals(
   let alternatives : Array[Array[String]] = []
   for entry in group.patterns {
     let outer = required_literals_from_compiled_pattern(entry.pattern)
-    let paths = match entry.then_body {
-      Some(body) => structural_group_literals(body)
-      None => [[]]
+    let paths = if entry.then_body is Some(body) {
+      structural_group_literals(body)
+    } else {
+      [[]]
     }
     for path in paths {
       alternatives.push(unique_literals(concat_string_arrays(outer, path)))

@@ -38,14 +38,14 @@ fn SourceIndex::candidate_region(
   match candidate {
     Direct(node) => self.direct(self.node_id(node))
     Sequence(values) =>
-      match position {
-        Some(position) =>
-          self.slice(
-            position.list,
-            position.start,
-            position.start + values.length(),
-          )
-        None => abort("indexed sequence candidate has no source position")
+      if position is Some(position) {
+        self.slice(
+          position.list,
+          position.start,
+          position.start + values.length(),
+        )
+      } else {
+        abort("indexed sequence candidate has no source position")
       }
   }
 }
