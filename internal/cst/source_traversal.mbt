@@ -56,8 +56,8 @@ fn SourceIndex::regions_cursor(
   regions : Array[RegionId],
 ) -> CursorId {
   let mut cursor = 0
-  for i = regions.length() - 1; i >= 0; i = i - 1 {
-    cursor = self.visit(regions[i], next=cursor)
+  for region in regions.rev_iter() {
+    cursor = self.visit(region, next=cursor)
   }
   cursor
 }
@@ -110,8 +110,8 @@ fn SourceIndex::join_nodes(
   nodes : Array[NodeId],
 ) -> CursorId {
   let mut cursor = 0
-  for i = nodes.length() - 1; i >= 0; i = i - 1 {
-    cursor = self.concat(self.descendants(nodes[i]), cursor)
+  for node in nodes.rev_iter() {
+    cursor = self.concat(self.descendants(node), cursor)
   }
   self.finish(cursor)
 }
@@ -159,8 +159,8 @@ fn SourceIndex::binding_cursor(
   let mut cursor = 0
   if self.raw(id, label) is Some(list) {
     let bindings = self.raw_all(list, "item")
-    for i = bindings.length() - 1; i >= 0; i = i - 1 {
-      cursor = self.concat(self.named_cursor(bindings[i], "expr"), cursor)
+    for binding in bindings.rev_iter() {
+      cursor = self.concat(self.named_cursor(binding, "expr"), cursor)
     }
   }
   self.finish(cursor)
@@ -182,9 +182,9 @@ fn SourceIndex::case_cursor(
     }
   }
   let mut cursor = 0
-  for i = cases.length() - 1; i >= 0; i = i - 1 {
-    cursor = self.concat(self.named_cursor(cases[i], "body"), cursor)
-    cursor = self.concat(self.named_cursor(cases[i], "cond"), cursor)
+  for case in cases.rev_iter() {
+    cursor = self.concat(self.named_cursor(case, "body"), cursor)
+    cursor = self.concat(self.named_cursor(case, "cond"), cursor)
   }
   self.finish(cursor)
 }
