@@ -36,19 +36,19 @@ test "then recursive guards inherit across unused intermediate captures" {
     #|                    - shape: target()
     #|                      guard:
     #|                        $name: '^safe_'
-  inspect(
+  assert_eq(
     then_hits(rule, "wrapper(safe_name, container(holder(target())))").length(),
-    content="1",
+    1,
   )
-  inspect(
+  assert_eq(
     then_hits(rule, "wrapper(other, container(holder(target())))").length(),
-    content="0",
+    0,
   )
-  inspect(
+  assert_eq(
     then_hits(
       rule, "wrapper(safe_name, container(holder({ let safe_name = 0; target() })))",
     ).length(),
-    content="0",
+    0,
   )
 }
 
@@ -65,14 +65,8 @@ test "then keeps inherited shadowing across a matched middle shape" {
     #|              - shape: target()
     #|                guard:
     #|                  $name: '^x$'
-  inspect(
-    then_hits(rule, "wrapper(x, fn (x) { target() })").length(),
-    content="0",
-  )
-  inspect(
-    then_hits(rule, "wrapper(x, fn (y) { target() })").length(),
-    content="1",
-  )
+  assert_eq(then_hits(rule, "wrapper(x, fn (x) { target() })").length(), 0)
+  assert_eq(then_hits(rule, "wrapper(x, fn (y) { target() })").length(), 1)
 }
 
 ///|
@@ -92,9 +86,9 @@ test "then failure falls back and success prunes with root index" {
     rule, "wrapper({ target(); target() }); wrapper(other(target()))",
   )
   debug_inspect(hits.map(h => h.pattern_index), content="[1, 1]")
-  inspect(hits[0].loc.start.lnum, content="2")
+  assert_eq(hits[0].loc.start.lnum, 2)
   let fallback = then_hits(rule, "wrapper(other())")
-  inspect(fallback.length(), content="0")
+  assert_eq(fallback.length(), 0)
 }
 
 ///|
@@ -136,11 +130,11 @@ test "then supports pure negatives and scans below a failed parent" {
     #|    then:
     #|      patterns-not:
     #|        - shape: danger()
-  inspect(
+  assert_eq(
     then_hits(rule, "wrapper({ danger(); wrapper(target()) })").length(),
-    content="1",
+    1,
   )
-  inspect(then_hits(rule, "wrapper(target())").length(), content="1")
+  assert_eq(then_hits(rule, "wrapper(target())").length(), 1)
 }
 
 ///|
@@ -155,7 +149,7 @@ test "then supports sixty four rules selecting the same candidate" {
       .join("\n") +
       "\n"
   }
-  inspect(then_hits(body, "target()").length(), content="1")
+  assert_eq(then_hits(body, "target()").length(), 1)
 }
 
 ///|
@@ -171,14 +165,8 @@ test "then applies let bindings between middle shape and target to ancestor guar
     #|              - shape: target()
     #|                guard:
     #|                  $name: '^x$'
-  inspect(
-    then_hits(rule, "wrapper(x, { let x = 0; target() })").length(),
-    content="0",
-  )
-  inspect(
-    then_hits(rule, "wrapper(x, { let y = 0; target() })").length(),
-    content="1",
-  )
+  assert_eq(then_hits(rule, "wrapper(x, { let x = 0; target() })").length(), 0)
+  assert_eq(then_hits(rule, "wrapper(x, { let y = 0; target() })").length(), 1)
 }
 
 ///|
@@ -192,17 +180,17 @@ test "then inherits named ellipses and equal captures through an unused level" {
     #|          then:
     #|            patterns:
     #|              - shape: target([$$$(items:exp)], $(name:id))
-  inspect(
+  assert_eq(
     then_hits(rule, "wrapper([a, b], value, holder(target([a, b], value)))").length(),
-    content="1",
+    1,
   )
-  inspect(
+  assert_eq(
     then_hits(rule, "wrapper([a, b], value, holder(target([b, a], value)))").length(),
-    content="0",
+    0,
   )
-  inspect(
+  assert_eq(
     then_hits(rule, "wrapper([a, b], value, holder(target([a, b], other)))").length(),
-    content="0",
+    0,
   )
 }
 
@@ -218,9 +206,9 @@ test "then inside toplevel keeps root findings pending until negative checks fin
     #|        - shape: target()
     #|patterns-not:
     #|  - shape: danger()
-  inspect(then_hits(rule, "wrapper(target()); danger()").length(), content="0")
-  inspect(
+  assert_eq(then_hits(rule, "wrapper(target()); danger()").length(), 0)
+  assert_eq(
     then_hits(rule, "wrapper({ target(); danger() }); wrapper(target())").length(),
-    content="2",
+    2,
   )
 }

@@ -141,9 +141,9 @@ test "new captures keep their declarations and sibling scopes remain independent
     #|            patterns:
     #|              - shape: sink($(name:id))
   let source = "fn sample { let item = source(); { let item = other(); sink(item) }; sink(item) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 1)
   let shadowed = "fn sample { let item = source(); { let item = other(); sink(item) }; skip() }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 0)
 }
 
 ///|
@@ -156,11 +156,11 @@ test "target provenance rolls back with ellipsis branches and then does not repa
     #|    then:
     #|      patterns:
     #|        - shape: sink()
-  inspect(
+  assert_eq(
     apply_structural_rule_findings(
       "fn sample { choose(miss(), sink(), marker()) }", backtracking,
     ).length(),
-    content="1",
+    1,
   )
   let no_retry =
     #|id: no-retry
@@ -170,11 +170,11 @@ test "target provenance rolls back with ellipsis branches and then does not repa
     #|    then:
     #|      patterns:
     #|        - shape: sink()
-  inspect(
+  assert_eq(
     apply_structural_rule_findings(
       "fn sample { choose(miss(), sink()) }", no_retry,
     ).length(),
-    content="0",
+    0,
   )
 }
 
@@ -195,6 +195,6 @@ test "alternative captures do not share a failing environment" {
   let hits = apply_structural_rule_findings(
     "fn sample { pick(a, b, sink(b)) }", rule,
   )
-  inspect(hits.length(), content="1")
-  inspect(hits[0].pattern_index, content="1")
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 1)
 }

@@ -88,6 +88,6 @@ test "regex labels and absent or wildcard binders do not declare variables" {
         None,
       )
     }
-    inspect(index.scopes.length(), content="0")
+    assert_eq(index.scopes.length(), 0)
   }
 }

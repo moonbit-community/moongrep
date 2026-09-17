@@ -75,7 +75,7 @@ test "list environment keys include every binding and lexical role" {
       )
     }
   }
-  inspect(session.candidate_expansions, content="5")
+  assert_eq(session.candidate_expansions, 5)
 }
 
 ///|

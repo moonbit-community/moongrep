@@ -34,7 +34,7 @@ test "query implements inspect_boolean structural alternatives" {
     #|  inspect(flag, content="not a boolean")
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="6")
+  assert_eq(query_alternative_match_count(patterns, source), 6)
 }
 
 ///|
@@ -47,7 +47,7 @@ test "query extracts inspect_number candidates for guard filtering" {
     #|  inspect(42, content=expected)
     #|}
     #|
-  inspect(query_match_count(pattern, source), content="2")
+  assert_eq(query_match_count(pattern, source), 2)
 }
 
 ///|
@@ -98,7 +98,7 @@ test "query implements match_option structural alternatives" {
     #|  })
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="2")
+  assert_eq(query_alternative_match_count(patterns, source), 2)
 }
 
 ///|
@@ -123,7 +123,7 @@ test "query implements simplifiable_assignment repeated targets" {
     #|  values[0] = values[1] + step
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="6")
+  assert_eq(query_alternative_match_count(patterns, source), 6)
 }
 
 ///|
@@ -157,7 +157,7 @@ test "query implements unnecessary_else alternatives" {
     #|  ignore(if flag { first() } else { second() })
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="2")
+  assert_eq(query_alternative_match_count(patterns, source), 2)
 }
 
 ///|
@@ -175,7 +175,7 @@ test "query implements catch_all expression alternatives" {
     #|  try fifth() catch { Failure(message) => report(message) }
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="4")
+  assert_eq(query_alternative_match_count(patterns, source), 4)
 }
 
 ///|
@@ -207,7 +207,7 @@ test "query recognizes forward and backward simple C-style loops" {
     #|  }
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="2")
+  assert_eq(query_alternative_match_count(patterns, source), 2)
 }
 
 ///|
@@ -239,5 +239,5 @@ test "query recognizes forward and backward C-style array iteration" {
     #|  }
     #|}
     #|
-  inspect(query_alternative_match_count(patterns, source), content="2")
+  assert_eq(query_alternative_match_count(patterns, source), 2)
 }
