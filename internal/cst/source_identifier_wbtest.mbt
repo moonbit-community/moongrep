@@ -43,23 +43,21 @@ test "identifier origins distinguish declarations from their incoming scope" {
     kind => kind is @untyped_cst.Name_Var,
     "item",
   )
-  inspect(binders.length(), content="3")
-  inspect(references.length(), content="3")
+  assert_eq(binders.length(), 3)
+  assert_eq(references.length(), 3)
   let origins = binders.map(node => {
     index.identifier_source(node).unwrap().binding
   })
-  inspect(origins.all(origin => origin is Lexical(Some(_))), content="true")
-  inspect(origins[0] != origins[1] && origins[1] != origins[2], content="true")
-  inspect(
+  assert_true(origins.all(origin => origin is Lexical(Some(_))))
+  assert_true(origins[0] != origins[1] && origins[1] != origins[2])
+  assert_true(
     references.map(node => index.identifier_source(node).unwrap().binding) ==
     [origins[0], origins[2], origins[1]],
-    content="true",
   )
   let declaration = index.node_id(binders[1])
   guard origins[0] is Lexical(parameter) else { fail("expected a parameter") }
-  inspect(
+  assert_true(
     index.resolve(index.scope(index.direct(declaration)), "item") == parameter,
-    content="true",
   )
 }
 
@@ -79,17 +77,16 @@ test "enumview parameters retain their binding across nested block shadowing" {
     kind => kind is @untyped_cst.Name_Var,
     "item",
   )
-  inspect(binders.length(), content="2")
-  inspect(references.length(), content="3")
+  assert_eq(binders.length(), 2)
+  assert_eq(references.length(), 3)
   let origins = binders.map(node => {
     index.identifier_source(node).unwrap().binding
   })
-  inspect(origins.all(origin => origin is Lexical(Some(_))), content="true")
-  inspect(origins[0] != origins[1], content="true")
-  inspect(
+  assert_true(origins.all(origin => origin is Lexical(Some(_))))
+  assert_true(origins[0] != origins[1])
+  assert_true(
     references.map(node => index.identifier_source(node).unwrap().binding) ==
     [origins[0], origins[1], origins[0]],
-    content="true",
   )
 }
 
@@ -131,14 +128,13 @@ test "free references retain an unbound origin before later declarations" {
     kind => kind is @untyped_cst.Name_Var,
     "item",
   )
-  inspect(references.length(), content="2")
+  assert_eq(references.length(), 2)
   debug_inspect(
     index.identifier_source(references[0]).unwrap().binding,
     content="Lexical(None)",
   )
-  inspect(
+  assert_true(
     index.identifier_source(references[1]).unwrap().binding is Lexical(Some(_)),
-    content="true",
   )
 }
 
@@ -333,13 +329,13 @@ test "for update names retain init bindings across condition and body shadowing"
   let loop_id = index.node_id(loop_node)
   let initializers = index.raw_all(index.raw(loop_id, "init").unwrap(), "item")
   let updates = index.raw_all(index.raw(loop_id, "continue").unwrap(), "item")
-  inspect(initializers.length(), content="2")
-  inspect(updates.length(), content="2")
+  assert_eq(initializers.length(), 2)
+  assert_eq(updates.length(), 2)
   let origins = initializers.map(id => {
     index.identifier_source(name_node(index.node(id)).unwrap()).unwrap().binding
   })
-  inspect(origins.all(origin => origin is Lexical(Some(_))), content="true")
-  inspect(origins[0] != origins[1], content="true")
+  assert_true(origins.all(origin => origin is Lexical(Some(_))))
+  assert_true(origins[0] != origins[1])
   // Updates are deliberately in the opposite order to their declarations.
   for position, update in updates {
     let name = name_node(index.node(update)).unwrap()
@@ -351,35 +347,32 @@ test "for update names retain init bindings across condition and body shadowing"
     kind => kind is @untyped_cst.Name_Binder,
     "i",
   )
-  inspect(binders.length(), content="4")
+  assert_eq(binders.length(), 4)
   let condition = index.identifier_source(binders[1]).unwrap().binding
   let body_binding = index.identifier_source(binders[3]).unwrap().binding
-  inspect(
+  assert_true(
     condition != origins[0] &&
     body_binding != condition &&
     body_binding != origins[0],
-    content="true",
   )
   let references = indexed_names(
     index,
     kind => kind is @untyped_cst.Name_Var,
     "i",
   )
-  inspect(
+  assert_true(
     references.map(node => index.identifier_source(node).unwrap().binding) ==
     [origins[0], condition, condition, body_binding],
-    content="true",
   )
   let j_references = indexed_names(
     index,
     kind => kind is @untyped_cst.Name_Var,
     "j",
   )
-  inspect(
+  assert_true(
     j_references.map(node => index.identifier_source(node).unwrap().binding) ==
     [origins[1], origins[1]],
-    content="true",
   )
   // Only the two loop variables, condition binder, and local are declarations.
-  inspect(index.scopes.length(), content="4")
+  assert_eq(index.scopes.length(), 4)
 }

@@ -9,7 +9,7 @@ test "query package can be called from another module" {
     #|}
     #|
   let captures = query.captures(source_name="sample.mbt", source)
-  inspect(captures.length(), content="2")
+  assert_eq(captures.length(), 2)
   for capture in captures {
     assert_true(capture.contains("value"))
   }

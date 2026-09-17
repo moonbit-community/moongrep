@@ -17,7 +17,7 @@ test "report condition binder cannot be rebound at the else target" {
     #|    sink(item)
     #|  }
     #|}
-  inspect(apply_structural_rule_findings(source, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 0)
   let then_rule =
     #|id: condition-origin
     #|description: The conditional declaration is visible in its body.
@@ -26,10 +26,7 @@ test "report condition binder cannot be rebound at the else target" {
     #|    then:
     #|      patterns:
     #|        - shape: consume($(name:id))
-  inspect(
-    apply_structural_rule_findings(source, then_rule).length(),
-    content="1",
-  )
+  assert_eq(apply_structural_rule_findings(source, then_rule).length(), 1)
 }
 
 ///|
@@ -43,9 +40,9 @@ test "report inherited occurrences check shadowing inside atomic sequences" {
     #|      patterns:
     #|        - shape: let $_ = $_; sink($(name:id))
   let source = "fn sample { wrapper(item, { let item = source(); sink(item) }) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 0)
   let control = "fn sample { wrapper(item, { let other = source(); sink(item) }) }"
-  inspect(apply_structural_rule_findings(control, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(control, rule).length(), 1)
 }
 
 ///|
@@ -59,11 +56,11 @@ test "report field captures ignore same-named local variables" {
     #|      patterns:
     #|        - shape: sink($_.$(field:id))
   let source = "fn sample { wrapper(object.field, { let field = source(); sink(object.field) }) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 1)
   let control = "fn sample { wrapper(object.field, sink(object.field)) }"
-  inspect(apply_structural_rule_findings(control, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(control, rule).length(), 1)
   let different = "fn sample { wrapper(object.field, sink(object.other)) }"
-  inspect(apply_structural_rule_findings(different, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(different, rule).length(), 0)
 }
 
 ///|
@@ -77,9 +74,9 @@ test "report typed identifier lists retain each source binding" {
     #|      patterns:
     #|        - shape: sink($$$(names:id))
   let source = "fn sample { wrapper(a, b, { let a = source(); sink(a, b) }) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 0)
   let control = "fn sample { wrapper(a, b, { let other = source(); sink(a, b) }) }"
-  inspect(apply_structural_rule_findings(control, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(control, rule).length(), 1)
   for
     (body, expected) in [
       ("wrapper(a, b, { let b = source(); sink(a, b) })", 0),
@@ -110,12 +107,12 @@ test "every inherited occurrence uses its own scope including earlier references
       expected,
     )
   }
-  inspect(
+  assert_eq(
     apply_structural_rule_findings(
       "fn sample { wrapper(item, { sink(item); let item = source(); done() }) }",
       earlier,
     ).length(),
-    content="1",
+    1,
   )
 }
 
@@ -163,10 +160,7 @@ test "intermediate cross-role uses preserve the original capture source" {
     #|            patterns:
     #|              - shape: sink($(name:id))
   let source = "fn sample { wrapper(item, { let item = source(); middle(object.item, sink(item)) }) }"
-  inspect(
-    apply_structural_rule_findings(source, variable).length(),
-    content="0",
-  )
+  assert_eq(apply_structural_rule_findings(source, variable).length(), 0)
   let field =
     #|id: field-origin
     #|description: Variable occurrences do not make a field capture lexical.
@@ -179,7 +173,7 @@ test "intermediate cross-role uses preserve the original capture source" {
     #|            patterns:
     #|              - shape: sink($(name:id))
   let source = "fn sample { wrapper(object.item, middle(item, { let item = source(); sink(item) })) }"
-  inspect(apply_structural_rule_findings(source, field).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, field).length(), 1)
 }
 
 ///|
@@ -228,9 +222,9 @@ test "enumview parameter captures match their body references" {
     #|patterns:
     #|  - shape: sink($(name:id))
   let visible = "enumview ValueView { Value(Int) } for Int with view(item) { sink(item) }"
-  inspect(apply_structural_rule_findings(visible, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(visible, rule).length(), 1)
   let shadowed = "enumview ValueView { Value(Int) } for Int with view(item) { { let item = source(); sink(item) } }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 0)
 }
 
 ///|
@@ -243,9 +237,9 @@ test "enumview negative patterns reject only the captured parameter" {
     #|patterns-not:
     #|  - shape: sink($(name:id))
   let visible = "enumview ValueView { Value(Int) } for Int with view(item) { sink(item) }"
-  inspect(apply_structural_rule_findings(visible, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(visible, rule).length(), 0)
   let shadowed = "enumview ValueView { Value(Int) } for Int with view(item) { { let item = source(); sink(item) } }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 1)
 }
 
 ///|
@@ -260,9 +254,9 @@ test "enumview guards require the inherited parameter to remain visible" {
     #|    guard:
     #|      $name: '^item$'
   let visible = "enumview ValueView { Value(Int) } for Int with view(item) { sink(item) }"
-  inspect(apply_structural_rule_findings(visible, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(visible, rule).length(), 1)
   let shadowed = "enumview ValueView { Value(Int) } for Int with view(item) { { let item = source(); sink(item) } }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 0)
 }
 
 ///|
@@ -281,9 +275,9 @@ test "enumview parameter captures survive recursive then" {
     #|            patterns:
     #|              - shape: sink($(name:id))
   let visible = "enumview ValueView { Value(Int) } for Int with view(item) { middle(wrapper(sink(item))) }"
-  inspect(apply_structural_rule_findings(visible, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(visible, rule).length(), 1)
   let shadowed = "enumview ValueView { Value(Int) } for Int with view(item) { middle(wrapper({ let item = source(); sink(item) })) }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 0)
 }
 
 ///|
@@ -296,7 +290,7 @@ test "parameter defaults inherit preceding parameters through inside-toplevel" {
     #|patterns:
     #|  - shape: sink($(name:id))
   let source = "fn sample(item : Int, next~ : Int = sink(item)) { () }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 1)
 }
 
 ///|
@@ -310,9 +304,9 @@ test "for update captures reject a shadowing local and retain the loop variable"
     #|      patterns:
     #|        - shape: sink($(name:id))
   let shadowed = "fn sample { for i = 0; i < 10; i = i + 1 { let i = source(); sink(i) } }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 0)
   let visible = "fn sample { for i = 0; i < 10; i = i + 1 { let other = source(); sink(i) } }"
-  inspect(apply_structural_rule_findings(visible, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(visible, rule).length(), 1)
 }
 
 ///|
@@ -384,9 +378,9 @@ test "for update targets retain loop bindings when conditions bind the same name
     #|      patterns:
     #|        - shape: sink($(name:id))
   let shadowed = "fn sample { for i = 0; input is Some(i); i = sink(i) { () } }"
-  inspect(apply_structural_rule_findings(shadowed, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(shadowed, rule).length(), 0)
   let visible = "fn sample { for i = 0; input is Some(other); i = sink(i) { () } }"
-  inspect(apply_structural_rule_findings(visible, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(visible, rule).length(), 1)
 }
 
 ///|
@@ -401,12 +395,12 @@ test "guard-only reads check inherited lexical visibility at candidate entry" {
     #|        - shape: sink($_)
     #|          guard:
     #|            $name: '^item$'
-  inspect(
+  assert_eq(
     apply_structural_rule_findings(
       "fn sample { let item = outer(); if input is Some(item) { () } else { sink(item) } }",
       variable,
     ).length(),
-    content="0",
+    0,
   )
   let field =
     #|id: guard-field
@@ -418,12 +412,12 @@ test "guard-only reads check inherited lexical visibility at candidate entry" {
     #|        - shape: sink($_)
     #|          guard:
     #|            $name: '^item$'
-  inspect(
+  assert_eq(
     apply_structural_rule_findings(
       "fn sample { wrapper(object.item, { let item = source(); sink(item) }) }",
       field,
     ).length(),
-    content="1",
+    1,
   )
 }
 
@@ -454,7 +448,7 @@ test "binding mismatch retries an atomic ellipsis partition" {
     #|      patterns:
     #|        - shape: choose($$$_, { let $_ = $_; sink($(name:id)) }, $$$_)
   let source = "fn sample { wrapper(item, choose({ let item = source(); sink(item) }, { let other = source(); sink(item) })) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 1)
 }
 
 ///|
@@ -468,7 +462,7 @@ test "new capture provenance rolls back with failed ellipsis branches" {
     #|      patterns:
     #|        - shape: sink($(name:id))
   let source = "fn sample { choose(fn(item) { sink(item) }, fn(item) { sink(item) }, marker()) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 1)
 }
 
 ///|
@@ -482,13 +476,13 @@ test "same-shape identifier repetitions keep name equality and the first source"
     #|      patterns:
     #|        - shape: sink($(name:id))
   let source = "fn sample { wrapper(item, { let item = source(); sink(item) }) }"
-  inspect(apply_structural_rule_findings(source, rule).length(), content="0")
+  assert_eq(apply_structural_rule_findings(source, rule).length(), 0)
   let plain =
     #|id: same-shape
     #|description: New identifier repetitions compare names.
     #|patterns:
     #|  - shape: wrapper($(name:id), { let $(name:id) = $_; sink($(name:id)) })
-  inspect(apply_structural_rule_findings(source, plain).length(), content="1")
+  assert_eq(apply_structural_rule_findings(source, plain).length(), 1)
 }
 
 ///|
@@ -509,8 +503,8 @@ test "failed sibling sources cannot affect a same-named field capture" {
     "fn sample { pick(item, object.item, { let item = source(); sink(item) }) }",
     rule,
   )
-  inspect(hits.length(), content="1")
-  inspect(hits[0].pattern_index, content="1")
+  assert_eq(hits.length(), 1)
+  assert_eq(hits[0].pattern_index, 1)
 }
 
 ///|

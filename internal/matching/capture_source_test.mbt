@@ -17,11 +17,8 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
   guard matched.result.bindings.get("names") is Some(Multiple(items)) else {
     fail("expected complete parameter items")
   }
-  inspect(items.length(), content="2")
-  inspect(
-    items.all(item => item.kind is @untyped_cst.Parameter_Positional),
-    content="true",
-  )
+  assert_eq(items.length(), 2)
+  assert_true(items.all(item => item.kind is @untyped_cst.Parameter_Positional))
   let call = test_compiled(test_expr("sink($$$(names:id))"), entries=[
     test_metavar_entry("names", Ellipsis(IdItem)),
   ])
@@ -34,7 +31,7 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
     }
     @cst.NodeVisitContinue
   })
-  inspect(reference_sources == matched.sources.get("names"), content="true")
+  assert_true(reference_sources == matched.sources.get("names"))
 }
 
 ///|
@@ -45,7 +42,7 @@ test "indexed matching keeps structural equality for new identifier lists" {
     entries=[test_metavar_entry("names", Ellipsis(IdItem))],
   )
   let index = @cst.SourceIndex::new(node)
-  inspect(
+  assert_true(
     match_indexed_expr_pattern(
       pattern,
       index,
@@ -54,9 +51,8 @@ test "indexed matching keeps structural equality for new identifier lists" {
       HashMap([]),
     )
     is Some(_),
-    content="true",
   )
-  inspect(match_expr_pattern(pattern, node) is Some(_), content="true")
+  assert_true(match_expr_pattern(pattern, node) is Some(_))
 }
 
 ///|

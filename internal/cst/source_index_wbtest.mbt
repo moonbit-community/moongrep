@@ -24,10 +24,10 @@ test "continuation regions keep empty and partial sequence boundaries" {
   let empty = index.continuation(header_id, 1)
   let single = index.continuation(header_id, 2)
   let multiple = index.continuation(header_id, 3)
-  inspect(index.candidate(empty) is Sequence([]), content="true")
-  inspect(index.candidate(single) is Sequence([_]), content="true")
-  inspect(index.candidate(multiple) is Sequence([_, _]), content="true")
-  inspect(index.resolve(index.scope(empty), "item") is Some(_), content="true")
+  assert_true(index.candidate(empty) is Sequence([]))
+  assert_true(index.candidate(single) is Sequence([_]))
+  assert_true(index.candidate(multiple) is Sequence([_, _]))
+  assert_true(index.resolve(index.scope(empty), "item") is Some(_))
   assert_eq(index.scope(empty), index.scope(multiple))
   assert_eq(index.continuation(header_id, 3), multiple)
   assert_true(empty != single && single != multiple)
@@ -158,6 +158,6 @@ test "split constructor pattern names retain their original indexed references" 
     }
     NodeVisitContinue
   })
-  inspect(visits_syntax, content="false")
+  assert_false(visits_syntax)
   ignore(assert_direct_indexed_compatible(root))
 }
