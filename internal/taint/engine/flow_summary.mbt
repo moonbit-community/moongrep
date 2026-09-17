@@ -223,9 +223,10 @@ fn flow_normal_to_break(result : EvalResult, label : String?) -> EvalResult {
   let converted = flow_without_normal(result)
   let breaks = merge_labelled_flow_paths(
     converted.breaks,
-    match result.normal {
-      Some(path) => [{ label, path, }]
-      None => []
+    if result.normal is Some(path) {
+      [{ label, path, }]
+    } else {
+      []
     },
   )
   { ..converted, breaks, }
@@ -236,9 +237,10 @@ fn flow_normal_to_continue(result : EvalResult, label : String?) -> EvalResult {
   let converted = flow_without_normal(result)
   let continues = merge_labelled_flow_paths(
     converted.continues,
-    match result.normal {
-      Some(path) => [{ label, path, }]
-      None => []
+    if result.normal is Some(path) {
+      [{ label, path, }]
+    } else {
+      []
     },
   )
   { ..converted, continues, }
@@ -246,9 +248,10 @@ fn flow_normal_to_continue(result : EvalResult, label : String?) -> EvalResult {
 
 ///|
 fn control_targets_loop(target : String?, loop_label : String?) -> Bool {
-  match target {
-    Some(target) => loop_label == Some(target)
-    None => true
+  if target is Some(target) {
+    loop_label == Some(target)
+  } else {
+    true
   }
 }
 

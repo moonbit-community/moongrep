@@ -14,12 +14,11 @@ fn eval_interp_elems(
         if node_child(elem, "expr") is Some(expr) {
           let result = eval_expr(expr, current, spec, findings)
           exits = flow_join(exits, flow_without_normal(result))
-          match result.normal {
-            Some(path) => {
-              current = path.state
-              value = tree_merge(value, path.value)
-            }
-            None => return exits
+          if result.normal is Some(path) {
+            current = path.state
+            value = tree_merge(value, path.value)
+          } else {
+            return exits
           }
         }
       @untyped_cst.InterpSegment_Literal => ()

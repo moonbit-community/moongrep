@@ -1,15 +1,15 @@
 ///|
 fn condition_from_eval_result(result : EvalResult) -> ConditionEval {
   {
-    normal: match result.normal {
-      Some(path) =>
-        Some({
-          base_state: path.state,
-          true_state: path.state,
-          bound_roots: [],
-          value: path.value,
-        })
-      None => None
+    normal: if result.normal is Some(path) {
+      Some({
+        base_state: path.state,
+        true_state: path.state,
+        bound_roots: [],
+        value: path.value,
+      })
+    } else {
+      None
     },
     exits: flow_without_normal(result),
   }
@@ -34,15 +34,15 @@ fn eval_condition_scope(
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
           {
-            normal: match matched.normal {
-              Some(path) =>
-                Some({
-                  base_state: path.state,
-                  true_state: bind_pattern(pat, path.value, path.state),
-                  bound_roots: pattern_bound_roots(pat),
-                  value: path.value,
-                })
-              None => None
+            normal: if matched.normal is Some(path) {
+              Some({
+                base_state: path.state,
+                true_state: bind_pattern(pat, path.value, path.state),
+                bound_roots: pattern_bound_roots(pat),
+                value: path.value,
+              })
+            } else {
+              None
             },
             exits: flow_without_normal(matched),
           }
@@ -59,25 +59,24 @@ fn eval_condition_scope(
             regex_bindings_bound_roots(bindings),
           )
           {
-            normal: match matched.normal {
-              Some(path) => {
-                let pattern_state = bind_regex_pattern(
-                  pat,
+            normal: if matched.normal is Some(path) {
+              let pattern_state = bind_regex_pattern(
+                pat,
+                path.value,
+                path.state,
+              )
+              Some({
+                base_state: path.state,
+                true_state: bind_regex_bindings(
+                  bindings,
                   path.value,
-                  path.state,
-                )
-                Some({
-                  base_state: path.state,
-                  true_state: bind_regex_bindings(
-                    bindings,
-                    path.value,
-                    pattern_state,
-                  ),
-                  bound_roots: roots,
-                  value: path.value,
-                })
-              }
-              None => None
+                  pattern_state,
+                ),
+                bound_roots: roots,
+                value: path.value,
+              })
+            } else {
+              None
             },
             exits: flow_without_normal(matched),
           }
@@ -105,41 +104,35 @@ fn eval_and_condition_scope(
   findings : Array[SinkFinding],
 ) -> ConditionEval raise {
   let left = eval_condition_scope(lhs, state, spec, findings)
-  match left.normal {
-    Some(left_path) => {
-      let right = eval_condition_scope(
-        rhs,
-        left_path.true_state,
-        spec,
-        findings,
-      )
-      let right_exits = restore_result_scoped_roots(
-        right.exits,
-        left_path.base_state,
-        left_path.bound_roots,
-      )
-      {
-        normal: match right.normal {
-          Some(right_path) =>
-            Some({
-              base_state: restore_scoped_roots(
-                left_path.base_state,
-                right_path.base_state,
-                left_path.bound_roots,
-              ),
-              true_state: right_path.true_state,
-              bound_roots: merge_root_names(
-                left_path.bound_roots,
-                right_path.bound_roots,
-              ),
-              value: tree_merge(left_path.value, right_path.value),
-            })
-          None => None
-        },
-        exits: flow_join(left.exits, right_exits),
-      }
+  if left.normal is Some(left_path) {
+    let right = eval_condition_scope(rhs, left_path.true_state, spec, findings)
+    let right_exits = restore_result_scoped_roots(
+      right.exits,
+      left_path.base_state,
+      left_path.bound_roots,
+    )
+    {
+      normal: if right.normal is Some(right_path) {
+        Some({
+          base_state: restore_scoped_roots(
+            left_path.base_state,
+            right_path.base_state,
+            left_path.bound_roots,
+          ),
+          true_state: right_path.true_state,
+          bound_roots: merge_root_names(
+            left_path.bound_roots,
+            right_path.bound_roots,
+          ),
+          value: tree_merge(left_path.value, right_path.value),
+        })
+      } else {
+        None
+      },
+      exits: flow_join(left.exits, right_exits),
     }
-    None => left
+  } else {
+    left
   }
 }
 

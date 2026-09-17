@@ -93,13 +93,13 @@ fn restore_optional_flow_path(
   base : TaintState,
   roots : Array[String],
 ) -> FlowPath? {
-  match path {
-    Some(path) =>
-      Some({
-        state: restore_scoped_roots(base, path.state, roots),
-        value: path.value,
-      })
-    None => None
+  if path is Some(path) {
+    Some({
+      state: restore_scoped_roots(base, path.state, roots),
+      value: path.value,
+    })
+  } else {
+    None
   }
 }
 

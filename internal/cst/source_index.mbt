@@ -166,9 +166,10 @@ fn SourceIndex::add_node(
     sequence: None,
     statement: None,
   })
-  match self.node_buckets.get(node.source_span) {
-    Some(bucket) => bucket.push(id)
-    None => self.node_buckets[node.source_span] = [id]
+  if self.node_buckets.get(node.source_span) is Some(bucket) {
+    bucket.push(id)
+  } else {
+    self.node_buckets[node.source_span] = [id]
   }
   id
 }

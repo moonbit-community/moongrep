@@ -21,9 +21,10 @@ fn SourceIndex::bind_named(
   scope : ScopeId,
   id : NodeId,
 ) -> ScopeId {
-  match name_node(self.node(id)).bind(normalized_name) {
-    Some(name) => self.bind_name(scope, id, name)
-    None => scope
+  if name_node(self.node(id)).bind(normalized_name) is Some(name) {
+    self.bind_name(scope, id, name)
+  } else {
+    scope
   }
 }
 
@@ -71,16 +72,13 @@ fn SourceIndex::bind_pattern(
       if self.raw(id, "semantic_binder") is Some(binder) &&
         normalized_name(self.node(binder)) is Some(name) &&
         name != "_" {
-        let binding = match seen.get(name) {
-          Some(binding) => {
-            self.mark_identifier(binder, VariableBinder(binding))
-            binding
-          }
-          None => {
-            current = self.bind_name(current, binder, name)
-            seen[name] = binder
-            binder
-          }
+        let binding = if seen.get(name) is Some(binding) {
+          self.mark_identifier(binder, VariableBinder(binding))
+          binding
+        } else {
+          current = self.bind_name(current, binder, name)
+          seen[name] = binder
+          binder
         }
         if self.raw(id, "binder") is Some(syntax) {
           self.mark_name_tree(syntax, VariableBinder(binding))
@@ -359,9 +357,10 @@ fn SourceIndex::ensure_scopes(self : SourceIndex) -> Unit {
     for id in sequence.nodes {
       sequence.scopes.push(self.nodes[id].scope)
     }
-    let last_scope = match sequence.nodes.last() {
-      Some(last) => self.after_statement(self.nodes[last].scope, last)
-      None => self.nodes[sequence.owner].scope
+    let last_scope = if sequence.nodes.last() is Some(last) {
+      self.after_statement(self.nodes[last].scope, last)
+    } else {
+      self.nodes[sequence.owner].scope
     }
     sequence.scopes.push(last_scope)
   }
@@ -397,9 +396,10 @@ fn SourceIndex::index_sequences(self : SourceIndex) -> Unit {
           self.nodes[id].sequence = Some(list)
           break
         }
-        match self.raw(current, "body") {
-          Some(body) => continue body
-          None => break
+        if self.raw(current, "body") is Some(body) {
+          continue body
+        } else {
+          break
         }
       }
     }

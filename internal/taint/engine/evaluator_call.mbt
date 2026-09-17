@@ -9,34 +9,33 @@ fn eval_apply_call(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let func_result = eval_expr(func, state, spec, findings)
-  match func_result.normal {
-    Some(func_path) => {
-      let args_result = eval_arguments(args, 0, func_path.state, spec, findings)
-      let after_args = match args_result.normal {
-        Some(args_path) =>
-          flow_join(
-            args_result.exits,
-            apply_call_transfer(
-              {
-                kind: Apply,
-                cst,
-                loc,
-                callee_name: callee_name_from_expr(func),
-                receiver_path: None,
-                receiver_site: None,
-                receiver_taint: [],
-                arguments: args_path.arguments,
-              },
-              args_path.state,
-              spec,
-              findings,
-            ),
-          )
-        None => args_result.exits
-      }
-      flow_sequence(func_result, after_args)
+  if func_result.normal is Some(func_path) {
+    let args_result = eval_arguments(args, 0, func_path.state, spec, findings)
+    let after_args = if args_result.normal is Some(args_path) {
+      flow_join(
+        args_result.exits,
+        apply_call_transfer(
+          {
+            kind: Apply,
+            cst,
+            loc,
+            callee_name: callee_name_from_expr(func),
+            receiver_path: None,
+            receiver_site: None,
+            receiver_taint: [],
+            arguments: args_path.arguments,
+          },
+          args_path.state,
+          spec,
+          findings,
+        ),
+      )
+    } else {
+      args_result.exits
     }
-    None => func_result
+    flow_sequence(func_result, after_args)
+  } else {
+    func_result
   }
 }
 
@@ -52,42 +51,41 @@ fn eval_dot_apply_call(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let receiver = eval_expr(self, state, spec, findings)
-  match receiver.normal {
-    Some(receiver_flow) => {
-      let receiver_path = storage_path_from_expr(self)
-      let receiver_site = site_for_expr(self, receiver_path)
-      let args_result = eval_arguments(
-        args,
-        0,
-        receiver_flow.state,
-        spec,
-        findings,
+  if receiver.normal is Some(receiver_flow) {
+    let receiver_path = storage_path_from_expr(self)
+    let receiver_site = site_for_expr(self, receiver_path)
+    let args_result = eval_arguments(
+      args,
+      0,
+      receiver_flow.state,
+      spec,
+      findings,
+    )
+    let after_args = if args_result.normal is Some(args_path) {
+      flow_join(
+        args_result.exits,
+        apply_call_transfer(
+          {
+            kind: DotApply,
+            cst,
+            loc,
+            callee_name: node_label_name(method_name),
+            receiver_path,
+            receiver_site: Some(receiver_site),
+            receiver_taint: receiver_flow.value,
+            arguments: args_path.arguments,
+          },
+          args_path.state,
+          spec,
+          findings,
+        ),
       )
-      let after_args = match args_result.normal {
-        Some(args_path) =>
-          flow_join(
-            args_result.exits,
-            apply_call_transfer(
-              {
-                kind: DotApply,
-                cst,
-                loc,
-                callee_name: node_label_name(method_name),
-                receiver_path,
-                receiver_site: Some(receiver_site),
-                receiver_taint: receiver_flow.value,
-                arguments: args_path.arguments,
-              },
-              args_path.state,
-              spec,
-              findings,
-            ),
-          )
-        None => args_result.exits
-      }
-      flow_sequence(receiver, after_args)
+    } else {
+      args_result.exits
     }
-    None => receiver
+    flow_sequence(receiver, after_args)
+  } else {
+    receiver
   }
 }
 
@@ -102,9 +100,10 @@ fn eval_pipe_call(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let lhs_result = eval_expr(lhs, state, spec, findings)
-  let lhs_path = match lhs_result.normal {
-    Some(path) => path
-    None => return lhs_result
+  let lhs_path = if lhs_result.normal is Some(path) {
+    path
+  } else {
+    return lhs_result
   }
   let lhs_arg = evaled_argument_from_path(0, None, lhs, lhs_path)
   let rhs_flow = match rhs.kind {
@@ -112,39 +111,37 @@ fn eval_pipe_call(
       match (node_child(rhs, "func"), node_child(rhs, "args")) {
         (Some(func), Some(args)) => {
           let func_result = eval_expr(func, lhs_path.state, spec, findings)
-          match func_result.normal {
-            Some(func_path) => {
-              let args_result = eval_arguments(
-                args,
-                1,
-                func_path.state,
-                spec,
-                findings,
+          if func_result.normal is Some(func_path) {
+            let args_result = eval_arguments(
+              args,
+              1,
+              func_path.state,
+              spec,
+              findings,
+            )
+            let after_args = if args_result.normal is Some(args_path) {
+              let arguments = prepend_argument(lhs_arg, args_path.arguments)
+              flow_join(
+                args_result.exits,
+                apply_call_transfer(
+                  call_info_without_receiver(
+                    Pipe,
+                    cst,
+                    loc,
+                    callee_name_from_expr(func),
+                    arguments,
+                  ),
+                  args_path.state,
+                  spec,
+                  findings,
+                ),
               )
-              let after_args = match args_result.normal {
-                Some(args_path) => {
-                  let arguments = prepend_argument(lhs_arg, args_path.arguments)
-                  flow_join(
-                    args_result.exits,
-                    apply_call_transfer(
-                      call_info_without_receiver(
-                        Pipe,
-                        cst,
-                        loc,
-                        callee_name_from_expr(func),
-                        arguments,
-                      ),
-                      args_path.state,
-                      spec,
-                      findings,
-                    ),
-                  )
-                }
-                None => args_result.exits
-              }
-              flow_sequence(func_result, after_args)
+            } else {
+              args_result.exits
             }
-            None => func_result
+            flow_sequence(func_result, after_args)
+          } else {
+            func_result
           }
         }
         _ => normal_result(lhs_path.state, lhs_path.value)
@@ -158,68 +155,66 @@ fn eval_pipe_call(
         ) {
         (Some(self), Some(method_name), Some(args)) => {
           let receiver = eval_expr(self, lhs_path.state, spec, findings)
-          match receiver.normal {
-            Some(receiver_flow) => {
-              let receiver_path = storage_path_from_expr(self)
-              let receiver_site = site_for_expr(self, receiver_path)
-              let args_result = eval_arguments(
-                args,
-                1,
-                receiver_flow.state,
-                spec,
-                findings,
+          if receiver.normal is Some(receiver_flow) {
+            let receiver_path = storage_path_from_expr(self)
+            let receiver_site = site_for_expr(self, receiver_path)
+            let args_result = eval_arguments(
+              args,
+              1,
+              receiver_flow.state,
+              spec,
+              findings,
+            )
+            let after_args = if args_result.normal is Some(args_path) {
+              let arguments = prepend_argument(lhs_arg, args_path.arguments)
+              flow_join(
+                args_result.exits,
+                apply_call_transfer(
+                  {
+                    kind: Pipe,
+                    cst,
+                    loc,
+                    callee_name: node_label_name(method_name),
+                    receiver_path,
+                    receiver_site: Some(receiver_site),
+                    receiver_taint: receiver_flow.value,
+                    arguments,
+                  },
+                  args_path.state,
+                  spec,
+                  findings,
+                ),
               )
-              let after_args = match args_result.normal {
-                Some(args_path) => {
-                  let arguments = prepend_argument(lhs_arg, args_path.arguments)
-                  flow_join(
-                    args_result.exits,
-                    apply_call_transfer(
-                      {
-                        kind: Pipe,
-                        cst,
-                        loc,
-                        callee_name: node_label_name(method_name),
-                        receiver_path,
-                        receiver_site: Some(receiver_site),
-                        receiver_taint: receiver_flow.value,
-                        arguments,
-                      },
-                      args_path.state,
-                      spec,
-                      findings,
-                    ),
-                  )
-                }
-                None => args_result.exits
-              }
-              flow_sequence(receiver, after_args)
+            } else {
+              args_result.exits
             }
-            None => receiver
+            flow_sequence(receiver, after_args)
+          } else {
+            receiver
           }
         }
         _ => normal_result(lhs_path.state, lhs_path.value)
       }
     _ => {
       let rhs_result = eval_expr(rhs, lhs_path.state, spec, findings)
-      match rhs_result.normal {
-        Some(rhs_path) =>
-          flow_sequence(
-            rhs_result,
-            apply_call_transfer(
-              call_info_without_receiver(
-                Pipe,
-                cst,
-                loc,
-                callee_name_from_expr(rhs),
-                [lhs_arg],
-              ),
-              rhs_path.state,
-              spec,
-              findings,
+      if rhs_result.normal is Some(rhs_path) {
+        flow_sequence(
+          rhs_result,
+          apply_call_transfer(
+            call_info_without_receiver(
+              Pipe,
+              cst,
+              loc,
+              callee_name_from_expr(rhs),
+              [lhs_arg],
             ),
-          )
-        None => rhs_result
+            rhs_path.state,
+            spec,
+            findings,
+          ),
+        )
+      } else {
+        rhs_result
       }
     }
   }
@@ -237,31 +232,30 @@ fn eval_rev_pipe_call(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let func_result = eval_expr(lhs, state, spec, findings)
-  match func_result.normal {
-    Some(func_path) => {
-      let rhs_result = eval_expr(rhs, func_path.state, spec, findings)
-      let after_rhs = match rhs_result.normal {
-        Some(rhs_path) =>
-          flow_sequence(
-            rhs_result,
-            apply_call_transfer(
-              call_info_without_receiver(
-                RevPipe,
-                cst,
-                loc,
-                callee_name_from_expr(lhs),
-                [evaled_argument_from_path(0, None, rhs, rhs_path)],
-              ),
-              rhs_path.state,
-              spec,
-              findings,
-            ),
-          )
-        None => rhs_result
-      }
-      flow_sequence(func_result, after_rhs)
+  if func_result.normal is Some(func_path) {
+    let rhs_result = eval_expr(rhs, func_path.state, spec, findings)
+    let after_rhs = if rhs_result.normal is Some(rhs_path) {
+      flow_sequence(
+        rhs_result,
+        apply_call_transfer(
+          call_info_without_receiver(
+            RevPipe,
+            cst,
+            loc,
+            callee_name_from_expr(lhs),
+            [evaled_argument_from_path(0, None, rhs, rhs_path)],
+          ),
+          rhs_path.state,
+          spec,
+          findings,
+        ),
+      )
+    } else {
+      rhs_result
     }
-    None => func_result
+    flow_sequence(func_result, after_rhs)
+  } else {
+    func_result
   }
 }
 
@@ -282,19 +276,18 @@ fn eval_arguments(
     if @cst.argument_value(arg) is Some(value) {
       let result = eval_expr(value, current, spec, findings)
       exits = flow_join(exits, flow_without_normal(result))
-      match result.normal {
-        Some(path) => {
-          current = path.state
-          arguments.push(
-            call_argument_from_path(
-              start_index + offset,
-              argument_label(arg),
-              value,
-              path,
-            ),
-          )
-        }
-        None => return { normal: None, exits, }
+      if result.normal is Some(path) {
+        current = path.state
+        arguments.push(
+          call_argument_from_path(
+            start_index + offset,
+            argument_label(arg),
+            value,
+            path,
+          ),
+        )
+      } else {
+        return { normal: None, exits, }
       }
     }
   }

@@ -420,12 +420,11 @@ fn eval_unknown_expr(
         if node_child(elem, "expr") is Some(child) {
           let result = eval_expr(child, current, spec, findings)
           exits = flow_join(exits, flow_without_normal(result))
-          match result.normal {
-            Some(path) => {
-              current = path.state
-              value = tree_merge(value, path.value)
-            }
-            None => return exits
+          if result.normal is Some(path) {
+            current = path.state
+            value = tree_merge(value, path.value)
+          } else {
+            return exits
           }
         }
       }
@@ -434,18 +433,18 @@ fn eval_unknown_expr(
     @untyped_cst.Expr_RecordUpdate =>
       if node_child(expr, "record") is Some(record) {
         let base = eval_expr(record, state, spec, findings)
-        match base.normal {
-          Some(path) =>
-            flow_sequence(
-              base,
-              eval_record_expr(
-                node_child_items(expr, "fields"),
-                path.state,
-                spec,
-                findings,
-              ),
-            )
-          None => base
+        if base.normal is Some(path) {
+          flow_sequence(
+            base,
+            eval_record_expr(
+              node_child_items(expr, "fields"),
+              path.state,
+              spec,
+              findings,
+            ),
+          )
+        } else {
+          base
         }
       } else {
         normal_result(state, [])
@@ -495,12 +494,11 @@ fn eval_children(
   for child in children {
     let result = eval_expr(child, current, spec, findings)
     exits = flow_join(exits, flow_without_normal(result))
-    match result.normal {
-      Some(path) => {
-        current = path.state
-        value = tree_merge(value, path.value)
-      }
-      None => return exits
+    if result.normal is Some(path) {
+      current = path.state
+      value = tree_merge(value, path.value)
+    } else {
+      return exits
     }
   }
   flow_join(exits, normal_result(current, value))

@@ -8,23 +8,20 @@ fn eval_if(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let cond_result = eval_condition_scope(cond, state, spec, findings)
-  match cond_result.normal {
-    Some(path) => {
-      let then_result = restore_result_scoped_roots(
-        eval_expr(ifso, path.true_state, spec, findings),
-        path.base_state,
-        path.bound_roots,
-      )
-      let else_result = match ifnot {
-        Some(expr) => eval_expr(expr, path.base_state, spec, findings)
-        None => normal_result(path.base_state, [])
-      }
-      flow_join(
-        cond_result.exits,
-        merge_branch_results(then_result, else_result),
-      )
+  if cond_result.normal is Some(path) {
+    let then_result = restore_result_scoped_roots(
+      eval_expr(ifso, path.true_state, spec, findings),
+      path.base_state,
+      path.bound_roots,
+    )
+    let else_result = if ifnot is Some(expr) {
+      eval_expr(expr, path.base_state, spec, findings)
+    } else {
+      normal_result(path.base_state, [])
     }
-    None => cond_result.exits
+    flow_join(cond_result.exits, merge_branch_results(then_result, else_result))
+  } else {
+    cond_result.exits
   }
 }
 
@@ -46,23 +43,20 @@ fn eval_guard(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let cond_result = eval_condition_scope(cond, state, spec, findings)
-  match cond_result.normal {
-    Some(path) => {
-      let body_result = restore_result_scoped_roots(
-        eval_expr(body, path.true_state, spec, findings),
-        path.base_state,
-        path.bound_roots,
-      )
-      let else_result = match otherwise {
-        Some(expr) => eval_expr(expr, path.base_state, spec, findings)
-        None => normal_result(path.base_state, [])
-      }
-      flow_join(
-        cond_result.exits,
-        merge_branch_results(body_result, else_result),
-      )
+  if cond_result.normal is Some(path) {
+    let body_result = restore_result_scoped_roots(
+      eval_expr(body, path.true_state, spec, findings),
+      path.base_state,
+      path.bound_roots,
+    )
+    let else_result = if otherwise is Some(expr) {
+      eval_expr(expr, path.base_state, spec, findings)
+    } else {
+      normal_result(path.base_state, [])
     }
-    None => cond_result.exits
+    flow_join(cond_result.exits, merge_branch_results(body_result, else_result))
+  } else {
+    cond_result.exits
   }
 }
 
@@ -75,21 +69,20 @@ fn eval_match(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
-  match scrutinee_result.normal {
-    Some(path) => {
-      let mut branches = empty_flow_summary()
-      for case in cases {
-        branches = flow_join(
-          branches,
-          eval_pattern_case(case, path.value, path.state, spec, findings),
-        )
-      }
-      if cases.is_empty() {
-        branches = normal_result(path.state, [])
-      }
-      flow_sequence(scrutinee_result, branches)
+  if scrutinee_result.normal is Some(path) {
+    let mut branches = empty_flow_summary()
+    for case in cases {
+      branches = flow_join(
+        branches,
+        eval_pattern_case(case, path.value, path.state, spec, findings),
+      )
     }
-    None => scrutinee_result
+    if cases.is_empty() {
+      branches = normal_result(path.state, [])
+    }
+    flow_sequence(scrutinee_result, branches)
+  } else {
+    scrutinee_result
   }
 }
 
@@ -115,17 +108,17 @@ fn eval_pattern_case(
   let bound = bind_pattern(pattern, value, base_state)
   let result = if node_optional_child(case, "guard") is Some(guard_expr) {
     let guard_result = eval_condition_scope(guard_expr, bound, spec, findings)
-    match guard_result.normal {
-      Some(path) =>
-        flow_join(
-          guard_result.exits,
-          restore_result_scoped_roots(
-            eval_expr(body, path.true_state, spec, findings),
-            path.base_state,
-            path.bound_roots,
-          ),
-        )
-      None => guard_result.exits
+    if guard_result.normal is Some(path) {
+      flow_join(
+        guard_result.exits,
+        restore_result_scoped_roots(
+          eval_expr(body, path.true_state, spec, findings),
+          path.base_state,
+          path.bound_roots,
+        ),
+      )
+    } else {
+      guard_result.exits
     }
   } else {
     eval_expr(body, bound, spec, findings)
@@ -142,21 +135,20 @@ fn eval_lex_scan(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   let scrutinee_result = eval_expr(scrutinee, state, spec, findings)
-  match scrutinee_result.normal {
-    Some(path) => {
-      let mut branches = empty_flow_summary()
-      for case in cases {
-        branches = flow_join(
-          branches,
-          eval_lex_scan_case(case, path.value, path.state, spec, findings),
-        )
-      }
-      if cases.is_empty() {
-        branches = normal_result(path.state, [])
-      }
-      flow_sequence(scrutinee_result, branches)
+  if scrutinee_result.normal is Some(path) {
+    let mut branches = empty_flow_summary()
+    for case in cases {
+      branches = flow_join(
+        branches,
+        eval_lex_scan_case(case, path.value, path.state, spec, findings),
+      )
     }
-    None => scrutinee_result
+    if cases.is_empty() {
+      branches = normal_result(path.state, [])
+    }
+    flow_sequence(scrutinee_result, branches)
+  } else {
+    scrutinee_result
   }
 }
 
@@ -204,31 +196,31 @@ fn eval_try(
     breaks: body_result.breaks,
     continues: body_result.continues,
   }
-  let successful = match body_result.normal {
-    Some(path) =>
-      match try_else {
-        Some(cases) => {
-          let items = case_items(cases)
-          let mut branches = empty_flow_summary()
-          for case in items {
-            branches = flow_join(
-              branches,
-              eval_pattern_case(case, path.value, path.state, spec, findings),
-            )
-          }
-          if items.is_empty() {
-            normal_result(path.state, path.value)
-          } else {
-            branches
-          }
-        }
-        None => normal_result(path.state, path.value)
+  let successful = if body_result.normal is Some(path) {
+    if try_else is Some(cases) {
+      let items = case_items(cases)
+      let mut branches = empty_flow_summary()
+      for case in items {
+        branches = flow_join(
+          branches,
+          eval_pattern_case(case, path.value, path.state, spec, findings),
+        )
       }
-    None => empty_flow_summary()
+      if items.is_empty() {
+        normal_result(path.state, path.value)
+      } else {
+        branches
+      }
+    } else {
+      normal_result(path.state, path.value)
+    }
+  } else {
+    empty_flow_summary()
   }
-  let caught = match body_result.raised {
-    Some(path) => eval_catch_cases(path, catch_, spec, findings)
-    None => empty_flow_summary()
+  let caught = if body_result.raised is Some(path) {
+    eval_catch_cases(path, catch_, spec, findings)
+  } else {
+    empty_flow_summary()
   }
   flow_join(passthrough, flow_join(successful, caught))
 }
