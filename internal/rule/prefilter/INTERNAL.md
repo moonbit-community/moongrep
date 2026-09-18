@@ -56,7 +56,7 @@ Both empty cases are deliberate conservative fallbacks. They mean that no
 useful necessary text was available, so the rule cannot be rejected safely.
 
 `prefilter_matches_source` supplies a matcher based on `String::contains`.
-`rule_is_relevant_to_source` is the compiled-rule wrapper around that entry.
+Compiled-rule callers pass `rule.prefilter` directly to that entry.
 Matching is case-sensitive, unanchored, and literal. Regex metacharacters such
 as `+`, `(`, or `.` have no special meaning.
 
@@ -242,7 +242,7 @@ When changing structural or taint rule composition:
 1. preserve the correct Cartesian-product alternatives
 2. keep negative patterns and sanitizers out of required literals
 3. cover empty-literal branches and alternative counts
-4. test both direct `rule_is_relevant_to_source` behavior and
+4. test both direct `prefilter_matches_source(rule.prefilter, source)` behavior and
    `ScanPlan::filter_source` integration
 
 For package-local work, `moon test internal/rule/prefilter` is the tight loop. Changes

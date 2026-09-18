@@ -2,7 +2,7 @@
 using @compile {compile_rules}
 
 ///|
-fn compile_prefilter_rule_source(source : String) -> CompiledRule raise {
+fn compile_prefilter_rule_source(source : String) -> @model.CompiledRule raise {
   let rules = compile_rules([
     @model.RawRuleSpec::from_str(
       "/tmp/rules/example.yaml", "/tmp/rules", source,
@@ -21,8 +21,12 @@ test "prefilter keeps structural rule when required literal exists" {
     #|  - shape: target()
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { target() }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { other() }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { target() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { other() }\n"),
+  )
 }
 
 ///|
@@ -35,12 +39,18 @@ test "prefilter splits qualified identifier literals" {
     #|
   let rule = compile_prefilter_rule_source(source)
   debug_inspect(rule.prefilter.alternatives, content="[[\"pkg\", \"name\"]]")
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { @pkg.name() }\n"))
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { @pkg .name() }\n"))
-  assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { @other.name() }\n"),
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { @pkg.name() }\n"),
   )
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { @pkg.other() }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { @pkg .name() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { @other.name() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { @pkg.other() }\n"),
+  )
 }
 
 ///|
@@ -54,10 +64,14 @@ test "prefilter treats structural patterns as alternatives" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { read_request() }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { read_request() }\n"),
   )
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { end_request() }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { noop() }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { end_request() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { noop() }\n"),
+  )
 }
 
 ///|
@@ -69,8 +83,10 @@ test "prefilter keeps unfilterable structural rule relevant" {
     #|  - shape: $(_expr:exp)
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { anything() }\n"))
-  assert_true(rule_is_relevant_to_source(rule, "fn sample {\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { anything() }\n"),
+  )
+  assert_true(prefilter_matches_source(rule.prefilter, "fn sample {\n"))
 }
 
 ///|
@@ -83,12 +99,16 @@ test "prefilter treats $_ ignore placeholders as placeholders" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { inspect(1, content=\"1\") }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { inspect(1, content=\"1\") }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { other(1, content=\"1\") }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { other(1, content=\"1\") }\n",
+    ),
   )
 }
 
@@ -101,8 +121,12 @@ test "prefilter keeps all-underscore identifiers literal" {
     #|  - shape: foo(__)
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { foo(__) }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { foo(value) }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { foo(__) }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { foo(value) }\n"),
+  )
 }
 
 ///|
@@ -114,9 +138,11 @@ test "prefilter treats inline expression metavars as placeholders" {
     #|  - shape: sink($(value:exp))
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { sink(actual) }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { sink(actual) }\n"),
+  )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { other(actual) }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { other(actual) }\n"),
   )
 }
 
@@ -131,18 +157,21 @@ test "prefilter reads parsed interpolation expressions" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { \"hello \\{render(actual)}\" }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { \"hello \\{render(actual)}\" }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { \"hello \\{other(actual)}\" }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { \"hello \\{other(actual)}\" }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { \"goodbye \\{render(actual)}\" }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { \"goodbye \\{render(actual)}\" }\n",
     ),
   )
 }
@@ -157,11 +186,15 @@ test "prefilter treats metavars as placeholders" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { sink(actual, label=user) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { sink(actual, label=user) }\n",
+    ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { other(actual, label=user) }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { other(actual, label=user) }\n",
     ),
   )
 }
@@ -177,8 +210,9 @@ test "prefilter ignores keyword metavars" {
   let rule = compile_prefilter_rule_source(source)
   debug_inspect(rule.prefilter.alternatives, content="[[\"sink\"]]")
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { sink(actual(), name, 42, label=value) }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { sink(actual(), name, 42, label=value) }\n",
     ),
   )
 }
@@ -192,8 +226,12 @@ test "prefilter treats inline constant metavars as placeholders" {
     #|  - shape: sink($(value:const))
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { sink(42) }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { other(42) }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { sink(42) }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { other(42) }\n"),
+  )
 }
 
 ///|
@@ -206,10 +244,16 @@ test "prefilter treats inline argument metavars as placeholders" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { sink(label=actual) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { sink(label=actual) }\n",
+    ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { other(label=actual) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { other(label=actual) }\n",
+    ),
   )
 }
 
@@ -224,10 +268,16 @@ test "prefilter treats inline type metavars as placeholders" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { let value : Int = input }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let value : Int = input }\n",
+    ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { let other : Int = source }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let other : Int = source }\n",
+    ),
   )
 }
 
@@ -242,10 +292,10 @@ test "prefilter keeps fixed package for qualified identifier metavars" {
   let rule = compile_prefilter_rule_source(source)
   debug_inspect(rule.prefilter.alternatives, content="[[\"pkg\"]]")
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { @pkg .actual() }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { @pkg .actual() }\n"),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { @other.actual() }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { @other.actual() }\n"),
   )
 }
 
@@ -260,23 +310,27 @@ test "prefilter splits qualified type literals" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { let value : @pkg.Type = input }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let value : @pkg.Type = input }\n",
     ),
   )
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { let value : @pkg .Type = input }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let value : @pkg .Type = input }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { let value : @other.Type = input }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let value : @other.Type = input }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { let value : @pkg.Other = input }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let value : @pkg.Other = input }\n",
     ),
   )
 }
@@ -291,10 +345,16 @@ test "prefilter ignores ellipsis spelling and keeps adjacent literals" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { sink(value, marker) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { sink(value, marker) }\n",
+    ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { other(value, marker) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { other(value, marker) }\n",
+    ),
   )
 }
 
@@ -308,7 +368,10 @@ test "prefilter ignores one digit int literals" {
     #|
   let one_digit_rule = compile_prefilter_rule_source(one_digit_source)
   assert_true(
-    rule_is_relevant_to_source(one_digit_rule, "fn sample { other() }\n"),
+    prefilter_matches_source(
+      one_digit_rule.prefilter,
+      "fn sample { other() }\n",
+    ),
   )
   let two_digit_source =
     #|id: example
@@ -318,10 +381,16 @@ test "prefilter ignores one digit int literals" {
     #|
   let two_digit_rule = compile_prefilter_rule_source(two_digit_source)
   assert_true(
-    rule_is_relevant_to_source(two_digit_rule, "fn sample { let x = 12 }\n"),
+    prefilter_matches_source(
+      two_digit_rule.prefilter,
+      "fn sample { let x = 12 }\n",
+    ),
   )
   assert_false(
-    rule_is_relevant_to_source(two_digit_rule, "fn sample { other() }\n"),
+    prefilter_matches_source(
+      two_digit_rule.prefilter,
+      "fn sample { other() }\n",
+    ),
   )
 }
 
@@ -337,12 +406,17 @@ test "prefilter requires then and inner pattern literals together" {
     #|        - shape: target()
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { wrapper(target()) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { wrapper(target()) }\n",
+    ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { wrapper(noop()) }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { wrapper(noop()) }\n"),
   )
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { target() }\n"))
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { target() }\n"),
+  )
 }
 
 ///|
@@ -356,9 +430,15 @@ test "prefilter requires inside toplevel and inner pattern literals together" {
     #|  - shape: target()
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn safe_entry { target() }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn safe_entry { noop() }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn other { target() }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn safe_entry { target() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn safe_entry { noop() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn other { target() }\n"),
+  )
 }
 
 ///|
@@ -373,8 +453,8 @@ test "prefilter skips omitted partial function fields" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(
-      rule,
+    prefilter_matches_source(
+      rule.prefilter,
       (
         #|/// Documented entry.
         #|#custom.attribute
@@ -386,8 +466,9 @@ test "prefilter skips omitted partial function fields" {
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "pub async fn other(value : InputType) -> ResultType { target() }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "pub async fn other(value : InputType) -> ResultType { target() }\n",
     ),
   )
 }
@@ -441,7 +522,9 @@ test "prefilter never requires docstring text" {
   )
   assert_false(contains_string(literals, "PrefilterDocstringSentinel"))
   assert_true(contains_string(literals, "safe_entry"))
-  assert_true(rule_is_relevant_to_source(rule, "fn safe_entry { target() }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn safe_entry { target() }\n"),
+  )
 }
 
 ///|
@@ -456,13 +539,15 @@ test "prefilter keeps explicit partial function fields required" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "async fn safe_entry() -> RequiredType noraise { target() }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "async fn safe_entry() -> RequiredType noraise { target() }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "async fn safe_entry() -> OtherType noraise { target() }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "async fn safe_entry() -> OtherType noraise { target() }\n",
     ),
   )
 }
@@ -478,8 +563,12 @@ test "prefilter ignores patterns-not literals for structural rules" {
     #|  - shape: impossible_negative_literal()
     #|
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { target() }\n"))
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { other() }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { target() }\n"),
+  )
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { other() }\n"),
+  )
 }
 
 ///|
@@ -493,10 +582,13 @@ test "prefilter uses then literals for patterns-not only rules" {
     #|      patterns-not:
     #|        - shape: impossible_negative_literal()
   let rule = compile_prefilter_rule_source(source)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { wrapper(ok()) }\n"))
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { wrapper(ok()) }\n"),
+  )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { impossible_negative_literal() }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { impossible_negative_literal() }\n",
     ),
   )
 }
@@ -514,14 +606,20 @@ test "prefilter requires taint source and sink literals" {
     #|
   let rule = compile_prefilter_rule_source(source)
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { let x = get_user_input(); sink(x) }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let x = get_user_input(); sink(x) }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { let x = get_user_input() }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { let x = get_user_input() }\n",
+    ),
   )
-  assert_false(rule_is_relevant_to_source(rule, "fn sample { sink(x) }\n"))
+  assert_false(
+    prefilter_matches_source(rule.prefilter, "fn sample { sink(x) }\n"),
+  )
 }
 
 ///|
@@ -551,26 +649,37 @@ test "prefilter builds outer and positive pattern cartesian alternatives" {
   let rule = compile_prefilter_rule_source(source)
   assert_eq(rule.prefilter.alternatives.length(), 4)
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { wrapper(first_target()) }\n"),
-  )
-  assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { wrapper(second_target()) }\n"),
-  )
-  assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { container(first_target()) }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { wrapper(first_target()) }\n",
     ),
   )
   assert_true(
-    rule_is_relevant_to_source(
-      rule, "fn sample { container(second_target()) }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { wrapper(second_target()) }\n",
+    ),
+  )
+  assert_true(
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { container(first_target()) }\n",
+    ),
+  )
+  assert_true(
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { container(second_target()) }\n",
     ),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { wrapper(noop()) }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { wrapper(noop()) }\n"),
   )
   assert_false(
-    rule_is_relevant_to_source(rule, "fn sample { other(first_target()) }\n"),
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { other(first_target()) }\n",
+    ),
   )
 }
 
@@ -590,13 +699,16 @@ test "prefilter gives each patterns-not-only outer its own alternative" {
     #|        - shape: impossible_negative_literal()
   let rule = compile_prefilter_rule_source(source)
   assert_eq(rule.prefilter.alternatives.length(), 2)
-  assert_true(rule_is_relevant_to_source(rule, "fn sample { wrapper(ok()) }\n"))
   assert_true(
-    rule_is_relevant_to_source(rule, "fn sample { container(ok()) }\n"),
+    prefilter_matches_source(rule.prefilter, "fn sample { wrapper(ok()) }\n"),
+  )
+  assert_true(
+    prefilter_matches_source(rule.prefilter, "fn sample { container(ok()) }\n"),
   )
   assert_false(
-    rule_is_relevant_to_source(
-      rule, "fn sample { impossible_negative_literal() }\n",
+    prefilter_matches_source(
+      rule.prefilter,
+      "fn sample { impossible_negative_literal() }\n",
     ),
   )
 }

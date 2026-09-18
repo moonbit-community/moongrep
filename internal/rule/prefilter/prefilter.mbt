@@ -1,16 +1,10 @@
 ///|
 using @model {
-  type CompiledRule,
   type CompiledRuleDefinition,
   type CompiledRulePattern,
   type CompiledStructuralRule,
   type CompiledTaintRule,
   type RulePrefilter,
-}
-
-///|
-pub fn rule_is_relevant_to_source(rule : CompiledRule, source : String) -> Bool {
-  prefilter_matches_source(rule.prefilter, source)
 }
 
 ///|

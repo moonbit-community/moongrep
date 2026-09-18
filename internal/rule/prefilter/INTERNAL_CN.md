@@ -51,7 +51,7 @@
 该规则。
 
 `prefilter_matches_source` 提供基于 `String::contains` 的 matcher；
-`rule_is_relevant_to_source` 是该入口面向编译后规则的包装。
+编译后规则的调用方直接向该入口传入 `rule.prefilter`。
 匹配区分大小写、不要求边界，并按普通文本处理。`+`、`(`、`.` 等正则元字符没有
 特殊含义。
 
@@ -210,7 +210,7 @@ default、exact 或 partial 模式中都不会成为必需字面量。候选源�
 1. 保留正确的笛卡尔积备选项
 2. 继续把负向 pattern 和 sanitizer 排除在必需字面量之外
 3. 覆盖空字面量分支和备选项数量
-4. 同时测试直接的 `rule_is_relevant_to_source` 行为和
+4. 同时测试直接的 `prefilter_matches_source(rule.prefilter, source)` 行为和
    `ScanPlan::filter_source` 集成
 
 对于 package-local 修改，`moon test internal/rule/prefilter` 是最短反馈循环。若修改影响规则
