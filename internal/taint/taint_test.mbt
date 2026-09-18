@@ -23,13 +23,7 @@ test "taint facade exposes the complete public API" {
   let relative : RelativeTaint = { path: [Field("value")], origins: [origin], }
   let tree : TaintTree = [relative]
   let sink_ids : Array[SinkId] = [Named("sink"), PatternIndex(1)]
-  let finding : SinkFinding = {
-    rule_id: "rule",
-    sink_id: sink_ids[0],
-    sink_loc: node.loc,
-    sink_site: sites[1],
-    origins: [origin],
-  }
+  let finding : SinkFinding = { sink_id: sink_ids[0], sink_loc: node.loc, }
   let kinds : Array[CallKind] = [Apply, DotApply, Pipe, RevPipe]
   let argument : CallArgument = {
     index: 0,
@@ -87,12 +81,7 @@ test "taint facade exposes the complete public API" {
     max_fixpoint_iterations: 1,
     custom_transfer_call: no_custom_transfer,
   }
-  let result : AnalysisResult = {
-    rule_id: "rule",
-    function_name: "sample",
-    function_loc: node.loc,
-    findings: [finding],
-  }
+  let result : AnalysisResult = { findings: [finding], }
 
   assert_eq(path.root, "input")
   assert_eq(path.segments.length(), 4)
@@ -106,11 +95,8 @@ test "taint facade exposes the complete public API" {
   assert_eq(relative.origins.length(), 1)
   assert_eq(sink_ids[0], Named("sink"))
   assert_eq(sink_ids[1], PatternIndex(1))
-  assert_eq(finding.rule_id, "rule")
   assert_eq(finding.sink_id, Named("sink"))
-  let _ = finding.sink_loc
-  let _ = finding.sink_site
-  assert_eq(finding.origins.length(), 1)
+  assert_eq(finding.sink_loc, node.loc)
   assert_eq(argument.index, 0)
   assert_eq(argument.label, Some("arg"))
   let _ = argument.expr
@@ -136,9 +122,6 @@ test "taint facade exposes the complete public API" {
   assert_eq(spec.unknown_call_policy, NoEffect)
   assert_eq(spec.max_fixpoint_iterations, 1)
   assert_true((spec.custom_transfer_call)(info) is None)
-  assert_eq(result.rule_id, "rule")
-  assert_eq(result.function_name, "sample")
-  let _ = result.function_loc
   assert_eq(result.findings.length(), 1)
 }
 
@@ -227,6 +210,30 @@ fn no_custom_transfer(_call : CallInfo) -> CallTransfer? {
 }
 
 ///|
+fn observe_sink_origins(
+  spec : TaintSpec,
+  sink_origins : Array[Array[TaintOrigin]],
+) -> TaintSpec {
+  let transfer_call = spec.custom_transfer_call
+  {
+    ..spec,
+    custom_transfer_call: call => {
+      if call.callee_name == Some("sink") &&
+        call.argument_at(0) is Some(argument) {
+        sink_origins.push(taint_tree_origins(argument.taint))
+      }
+      transfer_call(call)
+    },
+  }
+}
+
+///|
+fn sink_location(finding : SinkFinding) -> (Int, Int, Int, Int) {
+  let loc = finding.sink_loc
+  (loc.start.lnum, loc.start.column(), loc.end.lnum, loc.end.column())
+}
+
+///|
 fn simple_spec(
   sources~ : Array[SourceModel],
   call_models~ : Array[CallModel],
@@ -248,20 +255,7 @@ fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
   if call.cst.kind is @untyped_cst.Expr_Apply &&
     call.arguments is [arg] &&
     arg.expr.kind is @untyped_cst.Expr_Ident {
-    findings.push({
-      rule_id: "test/node-transfer",
-      sink_id: Named("node-kinds"),
-      sink_loc: arg.loc,
-      sink_site: arg.site,
-      origins: [
-        {
-          rule_id: "test/node-transfer",
-          origin_id: "observed-node",
-          site: arg.site,
-          note: None,
-        },
-      ],
-    })
+    findings.push({ sink_id: Named("node-kinds"), sink_loc: arg.loc, })
   }
   Some({ return_taint: [], killed_paths: [], findings, })
 }
@@ -282,9 +276,14 @@ test "taint engine passes CST nodes to custom transfer" {
     max_fixpoint_iterations: 6,
     custom_transfer_call: inspect_node_transfer,
   })
-  inspect(result.function_name, content="sample")
   assert_eq(result.findings.length(), 1)
   assert_eq(result.findings[0].sink_id, Named("node-kinds"))
+  debug_inspect(
+    sink_location(result.findings[0]),
+    content=(
+      #|(2, 8, 2, 13)
+    ),
+  )
 }
 
 ///|
@@ -306,22 +305,29 @@ fn analyze_single_entry_sink(
 }
 
 ///|
-fn analyze_call_source_sink(source : String) -> AnalysisResult raise {
+fn analyze_call_source_sink(
+  source : String,
+  sink_origins? : Array[Array[TaintOrigin]],
+) -> AnalysisResult raise {
   let node = parse_single_impl(source)
+  let spec = simple_spec(
+    sources=[
+      CallReturn(CalleeName("get_user_input"), "source:single", None, []),
+      CallReturn(CalleeName("get_user_inputs"), "source:many", None, []),
+    ],
+    call_models=[
+      {
+        matcher: CalleeName("sink"),
+        effects: [ReportSinkArg(Named("sink:0"), 0)],
+      },
+    ],
+  )
   analyze_function_like(
     node,
-    simple_spec(
-      sources=[
-        CallReturn(CalleeName("get_user_input"), "source:single", None, []),
-        CallReturn(CalleeName("get_user_inputs"), "source:many", None, []),
-      ],
-      call_models=[
-        {
-          matcher: CalleeName("sink"),
-          effects: [ReportSinkArg(Named("sink:0"), 0)],
-        },
-      ],
-    ),
+    match sink_origins {
+      Some(origins) => observe_sink_origins(spec, origins)
+      None => spec
+    },
   )
 }
 
@@ -444,25 +450,36 @@ test "taint engine writes and clears fields without changing siblings" {
     root: "record",
     segments: [Field("sibling")],
   }
+  let sink_origins : Array[Array[TaintOrigin]] = []
   let clear_result = analyze_function_like(
     parse_single_impl(clear_source),
-    simple_spec(
-      sources=[
-        EntryPath(target_path, "entry:target", None),
-        EntryPath(sibling_path, "entry:sibling", None),
-      ],
-      call_models=[
-        {
-          matcher: CalleeName("sink"),
-          effects: [ReportSinkArg(Named("sink:0"), 0)],
-        },
-      ],
+    observe_sink_origins(
+      simple_spec(
+        sources=[
+          EntryPath(target_path, "entry:target", None),
+          EntryPath(sibling_path, "entry:sibling", None),
+        ],
+        call_models=[
+          {
+            matcher: CalleeName("sink"),
+            effects: [ReportSinkArg(Named("sink:0"), 0)],
+          },
+        ],
+      ),
+      sink_origins,
     ),
   )
   assert_eq(clear_result.findings.length(), 1)
-  inspect(
-    clear_result.findings[0].origins[0].origin_id,
-    content="entry:sibling",
+  debug_inspect(
+    sink_origins.map(origins => origins.map(origin => origin.origin_id)),
+    content="[[], [\"entry:sibling\"]]",
+  )
+  assert_eq(clear_result.findings[0].sink_id, Named("sink:0"))
+  debug_inspect(
+    sink_location(clear_result.findings[0]),
+    content=(
+      #|(4, 8, 4, 22)
+    ),
   )
 }
 
@@ -531,18 +548,33 @@ test "taint engine reports entry parameter source reaching sink argument" {
     #|
   let input_path : StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
+  let sink_origins : Array[Array[TaintOrigin]] = []
   let result = analyze_function_like(
     node,
-    simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
-      {
-        matcher: CalleeName("sink"),
-        effects: [ReportSinkArg(Named("sink:0"), 0)],
-      },
-    ]),
+    observe_sink_origins(
+      simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
+        {
+          matcher: CalleeName("sink"),
+          effects: [ReportSinkArg(Named("sink:0"), 0)],
+        },
+      ]),
+      sink_origins,
+    ),
   )
   assert_eq(result.findings.length(), 1)
   assert_eq(result.findings[0].sink_id, Named("sink:0"))
-  inspect(result.findings[0].origins[0].origin_id, content="entry:input")
+  debug_inspect(
+    sink_origins.map(origins => origins.map(origin => origin.origin_id)),
+    content="[[\"entry:input\"]]",
+  )
+  assert_eq(sink_origins[0][0].site, Path(input_path))
+  inspect(sink_origins[0][0].rule_id, content="test/rule")
+  debug_inspect(
+    sink_location(result.findings[0]),
+    content=(
+      #|(2, 8, 2, 13)
+    ),
+  )
 }
 
 ///|
@@ -589,6 +621,12 @@ test "taint engine reports tainted receiver reaching method sink" {
   )
   assert_eq(result.findings.length(), 1)
   assert_eq(result.findings[0].sink_id, Named("sink:receiver"))
+  debug_inspect(
+    sink_location(result.findings[0]),
+    content=(
+      #|(2, 3, 2, 18)
+    ),
+  )
 }
 
 ///|
@@ -609,8 +647,14 @@ test "taint engine analyzes impl method bodies" {
       },
     ]),
   )
-  inspect(result.function_name, content="output")
   assert_eq(result.findings.length(), 1)
+  assert_eq(result.findings[0].sink_id, Named("sink:0"))
+  debug_inspect(
+    sink_location(result.findings[0]),
+    content=(
+      #|(2, 8, 2, 16)
+    ),
+  )
 }
 
 ///|
@@ -643,17 +687,31 @@ test "taint engine keeps field paths precise" {
     segments: [Field("secret")],
   }
   let node = parse_single_impl(source)
+  let sink_origins : Array[Array[TaintOrigin]] = []
   let result = analyze_function_like(
     node,
-    simple_spec(sources=[EntryPath(secret_path, "entry:secret", None)], call_models=[
-      {
-        matcher: CalleeName("sink"),
-        effects: [ReportSinkArg(Named("sink:0"), 0)],
-      },
-    ]),
+    observe_sink_origins(
+      simple_spec(sources=[EntryPath(secret_path, "entry:secret", None)], call_models=[
+        {
+          matcher: CalleeName("sink"),
+          effects: [ReportSinkArg(Named("sink:0"), 0)],
+        },
+      ]),
+      sink_origins,
+    ),
   )
   assert_eq(result.findings.length(), 1)
-  inspect(result.findings[0].origins[0].origin_id, content="entry:secret")
+  debug_inspect(
+    sink_origins.map(origins => origins.map(origin => origin.origin_id)),
+    content="[[\"entry:secret\"], []]",
+  )
+  assert_eq(result.findings[0].sink_id, Named("sink:0"))
+  debug_inspect(
+    sink_location(result.findings[0]),
+    content=(
+      #|(2, 8, 2, 22)
+    ),
+  )
 }
 
 ///|
@@ -1244,10 +1302,13 @@ test "taint engine local function name shadows outer root in let-fn body" {
 }
 
 ///|
-fn finding_origin_ids_for_source(source : String) -> Array[String] raise {
+fn sink_origin_ids_for_source(source : String) -> Array[String] raise {
+  let sink_origins : Array[Array[TaintOrigin]] = []
+  let result = analyze_call_source_sink(source, sink_origins~)
+  assert_eq(result.findings.length(), 1)
   let ids : Array[String] = []
-  for finding in analyze_call_source_sink(source).findings {
-    for origin in finding.origins {
+  for origins in sink_origins {
+    for origin in origins {
       if !ids.contains(origin.origin_id) {
         ids.push(origin.origin_id)
       }
@@ -1343,7 +1404,7 @@ test "taint engine keeps mixed branch exits independent of branch order" {
   ]
   let summaries : Array[Array[String]] = []
   for source in sources {
-    summaries.push(finding_origin_ids_for_source(source))
+    summaries.push(sink_origin_ids_for_source(source))
   }
   debug_inspect(
     summaries,

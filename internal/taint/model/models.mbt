@@ -3,8 +3,8 @@
 ///
 /// `return_taint` becomes the call expression value. `killed_paths` remove
 /// taint from storage after the call. `findings` are appended to the analysis
-/// result as-is; custom transfers are responsible for preserving
-/// `SinkFinding` invariants such as non-empty origins and correct loc/site.
+/// result as-is; custom transfers decide when to report each sink and supply
+/// its identity and location.
 pub(all) struct CallTransfer {
   return_taint : TaintTree
   killed_paths : Array[StoragePath]

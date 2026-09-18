@@ -40,12 +40,16 @@ path.
 
 Analysis inside `internal/taint/engine` starts in `analyze_single_function_like`:
 
-1. `function_like_from_impl` extracts the function or method name, location,
-   parameter roots, and body expression.
+1. `function_like_from_impl` extracts the function or method's parameter roots
+   and body expression.
 2. `EntryPath` sources whose root is a real parameter are written into the
    initial `TaintState`.
 3. The body is interpreted by `eval_expr`.
 4. Sink findings accumulated during evaluation are returned in `AnalysisResult`.
+
+`AnalysisResult` contains only `findings`. Each `SinkFinding` contains `sink_id`
+and `sink_loc`. Origins remain in propagated taint trees, where transfer logic
+uses them to decide whether a selected sink value is tainted.
 
 The engine is not interprocedural. It models calls through `TaintSpec` and
 `CallInfo`. It never looks up or analyzes a callee body.
@@ -235,6 +239,10 @@ least one origin is present. Custom transfers are responsible for preserving
 that invariant themselves; their findings are not filtered by the engine. The
 engine treats `SinkId` as opaque: generic models use `Named`, while ordered
 rule integrations can use `PatternIndex`.
+
+Origin tests wrap the existing `custom_transfer_call`, inspect origins on sink
+arguments, then call the original callback once and return its result. This
+preserves both declared-model fallback and custom transfer behavior.
 
 Kill effects only affect later storage reads. They do not rewrite the
 receiver/argument taint already evaluated for other effects on the same call.

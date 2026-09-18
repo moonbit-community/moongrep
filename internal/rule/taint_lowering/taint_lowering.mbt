@@ -9,7 +9,6 @@ using @model {
 ///|
 priv struct TargetValue {
   loc : @basic.Location
-  site : @taint.ValueSite
   path : @taint.StoragePath?
   taint : @taint.TaintTree
 }
@@ -81,11 +80,8 @@ fn transfer_compiled_taint_call(
         let origins = @taint.taint_tree_origins(target.taint)
         if origins.length() > 0 {
           findings.push({
-            rule_id,
             sink_id: @taint.SinkId::PatternIndex(index),
             sink_loc: target.loc,
-            sink_site: target.site,
-            origins,
           })
         }
       }
@@ -136,7 +132,6 @@ fn target_value_at_expr(
     if argument.expr.loc == source.loc {
       return Some({
         loc: argument.loc,
-        site: argument.site,
         path: argument.path,
         taint: argument.taint,
       })
@@ -149,10 +144,9 @@ fn target_value_at_expr(
 fn target_value(call : @taint.CallInfo, target : TaintTarget) -> TargetValue? {
   match target {
     Receiver =>
-      if call.receiver_site is Some(site) {
+      if call.receiver_site is Some(_) {
         Some({
           loc: call.loc,
-          site,
           path: call.receiver_path,
           taint: call.receiver_taint,
         })
@@ -161,19 +155,14 @@ fn target_value(call : @taint.CallInfo, target : TaintTarget) -> TargetValue? {
       }
     PositionalArg(index) =>
       if call.argument_at(index) is Some(arg) {
-        Some({ loc: arg.loc, site: arg.site, path: arg.path, taint: arg.taint, })
+        Some({ loc: arg.loc, path: arg.path, taint: arg.taint, })
       } else {
         None
       }
     LabelledArg(label~, index~) =>
       if call.argument_at(index) is Some(arg) {
         if arg.label == Some(label) {
-          Some({
-            loc: arg.loc,
-            site: arg.site,
-            path: arg.path,
-            taint: arg.taint,
-          })
+          Some({ loc: arg.loc, path: arg.path, taint: arg.taint, })
         } else {
           None
         }

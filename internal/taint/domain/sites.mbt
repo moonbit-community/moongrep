@@ -67,12 +67,10 @@ pub(all) enum SinkId {
 ///
 /// Declarative sink effects only produce findings with at least one tainted
 /// origin. Findings supplied by `custom_transfer_call` are appended as-is, so
-/// custom transfers must preserve invariants such as non-empty origins and a
-/// correct sink location/site. The engine treats `sink_id` as opaque.
+/// custom transfers decide when to report a sink and supply its location.
+/// Findings retain only the sink identity and location; origins stay in the
+/// propagated taint trees. The engine treats `sink_id` as opaque.
 pub(all) struct SinkFinding {
-  rule_id : String
   sink_id : SinkId
   sink_loc : @basic.Location
-  sink_site : ValueSite
-  origins : Array[TaintOrigin]
 } derive(Eq, Debug)

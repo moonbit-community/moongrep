@@ -443,26 +443,22 @@ fn apply_declared_call_transfer(
               next = state_kill_path(next, path)
             }
           // Argument sinks point at the argument expression. Receiver sinks
-          // point at the whole call while keeping the receiver as the value
-          // site, because receiver syntax has no standalone call-site location.
+          // point at the whole call, because receiver syntax has no standalone
+          // call-site location.
           ReportSinkArg(sink_id, index) =>
             if info.argument_at(index) is Some(arg) {
               push_sink_finding_if_tainted(
-                spec.rule_id,
                 sink_id,
                 arg.loc,
-                arg.site,
                 arg.taint,
                 findings,
               )
             }
           ReportSinkReceiver(sink_id) =>
-            if info.receiver_site is Some(site) {
+            if info.receiver_site is Some(_) {
               push_sink_finding_if_tainted(
-                spec.rule_id,
                 sink_id,
                 info.loc,
-                site,
                 info.receiver_taint,
                 findings,
               )
@@ -519,16 +515,14 @@ fn unknown_call_return_taint(
 
 ///|
 fn push_sink_finding_if_tainted(
-  rule_id : String,
   sink_id : SinkId,
   loc : @basic.Location,
-  site : ValueSite,
   taint : TaintTree,
   findings : Array[SinkFinding],
 ) -> Unit {
   let origins = taint_tree_origins(taint)
   if origins.length() > 0 {
-    findings.push({ rule_id, sink_id, sink_loc: loc, sink_site: site, origins, })
+    findings.push({ sink_id, sink_loc: loc, })
   }
 }
 

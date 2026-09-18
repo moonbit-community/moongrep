@@ -1,7 +1,5 @@
 ///|
 priv struct FunctionLike {
-  name : String
-  loc : @basic.Location
   params : Array[StoragePath]
   body : @untyped_cst.CstNode
 }
@@ -39,10 +37,6 @@ fn function_like_from_impl(node : @untyped_cst.CstNode) -> FunctionLike raise {
         )
       }
       {
-        name: @cst.name_node(declaration)
-        .bind(@cst.normalized_name)
-        .unwrap_or(""),
-        loc: node.loc,
         params: paths_from_parameter_list(@cst.raw_child(declaration, "params")),
         body,
       }
