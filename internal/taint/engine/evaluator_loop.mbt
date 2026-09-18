@@ -280,14 +280,12 @@ fn eval_for_each(
     }
   }
   for binder in binders {
-    if !node_is_null(binder) {
-      add_binder_root_name(loop_roots, binder)
-      current = bind_binder(
-        binder,
-        tree_project_for_binding(collection_path.value, AnyIndex),
-        current,
-      )
-    }
+    add_binder_root_name(loop_roots, binder)
+    current = bind_binder(
+      binder,
+      tree_project_for_binding(collection_path.value, AnyIndex),
+      current,
+    )
   }
   let summary = run_loop_fixpoint(
     current,

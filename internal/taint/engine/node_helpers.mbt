@@ -196,11 +196,6 @@ fn node_optional_child(
 }
 
 ///|
-fn node_is_null(_node : @untyped_cst.CstNode) -> Bool {
-  false
-}
-
-///|
 fn node_binder_name(node : @untyped_cst.CstNode) -> String? {
   if @cst.normalized_name(node) is Some(name) {
     Some(name)

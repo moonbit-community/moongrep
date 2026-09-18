@@ -32,10 +32,13 @@ analyzer 及其调用方的维护者，不面向规则作者。
 
 `internal/taint/engine` 内的分析从 `analyze_single_function_like` 开始：
 
-1. `function_like_from_impl` 提取函数或方法名称、位置、参数根，以及 body 表达式。
+1. `function_like_from_impl` 提取函数或方法的参数根和 body 表达式。
 2. 根是真实参数的 `EntryPath` source 会写入初始 `TaintState`。
 3. `eval_expr` 解释执行 body。
 4. 求值过程中累积的 sink finding 会作为 `AnalysisResult` 返回。
+
+`AnalysisResult` 只包含 `findings`，每个 `SinkFinding` 只包含 `sink_id` 和
+`sink_loc`。origin 保留在传播的污点树中，transfer 逻辑据此判断选中的 sink 值是否被污染。
 
 这个引擎不是跨过程分析。它通过 `TaintSpec` 和 `CallInfo` 建模调用。它不会查找或分析 callee body。
 
@@ -198,6 +201,9 @@ Sink effect 会从被选择的值中收集 origin，并且只在至少存在一�
 Custom transfer 需要自己维护这个不变量；引擎不会过滤它们的 finding。引擎将
 `SinkId` 视为不透明标识：通用 model 使用 `Named`，有序规则集成可以使用
 `PatternIndex`。
+
+来源测试包装现有的 `custom_transfer_call`，观察 sink 参数上的 origin，再调用原回调
+一次并返回其结果。这样会保留声明式 model 的回退和 custom transfer 的行为。
 
 Kill effect 只影响后续的存储读取。它不会重写同一次调用中已经为其他 effect 求值好的
 receiver/argument taint。

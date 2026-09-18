@@ -41,12 +41,7 @@ fn analyze_single_function_like(
     }
   }
   let _ = eval_expr(function_like.body, state, spec, findings)
-  {
-    rule_id: spec.rule_id,
-    function_name: function_like.name,
-    function_loc: function_like.loc,
-    findings,
-  }
+  { findings, }
 }
 
 ///|

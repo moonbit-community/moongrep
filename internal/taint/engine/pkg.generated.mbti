@@ -20,9 +20,6 @@ pub suberror TaintAnalysisError {
 
 // Types and methods
 pub(all) struct AnalysisResult {
-  rule_id : String
-  function_name : String
-  function_loc : @basic.Location
   findings : Array[@domain.SinkFinding]
 }
 

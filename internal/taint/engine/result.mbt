@@ -17,8 +17,5 @@ pub suberror TaintAnalysisError {
 ///|
 /// Result of analyzing one function-like CST node for one rule.
 pub(all) struct AnalysisResult {
-  rule_id : String
-  function_name : String
-  function_loc : @basic.Location
   findings : Array[SinkFinding]
 }
