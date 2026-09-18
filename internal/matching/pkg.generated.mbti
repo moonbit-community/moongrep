@@ -42,7 +42,6 @@ pub(all) enum EllipsisMetavarKind {
 pub fn EllipsisMetavarKind::syntax_name(Self) -> String
 
 pub(all) struct ExprMatch {
-  root : @untyped_cst.CstNode
   bindings : @hashmap.HashMap[String, @model.BoundValue]
   loc : @basic.Location
 }
@@ -93,7 +92,6 @@ pub fn MetavarRegistry::copy(Self) -> Self
 pub fn MetavarRegistry::is_placeholder(Self, String) -> Bool
 pub fn MetavarRegistry::is_wildcard(Self, String) -> Bool
 pub fn MetavarRegistry::kind_of(Self, String) -> MetavarKind?
-pub fn MetavarRegistry::names(Self, MetavarKind) -> Array[String]
 pub fn MetavarRegistry::new() -> Self
 pub fn MetavarRegistry::register(Self, String, MetavarKind) -> MetavarRegistration
 pub fn MetavarRegistry::register_special_expr_placeholder(Self, String) -> Unit
@@ -119,7 +117,6 @@ pub(all) enum ResolvedMetavar {
 
 pub(all) struct TargetRef {
   region : Int
-  scope : Int
 }
 
 pub struct ValueInterner {

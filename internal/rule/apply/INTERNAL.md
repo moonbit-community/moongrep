@@ -34,9 +34,9 @@ plans and `ExprQuery::captures_from_cst` use this traversal.
 The index distinguishes function body containers from explicit blocks and keeps
 the previous candidates, locations, and order. Original CST references flow
 through the atomic matcher. Spans choose a reference-lookup bucket only; reference
-identity determines the node. Binding `__TARGET__` records a `TargetRef` directly,
-including the sequence bounds and entry scope. It never searches for a matching
-span after the match.
+identity determines the node. Binding `__TARGET__` records a `TargetRef` containing
+the selected region. The index retains sequence bounds and resolves the region's
+entry scope when needed. It never searches for a matching span after the match.
 
 Lexical scopes are immutable parent chains. Each binder has a distinct binding
 ID, and name resolution is cached by scope and name. Scopes are initialized on

@@ -133,21 +133,6 @@ pub fn MetavarRegistry::kind_of(
 }
 
 ///|
-/// Returns named metavars of exactly `kind`, preserving registry order.
-pub fn MetavarRegistry::names(
-  self : MetavarRegistry,
-  kind : MetavarKind,
-) -> Array[String] {
-  let result : Array[String] = []
-  for entry in self.entries {
-    if entry.kind == kind {
-      result.push(entry.name)
-    }
-  }
-  result
-}
-
-///|
 /// Resolves source spelling through this registry. The registry's compiled kind
 /// is authoritative; an unregistered spelling is not a placeholder.
 pub fn MetavarRegistry::resolve(

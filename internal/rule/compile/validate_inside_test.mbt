@@ -28,25 +28,29 @@ test "validate allows inherited then metavars with matching inline forms" {
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Expr,
         ),
         content="[\"value\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Identifier,
         ),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Constant,
         ),
         content="[\"lit\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Argument,
         ),
         content="[\"arg\"]",
@@ -76,11 +80,11 @@ test "validate compiles then id and const guards" {
       let inside_expr = rule.group.patterns[0].pattern
       assert_eq(inside_expr.guards.length(), 2)
       debug_inspect(
-        inside_expr.compiled.metavars.names(Identifier),
+        metavar_names(inside_expr.compiled.metavars, Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        inside_expr.compiled.metavars.names(Constant),
+        metavar_names(inside_expr.compiled.metavars, Constant),
         content="[\"lit\"]",
       )
     }
@@ -108,7 +112,7 @@ test "validate compiles inside toplevel function shape" {
       let inside_toplevel = rule.inside_toplevel[0]
       assert_eq(inside_toplevel.guards.length(), 1)
       debug_inspect(
-        inside_toplevel.compiled.metavars.names(Identifier),
+        metavar_names(inside_toplevel.compiled.metavars, Identifier),
         content="[\"param\", \"name\"]",
       )
     }
@@ -190,11 +194,11 @@ test "validate compiles inside toplevel let guards" {
       let inside_toplevel = rule.inside_toplevel[0]
       assert_eq(inside_toplevel.guards.length(), 2)
       debug_inspect(
-        inside_toplevel.compiled.metavars.names(Identifier),
+        metavar_names(inside_toplevel.compiled.metavars, Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        inside_toplevel.compiled.metavars.names(Constant),
+        metavar_names(inside_toplevel.compiled.metavars, Constant),
         content="[\"lit\"]",
       )
     }
@@ -239,11 +243,11 @@ test "validate compiles patterns-not metavars and guards" {
       assert_eq(rule.group.patterns_not.length(), 1)
       assert_eq(rule.group.patterns_not[0].guards.length(), 2)
       debug_inspect(
-        rule.group.patterns_not[0].compiled.metavars.names(Identifier),
+        metavar_names(rule.group.patterns_not[0].compiled.metavars, Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.group.patterns_not[0].compiled.metavars.names(Constant),
+        metavar_names(rule.group.patterns_not[0].compiled.metavars, Constant),
         content="[\"lit\"]",
       )
     }
@@ -270,7 +274,8 @@ test "validate patterns-not inherits then metavars without positive patterns" {
         1,
       )
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns_not[0].compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns_not[0].compiled.metavars,
           Identifier,
         ),
         content="[\"name\"]",
@@ -297,7 +302,7 @@ test "validate patterns-not inherits inside toplevel metavars without positive p
       assert_eq(rule.group.patterns.length(), 0)
       assert_eq(rule.group.patterns_not.length(), 1)
       debug_inspect(
-        rule.group.patterns_not[0].compiled.metavars.names(Identifier),
+        metavar_names(rule.group.patterns_not[0].compiled.metavars, Identifier),
         content="[\"name\"]",
       )
     }
@@ -393,7 +398,8 @@ test "validate then constant metavars use matching inline forms" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Constant,
         ),
         content="[\"lit\"]",
@@ -575,13 +581,15 @@ test "validate allows inner guard to reference then id and const captures" {
         2,
       )
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Identifier,
         ),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars.names(
+        metavar_names(
+          rule.group.patterns[0].then_body.unwrap().patterns[0].pattern.compiled.metavars,
           Constant,
         ),
         content="[\"lit\"]",
@@ -609,11 +617,17 @@ test "validate allows inner guard to reference inside toplevel id and const capt
     Structural(rule) => {
       assert_eq(rule.group.patterns[0].pattern.guards.length(), 2)
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[\"lit\"]",
       )
     }
@@ -713,11 +727,17 @@ test "validate compiles ordered then alternatives independently" {
       assert_eq(rule.group.patterns[0].pattern.guards.length(), 0)
       assert_eq(rule.group.patterns[1].pattern.guards.length(), 1)
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.group.patterns[1].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[1].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"name\"]",
       )
     }
@@ -741,11 +761,11 @@ test "validate compiles ordered inside toplevel alternatives independently" {
     Structural(rule) => {
       assert_eq(rule.inside_toplevel.length(), 2)
       debug_inspect(
-        rule.inside_toplevel[0].compiled.metavars.names(Identifier),
+        metavar_names(rule.inside_toplevel[0].compiled.metavars, Identifier),
         content="[\"name\"]",
       )
       debug_inspect(
-        rule.inside_toplevel[1].compiled.metavars.names(Identifier),
+        metavar_names(rule.inside_toplevel[1].compiled.metavars, Identifier),
         content="[\"name\"]",
       )
     }

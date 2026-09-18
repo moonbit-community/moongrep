@@ -1,4 +1,18 @@
 ///|
+fn metavar_names(
+  registry : @matching.MetavarRegistry,
+  kind : @matching.MetavarKind,
+) -> Array[String] {
+  let names : Array[String] = []
+  for entry in registry.entries {
+    if entry.kind == kind {
+      names.push(entry.name)
+    }
+  }
+  names
+}
+
+///|
 test "validate accepts bare inline expression metavars" {
   let source =
     #|id: example
@@ -10,15 +24,21 @@ test "validate accepts bare inline expression metavars" {
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[\"value\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[]",
       )
     }
@@ -44,23 +64,32 @@ test "validate accepts keyword names for non-type single-node metavars" {
     Structural(rule) => {
       assert_eq(rule.group.patterns.length(), 6)
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[\"else\"]",
       )
       debug_inspect(
-        rule.group.patterns[1].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[1].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[\"if\"]",
       )
       debug_inspect(
-        rule.group.patterns[2].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[2].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"for\"]",
       )
       debug_inspect(
-        rule.group.patterns[3].pattern.compiled.metavars.names(Argument),
+        metavar_names(
+          rule.group.patterns[3].pattern.compiled.metavars,
+          Argument,
+        ),
         content="[\"match\"]",
       )
       debug_inspect(
-        rule.group.patterns[5].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[5].pattern.compiled.metavars, Expr),
         content="[\"if\"]",
       )
     }
@@ -92,15 +121,21 @@ test "validate accepts inline pattern metavars" {
     Structural(rule) => {
       assert_eq(rule.group.patterns.length(), 1)
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[\"body\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[]",
       )
     }
@@ -123,15 +158,21 @@ test "validate infers bare binder and expression metavars" {
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[\"limit\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"counter\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[]",
       )
     }
@@ -164,9 +205,10 @@ test "validate infers bare binders in foreach parameters and let mut" {
     match rules[0].definition {
       Structural(rule) =>
         assert_eq(
-          rule.group.patterns[0].pattern.compiled.metavars
-          .names(Identifier)
-          .length(),
+          metavar_names(
+            rule.group.patterns[0].pattern.compiled.metavars,
+            Identifier,
+          ).length(),
           1,
         )
       Taint(_) => fail("expected structural rule")
@@ -239,7 +281,10 @@ test "validate allows explicit identifier kind to disambiguate bare pattern meta
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"item\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -323,7 +368,7 @@ test "validate allows matcher-local-looking metavar names" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[\"file\", \"hits\", \"loc\", \"__moongrep_value\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -342,7 +387,10 @@ test "validate records inline constant metavars" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[\"value\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -361,19 +409,28 @@ test "validate records inline argument metavars" {
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Argument),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Argument,
+        ),
         content="[\"arg\"]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[]",
       )
     }
@@ -394,7 +451,7 @@ test "validate accepts explicit type metavars in annotations" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Type),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Type),
         content="[\"T\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -448,7 +505,7 @@ test "validate accepts spaced and bare type metavars in annotations" {
   match spaced_rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Type),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Type),
         content="[\"T\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -464,7 +521,7 @@ test "validate accepts spaced and bare type metavars in annotations" {
   match bare_rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Type),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Type),
         content="[\"T\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -586,7 +643,10 @@ test "validate records constructor identifier metavars" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"Ctor\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -605,7 +665,10 @@ test "validate records constructor extra info identifier metavars" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"TypeName\", \"Ctor\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -624,7 +687,10 @@ test "validate records qualified function identifier metavars" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[\"callee\"]",
       )
     Taint(_) => fail("expected structural rule")

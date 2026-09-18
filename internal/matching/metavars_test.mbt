@@ -1,4 +1,18 @@
 ///|
+fn metavar_names(
+  registry : MetavarRegistry,
+  kind : MetavarKind,
+) -> Array[String] {
+  let names : Array[String] = []
+  for entry in registry.entries {
+    if entry.kind == kind {
+      names.push(entry.name)
+    }
+  }
+  names
+}
+
+///|
 test "metavar registry preserves mixed declaration order" {
   let registry = MetavarRegistry::new()
   assert_true(registry.register("name", Identifier) == Registered)
@@ -11,9 +25,12 @@ test "metavar registry preserves mixed declaration order" {
     ],
     content="[\"name\", \"value\", \"items\", \"T\"]",
   )
-  debug_inspect(registry.names(Identifier), content="[\"name\"]")
-  debug_inspect(registry.names(Expr), content="[\"value\"]")
-  debug_inspect(registry.names(Ellipsis(ConstItem)), content="[\"items\"]")
+  debug_inspect(metavar_names(registry, Identifier), content="[\"name\"]")
+  debug_inspect(metavar_names(registry, Expr), content="[\"value\"]")
+  debug_inspect(
+    metavar_names(registry, Ellipsis(ConstItem)),
+    content="[\"items\"]",
+  )
 }
 
 ///|
