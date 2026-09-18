@@ -54,7 +54,7 @@ fn match_candidate_in_context(
         match_node(pattern, node, compiled, bindings)
       }
       if matched {
-        Some({ root: node, bindings: bindings.values, loc: node.loc, })
+        Some({ bindings: bindings.values, loc: node.loc, })
       } else {
         None
       }
@@ -67,7 +67,7 @@ fn match_candidate_in_context(
           [_] => first.loc
           [] => first.loc
         }
-        Some({ root: first, bindings: bindings.values, loc, })
+        Some({ bindings: bindings.values, loc, })
       } else {
         None
       }

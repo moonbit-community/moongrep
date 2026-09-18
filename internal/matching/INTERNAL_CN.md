@@ -13,14 +13,15 @@
 
 `match_expr_pattern_candidate` 和
 `match_expr_pattern_candidate_with_bindings` 对 `Direct(CstNode)` 与
-`Sequence(ArrayView[CstNode])` 候选使用相同的状态规则。每个成功的 `ExprMatch` 都携带
-候选的精确 `loc`；sequence location 合并首尾语句，因此不包含容器花括号。
+`Sequence(ArrayView[CstNode])` 候选使用相同的状态规则。`ExprMatch` 只保存捕获
+`bindings` 和候选的精确 `loc`；sequence location 合并首尾语句，因此不包含容器花括号。
 
 普通节点从左到右完成绑定。包含 ellipsis 的有序 child 列表使用局部回溯：
 每个候选长度都在 bindings 副本上运行，只有首个完整成功分支会被提交。
 
 索引匹配与单节点匹配共用原子实现。`MatchContext` 同时保存捕获和可选的
-`TargetRef`；绑定 `__TARGET__` 时直接记录原始源码引用。continuation 保留所属
+`TargetRef`。`TargetRef` 只保存选中的 region，需要词法作用域时通过 `SourceIndex`
+查询；绑定 `__TARGET__` 时直接记录原始源码引用。continuation 保留所属
 语句列表和起止位置，包含空尾部。省略号回溯一起提交或回滚捕获及目标，`then`
 失败不会重试另一种省略号划分。普通单节点匹配不需要建立搜索索引。
 

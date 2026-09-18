@@ -20,7 +20,6 @@ pub(all) struct CompiledExprPattern {
 ///|
 /// Result of a successful expression-pattern match.
 pub(all) struct ExprMatch {
-  root : @untyped_cst.CstNode
   bindings : @hashmap.HashMap[String, BoundValue]
   loc : @basic.Location
 }
@@ -28,7 +27,6 @@ pub(all) struct ExprMatch {
 ///|
 pub(all) struct TargetRef {
   region : @cst.RegionId
-  scope : @cst.ScopeId
 }
 
 ///|
@@ -77,7 +75,7 @@ fn MatchContext::select_node(
 ) -> Unit {
   if self.index is Some(index) {
     let region = index.target(index.node_id(node))
-    self.target = Some({ region, scope: index.scope(region), })
+    self.target = Some({ region, })
   }
 }
 
@@ -89,7 +87,7 @@ fn MatchContext::select_continuation(
 ) -> Unit {
   if self.index is Some(index) {
     let region = index.continuation(index.node_id(header), length)
-    self.target = Some({ region, scope: index.scope(region), })
+    self.target = Some({ region, })
   }
 }
 

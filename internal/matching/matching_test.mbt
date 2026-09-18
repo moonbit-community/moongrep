@@ -609,7 +609,6 @@ test "direct continuation captures preserve explicit block candidates" {
       is Some(result) else {
       fail("expected explicit block continuation match: \{candidate}")
     }
-    assert_true(result.root.kind is @untyped_cst.Expr_Block)
     assert_eq(result.loc.start.cnum, 0)
     assert_eq(result.loc.end.cnum, candidate.length())
     let (actual_body, actual_multiple) = match result.bindings.get("body") {

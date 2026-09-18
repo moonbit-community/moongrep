@@ -95,8 +95,14 @@ test "validate compiles bare and typed ellipsis metavars" {
     Structural(rule) => {
       let metavars = rule.group.patterns[0].pattern.compiled.metavars
       assert_eq(metavars.entries.length(), 2)
-      debug_inspect(metavars.names(Ellipsis(AnyItem)), content="[\"args\"]")
-      debug_inspect(metavars.names(Ellipsis(ArgItem)), content="[\"values\"]")
+      debug_inspect(
+        metavar_names(metavars, Ellipsis(AnyItem)),
+        content="[\"args\"]",
+      )
+      debug_inspect(
+        metavar_names(metavars, Ellipsis(ArgItem)),
+        content="[\"values\"]",
+      )
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -115,7 +121,10 @@ test "validate typed ellipsis occurrence determines bare occurrence kind" {
     Structural(rule) => {
       let metavars = rule.group.patterns[0].pattern.compiled.metavars
       assert_eq(metavars.entries.length(), 1)
-      debug_inspect(metavars.names(Ellipsis(ExpItem)), content="[\"items\"]")
+      debug_inspect(
+        metavar_names(metavars, Ellipsis(ExpItem)),
+        content="[\"items\"]",
+      )
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -148,13 +157,16 @@ test "validate keeps mixed metavar kinds in first occurrence order" {
         ],
         content="[\"literal\", \"name\", \"items\", \"value\", \"argument\", \"pattern\", \"T\"]",
       )
-      debug_inspect(metavars.names(Constant), content="[\"literal\"]")
-      debug_inspect(metavars.names(Identifier), content="[\"name\"]")
-      debug_inspect(metavars.names(Ellipsis(AnyItem)), content="[\"items\"]")
-      debug_inspect(metavars.names(Expr), content="[\"value\"]")
-      debug_inspect(metavars.names(Argument), content="[\"argument\"]")
-      debug_inspect(metavars.names(Pattern), content="[\"pattern\"]")
-      debug_inspect(metavars.names(Type), content="[\"T\"]")
+      debug_inspect(metavar_names(metavars, Constant), content="[\"literal\"]")
+      debug_inspect(metavar_names(metavars, Identifier), content="[\"name\"]")
+      debug_inspect(
+        metavar_names(metavars, Ellipsis(AnyItem)),
+        content="[\"items\"]",
+      )
+      debug_inspect(metavar_names(metavars, Expr), content="[\"value\"]")
+      debug_inspect(metavar_names(metavars, Argument), content="[\"argument\"]")
+      debug_inspect(metavar_names(metavars, Pattern), content="[\"pattern\"]")
+      debug_inspect(metavar_names(metavars, Type), content="[\"T\"]")
     }
     Taint(_) => fail("expected structural rule")
   }
@@ -334,7 +346,7 @@ test "validate accepts all-underscore metavar names" {
   match rules[0].definition {
     Structural(rule) =>
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[\"__\", \"___\"]",
       )
     Taint(_) => fail("expected structural rule")
@@ -353,23 +365,32 @@ test "validate does not collect $_ ignore placeholders" {
   match rules[0].definition {
     Structural(rule) => {
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Expr),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Expr),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Identifier),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Identifier,
+        ),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Constant),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Constant,
+        ),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Argument),
+        metavar_names(
+          rule.group.patterns[0].pattern.compiled.metavars,
+          Argument,
+        ),
         content="[]",
       )
       debug_inspect(
-        rule.group.patterns[0].pattern.compiled.metavars.names(Type),
+        metavar_names(rule.group.patterns[0].pattern.compiled.metavars, Type),
         content="[]",
       )
     }

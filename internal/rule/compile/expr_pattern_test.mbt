@@ -86,7 +86,8 @@ test "compile_expr_pattern matches one raw rule pattern" {
       through_rule.metavars.entries[index].kind,
     )
   }
-  let candidate = expr_pattern_test_candidate("sink(make(), field, 42)")
+  let source = "sink(make(), field, 42)"
+  let candidate = expr_pattern_test_candidate(source)
   guard @matching.match_expr_pattern(direct, candidate) is Some(direct_match) else {
     fail("expected directly compiled pattern to match")
   }
@@ -94,10 +95,20 @@ test "compile_expr_pattern matches one raw rule pattern" {
     is Some(rule_match) else {
     fail("expected rule-compiled pattern to match")
   }
-  assert_eq(direct_match.root.kind, rule_match.root.kind)
-  for name in ["value", "name", "literal"] {
-    assert_true(direct_match.bindings.get(name) is Some(_))
-    assert_true(rule_match.bindings.get(name) is Some(_))
+  assert_eq(direct_match.loc, candidate.loc)
+  assert_eq(rule_match.loc, candidate.loc)
+  for
+    (name, expected) in [
+      ("value", "make()"),
+      ("name", "field"),
+      ("literal", "42"),
+    ] {
+    for matched in [direct_match, rule_match] {
+      guard matched.bindings.get(name) is Some(Single(node)) else {
+        fail("expected single capture for \{name}")
+      }
+      assert_eq(@cst.source_text(node, source), expected)
+    }
   }
 }
 

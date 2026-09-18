@@ -66,7 +66,10 @@ test "compile_inside_toplevel_pattern matches one default rule entry" {
     through_rule.metavars.special_expr_placeholders,
   )
   assert_eq(direct.metavars.special_expr_placeholders, ["__TARGET__"])
-  debug_inspect(direct.metavars.names(Identifier), content="[\"name\"]")
+  debug_inspect(
+    metavar_names(direct.metavars, Identifier),
+    content="[\"name\"]",
+  )
 }
 
 ///|

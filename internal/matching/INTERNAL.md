@@ -16,22 +16,25 @@ The caller's map remains unchanged.
 `match_expr_pattern_candidate` and
 `match_expr_pattern_candidate_with_bindings` apply the same state rules to
 `Direct(CstNode)` and `Sequence(ArrayView[CstNode])` candidates. Every successful
-`ExprMatch` carries the exact candidate `loc`; sequence locations merge the
-first and last statement and therefore exclude container braces.
+`ExprMatch` contains captures in `bindings` and the exact candidate `loc`.
+Sequence locations merge the first and last statement and therefore exclude
+container braces.
 
 Ordinary nodes bind as they walk left to right. Ordered child lists use a small
 backtracking matcher when they contain ellipses: each candidate length runs
 against a copied binding map, and only the first complete successful branch is
 committed. Indexed matching uses the same atomic implementation and copies a
 `MatchContext` containing both captures and an optional `TargetRef`.
-`__TARGET__` records its original source reference as it binds. A continuation
-records its owning statement list, start, and end, including empty tails.
+`TargetRef` stores only the selected region; its lexical scope is resolved through
+`SourceIndex` when needed. `__TARGET__` records its original source reference as it
+binds. A continuation records its owning statement list, start, and end, including
+empty tails.
 Backtracking commits or rolls back the target with the capture map. A failed
 `then` never asks the atomic matcher for another ellipsis split.
 
 Standalone matching leaves the index absent. Queries and taint therefore keep
 the same atomic matcher without requiring a search index for a single-node call.
-The public `BoundValue` and `ExprMatch` contents still retain original CST nodes.
+Captured `BoundValue` values retain original CST nodes.
 
 `ValueInterner` represents the same equality as `bound_value_equal`, including
 normalized identity nodes and the distinction between `Single` and `Multiple`.
