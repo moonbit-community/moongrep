@@ -69,7 +69,7 @@ fn prefilter_rule_ids(
 ) -> Array[String] {
   let ids : Array[String] = []
   for rule in rules {
-    if @rule_prefilter.rule_is_relevant_to_source(rule, source) {
+    if @rule_prefilter.prefilter_matches_source(rule.prefilter, source) {
       match rule.definition {
         Structural(_) => ids.push("S:\{rule.rule_id}")
         Taint(_) => ids.push("T:\{rule.rule_id}")

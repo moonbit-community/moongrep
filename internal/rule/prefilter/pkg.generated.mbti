@@ -15,8 +15,6 @@ pub fn prefilter_matches_source(@model.RulePrefilter, String) -> Bool
 
 pub fn prefilter_matches_with_literal_matcher(@model.RulePrefilter, (String) -> Bool) -> Bool
 
-pub fn rule_is_relevant_to_source(@model.CompiledRule, String) -> Bool
-
 // Errors
 
 // Types and methods
