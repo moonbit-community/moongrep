@@ -177,7 +177,7 @@ let item = load()
 ```
 
 ```moonbit
-let item = load(); use(item)
+let item = load(); consume(item)
 ```
 
 ```moonbit
@@ -193,7 +193,7 @@ Write an explicit body when the body matters:
 
 ```yaml
 patterns:
-  - shape: let $(name:id) = $(value:exp); use($(name:id))
+  - shape: let $(name:id) = $(value:exp); consume($(name:id))
 ```
 
 To capture whichever body the candidate has, write a body metavar explicitly:
@@ -761,9 +761,6 @@ visited expression and one rule:
   pruned for that rule without emitting a hit
 - sibling expression subtrees and other rules continue scanning
 
-The reported pattern index is zero-based and refers to the matching entry in
-`patterns`.
-
 All patterns in one rule share the same rule id and `description`.
 
 ### `patterns-not`
@@ -896,8 +893,8 @@ the whole current candidate: recursion descends the finite rule tree and need
 not shrink the source range. A failed `then` does not retry another ellipsis
 partition of the same shape.
 
-Each finding uses the root `patterns` entry's location and zero-based index.
-Multiple internal matches produce only one outer finding. For example:
+Each finding uses the root `patterns` entry's location. Multiple internal
+matches produce only one outer finding. For example:
 
 ```yaml
 id: alternatives
@@ -916,8 +913,8 @@ patterns:
 The removed `inside-expr` key produces a migration error. Move each old outer
 alternative into root `patterns` and place the former child `patterns` and
 `patterns-not` in that entry's `then`. Preserve alternative order and guards.
-This changes fallback, successful-subtree pruning, and `pattern_index`; it is
-not a behavior-preserving field rename.
+This changes fallback and successful-subtree pruning; it is not a
+behavior-preserving field rename.
 
 ### `inside-toplevel`
 
@@ -1107,9 +1104,6 @@ follows:
 - if a call matches both a sink and a sanitizer, the sink is reported using the
   taint state before sanitizer effects affect later reads
 
-The reported pattern index for taint hits is the zero-based index of the
-matching sink entry.
-
 ## Error Conditions
 
 A rule set or rule file is rejected when any of these conditions occurs:
@@ -1192,8 +1186,7 @@ patterns:
   - shape: $(command:exp).stderr_collect($(args:exp))
 ```
 
-Both alternatives emit the same rule id and description. The reported pattern
-index distinguishes which shape matched.
+Both alternatives emit the same rule id and description.
 
 ### Binder and Use Name Comparison
 
@@ -1214,17 +1207,17 @@ positions. `start`, `limit`, and `body` are expression captures.
 ### Context-Restricted Structural Match
 
 ```yaml
-id: unsafe-wrapper
+id: wrapped-sink
 description: |
-  Match a sink only under an unsafe wrapper.
+  Match a sink only under a selected wrapper.
 patterns:
-  - shape: unsafe(__TARGET__)
+  - shape: wrapper(__TARGET__)
     then:
       patterns:
         - shape: sink($_)
 ```
 
-The rule first finds `unsafe(...)`, then searches only the expression captured
+The rule first finds `wrapper(...)`, then searches only the expression captured
 by `__TARGET__` for `sink(...)`.
 
 ### Negative Structural Constraint

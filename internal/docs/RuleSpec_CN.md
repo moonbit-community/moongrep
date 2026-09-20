@@ -120,7 +120,7 @@ let item = load()
 ```
 
 ```moonbit
-let item = load(); use(item)
+let item = load(); consume(item)
 ```
 
 ```moonbit
@@ -135,7 +135,7 @@ let item = load(); { trace(item); item }
 
 ```yaml
 patterns:
-  - shape: let $(name:id) = $(value:exp); use($(name:id))
+  - shape: let $(name:id) = $(value:exp); consume($(name:id))
 ```
 
 如需捕获任意形式的候选 body，请显式写 body 元变量：
@@ -606,8 +606,6 @@ patterns:
 - 如果此时负向 pattern 匹配，该候选表达式子树会对这条规则剪枝，且不会产生命中
 - 兄弟表达式子树以及其他规则会继续扫描
 
-报告的 pattern index 从零开始，指向 `patterns` 中匹配的条目。
-
 同一条规则中的所有 pattern 共享同一个规则 id 和 `description`。
 
 ### `patterns-not`
@@ -698,8 +696,8 @@ continuation 所有者（let、let mut、guard）之后的目标选择完整剩�
 候选；递归沿有限规则树下降，无需源码范围缩小。then 失败不会重试同一 shape
 的其他省略号划分。
 
-每次 finding 使用根 `patterns` 条目的位置与从零开始的下标。内部多次命中仅
-报告一次。例如以下规则含多个备选，其中第一个 then 只有负向约束：
+每次 finding 使用根 `patterns` 条目的位置。内部多次命中仅报告一次。例如以下
+规则含多个备选，其中第一个 then 只有负向约束：
 
 ```yaml
 id: alternatives
@@ -717,7 +715,7 @@ patterns:
 
 旧 `inside-expr` 字段已移除，使用时会收到迁移提示。将每个旧外层备选移到根
 patterns，把原 patterns / patterns-not 放入该条目的 then，保持顺序和 guard。
-这会改变备选回退、成功后的遍历剪枝及 pattern_index，不能视为等价字段改名。
+这会改变备选回退和成功后的遍历剪枝，不能视为等价字段改名。
 
 ### `inside-toplevel`
 
@@ -886,8 +884,6 @@ YAML 污点规则目前没有过程间传播。如果 tainted 数据传入的 he
 - 如果一个调用同时匹配 source 和 sanitizer，source 返回污点会产生
 - 如果一个调用同时匹配 sink 和 sanitizer，sink 会使用 sanitizer 效果影响后续读取之前的污点状态进行报告
 
-taint 命中报告的 pattern index 是匹配 sink 条目的零基索引。
-
 ## 错误条件
 
 当出现以下任一条件时，规则集或规则文件会被拒绝：
@@ -961,7 +957,7 @@ patterns:
   - shape: $(command:exp).stderr_collect($(args:exp))
 ```
 
-两个备选项会产生相同的规则 id 和 description。报告的 pattern index 用于区分匹配的是哪个 shape。
+两个备选项会产生相同的规则 id 和 description。
 
 ### Binder 和使用处名称比较
 
@@ -981,17 +977,17 @@ patterns:
 ### 限制上下文的结构匹配
 
 ```yaml
-id: unsafe-wrapper
+id: wrapped-sink
 description: |
-  Match a sink only under an unsafe wrapper.
+  Match a sink only under a selected wrapper.
 patterns:
-  - shape: unsafe(__TARGET__)
+  - shape: wrapper(__TARGET__)
     then:
       patterns:
         - shape: sink($_)
 ```
 
-该规则首先寻找 `unsafe(...)`，然后只在 `__TARGET__` 捕获的表达式内搜索 `sink(...)`。
+该规则首先寻找 `wrapper(...)`，然后只在 `__TARGET__` 捕获的表达式内搜索 `sink(...)`。
 
 ### 带 Guard 的结构匹配
 
