@@ -1,31 +1,31 @@
 ///|
 test "taint facade exposes the complete public API" {
   let node = parse_single_impl("fn sample {}")
-  let segments : Array[PathSegment] = [
+  let segments : Array[@taint.PathSegment] = [
     Field("body"),
     TupleIndex(0),
     ConstIndex("1"),
     AnyIndex,
   ]
-  let path : StoragePath = { root: "input", segments, }
-  let sites : Array[ValueSite] = [
+  let path : @taint.StoragePath = { root: "input", segments, }
+  let sites : Array[@taint.ValueSite] = [
     Path(path),
     CallResult(Some("callee"), node.loc),
     Expr(node.loc, None),
     Synthetic("site"),
   ]
-  let origin : TaintOrigin = {
+  let origin : @taint.TaintOrigin = {
     rule_id: "rule",
     origin_id: "origin",
     site: sites[0],
     note: Some("note"),
   }
-  let relative : RelativeTaint = { path: [Field("value")], origins: [origin], }
-  let tree : TaintTree = [relative]
-  let sink_ids : Array[SinkId] = [Named("sink"), PatternIndex(1)]
-  let finding : SinkFinding = { sink_id: sink_ids[0], sink_loc: node.loc, }
-  let kinds : Array[CallKind] = [Apply, DotApply, Pipe, RevPipe]
-  let argument : CallArgument = {
+  let relative : @taint.RelativeTaint = { path: [Field("value")], origins: [origin], }
+  let tree : @taint.TaintTree = [relative]
+  let sink_ids : Array[@taint.SinkId] = [Named("sink"), PatternIndex(1)]
+  let finding : @taint.SinkFinding = { sink_id: sink_ids[0], sink_loc: node.loc, }
+  let kinds : Array[@taint.CallKind] = [Apply, DotApply, Pipe, RevPipe]
+  let argument : @taint.CallArgument = {
     index: 0,
     label: Some("arg"),
     expr: node,
@@ -34,7 +34,7 @@ test "taint facade exposes the complete public API" {
     site: sites[0],
     taint: tree,
   }
-  let info : CallInfo = {
+  let info : @taint.CallInfo = {
     kind: kinds[0],
     cst: node,
     loc: node.loc,
@@ -44,25 +44,25 @@ test "taint facade exposes the complete public API" {
     receiver_taint: tree,
     arguments: [argument],
   }
-  let transfer : CallTransfer = {
+  let transfer : @taint.CallTransfer = {
     return_taint: tree,
     killed_paths: [path],
     findings: [finding],
   }
-  let policies : Array[UnknownCallPolicy] = [
+  let policies : Array[@taint.UnknownCallPolicy] = [
     NoEffect,
     PropagateArgumentsToReturn,
   ]
-  let matchers : Array[CallMatcher] = [
+  let matchers : Array[@taint.CallMatcher] = [
     CalleeName("callee"),
     MethodName("method"),
     AnyCall,
   ]
-  let sources : Array[SourceModel] = [
+  let sources : Array[@taint.SourceModel] = [
     EntryPath(path, "entry", None),
     CallReturn(matchers[0], "call", None, [Field("value")]),
   ]
-  let effects : Array[CallEffect] = [
+  let effects : Array[@taint.CallEffect] = [
     ReturnFreshSource("fresh", None, []),
     PropagateArgToReturn(0),
     PropagateReceiverToReturn,
@@ -72,8 +72,8 @@ test "taint facade exposes the complete public API" {
     ReportSinkArg(Named("sink:arg"), 0),
     ReportSinkReceiver(Named("sink:receiver")),
   ]
-  let model : CallModel = { matcher: matchers[2], effects, }
-  let spec : TaintSpec = {
+  let model : @taint.CallModel = { matcher: matchers[2], effects, }
+  let spec : @taint.TaintSpec = {
     rule_id: "rule",
     sources,
     call_models: [model],
@@ -81,7 +81,7 @@ test "taint facade exposes the complete public API" {
     max_fixpoint_iterations: 1,
     custom_transfer_call: no_custom_transfer,
   }
-  let result : AnalysisResult = { findings: [finding], }
+  let result : @taint.AnalysisResult = { findings: [finding], }
 
   assert_eq(path.root, "input")
   assert_eq(path.segments.length(), 4)
@@ -128,7 +128,7 @@ test "taint facade exposes the complete public API" {
 ///|
 test "CallInfo::argument_at uses semantic argument indexes" {
   let node = parse_single_impl("fn sample {}")
-  let arguments : Array[CallArgument] = [
+  let arguments : Array[@taint.CallArgument] = [
     {
       index: 7,
       label: Some("seventh"),
@@ -148,7 +148,7 @@ test "CallInfo::argument_at uses semantic argument indexes" {
       taint: [],
     },
   ]
-  let info : CallInfo = {
+  let info : @taint.CallInfo = {
     kind: Apply,
     cst: node,
     loc: node.loc,
@@ -168,29 +168,29 @@ test "CallInfo::argument_at uses semantic argument indexes" {
 
 ///|
 test "taint_tree_origins deduplicates stably across entries" {
-  let first : TaintOrigin = {
+  let first : @taint.TaintOrigin = {
     rule_id: "rule",
     origin_id: "first",
     site: Synthetic("first"),
     note: None,
   }
-  let second : TaintOrigin = {
+  let second : @taint.TaintOrigin = {
     rule_id: "rule",
     origin_id: "shared-id",
     site: Synthetic("second"),
     note: None,
   }
-  let same_id_different_origin : TaintOrigin = {
+  let same_id_different_origin : @taint.TaintOrigin = {
     rule_id: "rule",
     origin_id: "shared-id",
     site: Synthetic("second"),
     note: Some("distinct note"),
   }
-  let tree : TaintTree = [
+  let tree : @taint.TaintTree = [
     { path: [], origins: [first, second], },
     { path: [Field("nested")], origins: [first, same_id_different_origin], },
   ]
-  assert_eq(taint_tree_origins(tree), [first, second, same_id_different_origin])
+  assert_eq(@taint.taint_tree_origins(tree), [first, second, same_id_different_origin])
 }
 
 ///|
@@ -205,22 +205,22 @@ fn parse_single_impl(source : String) -> @untyped_cst.CstNode raise {
 }
 
 ///|
-fn no_custom_transfer(_call : CallInfo) -> CallTransfer? {
+fn no_custom_transfer(_call : @taint.CallInfo) -> @taint.CallTransfer? {
   None
 }
 
 ///|
 fn observe_sink_origins(
-  spec : TaintSpec,
-  sink_origins : Array[Array[TaintOrigin]],
-) -> TaintSpec {
+  spec : @taint.TaintSpec,
+  sink_origins : Array[Array[@taint.TaintOrigin]],
+) -> @taint.TaintSpec {
   let transfer_call = spec.custom_transfer_call
   {
     ..spec,
     custom_transfer_call: call => {
       if call.callee_name == Some("sink") &&
         call.argument_at(0) is Some(argument) {
-        sink_origins.push(taint_tree_origins(argument.taint))
+        sink_origins.push(@taint.taint_tree_origins(argument.taint))
       }
       transfer_call(call)
     },
@@ -228,17 +228,17 @@ fn observe_sink_origins(
 }
 
 ///|
-fn sink_location(finding : SinkFinding) -> (Int, Int, Int, Int) {
+fn sink_location(finding : @taint.SinkFinding) -> (Int, Int, Int, Int) {
   let loc = finding.sink_loc
   (loc.start.lnum, loc.start.column(), loc.end.lnum, loc.end.column())
 }
 
 ///|
 fn simple_spec(
-  sources~ : Array[SourceModel],
-  call_models~ : Array[CallModel],
-  unknown_call_policy? : UnknownCallPolicy = PropagateArgumentsToReturn,
-) -> TaintSpec {
+  sources~ : Array[@taint.SourceModel],
+  call_models~ : Array[@taint.CallModel],
+  unknown_call_policy? : @taint.UnknownCallPolicy = PropagateArgumentsToReturn,
+) -> @taint.TaintSpec {
   {
     rule_id: "test/rule",
     sources,
@@ -250,8 +250,8 @@ fn simple_spec(
 }
 
 ///|
-fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
-  let findings : Array[SinkFinding] = []
+fn inspect_node_transfer(call : @taint.CallInfo) -> @taint.CallTransfer? {
+  let findings : Array[@taint.SinkFinding] = []
   if call.cst.kind is Expr_Apply &&
     call.arguments is [arg] &&
     arg.expr.kind is Expr_Ident {
@@ -268,7 +268,7 @@ test "taint engine passes CST nodes to custom transfer" {
     #|}
     #|
   let node = parse_single_impl(source)
-  let result = analyze_function_like(node, {
+  let result = @taint.analyze_function_like(node, {
     rule_id: "test/node-transfer",
     sources: [],
     call_models: [],
@@ -290,10 +290,10 @@ test "taint engine passes CST nodes to custom transfer" {
 fn analyze_single_entry_sink(
   source : String,
   root : String,
-) -> AnalysisResult raise {
-  let path : StoragePath = { root, segments: [], }
+) -> @taint.AnalysisResult raise {
+  let path : @taint.StoragePath = { root, segments: [], }
   let node = parse_single_impl(source)
-  analyze_function_like(
+  @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(path, "entry:\{root}", None)], call_models=[
       {
@@ -307,8 +307,8 @@ fn analyze_single_entry_sink(
 ///|
 fn analyze_call_source_sink(
   source : String,
-  sink_origins? : Array[Array[TaintOrigin]],
-) -> AnalysisResult raise {
+  sink_origins? : Array[Array[@taint.TaintOrigin]],
+) -> @taint.AnalysisResult raise {
   let node = parse_single_impl(source)
   let spec = simple_spec(
     sources=[
@@ -322,7 +322,7 @@ fn analyze_call_source_sink(
       },
     ],
   )
-  analyze_function_like(
+  @taint.analyze_function_like(
     node,
     match sink_origins {
       Some(origins) => observe_sink_origins(spec, origins)
@@ -442,16 +442,16 @@ test "taint engine writes and clears fields without changing siblings" {
     #|  sink(record.sibling)
     #|}
     #|
-  let target_path : StoragePath = {
+  let target_path : @taint.StoragePath = {
     root: "record",
     segments: [Field("target")],
   }
-  let sibling_path : StoragePath = {
+  let sibling_path : @taint.StoragePath = {
     root: "record",
     segments: [Field("sibling")],
   }
-  let sink_origins : Array[Array[TaintOrigin]] = []
-  let clear_result = analyze_function_like(
+  let sink_origins : Array[Array[@taint.TaintOrigin]] = []
+  let clear_result = @taint.analyze_function_like(
     parse_single_impl(clear_source),
     observe_sink_origins(
       simple_spec(
@@ -546,10 +546,10 @@ test "taint engine reports entry parameter source reaching sink argument" {
     #|  sink(input)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let sink_origins : Array[Array[TaintOrigin]] = []
-  let result = analyze_function_like(
+  let sink_origins : Array[Array[@taint.TaintOrigin]] = []
+  let result = @taint.analyze_function_like(
     node,
     observe_sink_origins(
       simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
@@ -585,9 +585,9 @@ test "taint engine sanitizer kills argument path before later sink" {
     #|  sink(input)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       { matcher: CalleeName("sanitize"), effects: [KillArg(0)], },
@@ -608,9 +608,9 @@ test "taint engine reports tainted receiver reaching method sink" {
     #|  clean.sink()
     #|}
     #|
-  let receiver_path : StoragePath = { root: "receiver", segments: [], }
+  let receiver_path : @taint.StoragePath = { root: "receiver", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(receiver_path, "entry:receiver", None)], call_models=[
       {
@@ -636,9 +636,9 @@ test "taint engine analyzes impl method bodies" {
     #|  sink(receiver)
     #|}
     #|
-  let receiver_path : StoragePath = { root: "receiver", segments: [], }
+  let receiver_path : @taint.StoragePath = { root: "receiver", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(receiver_path, "entry:receiver", None)], call_models=[
       {
@@ -664,9 +664,9 @@ test "taint engine rejects unsupported function declarations" {
     #|
   let node = parse_single_impl(source)
   try
-    analyze_function_like(node, simple_spec(sources=[], call_models=[]))
+    @taint.analyze_function_like(node, simple_spec(sources=[], call_models=[]))
   catch {
-    TaintAnalysisError::UnsupportedFunctionLike(kind~, ..) =>
+    @taint.TaintAnalysisError::UnsupportedFunctionLike(kind~, ..) =>
       inspect(kind, content="TopFuncDef.DeclStubs")
     err => fail("unexpected error \{err}")
   } noraise {
@@ -682,13 +682,13 @@ test "taint engine keeps field paths precise" {
     #|  sink(payload.clean)
     #|}
     #|
-  let secret_path : StoragePath = {
+  let secret_path : @taint.StoragePath = {
     root: "payload",
     segments: [Field("secret")],
   }
   let node = parse_single_impl(source)
-  let sink_origins : Array[Array[TaintOrigin]] = []
-  let result = analyze_function_like(
+  let sink_origins : Array[Array[@taint.TaintOrigin]] = []
+  let result = @taint.analyze_function_like(
     node,
     observe_sink_origins(
       simple_spec(sources=[EntryPath(secret_path, "entry:secret", None)], call_models=[
@@ -723,9 +723,9 @@ test "taint engine projects tuple element taint through let binding" {
     #|  sink(pair.1)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -746,9 +746,9 @@ test "taint engine joins branch states before following sink" {
     #|  sink(x)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -768,9 +768,9 @@ test "taint engine does not continue sequence after return" {
     #|  sink(input)
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -923,9 +923,9 @@ test "taint engine propagates unknown call argument taint to return by default" 
     #|  sink(wrap(input))
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -944,9 +944,9 @@ test "taint engine can disable unknown call return propagation" {
     #|  sink(wrap(input))
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(
       sources=[EntryPath(input_path, "entry:input", None)],
@@ -969,9 +969,9 @@ test "taint engine treats reverse pipe as argument zero" {
     #|  sink <| input
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -993,9 +993,9 @@ test "taint engine analyzes normal match cases after early-return cases" {
     #|  }
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -1018,9 +1018,9 @@ test "taint engine binds raised value in catch pattern" {
     #|  }
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -1039,9 +1039,9 @@ test "taint engine does not execute call transfer after argument return" {
     #|  sink(input, { return input })
     #|}
     #|
-  let input_path : StoragePath = { root: "input", segments: [], }
+  let input_path : @taint.StoragePath = { root: "input", segments: [], }
   let node = parse_single_impl(source)
-  let result = analyze_function_like(
+  let result = @taint.analyze_function_like(
     node,
     simple_spec(sources=[EntryPath(input_path, "entry:input", None)], call_models=[
       {
@@ -1303,7 +1303,7 @@ test "taint engine local function name shadows outer root in let-fn body" {
 
 ///|
 fn sink_origin_ids_for_source(source : String) -> Array[String] raise {
-  let sink_origins : Array[Array[TaintOrigin]] = []
+  let sink_origins : Array[Array[@taint.TaintOrigin]] = []
   let result = analyze_call_source_sink(source, sink_origins~)
   assert_eq(result.findings.length(), 1)
   let ids : Array[String] = []
@@ -1507,9 +1507,9 @@ test "taint engine fails instead of returning a partial loop result" {
       },
     ],
   )
-  let limited_spec : TaintSpec = { ..spec, max_fixpoint_iterations: 2, }
-  try analyze_function_like(parse_single_impl(source), limited_spec) catch {
-    TaintAnalysisError::FixpointDidNotConverge(
+  let limited_spec : @taint.TaintSpec = { ..spec, max_fixpoint_iterations: 2, }
+  try @taint.analyze_function_like(parse_single_impl(source), limited_spec) catch {
+    @taint.TaintAnalysisError::FixpointDidNotConverge(
       rule_id~,
       loop_kind~,
       loc~,

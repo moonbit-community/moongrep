@@ -48,7 +48,7 @@ fn parse_query_impl(source : String) -> @untyped_cst.CstNode raise {
 
 ///|
 test "query matches simple expression and returns empty capture map" {
-  let query = ExprQuery::ExprQuery("target()")
+  let query = @query.ExprQuery::ExprQuery("target()")
   let source =
     #|fn sample {
     #|  target()
@@ -61,7 +61,7 @@ test "query matches simple expression and returns empty capture map" {
 
 ///|
 test "query visits expressions that occur only in an if else branch" {
-  let query = ExprQuery::ExprQuery("$(left:exp) + $(right:exp)")
+  let query = @query.ExprQuery::ExprQuery("$(left:exp) + $(right:exp)")
   let source =
     #|fn sample {
     #|  if clean() {
@@ -79,7 +79,7 @@ test "query visits expressions that occur only in an if else branch" {
 
 ///|
 test "query supports keyword names for explicit metavariables" {
-  let query = ExprQuery::ExprQuery(
+  let query = @query.ExprQuery::ExprQuery(
     "if $(condition:exp) { $(then:exp) } else { $(else:exp) }",
   )
   let source =
@@ -96,7 +96,7 @@ test "query supports keyword names for explicit metavariables" {
 
 ///|
 test "query captures typed metavars in string interpolation" {
-  let query = ExprQuery::ExprQuery("\"hello \\{$(value:exp)}\"")
+  let query = @query.ExprQuery::ExprQuery("\"hello \\{$(value:exp)}\"")
   let source =
     #|fn sample {
     #|  "hello \{name}";
@@ -124,13 +124,13 @@ test "query supports bare and ignore metavars in string interpolation" {
     #|  "hello \{make()}"
     #|}
     #|
-  let bare = ExprQuery::ExprQuery("\"hello \\{$value}\"")
+  let bare = @query.ExprQuery::ExprQuery("\"hello \\{$value}\"")
   let bare_matches = bare.captures(source_name="sample.mbt", source)
   assert_eq(bare_matches.length(), 2)
   for capture in bare_matches {
     assert_true(capture.contains("value"))
   }
-  let ignore = ExprQuery::ExprQuery("\"hello \\{$_}\"")
+  let ignore = @query.ExprQuery::ExprQuery("\"hello \\{$_}\"")
   let ignore_matches = ignore.captures(source_name="sample.mbt", source)
   assert_eq(ignore_matches.length(), 2)
   for capture in ignore_matches {
@@ -140,7 +140,7 @@ test "query supports bare and ignore metavars in string interpolation" {
 
 ///|
 test "query enforces repeated metavars across string interpolations" {
-  let query = ExprQuery::ExprQuery(
+  let query = @query.ExprQuery::ExprQuery(
     "\"left \\{$(value:exp)}, right \\{$(value:exp)}\"",
   )
   let source =
@@ -156,7 +156,7 @@ test "query enforces repeated metavars across string interpolations" {
 
 ///|
 test "query captures metavars in bytes interpolation" {
-  let query = ExprQuery::ExprQuery("b\"hello \\{$(value:exp)}\"")
+  let query = @query.ExprQuery::ExprQuery("b\"hello \\{$(value:exp)}\"")
   let source =
     #|fn sample {
     #|  b"hello \{name}";
@@ -173,7 +173,7 @@ test "query captures metavars in bytes interpolation" {
 
 ///|
 test "query captures metavars in nested string interpolation" {
-  let query = ExprQuery::ExprQuery("\"outer \\{\"inner \\{$(value:exp)}\"}\"")
+  let query = @query.ExprQuery::ExprQuery("\"outer \\{\"inner \\{$(value:exp)}\"}\"")
   let source =
     #|fn sample {
     #|  "outer \{"inner \{name}"}";
@@ -201,15 +201,15 @@ test "query matches keyword non-type metavariables and bare forms" {
     ("$if + $if", "fn sample { actual() + actual() }"),
   ]
   for case in cases {
-    let query = ExprQuery::ExprQuery(case.0)
+    let query = @query.ExprQuery::ExprQuery(case.0)
     assert_eq(query.captures(source_name="sample.mbt", case.1).length(), 1)
   }
 }
 
 ///|
 test "query preserves uppercase identifier classes for id and bare metavars" {
-  let explicit = ExprQuery::ExprQuery("$(Ctor:id)($(Ctor:id))")
-  let bare = ExprQuery::ExprQuery("$Ctor($Ctor)")
+  let explicit = @query.ExprQuery::ExprQuery("$(Ctor:id)($(Ctor:id))")
+  let bare = @query.ExprQuery::ExprQuery("$Ctor($Ctor)")
   let source =
     #|fn sample {
     #|  Actual(Actual);
@@ -240,14 +240,14 @@ test "query matches bare foreach parameters and function parameters" {
     ),
   ]
   for case in cases {
-    let query = ExprQuery::ExprQuery(case.0)
+    let query = @query.ExprQuery::ExprQuery(case.0)
     assert_eq(query.captures(source_name="sample.mbt", case.1).length(), 1)
   }
 }
 
 ///|
 test "query requires a complete let mut continuation when one exists" {
-  let header = ExprQuery::ExprQuery("let mut $value = $initial")
+  let header = @query.ExprQuery::ExprQuery("let mut $value = $initial")
   assert_eq(
     header
     .captures(
@@ -266,7 +266,7 @@ test "query requires a complete let mut continuation when one exists" {
     .length(),
     0,
   )
-  let complete = ExprQuery::ExprQuery("let mut $value = $initial; sink($value)")
+  let complete = @query.ExprQuery::ExprQuery("let mut $value = $initial; sink($value)")
   assert_eq(
     complete
     .captures(
@@ -296,7 +296,7 @@ test "query captures complete multi-statement continuations" {
   ]
   for case in cases {
     let (pattern, source, expected_body) = case
-    let matches = ExprQuery::ExprQuery(pattern).captures(
+    let matches = @query.ExprQuery::ExprQuery(pattern).captures(
       source_name="sample.mbt",
       source,
     )
@@ -317,7 +317,7 @@ test "query captures complete multi-statement continuations" {
 test "query captures a continuation inside a nested block" {
   let pattern = "wrapper({ let $(name:id) = load(); $(body:exp) })"
   let source = "fn sample { wrapper({ let item = load(); use(item); finish(item) }) }"
-  let matches = ExprQuery::ExprQuery(pattern).captures(
+  let matches = @query.ExprQuery::ExprQuery(pattern).captures(
     source_name="sample.mbt",
     source,
   )
@@ -346,7 +346,7 @@ test "query terminal ignore placeholder matches complete continuations" {
     #|  wrapper({ let value = load(); use(value); finish(value) })
     #|}
     #|
-  let captures = ExprQuery::ExprQuery("wrapper({ let value = load(); $_ })").captures(
+  let captures = @query.ExprQuery::ExprQuery("wrapper({ let value = load(); $_ })").captures(
     source_name="sample.mbt",
     source,
   )
@@ -359,7 +359,7 @@ test "query terminal ignore placeholder matches complete continuations" {
 
 ///|
 test "query distinguishes function body sequences from explicit blocks" {
-  let wildcard = ExprQuery::ExprQuery("$(root:exp)")
+  let wildcard = @query.ExprQuery::ExprQuery("$(root:exp)")
   let source = "fn sample { f <| value }"
   let captures = wildcard.captures(source_name="sample.mbt", source)
   assert_eq(captures.length(), 1)
@@ -367,7 +367,7 @@ test "query distinguishes function body sequences from explicit blocks" {
     fail("expected root expression capture")
   }
   assert_eq(@cst.source_text(root, source), "f <| value")
-  let block = ExprQuery::ExprQuery("{ a; b }")
+  let block = @query.ExprQuery::ExprQuery("{ a; b }")
   assert_eq(
     block.captures(source_name="sample.mbt", "fn sample { a; b }").length(),
     0,
@@ -380,7 +380,7 @@ test "query distinguishes function body sequences from explicit blocks" {
 
 ///|
 test "query matches qualified identifiers across dot whitespace" {
-  let query = ExprQuery::ExprQuery("@pkg.name()")
+  let query = @query.ExprQuery::ExprQuery("@pkg.name()")
   let source =
     #|fn sample {
     #|  @pkg.name();
@@ -395,7 +395,7 @@ test "query matches qualified identifiers across dot whitespace" {
 
 ///|
 test "query captures one repeated expression and rejects non-repeated candidates" {
-  let query = ExprQuery::ExprQuery("$(value:exp) + $(value:exp)")
+  let query = @query.ExprQuery::ExprQuery("$(value:exp) + $(value:exp)")
   let source =
     #|fn sample {
     #|  make() + make();
@@ -412,7 +412,7 @@ test "query captures one repeated expression and rejects non-repeated candidates
 
 ///|
 test "query captures identifiers and constants by metavar name" {
-  let id_query = ExprQuery::ExprQuery("sink($(callee:id))")
+  let id_query = @query.ExprQuery::ExprQuery("sink($(callee:id))")
   let id_source =
     #|fn sample {
     #|  sink(@math.abs)
@@ -428,7 +428,7 @@ test "query captures identifiers and constants by metavar name" {
   }
   inspect(callee_name, content="@math.abs")
 
-  let const_query = ExprQuery::ExprQuery("sink($(literal:const))")
+  let const_query = @query.ExprQuery::ExprQuery("sink($(literal:const))")
   let const_source =
     #|fn sample {
     #|  sink("danger");
@@ -458,7 +458,7 @@ test "query captures identifiers and constants by metavar name" {
 
 ///|
 test "query captures argument metavars as full argument nodes" {
-  let query = ExprQuery::ExprQuery("sink($(arg:arg))")
+  let query = @query.ExprQuery::ExprQuery("sink($(arg:arg))")
   let source =
     #|fn sample {
     #|  sink(value);
@@ -488,7 +488,7 @@ test "query captures argument metavars as full argument nodes" {
 
 ///|
 test "query repeated argument metavars require full argument equality" {
-  let query = ExprQuery::ExprQuery("sink($(arg:arg), $(arg:arg))")
+  let query = @query.ExprQuery::ExprQuery("sink($(arg:arg), $(arg:arg))")
   let source =
     #|fn sample {
     #|  sink(value, value);
@@ -511,7 +511,7 @@ test "query repeated argument metavars require full argument equality" {
 
 ///|
 test "query prefilter skips irrelevant invalid source" {
-  let query = ExprQuery::ExprQuery("target()")
+  let query = @query.ExprQuery::ExprQuery("target()")
   let source =
     #|fn broken {
     #|  this is not valid MoonBit
@@ -523,7 +523,7 @@ test "query prefilter skips irrelevant invalid source" {
 
 ///|
 test "query raises parse error when relevant source is invalid" {
-  let query = ExprQuery::ExprQuery("target()")
+  let query = @query.ExprQuery::ExprQuery("target()")
   let source =
     #|fn broken {
     #|  target(
@@ -538,7 +538,7 @@ test "query raises parse error when relevant source is invalid" {
 
 ///|
 test "query raises when pattern is invalid" {
-  try ExprQuery::ExprQuery("target(") catch {
+  try @query.ExprQuery::ExprQuery("target(") catch {
     err => assert_true("\{Repr(err)}".contains("InvalidPattern"))
   } noraise {
     _ => fail("expected invalid pattern")
@@ -547,7 +547,7 @@ test "query raises when pattern is invalid" {
 
 ///|
 test "query captures_from_cst finds matches under an impl list root" {
-  let query = ExprQuery::ExprQuery("target()")
+  let query = @query.ExprQuery::ExprQuery("target()")
   let source =
     #|fn sample {
     #|  target();
@@ -562,7 +562,7 @@ test "query captures_from_cst finds matches under an impl list root" {
 
 ///|
 test "query captures_from_cst matches a direct expression root" {
-  let query = ExprQuery::ExprQuery("target($(literal:const))")
+  let query = @query.ExprQuery::ExprQuery("target($(literal:const))")
   let cst = parse_query_expr("target(42)")
   let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
@@ -577,7 +577,7 @@ test "query captures_from_cst matches a direct expression root" {
 
 ///|
 test "query captures_from_cst finds nested expressions from a non-expression impl root" {
-  let query = ExprQuery::ExprQuery("target()")
+  let query = @query.ExprQuery::ExprQuery("target()")
   let cst = parse_query_impl("fn sample { target() }")
   assert_true(cst.kind is Impl_Function)
   let matches = query.captures_from_cst(cst~)
@@ -586,7 +586,7 @@ test "query captures_from_cst finds nested expressions from a non-expression imp
 
 ///|
 test "query captures_from_cst preserves expression id and constant captures" {
-  let query = ExprQuery::ExprQuery(
+  let query = @query.ExprQuery::ExprQuery(
     "sink($(callee:id), $(value:exp), $(literal:const))",
   )
   let source =
@@ -620,7 +620,7 @@ test "query captures_from_cst preserves expression id and constant captures" {
 
 ///|
 test "query captures_from_cst prunes nested expressions after an outer match" {
-  let query = ExprQuery::ExprQuery("wrap($(value:exp))")
+  let query = @query.ExprQuery::ExprQuery("wrap($(value:exp))")
   let cst = parse_query_expr("wrap(wrap(1))")
   let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
@@ -632,7 +632,7 @@ test "query captures_from_cst prunes nested expressions after an outer match" {
 
 ///|
 test "query captures zero one and many sibling arguments with ellipsis" {
-  let query = ExprQuery::ExprQuery("inspect($$$args)")
+  let query = @query.ExprQuery::ExprQuery("inspect($$$args)")
   let source =
     #|fn sample {
     #|  inspect();
@@ -657,7 +657,7 @@ test "query captures zero one and many sibling arguments with ellipsis" {
 
 ///|
 test "query ellipsis uses global left-to-right lazy backtracking" {
-  let query = ExprQuery::ExprQuery("f($$$left, marker, $$$right, marker)")
+  let query = @query.ExprQuery::ExprQuery("f($$$left, marker, $$$right, marker)")
   let matches = query.captures(
     source_name="sample.mbt",
     "fn sample { f(a, marker, b, marker) }",
@@ -674,7 +674,7 @@ test "query ellipsis uses global left-to-right lazy backtracking" {
 
 ///|
 test "query repeated ellipsis names require equal node sequences" {
-  let query = ExprQuery::ExprQuery("pair([$$$items], [$$$items])")
+  let query = @query.ExprQuery::ExprQuery("pair([$$$items], [$$$items])")
   let source =
     #|fn sample {
     #|  pair([], []);
@@ -695,8 +695,8 @@ test "query repeated ellipsis names require equal node sequences" {
 
 ///|
 test "query typed argument ellipsis distinguishes full args from positional values" {
-  let arg_query = ExprQuery::ExprQuery("sink($$$(args:arg))")
-  let exp_query = ExprQuery::ExprQuery("sink($$$(args:exp))")
+  let arg_query = @query.ExprQuery::ExprQuery("sink($$$(args:arg))")
+  let exp_query = @query.ExprQuery::ExprQuery("sink($$$(args:exp))")
   let source =
     #|fn sample {
     #|  sink(value, label=other);
@@ -714,7 +714,7 @@ test "query typed argument ellipsis distinguishes full args from positional valu
 
 ///|
 test "query anonymous ellipsis does not create a binding" {
-  let query = ExprQuery::ExprQuery("inspect($$$_)")
+  let query = @query.ExprQuery::ExprQuery("inspect($$$_)")
   let matches = query.captures(
     source_name="sample.mbt",
     "fn sample { inspect(1, 2, 3) }",
@@ -722,7 +722,7 @@ test "query anonymous ellipsis does not create a binding" {
   assert_eq(matches.length(), 1)
   assert_eq(matches[0].length(), 0)
 
-  let typed = ExprQuery::ExprQuery("sink($$$(_:const))")
+  let typed = @query.ExprQuery::ExprQuery("sink($$$(_:const))")
   let typed_matches = typed.captures(
     source_name="sample.mbt",
     "fn sample { sink(); sink(1, 2); sink(1, value) }",
@@ -735,7 +735,7 @@ test "query anonymous ellipsis does not create a binding" {
 
 ///|
 test "query ellipsis covers parameter pattern and type lists" {
-  let parameter_query = ExprQuery::ExprQuery("fn($$$(params:id)) { body }")
+  let parameter_query = @query.ExprQuery::ExprQuery("fn($$$(params:id)) { body }")
   let parameter_matches = parameter_query.captures(
     source_name="sample.mbt",
     "fn sample { let f = fn(a, b : Int, c? : String) { body } }",
@@ -749,7 +749,7 @@ test "query ellipsis covers parameter pattern and type lists" {
     assert_true("\{Repr(parameter.kind)}".has_prefix("Parameter_"))
   }
 
-  let pattern_query = ExprQuery::ExprQuery(
+  let pattern_query = @query.ExprQuery::ExprQuery(
     "match input { [$$$(pats:pat)] => body }",
   )
   let pattern_matches = pattern_query.captures(
@@ -765,7 +765,7 @@ test "query ellipsis covers parameter pattern and type lists" {
     assert_true(pattern.kind is ArrayPattern_Pattern)
   }
 
-  let type_query = ExprQuery::ExprQuery(
+  let type_query = @query.ExprQuery::ExprQuery(
     "let value : ($$$(Types:type), Bool) = input",
   )
   let type_matches = type_query.captures(
@@ -784,7 +784,7 @@ test "query ellipsis covers parameter pattern and type lists" {
 
 ///|
 test "query failed ellipsis branches do not leak single bindings" {
-  let query = ExprQuery::ExprQuery("f($$$gap, $(value:exp), marker)")
+  let query = @query.ExprQuery::ExprQuery("f($$$gap, $(value:exp), marker)")
   let matches = query.captures(
     source_name="sample.mbt",
     "fn sample { f(first, selected, marker) }",

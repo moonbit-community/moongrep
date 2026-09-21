@@ -1,7 +1,7 @@
 ///|
 fn metavar_names(
-  registry : MetavarRegistry,
-  kind : MetavarKind,
+  registry : @matching.MetavarRegistry,
+  kind : @matching.MetavarKind,
 ) -> Array[String] {
   let names : Array[String] = []
   for entry in registry.entries {
@@ -14,7 +14,7 @@ fn metavar_names(
 
 ///|
 test "metavar registry preserves mixed declaration order" {
-  let registry = MetavarRegistry::new()
+  let registry = @matching.MetavarRegistry::new()
   assert_true(registry.register("name", Identifier) == Registered)
   assert_true(registry.register("value", Expr) == Registered)
   assert_true(registry.register("items", Ellipsis(ConstItem)) == Registered)
@@ -35,7 +35,7 @@ test "metavar registry preserves mixed declaration order" {
 
 ///|
 test "metavar registry centralizes duplicate and conflict checks" {
-  let registry = MetavarRegistry::new()
+  let registry = @matching.MetavarRegistry::new()
   assert_true(registry.register("value", Expr) == Registered)
   assert_true(registry.register("value", Expr) == AlreadyRegistered)
   assert_true(
@@ -50,51 +50,51 @@ test "metavar registry centralizes duplicate and conflict checks" {
 
 ///|
 test "shared metavar syntax parses bare typed qualified and wildcard forms" {
-  assert_true(parse_metavar_syntax("$value") == Bare("value"))
+  assert_true(@matching.parse_metavar_syntax("$value") == Bare("value"))
   assert_true(
-    parse_metavar_syntax("$(value:const)") == Typed("value", Constant),
+    @matching.parse_metavar_syntax("$(value:const)") == Typed("value", Constant),
   )
   assert_true(
-    parse_metavar_syntax("@pkg.$(callee:id)") == Typed("callee", Identifier),
+    @matching.parse_metavar_syntax("@pkg.$(callee:id)") == Typed("callee", Identifier),
   )
-  assert_true(parse_metavar_syntax("$_") == Wildcard)
-  assert_true(parse_metavar_syntax("ordinary") == NotMetavar)
+  assert_true(@matching.parse_metavar_syntax("$_") == Wildcard)
+  assert_true(@matching.parse_metavar_syntax("ordinary") == NotMetavar)
   assert_true(
-    parse_metavar_syntax("$(value:unknown)") ==
+    @matching.parse_metavar_syntax("$(value:unknown)") ==
     UnsupportedMetavarKind("unknown"),
   )
 }
 
 ///|
 test "shared metavar syntax preserves ellipsis constraints" {
-  assert_true(parse_metavar_syntax("$$$items") == EllipsisSyntax("items", None))
-  assert_true(parse_metavar_syntax("$$$_") == EllipsisSyntax("_", None))
+  assert_true(@matching.parse_metavar_syntax("$$$items") == EllipsisSyntax("items", None))
+  assert_true(@matching.parse_metavar_syntax("$$$_") == EllipsisSyntax("_", None))
   assert_true(
-    parse_metavar_syntax("$$$(items:arg)") ==
+    @matching.parse_metavar_syntax("$$$(items:arg)") ==
     EllipsisSyntax("items", Some(ArgItem)),
   )
   assert_true(
-    parse_metavar_syntax("$$$(_:const)") == EllipsisSyntax("_", Some(ConstItem)),
+    @matching.parse_metavar_syntax("$$$(_:const)") == EllipsisSyntax("_", Some(ConstItem)),
   )
   assert_true(
-    parse_metavar_syntax("@pkg.$$$(items:type)") ==
+    @matching.parse_metavar_syntax("@pkg.$$$(items:type)") ==
     EllipsisSyntax("items", Some(TypeItem)),
   )
 }
 
 ///|
 test "shared metavar syntax rejects qualified wildcard forms" {
-  assert_true(parse_metavar_syntax("@pkg.$_") == InvalidMetavar)
-  assert_true(parse_metavar_syntax("Type::$_") == InvalidMetavar)
-  assert_true(parse_metavar_syntax("@pkg.$$$_") == InvalidEllipsisMetavar)
+  assert_true(@matching.parse_metavar_syntax("@pkg.$_") == InvalidMetavar)
+  assert_true(@matching.parse_metavar_syntax("Type::$_") == InvalidMetavar)
+  assert_true(@matching.parse_metavar_syntax("@pkg.$$$_") == InvalidEllipsisMetavar)
   assert_true(
-    parse_metavar_syntax("Type::$$$(_:const)") == InvalidEllipsisMetavar,
+    @matching.parse_metavar_syntax("Type::$$$(_:const)") == InvalidEllipsisMetavar,
   )
 }
 
 ///|
 test "registry resolves named wildcard ellipsis and special placeholders" {
-  let registry = MetavarRegistry::new()
+  let registry = @matching.MetavarRegistry::new()
   ignore(registry.register("value", Expr))
   ignore(registry.register("items", Ellipsis(IdItem)))
   registry.register_special_expr_placeholder("__TARGET__")

@@ -7,7 +7,7 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
     entries=[test_metavar_entry("names", Ellipsis(IdItem))],
     special_expr_placeholders=["__TARGET__"],
   )
-  let matched = match_indexed_expr_pattern(
+  let matched = @matching.match_indexed_expr_pattern(
     pattern,
     index,
     index.direct(index.node_id(node)),
@@ -22,9 +22,9 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
   let call = test_compiled(test_expr("sink($$$(names:id))"), entries=[
     test_metavar_entry("names", Ellipsis(IdItem)),
   ])
-  let mut reference_sources : IdentifierCaptureSource? = None
+  let mut reference_sources : @matching.IdentifierCaptureSource? = None
   index.walk(index.scan(matched.target.unwrap().region), fn(region) {
-    if match_indexed_expr_pattern(call, index, region, HashMap([]), HashMap([]))
+    if @matching.match_indexed_expr_pattern(call, index, region, HashMap([]), HashMap([]))
       is Some(found) {
       reference_sources = found.sources.get("names")
       return NodeVisitReturn
@@ -43,7 +43,7 @@ test "indexed matching keeps structural equality for new identifier lists" {
   )
   let index = @cst.SourceIndex::new(node)
   assert_true(
-    match_indexed_expr_pattern(
+    @matching.match_indexed_expr_pattern(
       pattern,
       index,
       index.direct(index.node_id(node)),
@@ -52,7 +52,7 @@ test "indexed matching keeps structural equality for new identifier lists" {
     )
     is Some(_),
   )
-  assert_true(match_expr_pattern(pattern, node) is Some(_))
+  assert_true(@matching.match_expr_pattern(pattern, node) is Some(_))
 }
 
 ///|
@@ -69,9 +69,9 @@ test "indexed split constructor captures agree with ordinary matching" {
       test_metavar_entry("Type", Identifier),
       test_metavar_entry("Ctor", Identifier),
     ])
-    let ordinary = match_expr_pattern(pattern, node).unwrap()
+    let ordinary = @matching.match_expr_pattern(pattern, node).unwrap()
     let index = @cst.SourceIndex::new(node)
-    let indexed = match_indexed_expr_pattern(
+    let indexed = @matching.match_indexed_expr_pattern(
       pattern,
       index,
       index.direct(index.node_id(node)),

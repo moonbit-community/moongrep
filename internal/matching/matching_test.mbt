@@ -28,11 +28,11 @@ fn test_impl(
 ///|
 fn test_compiled(
   cst : @untyped_cst.CstNode,
-  entries? : Array[MetavarEntry] = [],
+  entries? : Array[@matching.MetavarEntry] = [],
   special_expr_placeholders? : Array[String] = [],
-  ignored_fields? : Array[IgnoredPatternField] = [],
-) -> CompiledExprPattern {
-  let metavars = MetavarRegistry::new()
+  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
+) -> @matching.CompiledExprPattern {
+  let metavars = @matching.MetavarRegistry::new()
   for entry in entries {
     ignore(metavars.register(entry.name, entry.kind))
   }
@@ -43,7 +43,7 @@ fn test_compiled(
 }
 
 ///|
-fn test_metavar_entry(name : String, kind : MetavarKind) -> MetavarEntry {
+fn test_metavar_entry(name : String, kind : @matching.MetavarKind) -> @matching.MetavarEntry {
   { name, kind, }
 }
 
@@ -52,7 +52,7 @@ fn expr_matches(
   pattern : @untyped_cst.CstNode,
   candidate : @untyped_cst.CstNode,
 ) -> Bool {
-  match_expr_pattern(test_compiled(pattern), candidate) is Some(_)
+  @matching.match_expr_pattern(test_compiled(pattern), candidate) is Some(_)
 }
 
 ///|
@@ -67,7 +67,7 @@ fn test_candidate(source : String) -> @cst.ExprMatchCandidate raise {
 
 ///|
 fn test_single_binding(
-  result : ExprMatch?,
+  result : @matching.ExprMatch?,
   name : String,
 ) -> @untyped_cst.CstNode raise {
   guard result is Some(result) else { fail("expected match") }
@@ -105,13 +105,13 @@ test "expression metavars capture any expression and repeat structurally" {
     test_metavar_entry("value", Expr),
   ])
   assert_true(
-    match_expr_pattern(compiled, test_expr("pair(a + 1, a + 1)")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("pair(a + 1, a + 1)")) is Some(_),
   )
   assert_false(
-    match_expr_pattern(compiled, test_expr("pair(a + 1, a + 2)")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("pair(a + 1, a + 2)")) is Some(_),
   )
   let captured = test_single_binding(
-    match_expr_pattern(compiled, test_expr("pair(call(), call())")),
+    @matching.match_expr_pattern(compiled, test_expr("pair(call(), call())")),
     "value",
   )
   assert_true(captured.kind is Expr_Apply)
@@ -122,12 +122,12 @@ test "raw expression and constant metavars use logical names" {
   let exp = test_compiled(test_expr("$(value:exp)"), entries=[
     test_metavar_entry("value", Expr),
   ])
-  assert_true(match_expr_pattern(exp, test_expr("some_call()")) is Some(_))
+  assert_true(@matching.match_expr_pattern(exp, test_expr("some_call()")) is Some(_))
   let constant = test_compiled(test_expr("$(value:const)"), entries=[
     test_metavar_entry("value", Constant),
   ])
   let value = test_single_binding(
-    match_expr_pattern(constant, test_expr("42")),
+    @matching.match_expr_pattern(constant, test_expr("42")),
     "value",
   )
   assert_true(value.kind.is_constant())
@@ -140,12 +140,12 @@ test "identifier metavars normalize binder and expression names" {
     entries=[test_metavar_entry("name", Identifier)],
   )
   let captured = test_single_binding(
-    match_expr_pattern(compiled, test_expr("match subject { item => item }")),
+    @matching.match_expr_pattern(compiled, test_expr("match subject { item => item }")),
     "name",
   )
   debug_inspect(@cst.normalized_name(captured), content="Some(\"item\")")
   assert_false(
-    match_expr_pattern(compiled, test_expr("match subject { item => other }"))
+    @matching.match_expr_pattern(compiled, test_expr("match subject { item => other }"))
     is Some(_),
   )
 }
@@ -158,11 +158,11 @@ test "qualified identifier metavars require the same prefix" {
     ])
     for candidate_source in ["local()", "@other.wrong()"] {
       assert_false(
-        match_expr_pattern(compiled, test_expr(candidate_source)) is Some(_),
+        @matching.match_expr_pattern(compiled, test_expr(candidate_source)) is Some(_),
       )
     }
     let captured = test_single_binding(
-      match_expr_pattern(compiled, test_expr("@pkg.remote()")),
+      @matching.match_expr_pattern(compiled, test_expr("@pkg.remote()")),
       "callee",
     )
     assert_eq(@cst.normalized_name(captured), Some("@pkg.remote"))
@@ -173,10 +173,10 @@ test "qualified identifier metavars require the same prefix" {
 test "qualified wildcard does not match as an expression placeholder" {
   let compiled = test_compiled(test_expr("@html.$_"))
   assert_false(
-    match_expr_pattern(compiled, test_expr("@html.render(value)")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("@html.render(value)")) is Some(_),
   )
   assert_false(
-    match_expr_pattern(compiled, test_expr("render(value)")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("render(value)")) is Some(_),
   )
 }
 
@@ -195,14 +195,14 @@ test "one identifier metavar captures a complete constructor identity" {
   for case in cases {
     let (source, identity) = case
     let captured = test_single_binding(
-      match_expr_pattern(compiled, test_expr(source)),
+      @matching.match_expr_pattern(compiled, test_expr(source)),
       "Ctor",
     )
     assert_eq(@cst.normalized_name(captured), Some(identity))
     assert_eq(@cst.source_text(captured, source), identity)
   }
   assert_false(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr("@pkg.Type::Ctor(@other.Type::Ctor)"),
     )
@@ -225,12 +225,12 @@ test "constructor identity bindings compare across patterns and expressions" {
     "match input { @pkg.Type::Ctor(item) => @pkg.Type::Ctor(item) }",
   )
   let constructor_name = test_single_binding(
-    match_expr_pattern(compiled, matched),
+    @matching.match_expr_pattern(compiled, matched),
     "Ctor",
   )
   assert_eq(@cst.normalized_name(constructor_name), Some("@pkg.Type::Ctor"))
   assert_false(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr(
         "match input { @pkg.Type::Ctor(item) => @other.Type::Ctor(item) }",
@@ -239,7 +239,7 @@ test "constructor identity bindings compare across patterns and expressions" {
     is Some(_),
   )
   assert_false(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr(
         "match input { @pkg.Type::Ctor(left) => @pkg.Type::Ctor(right) }",
@@ -255,7 +255,7 @@ test "explicit constructor identity parts remain separate captures" {
     test_metavar_entry("Type", Identifier),
     test_metavar_entry("Ctor", Identifier),
   ])
-  guard match_expr_pattern(compiled, test_expr("@pkg.Type::Ctor(value)"))
+  guard @matching.match_expr_pattern(compiled, test_expr("@pkg.Type::Ctor(value)"))
     is Some(result) else {
     fail("expected split constructor identity match")
   }
@@ -272,7 +272,7 @@ test "explicit constructor identity parts remain separate captures" {
       test_metavar_entry("Ctor", Identifier),
     ],
   )
-  guard match_expr_pattern(
+  guard @matching.match_expr_pattern(
       pattern_compiled,
       test_expr("match input { Type::Ctor(value) => body }"),
     )
@@ -293,17 +293,17 @@ test "constant metavars work in expressions and patterns" {
     test_metavar_entry("value", Constant),
   ])
   assert_true(
-    match_expr_pattern(expression, test_expr("check(\"raw\")")) is Some(_),
+    @matching.match_expr_pattern(expression, test_expr("check(\"raw\")")) is Some(_),
   )
   assert_false(
-    match_expr_pattern(expression, test_expr("check(name)")) is Some(_),
+    @matching.match_expr_pattern(expression, test_expr("check(name)")) is Some(_),
   )
   let pattern = test_compiled(
     test_expr("match input { $(value:const) => body }"),
     entries=[test_metavar_entry("value", Constant)],
   )
   assert_true(
-    match_expr_pattern(pattern, test_expr("match input { 7 => body }"))
+    @matching.match_expr_pattern(pattern, test_expr("match input { 7 => body }"))
     is Some(_),
   )
 }
@@ -315,10 +315,10 @@ test "constant metavars reuse captures across patterns and expressions" {
     entries=[test_metavar_entry("lit", Constant)],
   )
   assert_true(
-    match_expr_pattern(compiled, test_expr("match input { 7 => 7 }")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("match input { 7 => 7 }")) is Some(_),
   )
   assert_false(
-    match_expr_pattern(compiled, test_expr("match input { 7 => 8 }")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("match input { 7 => 8 }")) is Some(_),
   )
 }
 
@@ -328,12 +328,12 @@ test "argument metavars capture the complete argument kind" {
     test_metavar_entry("item", Argument),
   ])
   let labelled = test_single_binding(
-    match_expr_pattern(compiled, test_expr("sink(label=value)")),
+    @matching.match_expr_pattern(compiled, test_expr("sink(label=value)")),
     "item",
   )
   assert_true(labelled.kind is Argument_Labelled)
   let optional = test_single_binding(
-    match_expr_pattern(compiled, test_expr("sink(label?)")),
+    @matching.match_expr_pattern(compiled, test_expr("sink(label?)")),
     "item",
   )
   assert_true(optional.kind is Argument_LabelledOptionPun)
@@ -346,7 +346,7 @@ test "pattern metavars capture whole normalized patterns" {
     entries=[test_metavar_entry("item", Pattern)],
   )
   let captured = test_single_binding(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr("match input { Some(value) => body }"),
     ),
@@ -354,7 +354,7 @@ test "pattern metavars capture whole normalized patterns" {
   )
   assert_true(captured.kind is Pattern_Constr)
   assert_true(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr("match input { (Some(value)) => body }"),
     )
@@ -369,7 +369,7 @@ test "type metavars compare repeated captures" {
     entries=[test_metavar_entry("T", Type)],
   )
   assert_true(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr(
         "match input { (left : Array[Int], right : Array[Int]) => body }",
@@ -378,7 +378,7 @@ test "type metavars compare repeated captures" {
     is Some(_),
   )
   assert_false(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr(
         "match input { (left : Array[Int], right : Array[String]) => body }",
@@ -391,7 +391,7 @@ test "type metavars compare repeated captures" {
 ///|
 test "ignore placeholder does not create a binding" {
   let compiled = test_compiled(test_expr("wrap($_)"))
-  guard match_expr_pattern(compiled, test_expr("wrap(complex(1))"))
+  guard @matching.match_expr_pattern(compiled, test_expr("wrap(complex(1))"))
     is Some(result) else {
     fail("expected match")
   }
@@ -403,7 +403,7 @@ test "ellipsis captures ordered argument spans including empty spans" {
   let compiled = test_compiled(test_expr("call($$$items, tail)"), entries=[
     test_metavar_entry("items", Ellipsis(AnyItem)),
   ])
-  guard match_expr_pattern(compiled, test_expr("call(1, label=x, tail)"))
+  guard @matching.match_expr_pattern(compiled, test_expr("call(1, label=x, tail)"))
     is Some(result) else {
     fail("expected match")
   }
@@ -411,7 +411,7 @@ test "ellipsis captures ordered argument spans including empty spans" {
     Some(Multiple(items)) => assert_eq(items.length(), 2)
     _ => fail("expected ellipsis capture")
   }
-  assert_true(match_expr_pattern(compiled, test_expr("call(tail)")) is Some(_))
+  assert_true(@matching.match_expr_pattern(compiled, test_expr("call(tail)")) is Some(_))
 }
 
 ///|
@@ -420,10 +420,10 @@ test "typed ellipsis constrains every captured item" {
     test_metavar_entry("values", Ellipsis(ConstItem)),
   ])
   assert_true(
-    match_expr_pattern(compiled, test_expr("call(1, \"two\")")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("call(1, \"two\")")) is Some(_),
   )
   assert_false(
-    match_expr_pattern(compiled, test_expr("call(1, name)")) is Some(_),
+    @matching.match_expr_pattern(compiled, test_expr("call(1, name)")) is Some(_),
   )
 }
 
@@ -431,12 +431,12 @@ test "typed ellipsis constrains every captured item" {
 test "block matching handles parser sequence wrappers and lexical statements" {
   let same = test_compiled(test_expr("{ first(); second() }"))
   assert_true(
-    match_expr_pattern(same, test_expr("{ first(); // gap\n second() }"))
+    @matching.match_expr_pattern(same, test_expr("{ first(); // gap\n second() }"))
     is Some(_),
   )
   let binding = test_compiled(test_expr("{ let value = source; sink(value) }"))
   assert_true(
-    match_expr_pattern(binding, test_expr("{ let value=source; sink(value) }"))
+    @matching.match_expr_pattern(binding, test_expr("{ let value=source; sink(value) }"))
     is Some(_),
   )
 }
@@ -445,7 +445,7 @@ test "block matching handles parser sequence wrappers and lexical statements" {
 test "an expression placeholder in an if body captures the complete block" {
   let compiled = test_compiled(test_expr("if $_ { $_ } else {}"))
   assert_true(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_expr("if flag { prepare(); finish() } else {}"),
     )
@@ -459,7 +459,7 @@ test "guard and let headers match their lexical CST continuation" {
     test_expr("guard ready() else { fallback() }"),
   )
   assert_true(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       guard_pattern,
       test_expr("guard ready() else { fallback() }\ncontinue_work()"),
     )
@@ -467,7 +467,7 @@ test "guard and let headers match their lexical CST continuation" {
   )
   let let_pattern = test_compiled(test_expr("let ($_, $_) = $_"))
   assert_true(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       let_pattern,
       test_expr("let (fst, snd) = tuple\nconsume(fst)\nsnd"),
     )
@@ -486,7 +486,7 @@ test "only ordinary let and guard omit a sequence continuation" {
   for case in allowed {
     let (pattern, candidate) = case
     assert_true(
-      match_expr_pattern_candidate(
+      @matching.match_expr_pattern_candidate(
         test_compiled(test_expr(pattern)),
         test_candidate(candidate),
       )
@@ -504,7 +504,7 @@ test "only ordinary let and guard omit a sequence continuation" {
   for case in rejected {
     let (pattern, candidate) = case
     assert_false(
-      match_expr_pattern_candidate(
+      @matching.match_expr_pattern_candidate(
         test_compiled(test_expr(pattern)),
         test_candidate(candidate),
       )
@@ -522,7 +522,7 @@ test "complete statement shapes match sequence candidates" {
     ] {
     let compiled = test_compiled(test_expr(source))
     assert_true(
-      match_expr_pattern_candidate(compiled, test_candidate(source)) is Some(_),
+      @matching.match_expr_pattern_candidate(compiled, test_candidate(source)) is Some(_),
     )
   }
 }
@@ -565,7 +565,7 @@ test "explicit continuation metavars capture complete let and guard suffixes" {
   ]
   for case in cases {
     let (pattern, candidate, expected_body, expected_multiple) = case
-    guard match_expr_pattern_candidate(
+    guard @matching.match_expr_pattern_candidate(
         test_compiled(test_expr(pattern), entries=[
           test_metavar_entry("body", Expr),
         ]),
@@ -605,7 +605,7 @@ test "direct continuation captures preserve explicit block candidates" {
   ]
   for case in cases {
     let (candidate, expected_body, expected_multiple) = case
-    guard match_expr_pattern_candidate(compiled, test_candidate(candidate))
+    guard @matching.match_expr_pattern_candidate(compiled, test_candidate(candidate))
       is Some(result) else {
       fail("expected explicit block continuation match: \{candidate}")
     }
@@ -624,7 +624,7 @@ test "direct continuation captures preserve explicit block candidates" {
     assert_eq(actual_multiple, expected_multiple)
   }
   assert_false(
-    match_expr_pattern_candidate(
+    @matching.match_expr_pattern_candidate(
       compiled,
       test_candidate("{ let mut value = source(); consume(value) }"),
     )
@@ -636,7 +636,7 @@ test "direct continuation captures preserve explicit block candidates" {
       "{ let value = source() }", "{ let value = source(); consume(value) }", "{ let value = source(); consume(value); finish(value) }",
     ] {
     assert_true(
-      match_expr_pattern_candidate(ignore, test_candidate(candidate)) is Some(_),
+      @matching.match_expr_pattern_candidate(ignore, test_candidate(candidate)) is Some(_),
     )
   }
 }
@@ -663,7 +663,7 @@ test "nested expression containers capture complete continuation suffixes" {
   ]
   for case in cases {
     let (pattern, candidate, expected_body, expected_multiple) = case
-    guard match_expr_pattern_candidate(
+    guard @matching.match_expr_pattern_candidate(
         test_compiled(test_expr(pattern), entries=[
           test_metavar_entry("body", Expr),
         ]),
@@ -699,14 +699,14 @@ test "terminal ignore placeholder absorbs every continuation owner suffix" {
     let nested = test_compiled(test_expr("wrapper({ \{header}; $_ })"))
     for suffix in suffixes {
       let candidate = "\{header}\{suffix}"
-      guard match_expr_pattern_candidate(root, test_candidate(candidate))
+      guard @matching.match_expr_pattern_candidate(root, test_candidate(candidate))
         is Some(root_result) else {
         fail("expected terminal ignore continuation match: \{candidate}")
       }
       assert_true(root_result.bindings.get("$_") is None)
       assert_true(root_result.bindings.get("_") is None)
       let nested_candidate = "wrapper({ \{candidate} })"
-      guard match_expr_pattern_candidate(
+      guard @matching.match_expr_pattern_candidate(
           nested,
           test_candidate(nested_candidate),
         )
@@ -731,7 +731,7 @@ test "terminal ignore placeholder commits header bindings without binding itself
     candidate in [
       "let item = load()", "let item = load(); consume(item)", "let item = load(); consume(item); finish(item)",
     ] {
-    guard match_expr_pattern_candidate(compiled, test_candidate(candidate))
+    guard @matching.match_expr_pattern_candidate(compiled, test_candidate(candidate))
       is Some(result) else {
       fail("expected continuation match with header bindings: \{candidate}")
     }
@@ -778,7 +778,7 @@ test "non-terminal and non-owner ignore placeholders match one expression" {
   for case in cases {
     let (pattern, candidate, expected_match) = case
     assert_eq(
-      match_expr_pattern_candidate(
+      @matching.match_expr_pattern_candidate(
         test_compiled(test_expr(pattern)),
         test_candidate(candidate),
       )
@@ -792,19 +792,19 @@ test "non-terminal and non-owner ignore placeholders match one expression" {
 test "sequence candidates reject broad expressions and omit wrapper braces" {
   let broad = test_compiled(test_expr("$_"))
   assert_false(
-    match_expr_pattern_candidate(broad, test_candidate("first(); second()"))
+    @matching.match_expr_pattern_candidate(broad, test_candidate("first(); second()"))
     is Some(_),
   )
   let source = "first(); second()"
   let exact = test_compiled(test_expr(source))
-  guard match_expr_pattern_candidate(exact, test_candidate(source))
+  guard @matching.match_expr_pattern_candidate(exact, test_candidate(source))
     is Some(result) else {
     fail("expected complete sequence match")
   }
   assert_eq(result.loc.start.cnum, 0)
   assert_eq(result.loc.end.cnum, source.length())
   let block_source = "{ first(); second() }"
-  guard match_expr_pattern_candidate(
+  guard @matching.match_expr_pattern_candidate(
       test_compiled(test_expr(block_source)),
       test_candidate(block_source),
     )
@@ -823,7 +823,7 @@ test "proof let remains an independent direct candidate" {
   }
   assert_true(header.kind is Expr_ProofLet)
   assert_true(
-    match_expr_pattern_candidate(
+    @matching.match_expr_pattern_candidate(
       test_compiled(test_expr("proof_let witness = fact()")),
       Direct(header),
     )
@@ -929,7 +929,7 @@ test "same-location docstrings do not introduce parse-order state" {
 ///|
 test "ignored top-level fields implement partial matching" {
   let pattern = test_impl("fn sample { body() }", name="partial-pattern")
-  let ignored : Array[IgnoredPatternField] = []
+  let ignored : Array[@matching.IgnoredPatternField] = []
   let function_kind = pattern.kind
   for
     name in [
@@ -943,9 +943,9 @@ test "ignored top-level fields implement partial matching" {
     "///| docs\npub async fn sample(value : Int) -> Int { body() }",
     name="partial-candidate",
   )
-  assert_true(match_expr_pattern(compiled, candidate) is Some(_))
+  assert_true(@matching.match_expr_pattern(compiled, candidate) is Some(_))
   assert_false(
-    match_expr_pattern(
+    @matching.match_expr_pattern(
       compiled,
       test_impl("fn other { body() }", name="partial-other"),
     )
@@ -960,7 +960,7 @@ test "caller bindings are copied and repeated values ignore locations" {
   ])
   let initial : @hashmap.HashMap[String, @model.BoundValue] = HashMap([])
   initial["existing"] = Single(test_expr("kept"))
-  guard match_expr_pattern_candidate_with_bindings(
+  guard @matching.match_expr_pattern_candidate_with_bindings(
       compiled,
       Direct(test_expr("pair(item, item)", name="candidate-locations")),
       initial,
