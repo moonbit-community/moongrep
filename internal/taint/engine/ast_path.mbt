@@ -7,8 +7,8 @@ priv struct FunctionLike {
 ///|
 fn function_like_from_impl(node : @untyped_cst.CstNode) -> FunctionLike raise {
   match node.kind {
-    @untyped_cst.Impl_Function | @untyped_cst.Impl_ImplMethod => {
-      let declaration = if node.kind is @untyped_cst.Impl_ImplMethod {
+    Impl_Function | Impl_ImplMethod => {
+      let declaration = if node.kind is Impl_ImplMethod {
         @cst.raw_child(node, "method").unwrap_or(node)
       } else {
         node
@@ -16,16 +16,16 @@ fn function_like_from_impl(node : @untyped_cst.CstNode) -> FunctionLike raise {
       guard @cst.raw_child(declaration, "body") is Some(body) else {
         let decl_body_kind = @cst.raw_child(declaration, "decl_body_kind")
         let unsupported_kind = match decl_body_kind.map(item => item.kind) {
-          Some(@untyped_cst.DeclBody_EmbeddedString)
-          | Some(@untyped_cst.DeclBody_EmbeddedMultilineString)
-          | Some(@untyped_cst.DeclBody_Import) =>
-            if node.kind is @untyped_cst.Impl_Function {
+          Some(DeclBody_EmbeddedString)
+          | Some(DeclBody_EmbeddedMultilineString)
+          | Some(DeclBody_Import) =>
+            if node.kind is Impl_Function {
               "TopFuncDef.DeclStubs"
             } else {
               "TopImpl.DeclStubs"
             }
           _ =>
-            if node.kind is @untyped_cst.Impl_Function {
+            if node.kind is Impl_Function {
               "TopFuncDef.DeclNone"
             } else {
               "TopImpl.DeclNone"
@@ -52,26 +52,26 @@ fn function_like_from_impl(node : @untyped_cst.CstNode) -> FunctionLike raise {
 ///|
 fn impl_kind_name(node : @untyped_cst.CstNode) -> String {
   match node.kind {
-    @untyped_cst.Impl_Import => "TopImport"
-    @untyped_cst.Impl_Extend => "TopExtend"
-    @untyped_cst.Impl_Using => "TopUsing"
-    @untyped_cst.Impl_Function => "TopFuncDef"
-    @untyped_cst.Impl_Let => "TopLetDef"
-    @untyped_cst.Impl_Const => "TopLetDef"
-    @untyped_cst.Impl_TypeAbstract
-    | @untyped_cst.Impl_TypeAlias
-    | @untyped_cst.Impl_RecordStruct
-    | @untyped_cst.Impl_TupleStruct
-    | @untyped_cst.Impl_EnumVariant
-    | @untyped_cst.Impl_ExtensibleEnum
-    | @untyped_cst.Impl_ExtendEnum
-    | @untyped_cst.Impl_Suberror
-    | @untyped_cst.Impl_SuberrorEnum
-    | @untyped_cst.Impl_EnumView => "TopTypeDef"
-    @untyped_cst.Impl_Trait => "TopTrait"
-    @untyped_cst.Impl_ImplMethod => "TopImpl"
-    @untyped_cst.Impl_ImplRelation => "TopImplRelation"
-    @untyped_cst.Impl_Test => "TopTest"
+    Impl_Import => "TopImport"
+    Impl_Extend => "TopExtend"
+    Impl_Using => "TopUsing"
+    Impl_Function => "TopFuncDef"
+    Impl_Let => "TopLetDef"
+    Impl_Const => "TopLetDef"
+    Impl_TypeAbstract
+    | Impl_TypeAlias
+    | Impl_RecordStruct
+    | Impl_TupleStruct
+    | Impl_EnumVariant
+    | Impl_ExtensibleEnum
+    | Impl_ExtendEnum
+    | Impl_Suberror
+    | Impl_SuberrorEnum
+    | Impl_EnumView => "TopTypeDef"
+    Impl_Trait => "TopTrait"
+    Impl_ImplMethod => "TopImpl"
+    Impl_ImplRelation => "TopImplRelation"
+    Impl_Test => "TopTest"
     _ => "CstNode"
   }
 }
@@ -84,7 +84,7 @@ fn paths_from_parameter_list(
   guard params is Some(list) else { return paths }
   for parameter in @cst.raw_children(list, "item") {
     match parameter.kind {
-      @untyped_cst.Parameter_DiscardPositional => ()
+      Parameter_DiscardPositional => ()
       _ =>
         if @cst.raw_child(parameter, "pattern") is Some(pattern) {
           let roots = pattern_bound_roots(pattern)
@@ -105,11 +105,11 @@ fn storage_path_from_assignment(
   assignment : @untyped_cst.CstNode,
 ) -> StoragePath? {
   match assignment.kind {
-    @untyped_cst.Expr_Assign =>
+    Expr_Assign =>
       @cst.raw_child(assignment, "semantic_name")
       .bind(@cst.normalized_name)
       .map(root => { root, segments: [], })
-    @untyped_cst.Expr_Mutate =>
+    Expr_Mutate =>
       match
         (
           @cst.raw_child(assignment, "self"),
@@ -128,13 +128,13 @@ fn storage_path_from_assignment(
 ///|
 fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
   match expr.kind {
-    @untyped_cst.Expr_Ident =>
+    Expr_Ident =>
       if @cst.normalized_expr_identifier_name(expr) is Some(name) {
         Some({ root: name, segments: [], })
       } else {
         None
       }
-    @untyped_cst.Expr_Field =>
+    Expr_Field =>
       match (@cst.raw_child(expr, "self"), @cst.raw_child(expr, "field")) {
         (Some(record), Some(accessor)) =>
           storage_path_from_expr(record).bind(path => {
@@ -142,7 +142,7 @@ fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
           })
         _ => None
       }
-    @untyped_cst.Expr_ArrayGet =>
+    Expr_ArrayGet =>
       match (node_child(expr, "array"), node_child(expr, "index")) {
         (Some(array), Some(index)) =>
           storage_path_from_expr(array).map(path => {
@@ -150,7 +150,7 @@ fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
           })
         _ => None
       }
-    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
+    Expr_Group | Expr_Constraint =>
       if @cst.raw_child(expr, "expr") is Some(inner) {
         storage_path_from_expr(inner)
       } else if @cst.raw_child(expr, "body") is Some(inner) {
@@ -165,11 +165,11 @@ fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
 ///|
 fn segment_from_accessor(accessor : @untyped_cst.CstNode) -> PathSegment? {
   match accessor.kind {
-    @untyped_cst.Accessor_Label =>
+    Accessor_Label =>
       @cst.normalized_name(accessor).map(label => Field(label))
-    @untyped_cst.Accessor_Index =>
+    Accessor_Index =>
       @cst.int_payload(accessor).map(index => TupleIndex(index))
-    @untyped_cst.Accessor_Newtype => None
+    Accessor_Newtype => None
     _ => None
   }
 }
@@ -203,10 +203,10 @@ fn segment_from_index_expr(index : @untyped_cst.CstNode) -> PathSegment {
 
 ///|
 fn constant_integer_text(expr : @untyped_cst.CstNode) -> String? {
-  guard expr.kind is @untyped_cst.Expr_Constant else { return None }
+  guard expr.kind is Expr_Constant else { return None }
   guard @cst.constant(expr) is Some(constant) else { return None }
   match constant.kind {
-    @untyped_cst.Constant_Int | @untyped_cst.Constant_UInt =>
+    Constant_Int | Constant_UInt =>
       @cst.string_payload(constant)
     _ => None
   }

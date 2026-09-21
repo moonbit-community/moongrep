@@ -24,5 +24,5 @@ fn PatternCompileContext::invalid_pattern(
   } else {
     info
   }
-  RuleLoadError::InvalidPattern(path=self.path, shape=self.shape, info~)
+  InvalidPattern(path=self.path, shape=self.shape, info~)
 }

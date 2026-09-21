@@ -252,9 +252,9 @@ fn simple_spec(
 ///|
 fn inspect_node_transfer(call : CallInfo) -> CallTransfer? {
   let findings : Array[SinkFinding] = []
-  if call.cst.kind is @untyped_cst.Expr_Apply &&
+  if call.cst.kind is Expr_Apply &&
     call.arguments is [arg] &&
-    arg.expr.kind is @untyped_cst.Expr_Ident {
+    arg.expr.kind is Expr_Ident {
     findings.push({ sink_id: Named("node-kinds"), sink_loc: arg.loc, })
   }
   Some({ return_taint: [], killed_paths: [], findings, })

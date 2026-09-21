@@ -53,13 +53,13 @@ fn query_contains_unshadowed(cst : @untyped_cst.CstNode, name : String) -> Bool 
   let index = @cst.SourceIndex::new(cst)
   index.walk(index.roots(), fn(region) {
     match index.candidate(region) {
-      @cst.Direct(expr) if !found &&
+      Direct(expr) if !found &&
         index.resolve(index.scope(region), name) is None &&
         @cst.normalized_expr_identifier_name(expr) == Some(name) => {
         found = true
-        @cst.NodeVisitReturn
+        NodeVisitReturn
       }
-      _ => @cst.NodeVisitContinue
+      _ => NodeVisitContinue
     }
   })
   found

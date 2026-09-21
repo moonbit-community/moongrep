@@ -9,7 +9,7 @@ pub(all) struct AttributeInfo {
 ///|
 pub fn attribute_info(node : @untyped_cst.CstNode) -> AttributeInfo? {
   guard node.kind
-    is (@untyped_cst.Attribute_Simple | @untyped_cst.Attribute_Qualified) else {
+    is (Attribute_Simple | Attribute_Qualified) else {
     return None
   }
   let qualifier = raw_child(node, "qualifier").bind(string_payload)
@@ -24,7 +24,7 @@ pub fn attribute_info(node : @untyped_cst.CstNode) -> AttributeInfo? {
 pub fn attributes(node : @untyped_cst.CstNode) -> Array[AttributeInfo] {
   let result : Array[AttributeInfo] = []
   for entry in node.children {
-    if entry.1.kind is @untyped_cst.Syntax_Attribute {
+    if entry.1.kind is Syntax_Attribute {
       for child in entry.1.children {
         if attribute_info(child.1) is Some(info) {
           result.push(info)

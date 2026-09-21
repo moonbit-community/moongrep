@@ -21,10 +21,10 @@ fn ScanSession::apply_toplevel_group(
               match self.candidate(entry.group, candidate, env) {
                 GroupHit(index, loc) => {
                   push_structural_hit(file, entry.rule, index, loc, hits)
-                  @cst.NodeVisitPrune
+                  NodeVisitPrune
                 }
-                GroupNegative => @cst.NodeVisitPrune
-                GroupMiss => @cst.NodeVisitContinue
+                GroupNegative => NodeVisitPrune
+                GroupMiss => NodeVisitContinue
               }
             })
           } else {

@@ -24,13 +24,13 @@ fn ellipsis_item_raw(item : @untyped_cst.CstNode) -> String? {
     return Some(raw)
   }
   match item.kind {
-    @untyped_cst.Argument_Positional =>
+    Argument_Positional =>
       @cst.argument_value(item).bind(matching_ellipsis_direct_raw)
-    @untyped_cst.ArrayPattern_Pattern =>
+    ArrayPattern_Pattern =>
       first_pattern_child(item).bind(matching_ellipsis_direct_raw)
-    @untyped_cst.ArrayElement_Regular =>
+    ArrayElement_Regular =>
       @cst.raw_child(item, "expr").bind(matching_ellipsis_direct_raw)
-    @untyped_cst.Parameter_Positional =>
+    Parameter_Positional =>
       parameter_pattern(item).bind(matching_ellipsis_direct_raw)
     _ => None
   }
@@ -39,10 +39,10 @@ fn ellipsis_item_raw(item : @untyped_cst.CstNode) -> String? {
 ///|
 fn matching_ellipsis_direct_raw(node : @untyped_cst.CstNode) -> String? {
   let raw = match node.kind {
-    @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(node)
-    @untyped_cst.Pattern_Var => @cst.normalized_pattern_identifier_name(node)
-    @untyped_cst.Name_Binder => @cst.normalized_name(node)
-    @untyped_cst.Type_Name => @cst.name_node(node).bind(@cst.normalized_name)
+    Expr_Ident => @cst.normalized_expr_identifier_name(node)
+    Pattern_Var => @cst.normalized_pattern_identifier_name(node)
+    Name_Binder => @cst.normalized_name(node)
+    Type_Name => @cst.name_node(node).bind(@cst.normalized_name)
     _ => None
   }
   match raw {
@@ -61,17 +61,17 @@ fn ellipsis_candidate_matches(
     return true
   }
   match pattern_item.kind {
-    @untyped_cst.Expr_Ident => matching_ellipsis_expr_kind(candidate_item, kind)
-    @untyped_cst.Argument_Positional =>
+    Expr_Ident => matching_ellipsis_expr_kind(candidate_item, kind)
+    Argument_Positional =>
       matching_ellipsis_argument_kind(candidate_item, kind)
-    @untyped_cst.Pattern_Var =>
+    Pattern_Var =>
       matching_ellipsis_pattern_kind(candidate_item, kind)
-    @untyped_cst.ArrayPattern_Pattern =>
+    ArrayPattern_Pattern =>
       matching_ellipsis_array_pattern_kind(candidate_item, kind)
-    @untyped_cst.Type_Name => kind == TypeItem && is_type_node(candidate_item)
-    @untyped_cst.Parameter_Positional =>
+    Type_Name => kind == TypeItem && is_type_node(candidate_item)
+    Parameter_Positional =>
       kind == IdItem && matching_parameter_has_binder(candidate_item)
-    @untyped_cst.ArrayElement_Regular =>
+    ArrayElement_Regular =>
       matching_ellipsis_array_element_kind(candidate_item, kind)
     _ => false
   }
@@ -99,7 +99,7 @@ fn matching_ellipsis_argument_kind(
   if kind == ArgItem {
     return true
   }
-  guard candidate.kind is @untyped_cst.Argument_Positional else { return false }
+  guard candidate.kind is Argument_Positional else { return false }
   if @cst.argument_value(candidate) is Some(value) {
     matching_ellipsis_expr_kind(value, kind)
   } else {
@@ -126,7 +126,7 @@ fn matching_ellipsis_array_pattern_kind(
   candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
-  guard candidate.kind is @untyped_cst.ArrayPattern_Pattern else {
+  guard candidate.kind is ArrayPattern_Pattern else {
     return false
   }
   if first_pattern_child(candidate) is Some(pattern) {
@@ -141,7 +141,7 @@ fn matching_ellipsis_array_element_kind(
   candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
-  guard candidate.kind is @untyped_cst.ArrayElement_Regular else {
+  guard candidate.kind is ArrayElement_Regular else {
     return false
   }
   if @cst.raw_child(candidate, "expr") is Some(expr) {
@@ -173,10 +173,10 @@ fn parameter_pattern(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
 ///|
 fn matching_parameter_has_binder(node : @untyped_cst.CstNode) -> Bool {
   match node.kind {
-    @untyped_cst.Parameter_Positional
-    | @untyped_cst.Parameter_Labelled
-    | @untyped_cst.Parameter_Optional
-    | @untyped_cst.Parameter_QuestionOptional =>
+    Parameter_Positional
+    | Parameter_Labelled
+    | Parameter_Optional
+    | Parameter_QuestionOptional =>
       parameter_pattern(node).bind(@cst.normalized_name) is Some(_) ||
       parameter_pattern(node).bind(@cst.normalized_pattern_identifier_name)
       is Some(_)

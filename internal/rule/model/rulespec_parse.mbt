@@ -15,7 +15,7 @@ pub fn RawRuleSpec::from_str(
   source : String,
 ) -> RawRuleSpec raise {
   let docs = @yaml.Yaml::load_from_string(source) catch {
-    @yaml.YamlError::YamlError(mark~, info~) =>
+    YamlError(mark~, info~) =>
       raise invalid_rule(
         path~,
         info="line \{mark.line}, column \{mark.col + 1}: \{info}",

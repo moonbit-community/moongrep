@@ -148,7 +148,7 @@ fn collect_interpolation_metavars(
   node : @untyped_cst.CstNode,
   occurrences : Array[ShapeMetavarOccurrence],
 ) -> Unit raise {
-  if node.kind is @untyped_cst.InterpSegment_Source &&
+  if node.kind is InterpSegment_Source &&
     @cst.string_payload(node) is Some(interpolation_source) {
     let lex_result = @lexer.tokens_from_string_with_utf16_location(
       interpolation_source,
@@ -169,12 +169,12 @@ fn collect_interpolation_metavars(
 ///|
 fn metavar_token_payload(token : @tokens.Token) -> String? {
   match token {
-    @tokens.LIDENT(raw)
-    | @tokens.UIDENT(raw)
-    | @tokens.DOT_LIDENT(raw)
-    | @tokens.DOT_UIDENT(raw)
-    | @tokens.POST_LABEL(raw)
-    | @tokens.POST_LABEL_TRANSPARENT(raw) =>
+    LIDENT(raw)
+    | UIDENT(raw)
+    | DOT_LIDENT(raw)
+    | DOT_UIDENT(raw)
+    | POST_LABEL(raw)
+    | POST_LABEL_TRANSPARENT(raw) =>
       if raw.has_prefix("$") {
         Some(raw)
       } else {

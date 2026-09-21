@@ -4,49 +4,49 @@ fn node_child(
   name : String,
 ) -> @untyped_cst.CstNode? {
   match (node.kind, name) {
-    (@untyped_cst.Expr_ArraySet | @untyped_cst.Expr_ArrayAugmentedSet, "array") =>
+    (Expr_ArraySet | Expr_ArrayAugmentedSet, "array") =>
       return @cst.child(node, "lhs").bind(lhs => @cst.child(lhs, "self"))
-    (@untyped_cst.Expr_ArraySet | @untyped_cst.Expr_ArrayAugmentedSet, "index") =>
+    (Expr_ArraySet | Expr_ArrayAugmentedSet, "index") =>
       return @cst.child(node, "lhs").bind(lhs => @cst.child(lhs, "index"))
-    (@untyped_cst.Expr_ArraySet | @untyped_cst.Expr_ArrayAugmentedSet, "value") =>
+    (Expr_ArraySet | Expr_ArrayAugmentedSet, "value") =>
       return @cst.child(node, "rhs")
-    (@untyped_cst.Expr_RecordUpdate, "record") =>
+    (Expr_RecordUpdate, "record") =>
       return record_update_base(node)
     _ => ()
   }
   let actual = match (node.kind, name) {
-    (@untyped_cst.Expr_Field, "record") => "self"
-    (@untyped_cst.Expr_Field, "accessor") => "field"
-    (@untyped_cst.Expr_Apply | @untyped_cst.Expr_DotApply, "args") => "arg"
-    (@untyped_cst.Expr_DotApply, "method_name") => "field"
-    (@untyped_cst.Expr_If, "ifso") => "body"
-    (@untyped_cst.Expr_If, "ifnot") => "else"
-    (@untyped_cst.Expr_Try, "try_else") => "else"
-    (@untyped_cst.Expr_While, "loop_cond") => "cond"
-    (@untyped_cst.Expr_While, "loop_body") => "body"
-    (@untyped_cst.Expr_While, "while_else") => "else"
-    (@untyped_cst.Expr_ForEach, "else_block") => "else"
-    (@untyped_cst.Expr_Guard, "otherwise") => "else"
-    (@untyped_cst.Expr_ArrayGet | @untyped_cst.Expr_ArrayGetSlice, "array") =>
+    (Expr_Field, "record") => "self"
+    (Expr_Field, "accessor") => "field"
+    (Expr_Apply | Expr_DotApply, "args") => "arg"
+    (Expr_DotApply, "method_name") => "field"
+    (Expr_If, "ifso") => "body"
+    (Expr_If, "ifnot") => "else"
+    (Expr_Try, "try_else") => "else"
+    (Expr_While, "loop_cond") => "cond"
+    (Expr_While, "loop_body") => "body"
+    (Expr_While, "while_else") => "else"
+    (Expr_ForEach, "else_block") => "else"
+    (Expr_Guard, "otherwise") => "else"
+    (Expr_ArrayGet | Expr_ArrayGetSlice, "array") =>
       "self"
-    (@untyped_cst.Expr_ArrayGetSlice, "start_index") => "start"
-    (@untyped_cst.Expr_ArrayGetSlice, "end_index") => "end"
-    (@untyped_cst.Expr_Return, "return_value") => "expr"
-    (@untyped_cst.Expr_Raise, "err_value") => "expr"
-    (@untyped_cst.Expr_Break, "arg") => "expr"
-    (@untyped_cst.Expr_Mutate, "record") => "self"
-    (@untyped_cst.Expr_Mutate, "accessor") => "field"
-    (@untyped_cst.Expr_Mutate, "field") => "expr"
-    (@untyped_cst.Expr_Is | @untyped_cst.Expr_RegexMatch, "pat") => "pattern"
-    (@untyped_cst.Case_MatchCase, "guard") => "cond"
-    (@untyped_cst.Case_LexScanCase, "pat") => "pattern"
-    (@untyped_cst.Pattern_Alias, "pat") => "pattern"
-    (@untyped_cst.Pattern_Alias, "alias") => "name"
-    (@untyped_cst.Pattern_Constraint, "pat") => "pattern"
-    (@untyped_cst.RegexPattern_Alias, "pat") => "pattern"
-    (@untyped_cst.RegexPattern_Alias, "binder") => "name"
-    (@untyped_cst.Binding_For, "binder" | "init") => "name"
-    (@untyped_cst.Field_Definition, "label") => "name"
+    (Expr_ArrayGetSlice, "start_index") => "start"
+    (Expr_ArrayGetSlice, "end_index") => "end"
+    (Expr_Return, "return_value") => "expr"
+    (Expr_Raise, "err_value") => "expr"
+    (Expr_Break, "arg") => "expr"
+    (Expr_Mutate, "record") => "self"
+    (Expr_Mutate, "accessor") => "field"
+    (Expr_Mutate, "field") => "expr"
+    (Expr_Is | Expr_RegexMatch, "pat") => "pattern"
+    (Case_MatchCase, "guard") => "cond"
+    (Case_LexScanCase, "pat") => "pattern"
+    (Pattern_Alias, "pat") => "pattern"
+    (Pattern_Alias, "alias") => "name"
+    (Pattern_Constraint, "pat") => "pattern"
+    (RegexPattern_Alias, "pat") => "pattern"
+    (RegexPattern_Alias, "binder") => "name"
+    (Binding_For, "binder" | "init") => "name"
+    (Field_Definition, "label") => "name"
     _ => name
   }
   @cst.child(node, actual)
@@ -56,7 +56,7 @@ fn node_child(
 fn record_update_base(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
   guard @cst.child(node, "body") is Some(body) else { return None }
   for field in node_items(body) {
-    if field.kind is @untyped_cst.Field_RecordSpread {
+    if field.kind is Field_RecordSpread {
       return @cst.child(field, "expr")
     }
   }
@@ -79,55 +79,55 @@ fn node_child_items(
   name : String,
 ) -> Array[@untyped_cst.CstNode] {
   match (node.kind, name) {
-    (@untyped_cst.Expr_Match, "cases") => @cst.raw_children(node, "case")
-    (@untyped_cst.Expr_Try, "catch") =>
+    (Expr_Match, "cases") => @cst.raw_children(node, "case")
+    (Expr_Try, "catch") =>
       if @cst.raw_child(node, "case") is Some(list) {
         case_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_LexMatch | @untyped_cst.Expr_LexScan, "cases") =>
+    (Expr_LexMatch | Expr_LexScan, "cases") =>
       if @cst.raw_child(node, "case") is Some(list) {
         case_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_Tuple, "exprs")
-    | (@untyped_cst.Expr_Record, "fields")
-    | (@untyped_cst.Expr_Map, "elems") =>
+    (Expr_Tuple, "exprs")
+    | (Expr_Record, "fields")
+    | (Expr_Map, "elems") =>
       if @cst.raw_child(node, "body") is Some(list) {
         node_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_Array, "exprs") => array_expr_items(node)
-    (@untyped_cst.Expr_Continue, "args") =>
+    (Expr_Array, "exprs") => array_expr_items(node)
+    (Expr_Continue, "args") =>
       if @cst.raw_child(node, "arg") is Some(list) {
         node_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_LetAnd, "bindings") => @cst.raw_children(node, "binding")
-    (@untyped_cst.Expr_For, "binders") =>
+    (Expr_LetAnd, "bindings") => @cst.raw_children(node, "binding")
+    (Expr_For, "binders") =>
       if @cst.raw_child(node, "init") is Some(list) {
         node_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_For, "continue_block") =>
+    (Expr_For, "continue_block") =>
       if @cst.raw_child(node, "continue") is Some(list) {
         node_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_ForEach, "binders") => foreach_binders(node)
-    (@untyped_cst.Expr_ForEach, "continue_block") =>
+    (Expr_ForEach, "binders") => foreach_binders(node)
+    (Expr_ForEach, "continue_block") =>
       if @cst.child(node, "continue") is Some(list) {
         node_items(list)
       } else {
         []
       }
-    (@untyped_cst.Expr_RecordUpdate, "fields") => record_update_fields(node)
+    (Expr_RecordUpdate, "fields") => record_update_fields(node)
     _ =>
       if node_child(node, name) is Some(list) {
         node_items(list)
@@ -140,7 +140,7 @@ fn node_child_items(
 ///|
 fn foreach_binders(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
   guard @cst.child(node, "pattern") is Some(pattern) else { return [] }
-  if pattern.kind is @untyped_cst.Pattern_Tuple {
+  if pattern.kind is Pattern_Tuple {
     if @cst.child(pattern, "body") is Some(body) {
       node_items(body)
     } else {
@@ -170,7 +170,7 @@ fn record_update_fields(
   let fields : Array[@untyped_cst.CstNode] = []
   guard @cst.child(node, "body") is Some(body) else { return fields }
   for field in node_items(body) {
-    if !(field.kind is @untyped_cst.Field_RecordSpread) {
+    if !(field.kind is Field_RecordSpread) {
       fields.push(field)
     }
   }

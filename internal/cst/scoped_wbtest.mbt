@@ -29,7 +29,7 @@ fn scoped_names_at_call(
   let index = SourceIndex::new(parsed.root())
   index.walk(index.roots(), fn(region) {
     match index.candidate(region) {
-      Direct(expr) if expr.kind is @untyped_cst.Expr_Apply &&
+      Direct(expr) if expr.kind is Expr_Apply &&
         raw_child(expr, "func").bind(normalized_expr_identifier_name) ==
         Some(callee) => {
         result = Some(test_scope_names(index, index.scope(region)))
@@ -187,7 +187,7 @@ test "function bodies are sequences while nested blocks stay direct" {
   }
   assert_eq(body.length(), 2)
   assert_eq(
-    direct_candidate_count(plain, kind => kind is @untyped_cst.Expr_Block),
+    direct_candidate_count(plain, kind => kind is Expr_Block),
     0,
   )
   let nested : Array[TestScopedCandidate] = []
@@ -196,7 +196,7 @@ test "function bodies are sequences while nested blocks stay direct" {
     nested,
   )
   assert_eq(
-    direct_candidate_count(nested, kind => kind is @untyped_cst.Expr_Block),
+    direct_candidate_count(nested, kind => kind is Expr_Block),
     1,
   )
   let mut nested_sequence_count = 0
@@ -217,22 +217,22 @@ test "continuation owners expose suffixes instead of header-only candidates" {
     candidates,
   )
   assert_eq(
-    direct_candidate_count(candidates, kind => kind is @untyped_cst.Expr_LetMut),
+    direct_candidate_count(candidates, kind => kind is Expr_LetMut),
     0,
   )
   assert_eq(
-    direct_candidate_count(candidates, kind => kind is @untyped_cst.Expr_Defer),
+    direct_candidate_count(candidates, kind => kind is Expr_Defer),
     0,
   )
   assert_eq(
     direct_candidate_count(candidates, kind => {
-      kind is @untyped_cst.Expr_ErrDefer
+      kind is Expr_ErrDefer
     }),
     0,
   )
   assert_eq(
     direct_candidate_count(candidates, kind => {
-      kind is @untyped_cst.Expr_ProofLet
+      kind is Expr_ProofLet
     }),
     1,
   )
@@ -241,11 +241,11 @@ test "continuation owners expose suffixes instead of header-only candidates" {
   let mut errdefer_suffix = false
   for item in candidates {
     match item.candidate {
-      Sequence([first, ..]) if first.kind is @untyped_cst.Expr_LetMut =>
+      Sequence([first, ..]) if first.kind is Expr_LetMut =>
         let_suffix = true
-      Sequence([first, ..]) if first.kind is @untyped_cst.Expr_Defer =>
+      Sequence([first, ..]) if first.kind is Expr_Defer =>
         defer_suffix = true
-      Sequence([first, ..]) if first.kind is @untyped_cst.Expr_ErrDefer =>
+      Sequence([first, ..]) if first.kind is Expr_ErrDefer =>
         errdefer_suffix = true
       _ => ()
     }
@@ -265,7 +265,7 @@ test "sequence continuations apply bindings to later candidates" {
   let mut found = false
   for item in candidates {
     if item.candidate is Direct(expr) &&
-      expr.kind is @untyped_cst.Expr_Apply &&
+      expr.kind is Expr_Apply &&
       raw_child(expr, "func").bind(normalized_expr_identifier_name) ==
       Some("target") {
       assert_true(item.shadowed_names.contains("value"))

@@ -10,7 +10,7 @@ fn eval_interp_elems(
   let mut exits = empty_flow_summary()
   for elem in elems {
     match elem.kind {
-      @untyped_cst.InterpSegment_Source =>
+      InterpSegment_Source =>
         if node_child(elem, "expr") is Some(expr) {
           let result = eval_expr(expr, current, spec, findings)
           exits = flow_join(exits, flow_without_normal(result))
@@ -21,7 +21,7 @@ fn eval_interp_elems(
             return exits
           }
         }
-      @untyped_cst.InterpSegment_Literal => ()
+      InterpSegment_Literal => ()
       _ => ()
     }
   }
@@ -47,11 +47,11 @@ fn add_lex_scan_pattern_bound_roots(
 ) -> Unit {
   match
     @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
-    Some(@untyped_cst.LexScanCasePattern_Binder) =>
+    Some(LexScanCasePattern_Binder) =>
       add_binder_root_name(roots, pattern)
-    Some(@untyped_cst.LexScanCasePattern_Pattern) =>
+    Some(LexScanCasePattern_Pattern) =>
       add_regex_pattern_bound_roots(roots, pattern)
-    Some(@untyped_cst.LexScanCasePattern_Wildcard) => ()
+    Some(LexScanCasePattern_Wildcard) => ()
     _ => ()
   }
 }
@@ -64,11 +64,11 @@ fn bind_lex_scan_pattern(
 ) -> TaintState {
   let pattern_state = match
     @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
-    Some(@untyped_cst.LexScanCasePattern_Binder) =>
+    Some(LexScanCasePattern_Binder) =>
       bind_binder(pattern, value, state)
-    Some(@untyped_cst.LexScanCasePattern_Pattern) =>
+    Some(LexScanCasePattern_Pattern) =>
       bind_regex_pattern(pattern, value, state)
-    Some(@untyped_cst.LexScanCasePattern_Wildcard) => state
+    Some(LexScanCasePattern_Wildcard) => state
     _ => state
   }
   bind_regex_bindings(

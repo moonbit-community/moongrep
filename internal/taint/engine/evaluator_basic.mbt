@@ -23,7 +23,7 @@ fn eval_cst_sequence(
   let mut exits = empty_flow_summary()
   for expr in expressions {
     let result = match expr.kind {
-      @untyped_cst.Expr_Let | @untyped_cst.Expr_LetMut =>
+      Expr_Let | Expr_LetMut =>
         match (@cst.raw_child(expr, "pattern"), @cst.raw_child(expr, "expr")) {
           (Some(pattern), Some(bound_expr)) => {
             let bound = eval_expr(bound_expr, current, spec, findings)
@@ -45,7 +45,7 @@ fn eval_cst_sequence(
           }
           _ => normal_result(current, [])
         }
-      @untyped_cst.Expr_LetFn => {
+      Expr_LetFn => {
         let roots : Array[String] = []
         add_binder_root_name(roots, expr)
         for root in roots {
@@ -53,14 +53,14 @@ fn eval_cst_sequence(
         }
         normal_result(clean_bind_roots(current, roots), [])
       }
-      @untyped_cst.Expr_LetAnd => {
+      Expr_LetAnd => {
         let roots = let_and_bound_roots(@cst.raw_children(expr, "binding"))
         for root in roots {
           add_unique_root_name(local_roots, root)
         }
         normal_result(clean_bind_roots(current, roots), [])
       }
-      @untyped_cst.Expr_Guard =>
+      Expr_Guard =>
         if @cst.raw_child(expr, "cond") is Some(cond) {
           let condition = eval_condition_scope(cond, current, spec, findings)
           if condition.normal is Some(path) {

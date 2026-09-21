@@ -43,7 +43,7 @@ fn apply_taint_test_rules(
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
   let plan = ScanPlan::from_rules(rules)
-  if root_node.kind is @untyped_cst.Impls {
+  if root_node.kind is Impls {
     for node in @cst.toplevel_nodes(root_node) {
       let node_hits = apply_taint_scan_plan_to_node(file, node, plan)
       for hit in node_hits {

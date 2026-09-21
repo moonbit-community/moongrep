@@ -58,10 +58,10 @@ fn expr_matches(
 ///|
 fn test_candidate(source : String) -> @cst.ExprMatchCandidate raise {
   let node = test_expr(source)
-  if node.kind is @untyped_cst.Expression {
-    @cst.Sequence(@cst.expression_nodes(node))
+  if node.kind is Expression {
+    Sequence(@cst.expression_nodes(node))
   } else {
-    @cst.Direct(node)
+    Direct(node)
   }
 }
 
@@ -114,7 +114,7 @@ test "expression metavars capture any expression and repeat structurally" {
     match_expr_pattern(compiled, test_expr("pair(call(), call())")),
     "value",
   )
-  assert_true(captured.kind is @untyped_cst.Expr_Apply)
+  assert_true(captured.kind is Expr_Apply)
 }
 
 ///|
@@ -331,12 +331,12 @@ test "argument metavars capture the complete argument kind" {
     match_expr_pattern(compiled, test_expr("sink(label=value)")),
     "item",
   )
-  assert_true(labelled.kind is @untyped_cst.Argument_Labelled)
+  assert_true(labelled.kind is Argument_Labelled)
   let optional = test_single_binding(
     match_expr_pattern(compiled, test_expr("sink(label?)")),
     "item",
   )
-  assert_true(optional.kind is @untyped_cst.Argument_LabelledOptionPun)
+  assert_true(optional.kind is Argument_LabelledOptionPun)
 }
 
 ///|
@@ -352,7 +352,7 @@ test "pattern metavars capture whole normalized patterns" {
     ),
     "item",
   )
-  assert_true(captured.kind is @untyped_cst.Pattern_Constr)
+  assert_true(captured.kind is Pattern_Constr)
   assert_true(
     match_expr_pattern(
       compiled,
@@ -818,14 +818,14 @@ test "sequence candidates reject broad expressions and omit wrapper braces" {
 ///|
 test "proof let remains an independent direct candidate" {
   let sequence = test_candidate("proof_let witness = fact(); use(witness)")
-  guard sequence is @cst.Sequence([header, ..]) else {
+  guard sequence is Sequence([header, ..]) else {
     fail("expected proof-let sequence")
   }
-  assert_true(header.kind is @untyped_cst.Expr_ProofLet)
+  assert_true(header.kind is Expr_ProofLet)
   assert_true(
     match_expr_pattern_candidate(
       test_compiled(test_expr("proof_let witness = fact()")),
-      @cst.Direct(header),
+      Direct(header),
     )
     is Some(_),
   )
@@ -962,7 +962,7 @@ test "caller bindings are copied and repeated values ignore locations" {
   initial["existing"] = Single(test_expr("kept"))
   guard match_expr_pattern_candidate_with_bindings(
       compiled,
-      @cst.Direct(test_expr("pair(item, item)", name="candidate-locations")),
+      Direct(test_expr("pair(item, item)", name="candidate-locations")),
       initial,
     )
     is Some(result) else {

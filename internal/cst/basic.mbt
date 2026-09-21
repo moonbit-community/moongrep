@@ -30,19 +30,19 @@ pub fn raw_children(
 ///|
 pub fn is_syntax_kind(kind : @untyped_cst.NodeKind) -> Bool {
   match kind {
-    @untyped_cst.Syntax_Keyword
-    | @untyped_cst.Syntax_Delimiter
-    | @untyped_cst.Syntax_Separator
-    | @untyped_cst.Syntax_Operator
-    | @untyped_cst.Syntax_Identifier
-    | @untyped_cst.Syntax_Label
-    | @untyped_cst.Syntax_Accessor
-    | @untyped_cst.Syntax_Literal
-    | @untyped_cst.Syntax_Interpolation
-    | @untyped_cst.Syntax_Attribute
-    | @untyped_cst.Syntax_Comment
-    | @untyped_cst.Syntax_Eof
-    | @untyped_cst.Syntax_Unexpected => true
+    Syntax_Keyword
+    | Syntax_Delimiter
+    | Syntax_Separator
+    | Syntax_Operator
+    | Syntax_Identifier
+    | Syntax_Label
+    | Syntax_Accessor
+    | Syntax_Literal
+    | Syntax_Interpolation
+    | Syntax_Attribute
+    | Syntax_Comment
+    | Syntax_Eof
+    | Syntax_Unexpected => true
     _ => false
   }
 }
@@ -50,18 +50,18 @@ pub fn is_syntax_kind(kind : @untyped_cst.NodeKind) -> Bool {
 ///|
 fn is_pure_punctuation_kind(kind : @untyped_cst.NodeKind) -> Bool {
   match kind {
-    @untyped_cst.Syntax_Delimiter
-    | @untyped_cst.Syntax_Separator
-    | @untyped_cst.Syntax_Eof
-    | @untyped_cst.Syntax_Comment
-    | @untyped_cst.Aggregate_Span
-    | @untyped_cst.TrailingMark_Comma
-    | @untyped_cst.TrailingMark_Semi
-    | @untyped_cst.TrailingMark_None
-    | @untyped_cst.ConstructorExtraInfo_None
-    | @untyped_cst.ConstructorExtraInfo_Package
-    | @untyped_cst.ConstructorExtraInfo_TypeName
-    | @untyped_cst.ConstructorExtraInfo_TypeNameWithConstrPackage => true
+    Syntax_Delimiter
+    | Syntax_Separator
+    | Syntax_Eof
+    | Syntax_Comment
+    | Aggregate_Span
+    | TrailingMark_Comma
+    | TrailingMark_Semi
+    | TrailingMark_None
+    | ConstructorExtraInfo_None
+    | ConstructorExtraInfo_Package
+    | ConstructorExtraInfo_TypeName
+    | ConstructorExtraInfo_TypeNameWithConstrPackage => true
     _ => false
   }
 }
@@ -93,29 +93,29 @@ fn append_syntax_semantics(
   syntax : @untyped_cst.CstNode,
 ) -> Unit {
   match syntax.kind {
-    @untyped_cst.Syntax_Attribute =>
+    Syntax_Attribute =>
       for entry in syntax.children {
         if entry.1.kind
-          is (@untyped_cst.Attribute_Simple | @untyped_cst.Attribute_Qualified) {
+          is (Attribute_Simple | Attribute_Qualified) {
           result.push((outer_label, entry.1))
         }
       }
-    @untyped_cst.Syntax_Interpolation =>
+    Syntax_Interpolation =>
       for entry in syntax.children {
         match entry.1.kind {
-          @untyped_cst.InterpSegment_Literal
-          | @untyped_cst.InterpSegment_Source =>
+          InterpSegment_Literal
+          | InterpSegment_Source =>
             result.push((semantic_label(entry.0), entry.1))
           _ => ()
         }
       }
-    @untyped_cst.Syntax_Identifier | @untyped_cst.Syntax_Label =>
+    Syntax_Identifier | Syntax_Label =>
       if raw_child(parent, "semantic_name") is None {
         if raw_child(syntax, "name_value") is Some(name) {
           result.push((outer_label, name))
         }
       }
-    @untyped_cst.Syntax_Accessor =>
+    Syntax_Accessor =>
       if raw_child(parent, "semantic_name") is None &&
         raw_child(parent, "field") is None {
         if raw_child(syntax, "accessor") is Some(accessor) {
@@ -124,7 +124,7 @@ fn append_syntax_semantics(
           result.push((outer_label, name))
         }
       }
-    @untyped_cst.Syntax_Operator => {
+    Syntax_Operator => {
       let duplicate = raw_child(parent, "operator")
         .map(node => !is_syntax_kind(node.kind))
         .unwrap_or(false)
@@ -134,7 +134,7 @@ fn append_syntax_semantics(
         }
       }
     }
-    @untyped_cst.Syntax_Literal =>
+    Syntax_Literal =>
       if raw_child(parent, "semantic_constant") is None {
         if raw_child(syntax, "constant") is Some(constant) {
           result.push((outer_label, constant))
@@ -160,7 +160,7 @@ pub fn semantic_children(
     if label == Some("doc") ||
       is_location_label(label) ||
       (
-        node.kind is @untyped_cst.InterpSegment_Source &&
+        node.kind is InterpSegment_Source &&
         label == Some("payload")
       ) ||
       is_pure_punctuation_kind(child.kind) {
@@ -182,7 +182,7 @@ pub fn semantic_children(
 /// Remove pattern/type grouping nodes that exist only in the CST.
 pub fn unwrap_groups(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode {
   match node.kind {
-    @untyped_cst.Pattern_Tuple => {
+    Pattern_Tuple => {
       guard raw_child(node, "pattern_group") is Some(_) else { return node }
       guard raw_child(node, "body") is Some(body) else { return node }
       match raw_children(body, "item") {
@@ -190,7 +190,7 @@ pub fn unwrap_groups(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode {
         _ => node
       }
     }
-    @untyped_cst.Type_Group => {
+    Type_Group => {
       guard raw_child(node, "body") is Some(body) else {
         for entry in node.children {
           if entry.1.kind.is_type() {
@@ -235,11 +235,11 @@ pub fn items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
 ///|
 pub fn payload(node : @untyped_cst.CstNode) -> @untyped_cst.NodePayload? {
   match node.kind {
-    @untyped_cst.Leaf(value) => Some(value)
+    Leaf(value) => Some(value)
     _ =>
       if raw_child(node, "payload") is Some(child) {
         match child.kind {
-          @untyped_cst.Leaf(value) => Some(value)
+          Leaf(value) => Some(value)
           _ => None
         }
       } else {
@@ -251,7 +251,7 @@ pub fn payload(node : @untyped_cst.CstNode) -> @untyped_cst.NodePayload? {
 ///|
 pub fn string_payload(node : @untyped_cst.CstNode) -> String? {
   match payload(node) {
-    Some(@untyped_cst.NodePayload::String(value)) => Some(value)
+    Some(String(value)) => Some(value)
     _ => None
   }
 }
@@ -259,7 +259,7 @@ pub fn string_payload(node : @untyped_cst.CstNode) -> String? {
 ///|
 pub fn bool_payload(node : @untyped_cst.CstNode) -> Bool? {
   match payload(node) {
-    Some(@untyped_cst.NodePayload::Bool(value)) => Some(value)
+    Some(Bool(value)) => Some(value)
     _ => None
   }
 }
@@ -267,14 +267,14 @@ pub fn bool_payload(node : @untyped_cst.CstNode) -> Bool? {
 ///|
 pub fn int_payload(node : @untyped_cst.CstNode) -> Int? {
   match payload(node) {
-    Some(@untyped_cst.NodePayload::Int(value)) => Some(value)
+    Some(Int(value)) => Some(value)
     _ => None
   }
 }
 
 ///|
 pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
-  guard node.kind is (@untyped_cst.LongIdent_Ident | @untyped_cst.LongIdent_Dot) else {
+  guard node.kind is (LongIdent_Ident | LongIdent_Dot) else {
     return None
   }
   let components = raw_children(node, "component")
@@ -283,7 +283,7 @@ pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
   let mut package_name : String? = None
   for component in components {
     guard string_payload(component) is Some(name) else { return None }
-    if component.kind is @untyped_cst.Name_Package {
+    if component.kind is Name_Package {
       if package_name is Some(_) {
         return None
       }
@@ -301,7 +301,7 @@ pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
 
 ///|
 fn normalized_constructor_identity(node : @untyped_cst.CstNode) -> String? {
-  if node.kind is @untyped_cst.Expr_Constr &&
+  if node.kind is Expr_Constr &&
     raw_child(node, "type") is Some(type_name) {
     guard normalized_constructor_identity(type_name) is Some(prefix) else {
       return None
@@ -318,11 +318,11 @@ fn normalized_constructor_identity(node : @untyped_cst.CstNode) -> String? {
 ///|
 pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
   match node.kind {
-    @untyped_cst.Expr_Constr | @untyped_cst.Pattern_Constr =>
+    Expr_Constr | Pattern_Constr =>
       normalized_constructor_identity(node)
-    @untyped_cst.Syntax_Identifier
-    | @untyped_cst.Syntax_Label
-    | @untyped_cst.Syntax_Accessor =>
+    Syntax_Identifier
+    | Syntax_Label
+    | Syntax_Accessor =>
       if string_payload(node) is Some(value) {
         Some(value)
       } else {
@@ -333,29 +333,29 @@ pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
         }
         None
       }
-    @untyped_cst.Name_Identifier
-    | @untyped_cst.Name_Package
-    | @untyped_cst.Attribute_Name
-    | @untyped_cst.Attribute_Qualifier
-    | @untyped_cst.Attribute_RawPayload
-    | @untyped_cst.Operator_Infix
-    | @untyped_cst.Operator_Augmented
-    | @untyped_cst.Operator_UnaryPlus
-    | @untyped_cst.Operator_UnaryMinus
-    | @untyped_cst.Operator_UnaryNot
-    | @untyped_cst.Accessor_Label => string_payload(node)
-    @untyped_cst.LongIdent_Ident | @untyped_cst.LongIdent_Dot =>
+    Name_Identifier
+    | Name_Package
+    | Attribute_Name
+    | Attribute_Qualifier
+    | Attribute_RawPayload
+    | Operator_Infix
+    | Operator_Augmented
+    | Operator_UnaryPlus
+    | Operator_UnaryMinus
+    | Operator_UnaryNot
+    | Accessor_Label => string_payload(node)
+    LongIdent_Ident | LongIdent_Dot =>
       normalized_long_ident(node)
-    @untyped_cst.Name_Binder
-    | @untyped_cst.Name_Label
-    | @untyped_cst.Name_Type
-    | @untyped_cst.Name_Constr
-    | @untyped_cst.Name_ConstrId
-    | @untyped_cst.Name_Var
-    | @untyped_cst.Name_Constructor
-    | @untyped_cst.Name_Field
-    | @untyped_cst.Name_AliasTarget
-    | @untyped_cst.Name_Test =>
+    Name_Binder
+    | Name_Label
+    | Name_Type
+    | Name_Constr
+    | Name_ConstrId
+    | Name_Var
+    | Name_Constructor
+    | Name_Field
+    | Name_AliasTarget
+    | Name_Test =>
       if raw_child(node, "long_ident") is Some(name) {
         normalized_long_ident(name)
       } else {
@@ -368,18 +368,18 @@ pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
 ///|
 pub fn name_node(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
   match node.kind {
-    @untyped_cst.Name_Identifier
-    | @untyped_cst.Name_Package
-    | @untyped_cst.Name_Binder
-    | @untyped_cst.Name_Label
-    | @untyped_cst.Name_Type
-    | @untyped_cst.Name_Constr
-    | @untyped_cst.Name_ConstrId
-    | @untyped_cst.Name_Var
-    | @untyped_cst.Name_Constructor
-    | @untyped_cst.Name_Field
-    | @untyped_cst.Name_AliasTarget
-    | @untyped_cst.Name_Test => Some(node)
+    Name_Identifier
+    | Name_Package
+    | Name_Binder
+    | Name_Label
+    | Name_Type
+    | Name_Constr
+    | Name_ConstrId
+    | Name_Var
+    | Name_Constructor
+    | Name_Field
+    | Name_AliasTarget
+    | Name_Test => Some(node)
     _ =>
       if raw_child(node, "semantic_name") is Some(name) {
         Some(name)
@@ -391,7 +391,7 @@ pub fn name_node(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
 
 ///|
 pub fn normalized_expr_identifier_name(node : @untyped_cst.CstNode) -> String? {
-  guard node.kind is @untyped_cst.Expr_Ident else { return None }
+  guard node.kind is Expr_Ident else { return None }
   name_node(node).bind(normalized_name)
 }
 
@@ -399,7 +399,7 @@ pub fn normalized_expr_identifier_name(node : @untyped_cst.CstNode) -> String? {
 pub fn normalized_pattern_identifier_name(
   node : @untyped_cst.CstNode,
 ) -> String? {
-  guard node.kind is @untyped_cst.Pattern_Var else { return None }
+  guard node.kind is Pattern_Var else { return None }
   name_node(node).bind(normalized_name)
 }
 
@@ -432,10 +432,10 @@ pub fn argument_value(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
 ///|
 pub fn argument_label_name(node : @untyped_cst.CstNode) -> String? {
   match node.kind {
-    @untyped_cst.Argument_Labelled
-    | @untyped_cst.Argument_LabelledPun
-    | @untyped_cst.Argument_LabelledOption
-    | @untyped_cst.Argument_LabelledOptionPun =>
+    Argument_Labelled
+    | Argument_LabelledPun
+    | Argument_LabelledOption
+    | Argument_LabelledOptionPun =>
       name_node(node).bind(normalized_name)
     _ => None
   }
@@ -462,13 +462,13 @@ pub fn sequence_items(
   node : @untyped_cst.CstNode,
 ) -> Array[@untyped_cst.CstNode] {
   match node.kind {
-    @untyped_cst.Expr_Block | @untyped_cst.Expr_Sequence =>
+    Expr_Block | Expr_Sequence =>
       if raw_child(node, "body") is Some(body) {
         sequence_items(body)
       } else {
         []
       }
-    @untyped_cst.List_BlockStatementList => raw_children(node, "item")
+    List_BlockStatementList => raw_children(node, "item")
     _ => []
   }
 }
@@ -506,7 +506,7 @@ pub fn source_text(node : @untyped_cst.CstNode, source : String) -> String {
 pub fn first_recovery_node(
   node : @untyped_cst.CstNode,
 ) -> @untyped_cst.CstNode? {
-  if node.kind is (@untyped_cst.Missing | @untyped_cst.Error) {
+  if node.kind is (Missing | Error) {
     return Some(node)
   }
   for entry in node.children {

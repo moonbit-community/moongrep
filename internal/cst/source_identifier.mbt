@@ -42,7 +42,7 @@ fn SourceIndex::mark_identifier(
   id : NodeId,
   role : SourceIdentifierRole,
 ) -> Unit {
-  if self.node(id).kind is @untyped_cst.Name_Binder {
+  if self.node(id).kind is Name_Binder {
     self.mark_name_tree(id, role)
     return
   }

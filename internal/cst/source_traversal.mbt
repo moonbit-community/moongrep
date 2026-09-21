@@ -95,7 +95,7 @@ fn SourceIndex::function_body_cursor(
   .raw(id, "body")
   .map(body => {
     if self.node(body).kind.is_expr() ||
-      self.node(body).kind is @untyped_cst.Expression {
+      self.node(body).kind is Expression {
       self.scan(self.target(body))
     } else {
       self.node_roots(body)
@@ -175,7 +175,7 @@ fn SourceIndex::case_cursor(
   let cases : Array[NodeId] = []
   for list in self.raw_all(id, label) {
     if self.node(list).kind
-      is (@untyped_cst.Case_MatchCase | @untyped_cst.Case_LexScanCase) {
+      is (Case_MatchCase | Case_LexScanCase) {
       cases.push(list)
     } else {
       cases.append(self.raw_all(list, "case"))
@@ -269,7 +269,7 @@ fn SourceIndex::direct_children(
   let node = self.node(id)
   let pieces : Array[CursorId] = []
   match node.kind {
-    @untyped_cst.Expr_Block | @untyped_cst.Expr_Sequence =>
+    Expr_Block | Expr_Sequence =>
       if self.nodes[id].sequence is Some(list) {
         pieces.push(
           if layer == Expression {
@@ -279,7 +279,7 @@ fn SourceIndex::direct_children(
           },
         )
       }
-    @untyped_cst.Expr_Function | @untyped_cst.Expr_LetFn =>
+    Expr_Function | Expr_LetFn =>
       pieces.push(
         if layer == Expression {
           self.named_cursor(id, "body")
@@ -287,7 +287,7 @@ fn SourceIndex::direct_children(
           self.function_body_cursor(id)
         },
       )
-    @untyped_cst.Expr_LetAnd =>
+    Expr_LetAnd =>
       for binding in self.raw_all(id, "binding") {
         pieces.push(
           if layer == Expression {
@@ -309,17 +309,17 @@ fn SourceIndex::direct_children(
           .unwrap_or(0),
         )
       }
-    @untyped_cst.Expr_Infix if operator_name(node) == Some("&&") => {
+    Expr_Infix if operator_name(node) == Some("&&") => {
       pieces.push(self.named_cursor(id, "lhs"))
       pieces.push(self.named_cursor(id, "rhs"))
     }
-    @untyped_cst.Expr_If | @untyped_cst.Expr_While =>
+    Expr_If | Expr_While =>
       for label in ["cond", "body", "else"] {
         pieces.push(self.named_cursor(id, label))
       }
-    @untyped_cst.Expr_For
-    | @untyped_cst.Expr_ForEach
-    | @untyped_cst.Expr_ListComprehension => {
+    Expr_For
+    | Expr_ForEach
+    | Expr_ListComprehension => {
       if self.raw(id, "pattern") is Some(_) {
         pieces.push(self.named_cursor(id, "expr"))
       }
@@ -328,27 +328,27 @@ fn SourceIndex::direct_children(
         pieces.push(self.named_cursor(id, "cond"))
       }
       pieces.push(self.binding_cursor(id, "continue"))
-      if node.kind is @untyped_cst.Expr_ListComprehension {
+      if node.kind is Expr_ListComprehension {
         pieces.push(self.named_cursor(id, "guard"))
       }
       pieces.push(self.named_cursor(id, "body"))
-      if !(node.kind is @untyped_cst.Expr_ListComprehension) {
+      if !(node.kind is Expr_ListComprehension) {
         pieces.push(self.named_cursor(id, "else"))
         pieces.push(self.named_cursor(id, "where"))
       }
     }
-    @untyped_cst.Expr_Match
-    | @untyped_cst.Expr_LexMatch
-    | @untyped_cst.Expr_LexScan => {
+    Expr_Match
+    | Expr_LexMatch
+    | Expr_LexScan => {
       pieces.push(self.named_cursor(id, "expr"))
       pieces.push(self.case_cursor(id, "case"))
     }
-    @untyped_cst.Expr_Try => {
+    Expr_Try => {
       pieces.push(self.named_cursor(id, "body"))
       pieces.push(self.case_cursor(id, "case"))
       pieces.push(self.case_cursor(id, "else"))
     }
-    @untyped_cst.Expr_Quantifier => pieces.push(self.named_cursor(id, "body"))
+    Expr_Quantifier => pieces.push(self.named_cursor(id, "body"))
     _ =>
       pieces.push(
         self.join_nodes(
@@ -370,7 +370,7 @@ fn SourceIndex::direct_children(
       self.concat(pieces[i], cursor)
     }
   }
-  if node.kind is @untyped_cst.Expr_LetAnd {
+  if node.kind is Expr_LetAnd {
     cursor = self.finish(cursor)
   }
   self.direct_cursors[(id, layer)] = cursor

@@ -52,16 +52,16 @@ fn reference_scan(
     match reference_candidate(session, group_id, candidate, env) {
       GroupHit(index, loc) => {
         pending.push((index, loc))
-        @cst.NodeVisitPrune
+        NodeVisitPrune
       }
       GroupNegative =>
         if group.reject_negative || !group.has_positive {
           rejected = true
-          @cst.NodeVisitReturn
+          NodeVisitReturn
         } else {
-          @cst.NodeVisitPrune
+          NodeVisitPrune
         }
-      GroupMiss => @cst.NodeVisitContinue
+      GroupMiss => NodeVisitContinue
     }
   })
   if rejected || (group.has_positive && pending.is_empty()) {
@@ -81,7 +81,7 @@ fn reference_findings(
 ) -> Array[RuleFinding] {
   let session = ScanSession::new(plan, node)
   let hits : Array[RuleFinding] = []
-  let toplevel = if node.kind is @untyped_cst.Impls {
+  let toplevel = if node.kind is Impls {
     @cst.toplevel_nodes(node)
   } else {
     [node]

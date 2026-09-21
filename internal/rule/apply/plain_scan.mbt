@@ -43,7 +43,7 @@ fn apply_plain_structural_entries_to_node(
       candidate,
       hits,
     )
-    @cst.NodeVisitPrune
+    NodeVisitPrune
   })
   hits
 }

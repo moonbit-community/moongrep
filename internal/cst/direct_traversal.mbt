@@ -25,7 +25,7 @@ fn CandidateTraversalContext::sequence(
 ) -> (ArrayView[@untyped_cst.CstNode], SequencePosition?) {
   match self {
     DirectTraversal => {
-      let values = if node.kind is @untyped_cst.Expression {
+      let values = if node.kind is Expression {
         expression_nodes(node)
       } else {
         sequence_items(node)
@@ -55,7 +55,7 @@ fn is_indexable_cst_child(
     is_pure_punctuation_kind(child.kind) {
     return false
   }
-  !is_syntax_kind(child.kind) || child.kind is @untyped_cst.Syntax_Interpolation
+  !is_syntax_kind(child.kind) || child.kind is Syntax_Interpolation
 }
 
 ///|
@@ -96,19 +96,19 @@ fn visit_candidate_roots(
   node : @untyped_cst.CstNode,
   visitor : (ExprMatchCandidate, SequencePosition?) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  if node.kind.is_expr() || node.kind is @untyped_cst.Expression {
+  if node.kind.is_expr() || node.kind is Expression {
     return visit_candidate_from_node(context, node, visitor)
   }
   match node.kind {
-    @untyped_cst.Impl_Function | @untyped_cst.Impl_Test =>
+    Impl_Function | Impl_Test =>
       visit_function_body_candidate(context, node, visitor)
-    @untyped_cst.Impl_ImplMethod =>
+    Impl_ImplMethod =>
       if raw_child(node, "method") is Some(method_node) {
         visit_function_body_candidate(context, method_node, visitor)
       } else {
         NodeVisitContinue
       }
-    @untyped_cst.Impl_Let | @untyped_cst.Impl_Const =>
+    Impl_Let | Impl_Const =>
       visit_raw_named_candidate_roots(context, node, "expr", visitor)
     _ => {
       for (label, child) in node.children {
@@ -145,7 +145,7 @@ fn visit_function_body_candidate(
   visitor : (ExprMatchCandidate, SequencePosition?) -> NodeVisitAction,
 ) -> NodeVisitAction {
   guard raw_child(node, "body") is Some(body) else { return NodeVisitContinue }
-  if body.kind is @untyped_cst.Expr_Block {
+  if body.kind is Expr_Block {
     let (expressions, position) = context.sequence(body)
     visit_candidate(context, Sequence(expressions), position, visitor)
   } else {
@@ -159,7 +159,7 @@ fn visit_candidate_from_node(
   node : @untyped_cst.CstNode,
   visitor : (ExprMatchCandidate, SequencePosition?) -> NodeVisitAction,
 ) -> NodeVisitAction {
-  if node.kind is @untyped_cst.Expression {
+  if node.kind is Expression {
     let (expressions, position) = context.sequence(node)
     visit_candidate(context, Sequence(expressions), position, visitor)
   } else if node.kind.is_expr() {
@@ -205,13 +205,13 @@ fn visit_direct_candidate_children(
   visitor : (ExprMatchCandidate, SequencePosition?) -> NodeVisitAction,
 ) -> NodeVisitAction {
   match expr.kind {
-    @untyped_cst.Expr_Block | @untyped_cst.Expr_Sequence => {
+    Expr_Block | Expr_Sequence => {
       let (expressions, position) = context.sequence(expr)
       visit_candidate(context, Sequence(expressions), position, visitor)
     }
-    @untyped_cst.Expr_Function | @untyped_cst.Expr_LetFn =>
+    Expr_Function | Expr_LetFn =>
       visit_function_body_candidate(context, expr, visitor)
-    @untyped_cst.Expr_LetAnd => {
+    Expr_LetAnd => {
       for binding in raw_children(expr, "binding") {
         if visit_function_body_candidate(context, binding, visitor)
           is NodeVisitReturn {
@@ -224,23 +224,23 @@ fn visit_direct_candidate_children(
       }
       NodeVisitContinue
     }
-    @untyped_cst.Expr_Infix if operator_name(expr) == Some("&&") => {
+    Expr_Infix if operator_name(expr) == Some("&&") => {
       if visit_named_candidate_descendants(context, expr, "lhs", visitor)
         is NodeVisitReturn {
         return NodeVisitReturn
       }
       visit_named_candidate_descendants(context, expr, "rhs", visitor)
     }
-    @untyped_cst.Expr_If | @untyped_cst.Expr_While =>
+    Expr_If | Expr_While =>
       visit_named_candidate_list(
         context,
         expr,
         ["cond", "body", "else"],
         visitor,
       )
-    @untyped_cst.Expr_For
-    | @untyped_cst.Expr_ForEach
-    | @untyped_cst.Expr_ListComprehension => {
+    Expr_For
+    | Expr_ForEach
+    | Expr_ListComprehension => {
       if raw_child(expr, "pattern") is Some(_) &&
         visit_named_candidate_descendants(context, expr, "expr", visitor)
         is NodeVisitReturn {
@@ -259,7 +259,7 @@ fn visit_direct_candidate_children(
         is NodeVisitReturn {
         return NodeVisitReturn
       }
-      if expr.kind is @untyped_cst.Expr_ListComprehension &&
+      if expr.kind is Expr_ListComprehension &&
         visit_named_candidate_descendants(context, expr, "guard", visitor)
         is NodeVisitReturn {
         return NodeVisitReturn
@@ -268,7 +268,7 @@ fn visit_direct_candidate_children(
         is NodeVisitReturn {
         return NodeVisitReturn
       }
-      if !(expr.kind is @untyped_cst.Expr_ListComprehension) {
+      if !(expr.kind is Expr_ListComprehension) {
         if visit_named_candidate_descendants(context, expr, "else", visitor)
           is NodeVisitReturn {
           return NodeVisitReturn
@@ -279,16 +279,16 @@ fn visit_direct_candidate_children(
       }
       NodeVisitContinue
     }
-    @untyped_cst.Expr_Match
-    | @untyped_cst.Expr_LexMatch
-    | @untyped_cst.Expr_LexScan => {
+    Expr_Match
+    | Expr_LexMatch
+    | Expr_LexScan => {
       if visit_named_candidate_descendants(context, expr, "expr", visitor)
         is NodeVisitReturn {
         return NodeVisitReturn
       }
       visit_case_candidates(context, expr, "case", visitor)
     }
-    @untyped_cst.Expr_Try => {
+    Expr_Try => {
       if visit_named_candidate_descendants(context, expr, "body", visitor)
         is NodeVisitReturn {
         return NodeVisitReturn
@@ -299,7 +299,7 @@ fn visit_direct_candidate_children(
       }
       visit_case_candidates(context, expr, "else", visitor)
     }
-    @untyped_cst.Expr_Quantifier =>
+    Expr_Quantifier =>
       visit_named_candidate_descendants(context, expr, "body", visitor)
     _ => visit_all_candidate_descendants(context, expr, visitor)
   }
@@ -396,7 +396,7 @@ fn visit_case_candidates(
 ) -> NodeVisitAction {
   for list in raw_children(node, label) {
     if list.kind
-      is (@untyped_cst.Case_MatchCase | @untyped_cst.Case_LexScanCase) {
+      is (Case_MatchCase | Case_LexScanCase) {
       if visit_one_case_candidates(context, list, visitor) is NodeVisitReturn {
         return NodeVisitReturn
       }

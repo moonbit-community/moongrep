@@ -37,7 +37,7 @@ fn apply_scan_session(
   session : ScanSession,
 ) -> Array[RuleFinding] {
   let hits : Array[RuleFinding] = []
-  let toplevel = if node.kind is @untyped_cst.Impls {
+  let toplevel = if node.kind is Impls {
     @cst.toplevel_nodes(node)
   } else {
     [node]
@@ -155,8 +155,8 @@ fn sink_pattern_index(
   sink_count : Int,
 ) -> Int raise RuleApplyError {
   match sink_id {
-    @taint.SinkId::PatternIndex(index) if index >= 0 && index < sink_count =>
+    PatternIndex(index) if index >= 0 && index < sink_count =>
       index
-    _ => raise RuleApplyError::InvalidTaintSinkId(sink_id~, sink_count~)
+    _ => raise InvalidTaintSinkId(sink_id~, sink_count~)
   }
 }

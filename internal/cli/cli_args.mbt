@@ -448,7 +448,7 @@ fn attach_scan_guard(
 ///|
 fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
   let docs = @yaml.Yaml::load_from_string(source) catch {
-    @yaml.YamlError::YamlError(..) as err => raise new_yaml_guard_error(err)
+    YamlError(..) as err => raise new_yaml_guard_error(err)
   }
   if docs.length() != 1 {
     raise new_guard_error("--guard", "must contain exactly one YAML document")

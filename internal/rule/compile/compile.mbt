@@ -299,10 +299,10 @@ fn inside_toplevel_ignored_fields(
   cst : @untyped_cst.CstNode,
 ) -> Array[@matching.IgnoredPatternField] raise {
   let is_partial = match match_mode {
-    Default => cst.kind is @untyped_cst.Impl_Function
+    Default => cst.kind is Impl_Function
     Exact => false
     Partial =>
-      if cst.kind is @untyped_cst.Impl_Function {
+      if cst.kind is Impl_Function {
         true
       } else {
         raise context.invalid_pattern(
@@ -366,7 +366,7 @@ fn add_ignored_visibility_if_default(
   parent_kind : @untyped_cst.NodeKind,
 ) -> Unit {
   match @cst.raw_child(node, "vis") {
-    Some(value) if value.kind is @untyped_cst.Visibility_Default =>
+    Some(value) if value.kind is Visibility_Default =>
       ignored.push({ parent_kind, child_name: "vis", })
     _ => ()
   }
@@ -663,7 +663,7 @@ fn ensure_taint_call_shape(
   cst : @untyped_cst.CstNode,
 ) -> Unit raise {
   match cst.kind {
-    @untyped_cst.Expr_Apply | @untyped_cst.Expr_DotApply => ()
+    Expr_Apply | Expr_DotApply => ()
     _ => raise context.invalid_pattern("the pattern must be a call expression")
   }
 }
@@ -691,7 +691,7 @@ fn require_source_target(
 ///|
 fn whole_source_target(cst : @untyped_cst.CstNode) -> TaintTarget? {
   match cst.kind {
-    @untyped_cst.Expr_DotApply =>
+    Expr_DotApply =>
       if @cst.raw_child(cst, "self") is Some(self) &&
         is_source_placeholder_node(self) {
         Some(Receiver)
@@ -700,7 +700,7 @@ fn whole_source_target(cst : @untyped_cst.CstNode) -> TaintTarget? {
       } else {
         None
       }
-    @untyped_cst.Expr_Apply =>
+    Expr_Apply =>
       if @cst.raw_child(cst, "arg") is Some(args) {
         source_target_from_args(args)
       } else {
@@ -718,11 +718,11 @@ fn source_target_from_args(args : @untyped_cst.CstNode) -> TaintTarget? {
     if @cst.argument_value(argument) is Some(value) &&
       is_source_placeholder_node(value) {
       return match argument.kind {
-        @untyped_cst.Argument_Positional => Some(PositionalArg(index))
-        @untyped_cst.Argument_Labelled
-        | @untyped_cst.Argument_LabelledPun
-        | @untyped_cst.Argument_LabelledOption
-        | @untyped_cst.Argument_LabelledOptionPun =>
+        Argument_Positional => Some(PositionalArg(index))
+        Argument_Labelled
+        | Argument_LabelledPun
+        | Argument_LabelledOption
+        | Argument_LabelledOptionPun =>
           if @cst.argument_label_name(argument) is Some(label) {
             Some(LabelledArg(label~, index~))
           } else {
@@ -737,7 +737,7 @@ fn source_target_from_args(args : @untyped_cst.CstNode) -> TaintTarget? {
 
 ///|
 fn is_source_placeholder_node(node : @untyped_cst.CstNode) -> Bool {
-  if node.kind is @untyped_cst.Expr_Ident {
+  if node.kind is Expr_Ident {
     @cst.normalized_expr_identifier_name(node) == Some("__SOURCE__")
   } else {
     false

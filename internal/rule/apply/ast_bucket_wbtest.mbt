@@ -239,14 +239,14 @@ test "CST bucket only offers sequence-compatible patterns to sequences" {
   let patterns = compile_bucket_structural_patterns(rule_source)
   let buckets = ExprPatternBuckets::from_patterns(patterns)
   let sequence = parse_bucket_node("first(); second()")
-  guard sequence.kind is @untyped_cst.Expression else {
+  guard sequence.kind is Expression else {
     fail("expected expression sequence")
   }
   inspect(
     int_array_signature(
       bucket_pattern_indices(
         buckets.patterns_for_candidate(
-          @cst.Sequence(@cst.expression_nodes(sequence)),
+          Sequence(@cst.expression_nodes(sequence)),
         ),
       ),
     ),

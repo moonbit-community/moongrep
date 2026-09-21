@@ -191,7 +191,7 @@ fn collect_node_literals(
 ) -> Unit {
   if node.kind.is_constant() {
     if @cst.string_payload(node) is Some(value) {
-      if node.kind is @untyped_cst.Constant_Int {
+      if node.kind is Constant_Int {
         if value.length() >= 2 {
           push_literal(literals, value)
         }
@@ -208,8 +208,8 @@ fn collect_node_literals(
     return
   }
   match node.kind {
-    @untyped_cst.InterpSegment_Literal
-    | @untyped_cst.MultilineStringElement_String =>
+    InterpSegment_Literal
+    | MultilineStringElement_String =>
       if @cst.string_payload(node) is Some(value) {
         push_literal(literals, value)
       }

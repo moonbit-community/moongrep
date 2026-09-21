@@ -15,13 +15,13 @@ pub(all) enum NodeVisitAction {
 ///|
 fn continuation_owner(kind : @untyped_cst.NodeKind) -> Bool {
   match kind {
-    @untyped_cst.Expr_Let
-    | @untyped_cst.Expr_LetMut
-    | @untyped_cst.Expr_LetFn
-    | @untyped_cst.Expr_LetAnd
-    | @untyped_cst.Expr_Guard
-    | @untyped_cst.Expr_Defer
-    | @untyped_cst.Expr_ErrDefer => true
+    Expr_Let
+    | Expr_LetMut
+    | Expr_LetFn
+    | Expr_LetAnd
+    | Expr_Guard
+    | Expr_Defer
+    | Expr_ErrDefer => true
     _ => false
   }
 }
