@@ -79,19 +79,19 @@ fn ellipsis_identifier_node(
 ) -> @untyped_cst.CstNode? {
   let node = @cst.unwrap_groups(raw)
   match node.kind {
-    @untyped_cst.Expr_Ident | @untyped_cst.Pattern_Var => @cst.name_node(node)
-    @untyped_cst.Argument_Positional =>
+    Expr_Ident | Pattern_Var => @cst.name_node(node)
+    Argument_Positional =>
       @cst.argument_value(node).bind(ellipsis_identifier_node)
-    @untyped_cst.ArrayElement_Regular =>
+    ArrayElement_Regular =>
       @cst.raw_child(node, "expr").bind(ellipsis_identifier_node)
-    @untyped_cst.ArrayPattern_Pattern =>
+    ArrayPattern_Pattern =>
       first_pattern_child(node).bind(ellipsis_identifier_node)
-    @untyped_cst.Parameter_Positional
-    | @untyped_cst.Parameter_Labelled
-    | @untyped_cst.Parameter_Optional
-    | @untyped_cst.Parameter_QuestionOptional =>
+    Parameter_Positional
+    | Parameter_Labelled
+    | Parameter_Optional
+    | Parameter_QuestionOptional =>
       parameter_pattern(node).bind(ellipsis_identifier_node)
-    @untyped_cst.Name_Binder => Some(node)
+    Name_Binder => Some(node)
     _ => None
   }
 }

@@ -35,12 +35,12 @@ test "identifier origins distinguish declarations from their incoming scope" {
   let index = SourceIndex::new(root)
   let binders = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Binder,
+    kind => kind is Name_Binder,
     "item",
   )
   let references = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Var,
+    kind => kind is Name_Var,
     "item",
   )
   assert_eq(binders.length(), 3)
@@ -69,12 +69,12 @@ test "enumview parameters retain their binding across nested block shadowing" {
   let index = SourceIndex::new(root)
   let binders = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Binder,
+    kind => kind is Name_Binder,
     "item",
   )
   let references = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Var,
+    kind => kind is Name_Var,
     "item",
   )
   assert_eq(binders.length(), 2)
@@ -97,10 +97,10 @@ test "field label constructor and type names are not lexical references" {
   )
   let index = SourceIndex::new(root)
   let roles : Array[((@untyped_cst.NodeKind) -> Bool, String)] = [
-    (kind => kind is @untyped_cst.Accessor_Label, "item"),
-    (kind => kind is @untyped_cst.Name_Label, "item"),
-    (kind => kind is @untyped_cst.Name_ConstrId, "Item"),
-    (kind => kind is @untyped_cst.Name_Constructor, "Some"),
+    (kind => kind is Accessor_Label, "item"),
+    (kind => kind is Name_Label, "item"),
+    (kind => kind is Name_ConstrId, "Item"),
+    (kind => kind is Name_Constructor, "Some"),
   ]
   for position, (kind, name) in roles {
     let names = indexed_names(index, kind, name)
@@ -110,7 +110,7 @@ test "field label constructor and type names are not lexical references" {
     }
   }
   for
-    node in indexed_names(index, kind => kind is @untyped_cst.Name_Var, "item") {
+    node in indexed_names(index, kind => kind is Name_Var, "item") {
     assert_true(
       index.identifier_source(node).unwrap().binding is Lexical(Some(_)),
     )
@@ -125,7 +125,7 @@ test "free references retain an unbound origin before later declarations" {
   let index = SourceIndex::new(root)
   let references = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Var,
+    kind => kind is Name_Var,
     "item",
   )
   assert_eq(references.length(), 2)
@@ -146,9 +146,9 @@ fn check_wrapped_binder_source(body : String) -> Unit raise {
   let index = SourceIndex::new(root)
   let owners = index.nodes.filter_map(entry => {
     if entry.node.kind
-      is (@untyped_cst.Pattern_Alias
-      | @untyped_cst.RegexPattern_Alias
-      | @untyped_cst.Expr_Quantifier) {
+      is (Pattern_Alias
+      | RegexPattern_Alias
+      | Expr_Quantifier) {
       Some(entry.node)
     } else {
       None
@@ -163,12 +163,12 @@ fn check_wrapped_binder_source(body : String) -> Unit raise {
   assert_true(index.node_id(syntax) != index.node_id(semantic))
   let binders = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Binder,
+    kind => kind is Name_Binder,
     "item",
   )
   let references = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Var,
+    kind => kind is Name_Var,
     "item",
   )
   assert_eq(binders.length(), 2)
@@ -219,12 +219,12 @@ test "assignment targets resolve at the assignment occurrence" {
     let index = SourceIndex::new(root)
     let binders = indexed_names(
       index,
-      kind => kind is @untyped_cst.Name_Binder,
+      kind => kind is Name_Binder,
       "item",
     )
     let references = indexed_names(
       index,
-      kind => kind is @untyped_cst.Name_Var,
+      kind => kind is Name_Var,
       "item",
     )
     assert_eq(binders.length(), 2)
@@ -237,7 +237,7 @@ test "assignment targets resolve at the assignment occurrence" {
     )
     let fields = indexed_names(
       index,
-      kind => kind is @untyped_cst.Accessor_Label,
+      kind => kind is Accessor_Label,
       "item",
     )
     assert_eq(fields.length(), 1)
@@ -258,12 +258,12 @@ test "parameter defaults see preceding parameters and bodies see all parameters"
     for (name, count) in [("item", 2), ("next", 2), ("last", 1)] {
       let binders = indexed_names(
         index,
-        kind => kind is @untyped_cst.Name_Binder,
+        kind => kind is Name_Binder,
         name,
       )
       let references = indexed_names(
         index,
-        kind => kind is @untyped_cst.Name_Var,
+        kind => kind is Name_Var,
         name,
       )
       assert_eq(binders.length(), 1)
@@ -288,12 +288,12 @@ test "current and later parameters do not shadow outer bindings in defaults" {
     (name, expected) in [("item", [0, 1, 1]), ("later", [0, 1]), ("first", [0])] {
     let binders = indexed_names(
       index,
-      kind => kind is @untyped_cst.Name_Binder,
+      kind => kind is Name_Binder,
       name,
     )
     let references = indexed_names(
       index,
-      kind => kind is @untyped_cst.Name_Var,
+      kind => kind is Name_Var,
       name,
     )
     let bindings = binders.map(node => {
@@ -319,7 +319,7 @@ test "for update names retain init bindings across condition and body shadowing"
     ),
   )
   let loop_nodes = index.nodes.filter_map(entry => {
-    if entry.node.kind is @untyped_cst.Expr_For {
+    if entry.node.kind is Expr_For {
       Some(entry.node)
     } else {
       None
@@ -344,7 +344,7 @@ test "for update names retain init bindings across condition and body shadowing"
   }
   let binders = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Binder,
+    kind => kind is Name_Binder,
     "i",
   )
   assert_eq(binders.length(), 4)
@@ -357,7 +357,7 @@ test "for update names retain init bindings across condition and body shadowing"
   )
   let references = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Var,
+    kind => kind is Name_Var,
     "i",
   )
   assert_true(
@@ -366,7 +366,7 @@ test "for update names retain init bindings across condition and body shadowing"
   )
   let j_references = indexed_names(
     index,
-    kind => kind is @untyped_cst.Name_Var,
+    kind => kind is Name_Var,
     "j",
   )
   assert_true(

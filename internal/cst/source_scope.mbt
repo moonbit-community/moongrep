@@ -68,7 +68,7 @@ fn SourceIndex::bind_pattern(
   let mut current = scope
   while pending.pop() is Some(id) {
     let node = self.node(id)
-    if node.kind is @untyped_cst.Binding_Regex {
+    if node.kind is Binding_Regex {
       if self.raw(id, "semantic_binder") is Some(binder) &&
         normalized_name(self.node(binder)) is Some(name) &&
         name != "_" {
@@ -89,13 +89,13 @@ fn SourceIndex::bind_pattern(
       continue
     }
     let binder = match node.kind {
-      @untyped_cst.Name_Binder => normalized_name(node)
-      @untyped_cst.Pattern_Var => normalized_pattern_identifier_name(node)
-      @untyped_cst.Pattern_Alias | @untyped_cst.RegexPattern_Alias =>
+      Name_Binder => normalized_name(node)
+      Pattern_Var => normalized_pattern_identifier_name(node)
+      Pattern_Alias | RegexPattern_Alias =>
         raw_child(node, "name").bind(normalized_name)
-      @untyped_cst.Field_Pattern if raw_child(node, "pattern") is None =>
+      Field_Pattern if raw_child(node, "pattern") is None =>
         raw_child(node, "name").bind(normalized_name)
-      @untyped_cst.Pattern_Rest =>
+      Pattern_Rest =>
         raw_child(node, "name")
         .bind(normalized_name)
         .filter(name => name != "_")
@@ -109,7 +109,7 @@ fn SourceIndex::bind_pattern(
         seen[name] = id
       }
     }
-    if node.kind is (@untyped_cst.Name_Binder | @untyped_cst.Pattern_Var) {
+    if node.kind is (Name_Binder | Pattern_Var) {
       continue
     }
     for i = self.nodes[id].children.length() - 1; i >= 0; i = i - 1 {
@@ -130,7 +130,7 @@ fn SourceIndex::bind_condition(
 ) -> ScopeId {
   guard condition is Some(id) else { return scope }
   match self.node(id).kind {
-    @untyped_cst.Expr_Group => {
+    Expr_Group => {
       let mut current = scope
       if self.raw(id, "body") is Some(body) {
         for item in self.raw_all(body, "item") {
@@ -139,9 +139,9 @@ fn SourceIndex::bind_condition(
       }
       current
     }
-    @untyped_cst.Expr_Is | @untyped_cst.Expr_RegexMatch =>
+    Expr_Is | Expr_RegexMatch =>
       self.bind_pattern(scope, self.raw(id, "pattern"))
-    @untyped_cst.Expr_Infix if operator_name(self.node(id)) == Some("&&") =>
+    Expr_Infix if operator_name(self.node(id)) == Some("&&") =>
       self.bind_condition(
         self.bind_condition(scope, self.raw(id, "lhs")),
         self.raw(id, "rhs"),
@@ -210,12 +210,12 @@ fn SourceIndex::after_statement(
   id : NodeId,
 ) -> ScopeId {
   match self.node(id).kind {
-    @untyped_cst.Expr_Let | @untyped_cst.Expr_LetMut =>
+    Expr_Let | Expr_LetMut =>
       self.bind_pattern(scope, self.raw(id, "pattern"))
-    @untyped_cst.Expr_LetFn | @untyped_cst.Expr_ProofLet =>
+    Expr_LetFn | Expr_ProofLet =>
       self.bind_named(scope, id)
-    @untyped_cst.Expr_LetAnd => self.bind_recursive(scope, id)
-    @untyped_cst.Expr_Guard => self.bind_condition(scope, self.raw(id, "cond"))
+    Expr_LetAnd => self.bind_recursive(scope, id)
+    Expr_Guard => self.bind_condition(scope, self.raw(id, "cond"))
     _ => scope
   }
 }
@@ -229,20 +229,20 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
     let node = self.node(id)
     let overrides : Map[String, ScopeId] = Map([])
     match node.kind {
-      @untyped_cst.Expr_Ident | @untyped_cst.Expr_Assign =>
+      Expr_Ident | Expr_Assign =>
         if name_node(node).bind(normalized_name) is Some(name) &&
           !name.contains(".") &&
           !name.contains(":") {
           self.mark_identifier(id, VariableReference(id))
         }
-      @untyped_cst.Expr_Is | @untyped_cst.Expr_RegexMatch =>
+      Expr_Is | Expr_RegexMatch =>
         ignore(self.bind_pattern(scope, self.raw(id, "pattern")))
-      @untyped_cst.Impl_Function
-      | @untyped_cst.Impl_Test
-      | @untyped_cst.Expr_Function
-      | @untyped_cst.Expr_LetFn
-      | @untyped_cst.Binding_LetRec => {
-        let named = if node.kind is @untyped_cst.Expr_LetFn {
+      Impl_Function
+      | Impl_Test
+      | Expr_Function
+      | Expr_LetFn
+      | Binding_LetRec => {
+        let named = if node.kind is Expr_LetFn {
           self.bind_named(scope, id)
         } else {
           scope
@@ -250,18 +250,18 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
         overrides["params"] = named
         overrides["body"] = self.bind_list(named, self.raw(id, "params"))
       }
-      @untyped_cst.Impl_EnumView =>
+      Impl_EnumView =>
         // The body field contains constructors; the view function is in expr.
         overrides["expr"] = self.bind_list(scope, self.raw(id, "params"))
-      @untyped_cst.Expr_LetAnd =>
+      Expr_LetAnd =>
         overrides["binding"] = self.bind_recursive(scope, id)
-      @untyped_cst.Expr_Infix if operator_name(node) == Some("&&") =>
+      Expr_Infix if operator_name(node) == Some("&&") =>
         overrides["rhs"] = self.bind_condition(scope, self.raw(id, "lhs"))
-      @untyped_cst.Expr_If | @untyped_cst.Expr_While =>
+      Expr_If | Expr_While =>
         overrides["body"] = self.bind_condition(scope, self.raw(id, "cond"))
-      @untyped_cst.Expr_For
-      | @untyped_cst.Expr_ForEach
-      | @untyped_cst.Expr_ListComprehension => {
+      Expr_For
+      | Expr_ForEach
+      | Expr_ListComprehension => {
         self.mark_for_updates(id)
         let loop_scope = self.bind_list(
           self.bind_pattern(scope, self.raw(id, "pattern")),
@@ -278,7 +278,7 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
           self.raw(id, "guard"),
         )
       }
-      @untyped_cst.Case_MatchCase | @untyped_cst.Case_LexScanCase => {
+      Case_MatchCase | Case_LexScanCase => {
         let case_scope = self.bind_pattern(scope, self.raw(id, "pattern"))
         overrides["cond"] = case_scope
         overrides["body"] = self.bind_condition(
@@ -286,7 +286,7 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
           self.raw(id, "cond"),
         )
       }
-      @untyped_cst.Expr_Quantifier =>
+      Expr_Quantifier =>
         if raw_child(node, "name").bind(normalized_name) is Some(text) {
           overrides["body"] = self.bind_name(scope, id, text)
         }
@@ -295,14 +295,14 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
     let mut current = scope
     for (label, child) in self.nodes[id].children {
       let statement = (
-          node.kind is @untyped_cst.Expression &&
+          node.kind is Expression &&
           self.node(child).kind.is_expr()
         ) ||
         (
-          node.kind is @untyped_cst.List_BlockStatementList &&
+          node.kind is List_BlockStatementList &&
           label == Some("item")
         )
-      let parameter = node.kind is @untyped_cst.List_ParameterList &&
+      let parameter = node.kind is List_ParameterList &&
         label == Some("item")
       let child_scope = if statement || parameter {
         current
@@ -371,7 +371,7 @@ fn SourceIndex::ensure_scopes(self : SourceIndex) -> Unit {
 fn SourceIndex::index_sequences(self : SourceIndex) -> Unit {
   for id, entry in self.nodes {
     match entry.node.kind {
-      @untyped_cst.Expression =>
+      Expression =>
         ignore(
           self.add_sequence(
             id,
@@ -384,13 +384,13 @@ fn SourceIndex::index_sequences(self : SourceIndex) -> Unit {
             }),
           ),
         )
-      @untyped_cst.List_BlockStatementList =>
+      List_BlockStatementList =>
         ignore(self.add_sequence(id, self.raw_all(id, "item")))
       _ => ()
     }
   }
   for id, entry in self.nodes {
-    if entry.node.kind is (@untyped_cst.Expr_Block | @untyped_cst.Expr_Sequence) {
+    if entry.node.kind is (Expr_Block | Expr_Sequence) {
       for current = id {
         if self.nodes[current].sequence is Some(list) {
           self.nodes[id].sequence = Some(list)

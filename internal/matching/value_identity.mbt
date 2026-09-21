@@ -15,9 +15,9 @@ impl Hash for SemanticValue with fn hash_combine(self, hasher) {
     Leaf(payload) => {
       hasher.combine_int(1)
       match payload {
-        @untyped_cst.String(value) => hasher.combine_string(value)
-        @untyped_cst.Int(value) => hasher.combine_int(value)
-        @untyped_cst.Bool(value) =>
+        String(value) => hasher.combine_string(value)
+        Int(value) => hasher.combine_int(value)
+        Bool(value) =>
           hasher.combine_int(if value { 1 } else { 0 })
       }
     }
@@ -56,7 +56,7 @@ fn ValueInterner::node(self : ValueInterner, raw : @untyped_cst.CstNode) -> Int 
     Identity(name)
   } else {
     match node.kind {
-      @untyped_cst.Leaf(payload) => Leaf(payload)
+      Leaf(payload) => Leaf(payload)
       _ =>
         Node(
           node.kind,

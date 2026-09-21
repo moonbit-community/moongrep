@@ -62,9 +62,9 @@ fn eval_expr(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   match expr.kind {
-    @untyped_cst.Expr_Block =>
+    Expr_Block =>
       eval_cst_sequence(@cst.sequence_items(expr), state, spec, findings)
-    @untyped_cst.Expr_LabelledBlock =>
+    Expr_LabelledBlock =>
       if node_child(expr, "body") is Some(body) {
         eval_labelled_block(
           control_label_name(expr),
@@ -76,34 +76,34 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_Ident => eval_path_like(expr, state)
-    @untyped_cst.Expr_Field =>
+    Expr_Ident => eval_path_like(expr, state)
+    Expr_Field =>
       match (node_child(expr, "record"), node_child(expr, "accessor")) {
         (Some(record), Some(accessor)) =>
           eval_field_expr(expr, record, accessor, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_ArrayGet =>
+    Expr_ArrayGet =>
       match (node_child(expr, "array"), node_child(expr, "index")) {
         (Some(array), Some(index)) =>
           eval_array_get_expr(expr, array, index, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_Tuple =>
+    Expr_Tuple =>
       eval_tuple_expr(node_child_items(expr, "exprs"), state, spec, findings)
-    @untyped_cst.Expr_Array =>
+    Expr_Array =>
       eval_array_expr(node_child_items(expr, "exprs"), state, spec, findings)
-    @untyped_cst.Expr_Record =>
+    Expr_Record =>
       eval_record_expr(node_child_items(expr, "fields"), state, spec, findings)
-    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
+    Expr_Group | Expr_Constraint =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_Sequence =>
+    Expr_Sequence =>
       eval_cst_sequence(@cst.sequence_items(expr), state, spec, findings)
-    @untyped_cst.Expr_Let =>
+    Expr_Let =>
       match
         (
           node_child(expr, "pattern"),
@@ -114,7 +114,7 @@ fn eval_expr(
           eval_let(pattern, bound_expr, body, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_LetMut =>
+    Expr_LetMut =>
       match
         (
           node_child(expr, "binder"),
@@ -125,25 +125,25 @@ fn eval_expr(
           eval_let_binder(binder, bound_expr, body, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_Assign =>
+    Expr_Assign =>
       if @cst.raw_child(expr, "rhs") is Some(rhs) {
         eval_assign(expr, rhs, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_Mutate =>
+    Expr_Mutate =>
       match (@cst.raw_child(expr, "self"), @cst.raw_child(expr, "rhs")) {
         (Some(receiver), Some(rhs)) =>
           eval_mutate(expr, receiver, rhs, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_Apply =>
+    Expr_Apply =>
       match (node_child(expr, "func"), node_child(expr, "args")) {
         (Some(func), Some(args)) =>
           eval_apply_call(expr, func, args, expr.loc, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_DotApply =>
+    Expr_DotApply =>
       match
         (
           node_child(expr, "self"),
@@ -163,19 +163,19 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_Pipe =>
+    Expr_Pipe =>
       match (node_child(expr, "lhs"), node_child(expr, "rhs")) {
         (Some(lhs), Some(rhs)) =>
           eval_pipe_call(expr, lhs, rhs, expr.loc, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_RevPipe =>
+    Expr_RevPipe =>
       match (node_child(expr, "lhs"), node_child(expr, "rhs")) {
         (Some(lhs), Some(rhs)) =>
           eval_rev_pipe_call(expr, lhs, rhs, expr.loc, state, spec, findings)
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_If =>
+    Expr_If =>
       match (node_child(expr, "cond"), node_child(expr, "ifso")) {
         (Some(cond), Some(ifso)) =>
           eval_if(
@@ -188,7 +188,7 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_Match =>
+    Expr_Match =>
       if node_child(expr, "expr") is Some(scrutinee) {
         eval_match(
           scrutinee,
@@ -200,7 +200,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_LexMatch | @untyped_cst.Expr_LexScan =>
+    Expr_LexMatch | Expr_LexScan =>
       if node_child(expr, "expr") is Some(scrutinee) {
         eval_lex_scan(
           scrutinee,
@@ -212,7 +212,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_Try =>
+    Expr_Try =>
       if node_child(expr, "body") is Some(body) {
         eval_try(
           body,
@@ -225,7 +225,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_While =>
+    Expr_While =>
       match (node_child(expr, "loop_cond"), node_child(expr, "loop_body")) {
         (Some(loop_cond), Some(loop_body)) =>
           eval_while(
@@ -240,7 +240,7 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_For =>
+    Expr_For =>
       if node_child(expr, "body") is Some(body) {
         eval_for(
           control_label_name(expr),
@@ -257,7 +257,7 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_ForEach =>
+    Expr_ForEach =>
       match (node_child(expr, "expr"), node_child(expr, "body")) {
         (Some(collection), Some(body)) =>
           eval_for_each(
@@ -275,7 +275,7 @@ fn eval_expr(
           )
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_LetFn =>
+    Expr_LetFn =>
       match (node_child(expr, "name"), node_child(expr, "body")) {
         (Some(name), Some(body)) => {
           let roots : Array[String] = []
@@ -284,7 +284,7 @@ fn eval_expr(
         }
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_LetAnd =>
+    Expr_LetAnd =>
       if node_child(expr, "body") is Some(body) {
         eval_clean_root_scope(
           body,
@@ -296,14 +296,14 @@ fn eval_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_Function => normal_result(state, [])
-    @untyped_cst.Expr_Return =>
+    Expr_Function => normal_result(state, [])
+    Expr_Return =>
       if node_optional_child(expr, "return_value") is Some(value) {
         flow_normal_to_return(eval_expr(value, state, spec, findings))
       } else {
         return_result(state, [])
       }
-    @untyped_cst.Expr_Break =>
+    Expr_Break =>
       if node_optional_child(expr, "arg") is Some(value) {
         flow_normal_to_break(
           eval_expr(value, state, spec, findings),
@@ -312,13 +312,13 @@ fn eval_expr(
       } else {
         break_result(control_label_name(expr), state, [])
       }
-    @untyped_cst.Expr_Raise =>
+    Expr_Raise =>
       if node_child(expr, "err_value") is Some(value) {
         flow_normal_to_raise(eval_expr(value, state, spec, findings))
       } else {
         raise_result(state, [])
       }
-    @untyped_cst.Expr_Continue => {
+    Expr_Continue => {
       let result = eval_children(
         node_child_items(expr, "args"),
         state,
@@ -339,23 +339,23 @@ fn eval_unknown_expr(
   findings : Array[SinkFinding],
 ) -> EvalResult raise {
   match expr.kind {
-    @untyped_cst.Expr_Infix =>
+    Expr_Infix =>
       eval_children(
         node_children_by_names(expr, ["lhs", "rhs"]),
         state,
         spec,
         findings,
       )
-    @untyped_cst.Expr_Unary =>
+    Expr_Unary =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_As
-    | @untyped_cst.Expr_TryOperator
-    | @untyped_cst.Expr_ProofAssert
-    | @untyped_cst.Expr_TemplateWriting =>
+    Expr_As
+    | Expr_TryOperator
+    | Expr_ProofAssert
+    | Expr_TemplateWriting =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else if node_child(expr, "body") is Some(body) {
@@ -363,14 +363,14 @@ fn eval_unknown_expr(
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_ArraySet | @untyped_cst.Expr_ArrayAugmentedSet =>
+    Expr_ArraySet | Expr_ArrayAugmentedSet =>
       eval_children(
         node_children_by_names(expr, ["array", "index", "value"]),
         state,
         spec,
         findings,
       )
-    @untyped_cst.Expr_ArrayGetSlice =>
+    Expr_ArrayGetSlice =>
       eval_children(
         node_optional_children_by_names(expr, [
           "array", "start_index", "end_index",
@@ -379,14 +379,14 @@ fn eval_unknown_expr(
         spec,
         findings,
       )
-    @untyped_cst.Expr_Defer | @untyped_cst.Expr_ErrDefer =>
+    Expr_Defer | Expr_ErrDefer =>
       eval_children(
         node_children_by_names(expr, ["expr", "body"]),
         state,
         spec,
         findings,
       )
-    @untyped_cst.Expr_Guard =>
+    Expr_Guard =>
       match (node_child(expr, "cond"), node_child(expr, "body")) {
         (Some(cond), Some(body)) =>
           eval_guard(
@@ -399,15 +399,15 @@ fn eval_unknown_expr(
           )
         _ => normal_result(state, [])
       }
-    @untyped_cst.Expr_Is | @untyped_cst.Expr_RegexMatch =>
+    Expr_Is | Expr_RegexMatch =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else {
         normal_result(state, [])
       }
-    @untyped_cst.Expr_Interp | @untyped_cst.Expr_BytesInterp =>
+    Expr_Interp | Expr_BytesInterp =>
       eval_interp_elems(node_child_items(expr, "elems"), state, spec, findings)
-    @untyped_cst.Expr_Map => {
+    Expr_Map => {
       let mut current = state
       let mut value : TaintTree = []
       let mut exits = empty_flow_summary()
@@ -425,7 +425,7 @@ fn eval_unknown_expr(
       }
       flow_join(exits, normal_result(current, value))
     }
-    @untyped_cst.Expr_RecordUpdate =>
+    Expr_RecordUpdate =>
       if node_child(expr, "record") is Some(record) {
         let base = eval_expr(record, state, spec, findings)
         if base.normal is Some(path) {

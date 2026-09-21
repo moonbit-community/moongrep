@@ -23,13 +23,13 @@ fn eval_condition_scope(
   findings : Array[SinkFinding],
 ) -> ConditionEval raise {
   match cond.kind {
-    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
+    Expr_Group | Expr_Constraint =>
       if node_child(cond, "expr") is Some(expr) {
         eval_condition_scope(expr, state, spec, findings)
       } else {
         condition_from_eval_result(normal_result(state, []))
       }
-    @untyped_cst.Expr_Is =>
+    Expr_Is =>
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
@@ -49,7 +49,7 @@ fn eval_condition_scope(
         }
         _ => condition_from_eval_result(normal_result(state, []))
       }
-    @untyped_cst.Expr_RegexMatch =>
+    Expr_RegexMatch =>
       match (node_child(cond, "expr"), node_child(cond, "pat")) {
         (Some(expr), Some(pat)) => {
           let matched = eval_expr(expr, state, spec, findings)
@@ -83,7 +83,7 @@ fn eval_condition_scope(
         }
         _ => condition_from_eval_result(normal_result(state, []))
       }
-    @untyped_cst.Expr_Infix =>
+    Expr_Infix =>
       if is_logical_and_expr(cond) &&
         node_child(cond, "lhs") is Some(lhs) &&
         node_child(cond, "rhs") is Some(rhs) {

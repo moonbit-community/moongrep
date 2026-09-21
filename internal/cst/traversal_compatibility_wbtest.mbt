@@ -10,7 +10,7 @@ fn candidate_signature(candidate : ExprMatchCandidate) -> String {
 
 ///|
 fn candidate_call_name(candidate : ExprMatchCandidate) -> String? {
-  guard candidate is Direct(node) && node.kind is @untyped_cst.Expr_Apply else {
+  guard candidate is Direct(node) && node.kind is Expr_Apply else {
     return None
   }
   raw_child(node, "func").bind(normalized_expr_identifier_name)
@@ -321,7 +321,7 @@ test "direct sequence children do not require an indexed origin" {
   let direct : Array[String] = []
   let mut saw_suffix = false
   visit_expr_match_candidate_children(Sequence(expressions[:]), fn(candidate) {
-    if candidate is Sequence([first, ..]) && first.kind is @untyped_cst.Expr_Let {
+    if candidate is Sequence([first, ..]) && first.kind is Expr_Let {
       saw_suffix = true
     }
     direct.push(candidate_signature(candidate))

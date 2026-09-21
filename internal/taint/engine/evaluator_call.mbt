@@ -107,7 +107,7 @@ fn eval_pipe_call(
   }
   let lhs_arg = evaled_argument_from_path(0, None, lhs, lhs_path)
   let rhs_flow = match rhs.kind {
-    @untyped_cst.Expr_Apply =>
+    Expr_Apply =>
       match (node_child(rhs, "func"), node_child(rhs, "args")) {
         (Some(func), Some(args)) => {
           let func_result = eval_expr(func, lhs_path.state, spec, findings)
@@ -146,7 +146,7 @@ fn eval_pipe_call(
         }
         _ => normal_result(lhs_path.state, lhs_path.value)
       }
-    @untyped_cst.Expr_DotApply =>
+    Expr_DotApply =>
       match
         (
           node_child(rhs, "self"),
@@ -562,23 +562,23 @@ fn site_for_expr(expr : @untyped_cst.CstNode, path : StoragePath?) -> ValueSite 
 ///|
 fn callee_name_from_expr(expr : @untyped_cst.CstNode) -> String? {
   match expr.kind {
-    @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(expr)
-    @untyped_cst.Expr_Field =>
+    Expr_Ident => @cst.normalized_expr_identifier_name(expr)
+    Expr_Field =>
       if node_child(expr, "accessor") is Some(accessor) {
         match accessor.kind {
-          @untyped_cst.Accessor_Label => node_first_label_name(accessor)
+          Accessor_Label => node_first_label_name(accessor)
           _ => None
         }
       } else {
         None
       }
-    @untyped_cst.Expr_Method =>
+    Expr_Method =>
       if node_child(expr, "method_name") is Some(method_name) {
         node_label_name(method_name)
       } else {
         None
       }
-    @untyped_cst.Expr_Group | @untyped_cst.Expr_Constraint =>
+    Expr_Group | Expr_Constraint =>
       if node_child(expr, "expr") is Some(inner) {
         callee_name_from_expr(inner)
       } else {

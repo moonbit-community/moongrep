@@ -229,7 +229,7 @@ test "diagnostic formatter preserves multiline pattern layout" {
 ///|
 test "rule pattern diagnostics keep source and shape separate" {
   let file_error = new_rule_load_error(
-    @rule_model.InvalidPattern(
+    InvalidPattern(
       path="rules/example.yaml",
       shape="wrap($$$items + 1)",
       info="the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
@@ -249,7 +249,7 @@ test "rule pattern diagnostics keep source and shape separate" {
   )
   let shape = "$(name:id)()"
   let anonymous_error = new_compiled_rule_error(
-    @rule_model.InvalidRule(
+    InvalidRule(
       path=shape,
       info="patterns[0].guard.$name has invalid regex",
     ),

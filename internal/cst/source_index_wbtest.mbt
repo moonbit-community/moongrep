@@ -129,7 +129,7 @@ test "split constructor pattern names retain their original indexed references" 
   )
   let index = SourceIndex::new(root)
   let constructors = index.nodes.filter_map(entry => {
-    if entry.node.kind is @untyped_cst.Pattern_Constr {
+    if entry.node.kind is Pattern_Constr {
       Some(entry.node)
     } else {
       None

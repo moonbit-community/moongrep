@@ -80,7 +80,7 @@ fn transfer_compiled_taint_call(
         let origins = @taint.taint_tree_origins(target.taint)
         if origins.length() > 0 {
           findings.push({
-            sink_id: @taint.SinkId::PatternIndex(index),
+            sink_id: PatternIndex(index),
             sink_loc: target.loc,
           })
         }
@@ -112,7 +112,7 @@ fn target_value_for_match(
     Receiver => target_value(call, target)
     _ =>
       match pattern_match.bindings.get("__SOURCE__") {
-        Some(@bound_value_model.BoundValue::Single(source)) =>
+        Some(Single(source)) =>
           if target_value_at_expr(call, source) is Some(value) {
             Some(value)
           } else {

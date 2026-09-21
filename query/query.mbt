@@ -77,9 +77,9 @@ fn collect_node_matches(
     if @matching.match_expr_pattern_candidate(pattern, candidate)
       is Some(result) {
       matches.push(capture_map_from_bindings(result.bindings))
-      @cst.NodeVisitPrune
+      NodeVisitPrune
     } else {
-      @cst.NodeVisitContinue
+      NodeVisitContinue
     }
   })
 }

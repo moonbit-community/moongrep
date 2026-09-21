@@ -18,7 +18,7 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
     fail("expected complete parameter items")
   }
   assert_eq(items.length(), 2)
-  assert_true(items.all(item => item.kind is @untyped_cst.Parameter_Positional))
+  assert_true(items.all(item => item.kind is Parameter_Positional))
   let call = test_compiled(test_expr("sink($$$(names:id))"), entries=[
     test_metavar_entry("names", Ellipsis(IdItem)),
   ])
@@ -27,9 +27,9 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
     if match_indexed_expr_pattern(call, index, region, HashMap([]), HashMap([]))
       is Some(found) {
       reference_sources = found.sources.get("names")
-      return @cst.NodeVisitReturn
+      return NodeVisitReturn
     }
-    @cst.NodeVisitContinue
+    NodeVisitContinue
   })
   assert_true(reference_sources == matched.sources.get("names"))
 }
@@ -87,7 +87,7 @@ test "indexed split constructor captures agree with ordinary matching" {
       assert_eq(@cst.normalized_name(value), Some(name))
       assert_eq(
         indexed.sources.get(capture),
-        Some(SingleIdentifier({ name, binding: @cst.NonLexical, })),
+        Some(SingleIdentifier({ name, binding: NonLexical, })),
       )
     }
   }

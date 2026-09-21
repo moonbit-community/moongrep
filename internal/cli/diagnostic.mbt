@@ -182,7 +182,7 @@ fn yaml_location_reason(mark : @yaml.Marker, info : String) -> String {
 ///|
 #warnings("-alert_internal")
 fn os_error_reason(error : @os_error.OSError) -> String {
-  let @os_error.OSError(errno, ..) = error
+  let OSError(errno, ..) = error
   @os_error.errno_to_string(errno)
 }
 
@@ -222,7 +222,7 @@ fn new_guard_error(source : String, reason : String) -> CliError {
 
 ///|
 fn new_yaml_guard_error(error : @yaml.YamlError) -> CliError {
-  let @yaml.YamlError::YamlError(mark~, info~) = error
+  let YamlError(mark~, info~) = error
   new_guard_error("--guard", yaml_location_reason(mark, info))
 }
 

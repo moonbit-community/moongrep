@@ -14,7 +14,7 @@ test "explicit regex binders share semantic declaration identity across shadowin
       )
       let index = SourceIndex::new(root)
       let bindings = index.nodes.filter_map(entry => {
-        if entry.node.kind is @untyped_cst.Binding_Regex {
+        if entry.node.kind is Binding_Regex {
           Some(entry.node)
         } else {
           None
@@ -37,12 +37,12 @@ test "explicit regex binders share semantic declaration identity across shadowin
       }
       let binders = indexed_names(
         index,
-        kind => kind is @untyped_cst.Name_Binder,
+        kind => kind is Name_Binder,
         "item",
       )
       let references = indexed_names(
         index,
-        kind => kind is @untyped_cst.Name_Var,
+        kind => kind is Name_Var,
         "item",
       )
       assert_eq(binders.length(), 3)
@@ -74,7 +74,7 @@ test "regex labels and absent or wildcard binders do not declare variables" {
     for name in ["before", "after"] {
       let references = indexed_names(
         index,
-        kind => kind is @untyped_cst.Name_Var,
+        kind => kind is Name_Var,
         name,
       )
       assert_eq(references.length(), 1)

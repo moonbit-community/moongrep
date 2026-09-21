@@ -78,7 +78,7 @@ fn preserve_toplevel_identifier_order(
   cst : @untyped_cst.CstNode,
   metavars : @matching.MetavarRegistry,
 ) -> Unit {
-  guard cst.kind is @untyped_cst.Impl_Function else { return }
+  guard cst.kind is Impl_Function else { return }
   guard @cst.raw_child(cst, "params") is Some(params) else { return }
   let reordered : Array[@matching.MetavarEntry] = []
   for entry in metavars.entries {
@@ -203,11 +203,11 @@ fn cst_contains_qualified_metavar(
   node : @untyped_cst.CstNode,
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
-  if node.kind is @untyped_cst.LongIdent_Dot &&
+  if node.kind is LongIdent_Dot &&
     metavar_node_matches_occurrence(node, occurrence) {
     return true
   }
-  if node.kind is (@untyped_cst.Expr_Method | @untyped_cst.Expr_Field) &&
+  if node.kind is (Expr_Method | Expr_Field) &&
     @cst.raw_child(node, "field") is Some(field) &&
     metavar_node_matches_occurrence(field, occurrence) {
     return true
@@ -231,23 +231,23 @@ fn find_metavar_occurrence_context_in(
   if metavar_node_matches_occurrence(node, occurrence) {
     let whole = metavar_node_is_whole(node, occurrence)
     let (position, priority) = match node.kind {
-      @untyped_cst.Expr_Ident if whole => (ExpressionPosition, 4)
-      @untyped_cst.Pattern_Var if whole => (PatternPosition, 4)
-      @untyped_cst.Type_Name if whole => (TypePosition, 4)
-      @untyped_cst.Name_Identifier
-      | @untyped_cst.Name_Package
-      | @untyped_cst.LongIdent_Ident
-      | @untyped_cst.LongIdent_Dot
-      | @untyped_cst.Name_Binder
-      | @untyped_cst.Name_Label
-      | @untyped_cst.Name_Type
-      | @untyped_cst.Name_Constr
-      | @untyped_cst.Name_ConstrId
-      | @untyped_cst.Name_Var
-      | @untyped_cst.Name_Constructor
-      | @untyped_cst.Name_Field
-      | @untyped_cst.Name_AliasTarget
-      | @untyped_cst.Name_Test => (IdentifierPosition, 2)
+      Expr_Ident if whole => (ExpressionPosition, 4)
+      Pattern_Var if whole => (PatternPosition, 4)
+      Type_Name if whole => (TypePosition, 4)
+      Name_Identifier
+      | Name_Package
+      | LongIdent_Ident
+      | LongIdent_Dot
+      | Name_Binder
+      | Name_Label
+      | Name_Type
+      | Name_Constr
+      | Name_ConstrId
+      | Name_Var
+      | Name_Constructor
+      | Name_Field
+      | Name_AliasTarget
+      | Name_Test => (IdentifierPosition, 2)
       _ => (IdentifierPosition, 0)
     }
     report(
@@ -256,7 +256,7 @@ fn find_metavar_occurrence_context_in(
         whole_argument: path_has_whole_argument(path, occurrence),
         ellipsis_slot: ellipsis_slot_from_path(path, occurrence),
         qualified_identifier: normalized_name_is_qualified(node) ||
-        path_has_kind(path, fn(kind) { kind is @untyped_cst.LongIdent_Dot }),
+        path_has_kind(path, fn(kind) { kind is LongIdent_Dot }),
         binder_only_pattern: path_has_binder_only_pattern_context(path),
       },
       priority,
@@ -296,16 +296,16 @@ fn path_has_binder_only_pattern_context(
 ) -> Bool {
   for index in 0..<path.length() {
     match path[index].kind {
-      @untyped_cst.Expr_LetMut
-      | @untyped_cst.Expr_LetFn
-      | @untyped_cst.Expr_ForEach
-      | @untyped_cst.Expr_ListComprehension
-      | @untyped_cst.Impl_Let
-      | @untyped_cst.Impl_Const
-      | @untyped_cst.Parameter_Positional
-      | @untyped_cst.Parameter_Labelled
-      | @untyped_cst.Parameter_Optional
-      | @untyped_cst.Parameter_DiscardPositional =>
+      Expr_LetMut
+      | Expr_LetFn
+      | Expr_ForEach
+      | Expr_ListComprehension
+      | Impl_Let
+      | Impl_Const
+      | Parameter_Positional
+      | Parameter_Labelled
+      | Parameter_Optional
+      | Parameter_DiscardPositional =>
         if index + 1 < path.length() && path[index + 1].kind.is_pattern() {
           return true
         }
@@ -334,10 +334,10 @@ fn metavar_node_matches_occurrence(
     return false
   }
   let name = match node.kind {
-    @untyped_cst.Expr_Ident => @cst.normalized_expr_identifier_name(node)
-    @untyped_cst.Expr_Constr => @cst.name_node(node).bind(@cst.normalized_name)
-    @untyped_cst.Pattern_Var => @cst.normalized_pattern_identifier_name(node)
-    @untyped_cst.Type_Name => @cst.name_node(node).bind(@cst.normalized_name)
+    Expr_Ident => @cst.normalized_expr_identifier_name(node)
+    Expr_Constr => @cst.name_node(node).bind(@cst.normalized_name)
+    Pattern_Var => @cst.normalized_pattern_identifier_name(node)
+    Type_Name => @cst.name_node(node).bind(@cst.normalized_name)
     _ => @cst.normalized_name(node)
   }
   if name is Some(name) {
@@ -363,7 +363,7 @@ fn path_has_whole_argument(
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
   for node in path {
-    if node.kind is @untyped_cst.Argument_Positional &&
+    if node.kind is Argument_Positional &&
       @cst.argument_value(node) is Some(value) &&
       metavar_node_matches_occurrence(value, occurrence) &&
       metavar_node_is_whole(value, occurrence) {
@@ -392,7 +392,7 @@ fn ellipsis_slot_from_path(
     }
   }
   if path is [root, item] &&
-    root.kind is @untyped_cst.Expression &&
+    root.kind is Expression &&
     ellipsis_item_is_whole_occurrence(item, occurrence) {
     return Some(EllipsisExprSlot)
   }
@@ -409,8 +409,8 @@ fn ellipsis_container_is_grouping_list(
   }
   let parent = path[index - 1]
   match parent.kind {
-    @untyped_cst.Expr_Group | @untyped_cst.Type_Group => true
-    @untyped_cst.Pattern_Tuple =>
+    Expr_Group | Type_Group => true
+    Pattern_Tuple =>
       @cst.raw_child(parent, "pattern_group") is Some(_)
     _ => false
   }
@@ -421,19 +421,19 @@ fn ellipsis_slot_for_container(
   kind : @untyped_cst.NodeKind,
 ) -> EllipsisItemSlot? {
   match kind {
-    @untyped_cst.Expression | @untyped_cst.List_BlockStatementList =>
+    Expression | List_BlockStatementList =>
       Some(EllipsisExprSlot)
-    @untyped_cst.List_ArgumentList => Some(EllipsisArgumentSlot)
-    @untyped_cst.List_TuplePatternList => Some(EllipsisPatternSlot)
-    @untyped_cst.List_ConstructorPatternArgumentList =>
+    List_ArgumentList => Some(EllipsisArgumentSlot)
+    List_TuplePatternList => Some(EllipsisPatternSlot)
+    List_ConstructorPatternArgumentList =>
       Some(EllipsisConstrPatternArgumentSlot)
-    @untyped_cst.List_ArrayPatternList => Some(EllipsisArrayPatternSlot)
-    @untyped_cst.List_TupleElementList => Some(EllipsisExprSlot)
-    @untyped_cst.List_TupleTypeList | @untyped_cst.List_TypeArgumentList =>
+    List_ArrayPatternList => Some(EllipsisArrayPatternSlot)
+    List_TupleElementList => Some(EllipsisExprSlot)
+    List_TupleTypeList | List_TypeArgumentList =>
       Some(EllipsisTypeSlot)
-    @untyped_cst.List_ParameterList
-    | @untyped_cst.List_TraitMethodParameterList => Some(EllipsisParameterSlot)
-    @untyped_cst.List_ArrayElementList => Some(EllipsisSpreadableExprSlot)
+    List_ParameterList
+    | List_TraitMethodParameterList => Some(EllipsisParameterSlot)
+    List_ArrayElementList => Some(EllipsisSpreadableExprSlot)
     _ => None
   }
 }
@@ -444,7 +444,7 @@ fn ellipsis_container_item_is_replaceable(
   item : @untyped_cst.CstNode,
 ) -> Bool {
   match container.kind {
-    @untyped_cst.List_BlockStatementList =>
+    List_BlockStatementList =>
       block_statement_has_separator_after(container, item)
     _ => true
   }
@@ -461,7 +461,7 @@ fn block_statement_has_separator_after(
   let mut found = false
   for entry in container.children {
     if found {
-      return entry.1.kind is @untyped_cst.Syntax_Separator
+      return entry.1.kind is Syntax_Separator
     }
     if entry.1.source_span == item.source_span && entry.1.kind == item.kind {
       found = true
@@ -476,10 +476,10 @@ fn ellipsis_item_is_whole_occurrence(
   occurrence : ShapeMetavarOccurrence,
 ) -> Bool {
   let value = match item.kind {
-    @untyped_cst.Argument_Positional => @cst.argument_value(item)
-    @untyped_cst.ArrayPattern_Pattern => first_cst_pattern_child(item)
-    @untyped_cst.ArrayElement_Regular => @cst.raw_child(item, "expr")
-    @untyped_cst.Parameter_Positional => @cst.raw_child(item, "pattern")
+    Argument_Positional => @cst.argument_value(item)
+    ArrayPattern_Pattern => first_cst_pattern_child(item)
+    ArrayElement_Regular => @cst.raw_child(item, "expr")
+    Parameter_Positional => @cst.raw_child(item, "pattern")
     _ => Some(item)
   }
   if value is Some(value) {

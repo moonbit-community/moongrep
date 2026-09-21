@@ -3,7 +3,7 @@ fn count_bindable_expr_identifier_in_node(
   node : @untyped_cst.CstNode,
   name : String,
 ) -> Int {
-  if node.kind is @untyped_cst.Expr_Ident {
+  if node.kind is Expr_Ident {
     if @cst.normalized_expr_identifier_name(node) == Some(name) {
       1
     } else {
@@ -25,13 +25,13 @@ fn count_supported_name_in_node(
   name : String,
 ) -> Int {
   match node.kind {
-    @untyped_cst.Expr_Ident =>
+    Expr_Ident =>
       if @cst.normalized_expr_identifier_name(node) == Some(name) {
         1
       } else {
         0
       }
-    @untyped_cst.Pattern_Var =>
+    Pattern_Var =>
       if @cst.normalized_pattern_identifier_name(node) == Some(name) {
         1
       } else {

@@ -34,13 +34,13 @@ test "list environment keys include every binding and lexical role" {
   let session = ScanSession::new(plan, root)
   let mut sink : @cst.RegionId? = None
   session.index.walk(session.index.roots(), fn(region) {
-    if session.index.candidate(region) is @cst.Direct(node) &&
-      node.kind is @untyped_cst.Expr_Apply &&
+    if session.index.candidate(region) is Direct(node) &&
+      node.kind is Expr_Apply &&
       @cst.raw_child(node, "func").bind(@cst.normalized_expr_identifier_name) ==
       Some("sink") {
       sink = Some(region)
     }
-    @cst.NodeVisitContinue
+    NodeVisitContinue
   })
   let region = sink.unwrap()
   let pattern = plan.groups[0].positive.patterns_for_candidate(
@@ -61,7 +61,7 @@ test "list environment keys include every binding and lexical role" {
   assert_true(session.candidate(0, region, local_env) is GroupHit(_, _))
   let environments = [local_env]
   for position in 0..<sources.length() {
-    for binding in [@cst.Lexical(None), @cst.NonLexical] {
+    for binding in [@cst.Lexical(None), NonLexical] {
       let changed = sources.copy()
       changed[position] = { ..changed[position], binding, }
       let env = session.intern_environment([
@@ -91,13 +91,13 @@ test "cache keys distinguish capture values and lexical binding identities" {
   let session = ScanSession::new(plan, root)
   let mut sink : @cst.RegionId? = None
   session.index.walk(session.index.roots(), fn(region) {
-    if session.index.candidate(region) is @cst.Direct(node) &&
-      node.kind is @untyped_cst.Expr_Apply &&
+    if session.index.candidate(region) is Direct(node) &&
+      node.kind is Expr_Apply &&
       @cst.raw_child(node, "func").bind(@cst.normalized_expr_identifier_name) ==
       Some("sink") {
       sink = Some(region)
     }
-    @cst.NodeVisitContinue
+    NodeVisitContinue
   })
   let region = sink.unwrap()
   let local_binding = session.index.resolve(session.index.scope(region), "item")

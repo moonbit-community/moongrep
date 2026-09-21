@@ -39,7 +39,7 @@ fn match_candidate_in_context(
   bindings : MatchContext,
 ) -> ExprMatch? {
   match candidate {
-    @cst.Direct(node) => {
+    Direct(node) => {
       let pattern = @cst.unwrap_groups(compiled.cst)
       let matched = if pattern.kind is Expression &&
         match_sequence_continuation_tail(
@@ -59,7 +59,7 @@ fn match_candidate_in_context(
         None
       }
     }
-    @cst.Sequence(items) => {
+    Sequence(items) => {
       guard items is [first, ..] else { return None }
       if match_sequence_candidate(compiled.cst, items, compiled, bindings) {
         let loc = match items {
@@ -79,10 +79,10 @@ fn match_candidate_in_context(
 fn match_candidate_from_node(
   candidate : @untyped_cst.CstNode,
 ) -> @cst.ExprMatchCandidate {
-  if candidate.kind is @untyped_cst.Expression {
-    @cst.Sequence(@cst.expression_nodes(candidate))
+  if candidate.kind is Expression {
+    Sequence(@cst.expression_nodes(candidate))
   } else {
-    @cst.Direct(candidate)
+    Direct(candidate)
   }
 }
 
@@ -94,7 +94,7 @@ fn match_sequence_candidate(
   bindings : MatchContext,
 ) -> Bool {
   let pattern = @cst.unwrap_groups(raw_pattern)
-  if pattern.kind is @untyped_cst.Expression {
+  if pattern.kind is Expression {
     let pattern_items = @cst.expression_nodes(pattern)
     // Keep the fixed-length path so one-statement named and special tails keep
     // their existing `Single` binding. Empty and multi-statement tails need
@@ -114,7 +114,7 @@ fn match_sequence_candidate(
       bindings,
     )
   }
-  if pattern.kind is (@untyped_cst.Expr_Let | @untyped_cst.Expr_Guard) {
+  if pattern.kind is (Expr_Let | Expr_Guard) {
     return candidate_items is [first, ..] &&
       first.kind == pattern.kind &&
       match_node(pattern, first, compiled, bindings)
@@ -225,9 +225,9 @@ fn match_node(
   if is_name_node(pattern) {
     return match_name_node(pattern, candidate, compiled, bindings)
   }
-  if pattern.kind is @untyped_cst.Expression ||
-    pattern.kind is @untyped_cst.Expr_Block ||
-    pattern.kind is @untyped_cst.Expr_Sequence {
+  if pattern.kind is Expression ||
+    pattern.kind is Expr_Block ||
+    pattern.kind is Expr_Sequence {
     return match_expression_container(pattern, candidate, compiled, bindings)
   }
   structural_match(pattern, candidate, compiled, bindings)
@@ -240,7 +240,7 @@ fn match_split_pattern_constructor_identity(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool? {
-  guard pattern.kind is @untyped_cst.Pattern_Constr else { return None }
+  guard pattern.kind is Pattern_Constr else { return None }
   let pattern_names = @cst.raw_children(pattern, "name")
   guard pattern_names.length() > 1 else { return None }
   let mut has_identifier_placeholder = false
@@ -254,7 +254,7 @@ fn match_split_pattern_constructor_identity(
     }
   }
   guard has_identifier_placeholder else { return None }
-  guard candidate.kind is @untyped_cst.Pattern_Constr else {
+  guard candidate.kind is Pattern_Constr else {
     return Some(false)
   }
   let candidate_names = @cst.raw_children(candidate, "name")
@@ -302,7 +302,7 @@ fn match_constructor_identity_placeholder(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool? {
-  guard pattern.kind is (@untyped_cst.Expr_Constr | @untyped_cst.Pattern_Constr) else {
+  guard pattern.kind is (Expr_Constr | Pattern_Constr) else {
     return None
   }
   guard @cst.raw_child(pattern, "type") is None else { return None }
@@ -320,7 +320,7 @@ fn match_constructor_identity_placeholder(
     ) else {
     return Some(false)
   }
-  if pattern.kind is @untyped_cst.Pattern_Constr {
+  if pattern.kind is Pattern_Constr {
     Some(
       match_children(
         pattern.kind,
@@ -339,7 +339,7 @@ fn match_constructor_identity_placeholder(
 fn constructor_identity_binding_node(
   candidate : @untyped_cst.CstNode,
 ) -> @untyped_cst.CstNode {
-  if candidate.kind is @untyped_cst.Pattern_Constr {
+  if candidate.kind is Pattern_Constr {
     @cst.name_node(candidate).unwrap_or(candidate)
   } else {
     candidate
@@ -362,7 +362,7 @@ fn match_type_placeholder(
 
 ///|
 fn type_placeholder_raw(node : @untyped_cst.CstNode) -> String? {
-  guard node.kind is @untyped_cst.Type_Name else { return None }
+  guard node.kind is Type_Name else { return None }
   for entry in @cst.semantic_children(node) {
     if entry.1.kind.is_type() {
       return None
@@ -383,7 +383,7 @@ fn match_argument_placeholder(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool? {
-  guard pattern.kind is @untyped_cst.Argument_Positional else { return None }
+  guard pattern.kind is Argument_Positional else { return None }
   guard argument_placeholder_raw(pattern) is Some(raw) else { return None }
   if resolved_named_metavar(compiled, raw, Argument) is Some(name) {
     Some(candidate.kind.is_argument() && bind_value(bindings, name, candidate))
@@ -394,7 +394,7 @@ fn match_argument_placeholder(
 
 ///|
 fn argument_placeholder_raw(node : @untyped_cst.CstNode) -> String? {
-  guard node.kind is @untyped_cst.Argument_Positional else { return None }
+  guard node.kind is Argument_Positional else { return None }
   @cst.argument_value(node).bind(@cst.normalized_expr_identifier_name)
 }
 
@@ -405,7 +405,7 @@ fn match_expr_placeholder(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool? {
-  guard pattern.kind is @untyped_cst.Expr_Ident else { return None }
+  guard pattern.kind is Expr_Ident else { return None }
   guard @cst.normalized_expr_identifier_name(pattern) is Some(name) else {
     return None
   }
@@ -457,7 +457,7 @@ fn match_pattern_placeholder(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool? {
-  guard pattern.kind is @untyped_cst.Pattern_Var else { return None }
+  guard pattern.kind is Pattern_Var else { return None }
   guard @cst.normalized_pattern_identifier_name(pattern) is Some(name) else {
     return None
   }
@@ -492,21 +492,21 @@ fn match_expression_container(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool {
-  if pattern.kind is @untyped_cst.Expr_Block &&
-    !(candidate.kind is @untyped_cst.Expr_Block) {
+  if pattern.kind is Expr_Block &&
+    !(candidate.kind is Expr_Block) {
     return false
   }
-  if pattern.kind is @untyped_cst.Expr_Sequence &&
-    !(candidate.kind is @untyped_cst.Expr_Sequence) {
+  if pattern.kind is Expr_Sequence &&
+    !(candidate.kind is Expr_Sequence) {
     return false
   }
   let pattern_items = sequence_items(pattern)
   let candidate_items = sequence_items(candidate)
   if candidate_items is [] {
     if candidate.kind
-      is (@untyped_cst.Expression
-      | @untyped_cst.Expr_Block
-      | @untyped_cst.Expr_Sequence) {
+      is (Expression
+      | Expr_Block
+      | Expr_Sequence) {
       return pattern_items.is_empty()
     }
     return pattern_items is [single] &&
@@ -535,7 +535,7 @@ fn match_expression_container(
   // Earlier versions synthesized a final unit for a body-less let/guard.
   // Preserve that spelling-level compatibility.
   if pattern_items.length() == candidate_items.length() + 1 &&
-    pattern_items.last().unwrap().kind is @untyped_cst.Expr_Unit {
+    pattern_items.last().unwrap().kind is Expr_Unit {
     let without_unit = pattern_children[:pattern_children.length() - 1].to_owned()
     return match_children(
       pattern.kind,
@@ -551,10 +551,10 @@ fn match_expression_container(
 ///|
 fn sequence_items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
   match node.kind {
-    @untyped_cst.Expression => @cst.expression_nodes(node)
-    @untyped_cst.Expr_Block
-    | @untyped_cst.Expr_Sequence
-    | @untyped_cst.List_BlockStatementList => @cst.sequence_items(node)
+    Expression => @cst.expression_nodes(node)
+    Expr_Block
+    | Expr_Sequence
+    | List_BlockStatementList => @cst.sequence_items(node)
     _ => []
   }
 }
@@ -581,7 +581,7 @@ fn structural_match(
     return false
   }
   match (pattern.kind, candidate.kind) {
-    (@untyped_cst.Leaf(_), @untyped_cst.Leaf(_)) =>
+    (Leaf(_), Leaf(_)) =>
       pattern.kind == candidate.kind
     _ =>
       match_children(
@@ -725,8 +725,8 @@ fn match_child_node(
   bindings : MatchContext,
 ) -> Bool {
   if label == Some("body") &&
-    pattern.kind is @untyped_cst.Expr_Block &&
-    candidate.kind is @untyped_cst.Expr_Block &&
+    pattern.kind is Expr_Block &&
+    candidate.kind is Expr_Block &&
     sequence_items(pattern) is [single] &&
     match_expr_placeholder(single, candidate, compiled, bindings)
     is Some(result) {
@@ -768,21 +768,21 @@ fn minimum_fixed_children(
 ///|
 fn is_name_node(node : @untyped_cst.CstNode) -> Bool {
   match node.kind {
-    @untyped_cst.Name_Identifier
-    | @untyped_cst.Name_Package
-    | @untyped_cst.LongIdent_Ident
-    | @untyped_cst.LongIdent_Dot
-    | @untyped_cst.Name_Binder
-    | @untyped_cst.Name_Label
-    | @untyped_cst.Name_Type
-    | @untyped_cst.Name_Constr
-    | @untyped_cst.Name_ConstrId
-    | @untyped_cst.Name_Var
-    | @untyped_cst.Name_Constructor
-    | @untyped_cst.Name_Field
-    | @untyped_cst.Name_AliasTarget
-    | @untyped_cst.Name_Test
-    | @untyped_cst.Accessor_Label => true
+    Name_Identifier
+    | Name_Package
+    | LongIdent_Ident
+    | LongIdent_Dot
+    | Name_Binder
+    | Name_Label
+    | Name_Type
+    | Name_Constr
+    | Name_ConstrId
+    | Name_Var
+    | Name_Constructor
+    | Name_Field
+    | Name_AliasTarget
+    | Name_Test
+    | Accessor_Label => true
     _ => false
   }
 }
@@ -897,7 +897,7 @@ fn node_equal_ignoring_loc(
     return false
   }
   match (left.kind, right.kind) {
-    (@untyped_cst.Leaf(_), @untyped_cst.Leaf(_)) => left.kind == right.kind
+    (Leaf(_), Leaf(_)) => left.kind == right.kind
     _ =>
       children_equal_ignoring_loc(
         @cst.semantic_children(left),
@@ -908,7 +908,7 @@ fn node_equal_ignoring_loc(
 
 ///|
 fn normalized_identity_node(node : @untyped_cst.CstNode) -> Bool {
-  is_name_node(node) || node.kind is @untyped_cst.Expr_Constr
+  is_name_node(node) || node.kind is Expr_Constr
 }
 
 ///|
@@ -932,7 +932,7 @@ fn children_equal_ignoring_loc(
 
 ///|
 fn expr_constant(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
-  if node.kind is @untyped_cst.Expr_Constant {
+  if node.kind is Expr_Constant {
     @cst.constant(node)
   } else {
     None
@@ -941,7 +941,7 @@ fn expr_constant(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
 
 ///|
 fn pattern_constant(node : @untyped_cst.CstNode) -> @untyped_cst.CstNode? {
-  if node.kind is @untyped_cst.Pattern_Constant {
+  if node.kind is Pattern_Constant {
     @cst.constant(node)
   } else {
     None

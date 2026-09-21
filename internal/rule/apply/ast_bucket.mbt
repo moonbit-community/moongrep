@@ -55,8 +55,8 @@ priv struct ExprPatternBuckets {
 ///|
 fn node_root_key(node : @untyped_cst.CstNode) -> ExprRootKey {
   match node.kind {
-    @untyped_cst.Expr_Ident => IdentRoot
-    @untyped_cst.Expr_Constant => ConstantRoot
+    Expr_Ident => IdentRoot
+    Expr_Constant => ConstantRoot
     _ => OtherRoot(node.kind)
   }
 }
@@ -84,11 +84,11 @@ fn compiled_root_ident_key(
 // with `expr_root_key(candidate)`.
 fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> ExprRootKey? {
   let compiled = pattern.compiled
-  if compiled.cst.kind is @untyped_cst.Expression {
+  if compiled.cst.kind is Expression {
     // A parsed multi-statement fragment can match a sequence or the contents
     // of an explicit block.
     None
-  } else if compiled.cst.kind is @untyped_cst.Expr_Ident {
+  } else if compiled.cst.kind is Expr_Ident {
     if @cst.normalized_expr_identifier_name(compiled.cst) is Some(name) {
       if compiled_root_ident_key(compiled, name) is Some(key) {
         key
@@ -106,7 +106,7 @@ fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> ExprRootKey? {
 ///|
 fn compiled_pattern_matches_sequence(pattern : CompiledRulePattern) -> Bool {
   pattern.compiled.cst.kind
-  is (@untyped_cst.Expression | @untyped_cst.Expr_Let | @untyped_cst.Expr_Guard)
+  is (Expression | Expr_Let | Expr_Guard)
 }
 
 ///|
@@ -115,8 +115,8 @@ fn ExprPatternBuckets::patterns_for_candidate(
   candidate : @cst.ExprMatchCandidate,
 ) -> Array[IndexedCompiledRulePattern] {
   match candidate {
-    @cst.Direct(node) => self.patterns_for_node(node)
-    @cst.Sequence(_) => self.sequence
+    Direct(node) => self.patterns_for_node(node)
+    Sequence(_) => self.sequence
   }
 }
 

@@ -163,11 +163,11 @@ fn add_pattern_bound_roots(
   pattern : @untyped_cst.CstNode,
 ) -> Unit {
   match pattern.kind {
-    @untyped_cst.Pattern_Var =>
+    Pattern_Var =>
       if @cst.normalized_pattern_identifier_name(pattern) is Some(name) {
         add_unique_root_name(roots, name)
       }
-    @untyped_cst.Pattern_Alias => {
+    Pattern_Alias => {
       if node_child(pattern, "pat") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
@@ -175,43 +175,43 @@ fn add_pattern_bound_roots(
         add_binder_root_name(roots, alias_)
       }
     }
-    @untyped_cst.Pattern_Constraint =>
+    Pattern_Constraint =>
       if node_child(pattern, "pat") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
-    @untyped_cst.Pattern_Tuple =>
+    Pattern_Tuple =>
       for pat in pattern_body_items(pattern) {
         add_pattern_bound_roots(roots, pat)
       }
-    @untyped_cst.Pattern_Record =>
+    Pattern_Record =>
       for field in pattern_body_items(pattern) {
         if node_child(field, "pattern") is Some(pat) {
           add_pattern_bound_roots(roots, pat)
-        } else if field.kind is @untyped_cst.Field_Pattern {
+        } else if field.kind is Field_Pattern {
           add_binder_root_name(roots, field)
         }
       }
-    @untyped_cst.Pattern_Map =>
+    Pattern_Map =>
       for elem in pattern_body_items(pattern) {
         if node_child(elem, "pattern") is Some(pat) {
           add_pattern_bound_roots(roots, pat)
         }
       }
-    @untyped_cst.Pattern_Array =>
+    Pattern_Array =>
       for item in array_pattern_items(pattern) {
         add_array_pattern_item_bound_roots(roots, item)
       }
-    @untyped_cst.Pattern_Constr | @untyped_cst.Pattern_SpecialConstr =>
+    Pattern_Constr | Pattern_SpecialConstr =>
       for arg in constructor_pattern_items(pattern) {
         if arg.kind.is_pattern() {
           add_pattern_bound_roots(roots, arg)
         } else if node_child(arg, "pattern") is Some(pat) {
           add_pattern_bound_roots(roots, pat)
-        } else if arg.kind is @untyped_cst.Argument_LabelledPun {
+        } else if arg.kind is Argument_LabelledPun {
           add_binder_root_name(roots, arg)
         }
       }
-    @untyped_cst.Pattern_Or | @untyped_cst.Pattern_Range => {
+    Pattern_Or | Pattern_Range => {
       if node_child(pattern, "pat1") is Some(pat) {
         add_pattern_bound_roots(roots, pat)
       }
@@ -225,8 +225,8 @@ fn add_pattern_bound_roots(
         add_pattern_bound_roots(roots, pat)
       }
     }
-    @untyped_cst.Pattern_Rest => add_binder_root_name(roots, pattern)
-    @untyped_cst.Pattern_Any | @untyped_cst.Pattern_Constant => ()
+    Pattern_Rest => add_binder_root_name(roots, pattern)
+    Pattern_Any | Pattern_Constant => ()
     _ => ()
   }
 }
@@ -273,14 +273,14 @@ fn add_array_pattern_item_bound_roots(
   item : @untyped_cst.CstNode,
 ) -> Unit {
   match item.kind {
-    @untyped_cst.ArrayPattern_Pattern =>
+    ArrayPattern_Pattern =>
       if @cst.raw_child(item, "pattern") is Some(pattern) {
         add_pattern_bound_roots(roots, pattern)
       }
-    @untyped_cst.ArrayPattern_ConstSpread => add_binder_root_name(roots, item)
-    @untyped_cst.Pattern_Rest => add_binder_root_name(roots, item)
-    @untyped_cst.ArrayPattern_BytesSpread
-    | @untyped_cst.ArrayPattern_StringSpread => ()
+    ArrayPattern_ConstSpread => add_binder_root_name(roots, item)
+    Pattern_Rest => add_binder_root_name(roots, item)
+    ArrayPattern_BytesSpread
+    | ArrayPattern_StringSpread => ()
     _ => ()
   }
 }
@@ -314,8 +314,8 @@ fn bind_pattern(
   state : TaintState,
 ) -> TaintState {
   match pattern.kind {
-    @untyped_cst.Pattern_Var => bind_binder(pattern, value, state)
-    @untyped_cst.Pattern_Alias => {
+    Pattern_Var => bind_binder(pattern, value, state)
+    Pattern_Alias => {
       let next = if node_child(pattern, "pat") is Some(pat) {
         bind_pattern(pat, value, state)
       } else {
@@ -327,13 +327,13 @@ fn bind_pattern(
         next
       }
     }
-    @untyped_cst.Pattern_Constraint =>
+    Pattern_Constraint =>
       if node_child(pattern, "pat") is Some(pat) {
         bind_pattern(pat, value, state)
       } else {
         state
       }
-    @untyped_cst.Pattern_Tuple => {
+    Pattern_Tuple => {
       let mut next = state
       let items = pattern_body_items(pattern)
       for index in 0..<items.length() {
@@ -345,21 +345,21 @@ fn bind_pattern(
       }
       next
     }
-    @untyped_cst.Pattern_Record => {
+    Pattern_Record => {
       let mut next = state
       for field in pattern_body_items(pattern) {
         if node_label_name(field) is Some(name) {
           let projected = tree_project_for_binding(value, Field(name))
           if node_child(field, "pattern") is Some(pat) {
             next = bind_pattern(pat, projected, next)
-          } else if field.kind is @untyped_cst.Field_Pattern {
+          } else if field.kind is Field_Pattern {
             next = bind_binder(field, projected, next)
           }
         }
       }
       next
     }
-    @untyped_cst.Pattern_Map => {
+    Pattern_Map => {
       let mut next = state
       for elem in pattern_body_items(pattern) {
         if node_child(elem, "pattern") is Some(pat) {
@@ -368,20 +368,20 @@ fn bind_pattern(
       }
       next
     }
-    @untyped_cst.Pattern_Array => {
+    Pattern_Array => {
       let mut next = state
       let items = array_pattern_items(pattern)
       let mut after_rest = false
       let mut positional_index = 0
       for item in items {
         let segment : PathSegment = if after_rest ||
-          item.kind is @untyped_cst.Pattern_Rest {
+          item.kind is Pattern_Rest {
           AnyIndex
         } else {
           ConstIndex(positional_index.to_string())
         }
         next = bind_array_pattern_item(item, segment, value, next)
-        if item.kind is @untyped_cst.Pattern_Rest {
+        if item.kind is Pattern_Rest {
           after_rest = true
         } else {
           positional_index += 1
@@ -389,7 +389,7 @@ fn bind_pattern(
       }
       next
     }
-    @untyped_cst.Pattern_Constr | @untyped_cst.Pattern_SpecialConstr => {
+    Pattern_Constr | Pattern_SpecialConstr => {
       let mut next = state
       let items = constructor_pattern_items(pattern)
       for index in 0..<items.length() {
@@ -400,13 +400,13 @@ fn bind_pattern(
           next = bind_pattern(item, projected, next)
         } else if node_child(item, "pattern") is Some(pat) {
           next = bind_pattern(pat, projected, next)
-        } else if item.kind is @untyped_cst.Argument_LabelledPun {
+        } else if item.kind is Argument_LabelledPun {
           next = bind_binder(item, projected, next)
         }
       }
       next
     }
-    @untyped_cst.Pattern_Or =>
+    Pattern_Or =>
       match (node_child(pattern, "lhs"), node_child(pattern, "rhs")) {
         (Some(pat1), Some(pat2)) =>
           state_merge(
@@ -427,16 +427,16 @@ fn bind_array_pattern_item(
   state : TaintState,
 ) -> TaintState {
   match item.kind {
-    @untyped_cst.ArrayPattern_Pattern =>
+    ArrayPattern_Pattern =>
       if @cst.raw_child(item, "pattern") is Some(pattern) {
         bind_pattern(pattern, tree_project_for_binding(value, segment), state)
       } else {
         state
       }
-    @untyped_cst.ArrayPattern_ConstSpread | @untyped_cst.Pattern_Rest =>
+    ArrayPattern_ConstSpread | Pattern_Rest =>
       bind_binder(item, tree_project_for_binding(value, segment), state)
-    @untyped_cst.ArrayPattern_BytesSpread
-    | @untyped_cst.ArrayPattern_StringSpread => state
+    ArrayPattern_BytesSpread
+    | ArrayPattern_StringSpread => state
     _ => state
   }
 }

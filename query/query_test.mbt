@@ -112,8 +112,8 @@ test "query captures typed metavars in string interpolation" {
   guard matches[1].get("value") is Some(Single(call)) else {
     fail("expected call interpolation capture")
   }
-  assert_true(identifier.kind is @untyped_cst.Expr_Ident)
-  assert_true(call.kind is @untyped_cst.Expr_Apply)
+  assert_true(identifier.kind is Expr_Ident)
+  assert_true(call.kind is Expr_Apply)
 }
 
 ///|
@@ -168,7 +168,7 @@ test "query captures metavars in bytes interpolation" {
   guard matches[1].get("value") is Some(Single(call)) else {
     fail("expected bytes interpolation capture")
   }
-  assert_true(call.kind is @untyped_cst.Expr_Apply)
+  assert_true(call.kind is Expr_Apply)
 }
 
 ///|
@@ -185,7 +185,7 @@ test "query captures metavars in nested string interpolation" {
   guard matches[1].get("value") is Some(Single(call)) else {
     fail("expected nested interpolation capture")
   }
-  assert_true(call.kind is @untyped_cst.Expr_Apply)
+  assert_true(call.kind is Expr_Apply)
 }
 
 ///|
@@ -407,7 +407,7 @@ test "query captures one repeated expression and rejects non-repeated candidates
   guard matches[0].get("value") is Some(Single(value)) else {
     fail("expected value capture")
   }
-  assert_true(value.kind is @untyped_cst.Expr_Apply)
+  assert_true(value.kind is Expr_Apply)
 }
 
 ///|
@@ -579,7 +579,7 @@ test "query captures_from_cst matches a direct expression root" {
 test "query captures_from_cst finds nested expressions from a non-expression impl root" {
   let query = ExprQuery::ExprQuery("target()")
   let cst = parse_query_impl("fn sample { target() }")
-  assert_true(cst.kind is @untyped_cst.Impl_Function)
+  assert_true(cst.kind is Impl_Function)
   let matches = query.captures_from_cst(cst~)
   assert_eq(matches.length(), 1)
 }
@@ -608,7 +608,7 @@ test "query captures_from_cst preserves expression id and constant captures" {
   guard cst_matches[0].get("value") is Some(Single(value)) else {
     fail("expected expression capture")
   }
-  assert_true(value.kind is @untyped_cst.Expr_Apply)
+  assert_true(value.kind is Expr_Apply)
   guard cst_matches[0].get("literal") is Some(Single(literal)) else {
     fail("expected literal capture")
   }
@@ -627,7 +627,7 @@ test "query captures_from_cst prunes nested expressions after an outer match" {
   guard matches[0].get("value") is Some(Single(value)) else {
     fail("expected value capture")
   }
-  assert_true(value.kind is @untyped_cst.Expr_Apply)
+  assert_true(value.kind is Expr_Apply)
 }
 
 ///|
@@ -762,7 +762,7 @@ test "query ellipsis covers parameter pattern and type lists" {
   }
   assert_eq(patterns.length(), 3)
   for pattern in patterns {
-    assert_true(pattern.kind is @untyped_cst.ArrayPattern_Pattern)
+    assert_true(pattern.kind is ArrayPattern_Pattern)
   }
 
   let type_query = ExprQuery::ExprQuery(

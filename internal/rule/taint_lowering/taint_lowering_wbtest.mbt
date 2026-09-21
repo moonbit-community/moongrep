@@ -66,13 +66,13 @@ test "taint lowering preserves internal source and sink ids" {
     observed_spec,
   )
   assert_eq(result.findings.length(), 1)
-  assert_eq(result.findings[0].sink_id, @taint.SinkId::PatternIndex(0))
+  assert_eq(result.findings[0].sink_id, PatternIndex(0))
   debug_inspect(
     sink_origins.map(origins => origins.map(origin => origin.origin_id)),
     content="[[\"source:0\"]]",
   )
   assert_eq(sink_origins[0][0].rule_id, rule.rule_id)
-  guard sink_origins[0][0].site is @taint.ValueSite::CallResult(callee, loc) else {
+  guard sink_origins[0][0].site is CallResult(callee, loc) else {
     fail("expected call-result source")
   }
   debug_inspect(callee, content="Some(\"get_user_input\")")

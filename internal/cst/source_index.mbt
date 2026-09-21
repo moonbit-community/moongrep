@@ -95,7 +95,7 @@ fn is_source_index_child(
   }
   // Split type and constructor captures use the raw names, even when the parser
   // also provides their combined semantic_name.
-  if parent.kind is @untyped_cst.Pattern_Constr && label == Some("name") {
+  if parent.kind is Pattern_Constr && label == Some("name") {
     return true
   }
   let semantics : Array[(String?, @untyped_cst.CstNode)] = []
@@ -134,13 +134,13 @@ pub fn SourceIndex::new(root : @untyped_cst.CstNode) -> SourceIndex {
       }
       let child_id = self.add_node(child)
       if label == Some("body") &&
-        child.kind is @untyped_cst.Expr_Block &&
+        child.kind is Expr_Block &&
         self.nodes[id].node.kind
-        is (@untyped_cst.Impl_Function
-        | @untyped_cst.Impl_Test
-        | @untyped_cst.Expr_Function
-        | @untyped_cst.Expr_LetFn
-        | @untyped_cst.Binding_LetRec) {
+        is (Impl_Function
+        | Impl_Test
+        | Expr_Function
+        | Expr_LetFn
+        | Binding_LetRec) {
         self.nodes[child_id].function_body = true
       }
       self.nodes[id].children.push((label, child_id))
@@ -262,7 +262,7 @@ fn SourceIndex::slice(
 /// Target conversion is determined by the source's role, including function bodies.
 pub fn SourceIndex::target(self : SourceIndex, id : NodeId) -> RegionId {
   let node = self.nodes[id]
-  if node.node.kind is @untyped_cst.Expression || node.function_body {
+  if node.node.kind is Expression || node.function_body {
     if node.sequence is Some(list) {
       return self.slice(list, 0, self.sequences[list].nodes.length())
     }
