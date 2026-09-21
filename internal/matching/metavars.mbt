@@ -356,3 +356,15 @@ pub fn EllipsisMetavarKind::syntax_name(self : EllipsisMetavarKind) -> String {
     TypeItem => "type"
   }
 }
+
+///|
+pub extend EllipsisMetavarKind with Eq::{not_equal, equal}
+
+///|
+pub extend MetavarKind with Eq::{not_equal, equal}
+
+///|
+pub extend MetavarRegistration with Eq::{not_equal, equal}
+
+///|
+pub extend MetavarSyntax with Eq::{not_equal, equal}

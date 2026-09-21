@@ -515,3 +515,12 @@ pub fn parse_cli_command(
     _ => raise new_usage_error("missing required command")
   }
 }
+
+///|
+pub extend CliDiagnostic with Debug::{to_repr}
+
+///|
+pub extend CliError with Debug::{to_repr}
+
+///|
+pub extend CliError with Show::{to_string, output}

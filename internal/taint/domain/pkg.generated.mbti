@@ -18,26 +18,41 @@ pub(all) enum PathSegment {
   ConstIndex(String)
   AnyIndex
 } derive(Eq, @debug.Debug)
+pub fn PathSegment::equal(Self, Self) -> Bool
+pub fn PathSegment::not_equal(Self, Self) -> Bool
+pub fn PathSegment::to_repr(Self) -> @debug.Repr
 
 pub(all) struct RelativeTaint {
   path : Array[PathSegment]
   origins : Array[TaintOrigin]
 } derive(Eq, @debug.Debug)
+pub fn RelativeTaint::equal(Self, Self) -> Bool
+pub fn RelativeTaint::not_equal(Self, Self) -> Bool
+pub fn RelativeTaint::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SinkFinding {
   sink_id : SinkId
   sink_loc : @basic.Location
 } derive(Eq, @debug.Debug)
+pub fn SinkFinding::equal(Self, Self) -> Bool
+pub fn SinkFinding::not_equal(Self, Self) -> Bool
+pub fn SinkFinding::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SinkId {
   Named(String)
   PatternIndex(Int)
 } derive(Eq, @debug.Debug)
+pub fn SinkId::equal(Self, Self) -> Bool
+pub fn SinkId::not_equal(Self, Self) -> Bool
+pub fn SinkId::to_repr(Self) -> @debug.Repr
 
 pub(all) struct StoragePath {
   root : String
   segments : Array[PathSegment]
 } derive(Eq, @debug.Debug)
+pub fn StoragePath::equal(Self, Self) -> Bool
+pub fn StoragePath::not_equal(Self, Self) -> Bool
+pub fn StoragePath::to_repr(Self) -> @debug.Repr
 
 pub(all) struct TaintOrigin {
   rule_id : String
@@ -45,6 +60,9 @@ pub(all) struct TaintOrigin {
   site : ValueSite
   note : String?
 } derive(Eq, @debug.Debug)
+pub fn TaintOrigin::equal(Self, Self) -> Bool
+pub fn TaintOrigin::not_equal(Self, Self) -> Bool
+pub fn TaintOrigin::to_repr(Self) -> @debug.Repr
 
 pub(all) enum ValueSite {
   Path(StoragePath)
@@ -52,6 +70,9 @@ pub(all) enum ValueSite {
   Expr(@basic.Location, String?)
   Synthetic(String)
 } derive(Eq, @debug.Debug)
+pub fn ValueSite::equal(Self, Self) -> Bool
+pub fn ValueSite::not_equal(Self, Self) -> Bool
+pub fn ValueSite::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 pub type TaintTree = Array[RelativeTaint]

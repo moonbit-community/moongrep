@@ -16,6 +16,9 @@ pub(all) suberror RuleLoadError {
   InvalidPattern(path~ : String, shape~ : String, info~ : String)
   InvalidRule(path~ : String, info~ : String)
 } derive(@debug.Debug)
+pub fn RuleLoadError::output(Self, &Logger) -> Unit
+pub fn RuleLoadError::to_repr(Self) -> @debug.Repr
+pub fn RuleLoadError::to_string(Self) -> String
 pub impl Show for RuleLoadError
 
 // Types and methods

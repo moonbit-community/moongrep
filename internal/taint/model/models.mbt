@@ -100,3 +100,39 @@ pub(all) struct TaintSpec {
   max_fixpoint_iterations : Int
   custom_transfer_call : (CallInfo) -> CallTransfer?
 }
+
+///|
+pub extend CallTransfer with Eq::{not_equal, equal}
+
+///|
+pub extend CallTransfer with Debug::{to_repr}
+
+///|
+pub extend UnknownCallPolicy with Eq::{not_equal, equal}
+
+///|
+pub extend UnknownCallPolicy with Debug::{to_repr}
+
+///|
+pub extend SourceModel with Eq::{not_equal, equal}
+
+///|
+pub extend SourceModel with Debug::{to_repr}
+
+///|
+pub extend CallMatcher with Eq::{not_equal, equal}
+
+///|
+pub extend CallMatcher with Debug::{to_repr}
+
+///|
+pub extend CallModel with Eq::{not_equal, equal}
+
+///|
+pub extend CallModel with Debug::{to_repr}
+
+///|
+pub extend CallEffect with Eq::{not_equal, equal}
+
+///|
+pub extend CallEffect with Debug::{to_repr}

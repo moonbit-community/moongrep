@@ -86,11 +86,21 @@ pub(all) enum IdentifierBinding {
   Lexical(Int?)
   NonLexical
 } derive(Eq, Hash, @debug.Debug)
+pub fn IdentifierBinding::equal(Self, Self) -> Bool
+pub fn IdentifierBinding::hash(Self) -> Int
+pub fn IdentifierBinding::hash_combine(Self, Hasher) -> Unit
+pub fn IdentifierBinding::not_equal(Self, Self) -> Bool
+pub fn IdentifierBinding::to_repr(Self) -> @debug.Repr
 
 pub(all) struct IdentifierSource {
   name : String
   binding : IdentifierBinding
 } derive(Eq, Hash, @debug.Debug)
+pub fn IdentifierSource::equal(Self, Self) -> Bool
+pub fn IdentifierSource::hash(Self) -> Int
+pub fn IdentifierSource::hash_combine(Self, Hasher) -> Unit
+pub fn IdentifierSource::not_equal(Self, Self) -> Bool
+pub fn IdentifierSource::to_repr(Self) -> @debug.Repr
 
 pub(all) enum NodeVisitAction {
   NodeVisitContinue
@@ -127,6 +137,10 @@ pub(all) enum SourceStep {
   Finish(Int)
   AfterContinue(Int, Int)
 } derive(Eq, Hash)
+pub fn SourceStep::equal(Self, Self) -> Bool
+pub fn SourceStep::hash(Self) -> Int
+pub fn SourceStep::hash_combine(Self, Hasher) -> Unit
+pub fn SourceStep::not_equal(Self, Self) -> Bool
 
 // Type aliases
 pub type BindingId = Int

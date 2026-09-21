@@ -33,6 +33,9 @@ pub(all) enum CallEffect {
   ReportSinkArg(@domain.SinkId, Int)
   ReportSinkReceiver(@domain.SinkId)
 } derive(Eq, @debug.Debug)
+pub fn CallEffect::equal(Self, Self) -> Bool
+pub fn CallEffect::not_equal(Self, Self) -> Bool
+pub fn CallEffect::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CallInfo {
   kind : CallKind
@@ -52,28 +55,43 @@ pub(all) enum CallKind {
   Pipe
   RevPipe
 } derive(Eq, @debug.Debug)
+pub fn CallKind::equal(Self, Self) -> Bool
+pub fn CallKind::not_equal(Self, Self) -> Bool
+pub fn CallKind::to_repr(Self) -> @debug.Repr
 
 pub(all) enum CallMatcher {
   CalleeName(String)
   MethodName(String)
   AnyCall
 } derive(Eq, @debug.Debug)
+pub fn CallMatcher::equal(Self, Self) -> Bool
+pub fn CallMatcher::not_equal(Self, Self) -> Bool
+pub fn CallMatcher::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CallModel {
   matcher : CallMatcher
   effects : Array[CallEffect]
 } derive(Eq, @debug.Debug)
+pub fn CallModel::equal(Self, Self) -> Bool
+pub fn CallModel::not_equal(Self, Self) -> Bool
+pub fn CallModel::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CallTransfer {
   return_taint : Array[@domain.RelativeTaint]
   killed_paths : Array[@domain.StoragePath]
   findings : Array[@domain.SinkFinding]
 } derive(Eq, @debug.Debug)
+pub fn CallTransfer::equal(Self, Self) -> Bool
+pub fn CallTransfer::not_equal(Self, Self) -> Bool
+pub fn CallTransfer::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SourceModel {
   EntryPath(@domain.StoragePath, String, String?)
   CallReturn(CallMatcher, String, String?, Array[@domain.PathSegment])
 } derive(Eq, @debug.Debug)
+pub fn SourceModel::equal(Self, Self) -> Bool
+pub fn SourceModel::not_equal(Self, Self) -> Bool
+pub fn SourceModel::to_repr(Self) -> @debug.Repr
 
 pub(all) struct TaintSpec {
   rule_id : String
@@ -88,6 +106,9 @@ pub(all) enum UnknownCallPolicy {
   NoEffect
   PropagateArgumentsToReturn
 } derive(Eq, @debug.Debug)
+pub fn UnknownCallPolicy::equal(Self, Self) -> Bool
+pub fn UnknownCallPolicy::not_equal(Self, Self) -> Bool
+pub fn UnknownCallPolicy::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 

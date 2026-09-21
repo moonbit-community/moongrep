@@ -72,3 +72,21 @@ pub fn SourceIndex::identifier_source(
   }
   Some({ name, binding, })
 }
+
+///|
+pub extend IdentifierBinding with Eq::{not_equal, equal}
+
+///|
+pub extend IdentifierBinding with Hash::{hash, hash_combine}
+
+///|
+pub extend IdentifierBinding with Debug::{to_repr}
+
+///|
+pub extend IdentifierSource with Eq::{not_equal, equal}
+
+///|
+pub extend IdentifierSource with Hash::{hash, hash_combine}
+
+///|
+pub extend IdentifierSource with Debug::{to_repr}

@@ -39,6 +39,8 @@ pub(all) enum EllipsisMetavarKind {
   PatItem
   TypeItem
 } derive(Eq)
+pub fn EllipsisMetavarKind::equal(Self, Self) -> Bool
+pub fn EllipsisMetavarKind::not_equal(Self, Self) -> Bool
 pub fn EllipsisMetavarKind::syntax_name(Self) -> String
 
 pub(all) struct ExprMatch {
@@ -50,6 +52,11 @@ pub(all) enum IdentifierCaptureSource {
   SingleIdentifier(@cst.IdentifierSource)
   MultipleIdentifiers(Array[@cst.IdentifierSource])
 } derive(Eq, Hash, @debug.Debug)
+pub fn IdentifierCaptureSource::equal(Self, Self) -> Bool
+pub fn IdentifierCaptureSource::hash(Self) -> Int
+pub fn IdentifierCaptureSource::hash_combine(Self, Hasher) -> Unit
+pub fn IdentifierCaptureSource::not_equal(Self, Self) -> Bool
+pub fn IdentifierCaptureSource::to_repr(Self) -> @debug.Repr
 
 pub(all) struct IgnoredPatternField {
   parent_kind : @untyped_cst.NodeKind
@@ -76,6 +83,8 @@ pub(all) enum MetavarKind {
   Pattern
   Ellipsis(EllipsisMetavarKind)
 } derive(Eq)
+pub fn MetavarKind::equal(Self, Self) -> Bool
+pub fn MetavarKind::not_equal(Self, Self) -> Bool
 pub fn MetavarKind::syntax_name(Self) -> String
 
 pub(all) enum MetavarRegistration {
@@ -83,6 +92,8 @@ pub(all) enum MetavarRegistration {
   AlreadyRegistered
   RegistrationConflict(MetavarKind)
 } derive(Eq)
+pub fn MetavarRegistration::equal(Self, Self) -> Bool
+pub fn MetavarRegistration::not_equal(Self, Self) -> Bool
 
 pub(all) struct MetavarRegistry {
   entries : Array[MetavarEntry]
@@ -108,6 +119,8 @@ pub(all) enum MetavarSyntax {
   EllipsisSyntax(String, EllipsisMetavarKind?)
   Wildcard
 } derive(Eq)
+pub fn MetavarSyntax::equal(Self, Self) -> Bool
+pub fn MetavarSyntax::not_equal(Self, Self) -> Bool
 
 pub(all) enum ResolvedMetavar {
   ResolvedWildcard(MetavarKind?)

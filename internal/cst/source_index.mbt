@@ -359,3 +359,9 @@ fn SourceIndex::finish(self : SourceIndex, cursor : CursorId) -> CursorId {
     self.intern_step(Finish(cursor))
   }
 }
+
+///|
+pub extend SourceStep with Eq::{not_equal, equal}
+
+///|
+pub extend SourceStep with Hash::{hash, hash_combine}

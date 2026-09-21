@@ -19,3 +19,15 @@ pub(all) struct StoragePath {
   root : String
   segments : Array[PathSegment]
 } derive(Eq, Debug)
+
+///|
+pub extend PathSegment with Eq::{not_equal, equal}
+
+///|
+pub extend PathSegment with Debug::{to_repr}
+
+///|
+pub extend StoragePath with Eq::{not_equal, equal}
+
+///|
+pub extend StoragePath with Debug::{to_repr}
