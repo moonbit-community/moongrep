@@ -8,8 +8,7 @@ pub(all) struct AttributeInfo {
 
 ///|
 pub fn attribute_info(node : @untyped_cst.CstNode) -> AttributeInfo? {
-  guard node.kind
-    is (Attribute_Simple | Attribute_Qualified) else {
+  guard node.kind is (Attribute_Simple | Attribute_Qualified) else {
     return None
   }
   let qualifier = raw_child(node, "qualifier").bind(string_payload)

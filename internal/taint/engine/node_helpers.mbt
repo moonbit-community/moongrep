@@ -10,8 +10,7 @@ fn node_child(
       return @cst.child(node, "lhs").bind(lhs => @cst.child(lhs, "index"))
     (Expr_ArraySet | Expr_ArrayAugmentedSet, "value") =>
       return @cst.child(node, "rhs")
-    (Expr_RecordUpdate, "record") =>
-      return record_update_base(node)
+    (Expr_RecordUpdate, "record") => return record_update_base(node)
     _ => ()
   }
   let actual = match (node.kind, name) {
@@ -27,8 +26,7 @@ fn node_child(
     (Expr_While, "while_else") => "else"
     (Expr_ForEach, "else_block") => "else"
     (Expr_Guard, "otherwise") => "else"
-    (Expr_ArrayGet | Expr_ArrayGetSlice, "array") =>
-      "self"
+    (Expr_ArrayGet | Expr_ArrayGetSlice, "array") => "self"
     (Expr_ArrayGetSlice, "start_index") => "start"
     (Expr_ArrayGetSlice, "end_index") => "end"
     (Expr_Return, "return_value") => "expr"
@@ -92,9 +90,7 @@ fn node_child_items(
       } else {
         []
       }
-    (Expr_Tuple, "exprs")
-    | (Expr_Record, "fields")
-    | (Expr_Map, "elems") =>
+    (Expr_Tuple, "exprs") | (Expr_Record, "fields") | (Expr_Map, "elems") =>
       if @cst.raw_child(node, "body") is Some(list) {
         node_items(list)
       } else {

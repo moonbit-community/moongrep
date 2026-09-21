@@ -173,7 +173,9 @@ test "query captures metavars in bytes interpolation" {
 
 ///|
 test "query captures metavars in nested string interpolation" {
-  let query = @query.ExprQuery::ExprQuery("\"outer \\{\"inner \\{$(value:exp)}\"}\"")
+  let query = @query.ExprQuery::ExprQuery(
+    "\"outer \\{\"inner \\{$(value:exp)}\"}\"",
+  )
   let source =
     #|fn sample {
     #|  "outer \{"inner \{name}"}";
@@ -266,7 +268,9 @@ test "query requires a complete let mut continuation when one exists" {
     .length(),
     0,
   )
-  let complete = @query.ExprQuery::ExprQuery("let mut $value = $initial; sink($value)")
+  let complete = @query.ExprQuery::ExprQuery(
+    "let mut $value = $initial; sink($value)",
+  )
   assert_eq(
     complete
     .captures(
@@ -346,10 +350,9 @@ test "query terminal ignore placeholder matches complete continuations" {
     #|  wrapper({ let value = load(); use(value); finish(value) })
     #|}
     #|
-  let captures = @query.ExprQuery::ExprQuery("wrapper({ let value = load(); $_ })").captures(
-    source_name="sample.mbt",
-    source,
-  )
+  let captures = @query.ExprQuery::ExprQuery(
+    "wrapper({ let value = load(); $_ })",
+  ).captures(source_name="sample.mbt", source)
   assert_eq(captures.length(), 3)
   for capture in captures {
     assert_true(capture.get("$_") is None)
@@ -657,7 +660,9 @@ test "query captures zero one and many sibling arguments with ellipsis" {
 
 ///|
 test "query ellipsis uses global left-to-right lazy backtracking" {
-  let query = @query.ExprQuery::ExprQuery("f($$$left, marker, $$$right, marker)")
+  let query = @query.ExprQuery::ExprQuery(
+    "f($$$left, marker, $$$right, marker)",
+  )
   let matches = query.captures(
     source_name="sample.mbt",
     "fn sample { f(a, marker, b, marker) }",
@@ -735,7 +740,9 @@ test "query anonymous ellipsis does not create a binding" {
 
 ///|
 test "query ellipsis covers parameter pattern and type lists" {
-  let parameter_query = @query.ExprQuery::ExprQuery("fn($$$(params:id)) { body }")
+  let parameter_query = @query.ExprQuery::ExprQuery(
+    "fn($$$(params:id)) { body }",
+  )
   let parameter_matches = parameter_query.captures(
     source_name="sample.mbt",
     "fn sample { let f = fn(a, b : Int, c? : String) { body } }",

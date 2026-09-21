@@ -47,8 +47,7 @@ fn add_lex_scan_pattern_bound_roots(
 ) -> Unit {
   match
     @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
-    Some(LexScanCasePattern_Binder) =>
-      add_binder_root_name(roots, pattern)
+    Some(LexScanCasePattern_Binder) => add_binder_root_name(roots, pattern)
     Some(LexScanCasePattern_Pattern) =>
       add_regex_pattern_bound_roots(roots, pattern)
     Some(LexScanCasePattern_Wildcard) => ()
@@ -64,8 +63,7 @@ fn bind_lex_scan_pattern(
 ) -> TaintState {
   let pattern_state = match
     @cst.raw_child(pattern, "lex_scan_case_pattern").map(item => item.kind) {
-    Some(LexScanCasePattern_Binder) =>
-      bind_binder(pattern, value, state)
+    Some(LexScanCasePattern_Binder) => bind_binder(pattern, value, state)
     Some(LexScanCasePattern_Pattern) =>
       bind_regex_pattern(pattern, value, state)
     Some(LexScanCasePattern_Wildcard) => state

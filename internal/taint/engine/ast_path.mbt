@@ -165,10 +165,8 @@ fn storage_path_from_expr(expr : @untyped_cst.CstNode) -> StoragePath? {
 ///|
 fn segment_from_accessor(accessor : @untyped_cst.CstNode) -> PathSegment? {
   match accessor.kind {
-    Accessor_Label =>
-      @cst.normalized_name(accessor).map(label => Field(label))
-    Accessor_Index =>
-      @cst.int_payload(accessor).map(index => TupleIndex(index))
+    Accessor_Label => @cst.normalized_name(accessor).map(label => Field(label))
+    Accessor_Index => @cst.int_payload(accessor).map(index => TupleIndex(index))
     Accessor_Newtype => None
     _ => None
   }
@@ -206,8 +204,7 @@ fn constant_integer_text(expr : @untyped_cst.CstNode) -> String? {
   guard expr.kind is Expr_Constant else { return None }
   guard @cst.constant(expr) is Some(constant) else { return None }
   match constant.kind {
-    Constant_Int | Constant_UInt =>
-      @cst.string_payload(constant)
+    Constant_Int | Constant_UInt => @cst.string_payload(constant)
     _ => None
   }
 }

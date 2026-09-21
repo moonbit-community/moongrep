@@ -352,10 +352,7 @@ fn eval_unknown_expr(
       } else {
         normal_result(state, [])
       }
-    Expr_As
-    | Expr_TryOperator
-    | Expr_ProofAssert
-    | Expr_TemplateWriting =>
+    Expr_As | Expr_TryOperator | Expr_ProofAssert | Expr_TemplateWriting =>
       if node_child(expr, "expr") is Some(inner) {
         eval_expr(inner, state, spec, findings)
       } else if node_child(expr, "body") is Some(body) {

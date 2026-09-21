@@ -105,8 +105,7 @@ fn compiled_pattern_root_key(pattern : CompiledRulePattern) -> ExprRootKey? {
 
 ///|
 fn compiled_pattern_matches_sequence(pattern : CompiledRulePattern) -> Bool {
-  pattern.compiled.cst.kind
-  is (Expression | Expr_Let | Expr_Guard)
+  pattern.compiled.cst.kind is (Expression | Expr_Let | Expr_Guard)
 }
 
 ///|

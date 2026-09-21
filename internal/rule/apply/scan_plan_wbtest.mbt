@@ -309,10 +309,7 @@ fn expect_invalid_taint_sink_id(
   sink_count : Int,
 ) -> Unit raise {
   try sink_pattern_index(sink_id, sink_count) catch {
-    InvalidTaintSinkId(
-      sink_id=actual_sink_id,
-      sink_count=actual_sink_count
-    ) => {
+    InvalidTaintSinkId(sink_id=actual_sink_id, sink_count=actual_sink_count) => {
       assert_eq(actual_sink_id, sink_id)
       assert_eq(actual_sink_count, sink_count)
     }

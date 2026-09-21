@@ -28,9 +28,12 @@ fn valid_taint_rule_source() -> String {
 ///|
 fn expect_invalid_rule_info(source : String, expected : String) -> Unit raise {
   try
-    @model.RawRuleSpec::from_str("/tmp/rules/example.yaml", "/tmp/rules", source)
+    @model.RawRuleSpec::from_str(
+      "/tmp/rules/example.yaml", "/tmp/rules", source,
+    )
   catch {
-    @model.RuleLoadError::InvalidRule(path=_, info~) => inspect(info, content=expected)
+    @model.RuleLoadError::InvalidRule(path=_, info~) =>
+      inspect(info, content=expected)
     _ => fail("expected RuleLoadError")
   } noraise {
     _ => fail("expected invalid rule")
@@ -257,7 +260,11 @@ test "model rejects Windows rule paths outside drive or UNC roots" {
     for item in cases {
       let (path, rules_root) = item
       try
-        @model.RawRuleSpec::from_str(path, rules_root, valid_structural_rule_source())
+        @model.RawRuleSpec::from_str(
+          path,
+          rules_root,
+          valid_structural_rule_source(),
+        )
       catch {
         @model.RuleLoadError::InvalidRule(path=actual, info~) => {
           inspect(actual, content=path)

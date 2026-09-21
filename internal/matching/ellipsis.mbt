@@ -62,10 +62,8 @@ fn ellipsis_candidate_matches(
   }
   match pattern_item.kind {
     Expr_Ident => matching_ellipsis_expr_kind(candidate_item, kind)
-    Argument_Positional =>
-      matching_ellipsis_argument_kind(candidate_item, kind)
-    Pattern_Var =>
-      matching_ellipsis_pattern_kind(candidate_item, kind)
+    Argument_Positional => matching_ellipsis_argument_kind(candidate_item, kind)
+    Pattern_Var => matching_ellipsis_pattern_kind(candidate_item, kind)
     ArrayPattern_Pattern =>
       matching_ellipsis_array_pattern_kind(candidate_item, kind)
     Type_Name => kind == TypeItem && is_type_node(candidate_item)
@@ -126,9 +124,7 @@ fn matching_ellipsis_array_pattern_kind(
   candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
-  guard candidate.kind is ArrayPattern_Pattern else {
-    return false
-  }
+  guard candidate.kind is ArrayPattern_Pattern else { return false }
   if first_pattern_child(candidate) is Some(pattern) {
     matching_ellipsis_pattern_kind(pattern, kind)
   } else {
@@ -141,9 +137,7 @@ fn matching_ellipsis_array_element_kind(
   candidate : @untyped_cst.CstNode,
   kind : EllipsisMetavarKind,
 ) -> Bool {
-  guard candidate.kind is ArrayElement_Regular else {
-    return false
-  }
+  guard candidate.kind is ArrayElement_Regular else { return false }
   if @cst.raw_child(candidate, "expr") is Some(expr) {
     matching_ellipsis_expr_kind(expr, kind)
   } else {

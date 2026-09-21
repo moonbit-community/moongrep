@@ -20,10 +20,16 @@ test "taint facade exposes the complete public API" {
     site: sites[0],
     note: Some("note"),
   }
-  let relative : @taint.RelativeTaint = { path: [Field("value")], origins: [origin], }
+  let relative : @taint.RelativeTaint = {
+    path: [Field("value")],
+    origins: [origin],
+  }
   let tree : @taint.TaintTree = [relative]
   let sink_ids : Array[@taint.SinkId] = [Named("sink"), PatternIndex(1)]
-  let finding : @taint.SinkFinding = { sink_id: sink_ids[0], sink_loc: node.loc, }
+  let finding : @taint.SinkFinding = {
+    sink_id: sink_ids[0],
+    sink_loc: node.loc,
+  }
   let kinds : Array[@taint.CallKind] = [Apply, DotApply, Pipe, RevPipe]
   let argument : @taint.CallArgument = {
     index: 0,
@@ -190,7 +196,9 @@ test "taint_tree_origins deduplicates stably across entries" {
     { path: [], origins: [first, second], },
     { path: [Field("nested")], origins: [first, same_id_different_origin], },
   ]
-  assert_eq(@taint.taint_tree_origins(tree), [first, second, same_id_different_origin])
+  assert_eq(@taint.taint_tree_origins(tree), [
+    first, second, same_id_different_origin,
+  ])
 }
 
 ///|
@@ -1508,7 +1516,9 @@ test "taint engine fails instead of returning a partial loop result" {
     ],
   )
   let limited_spec : @taint.TaintSpec = { ..spec, max_fixpoint_iterations: 2, }
-  try @taint.analyze_function_like(parse_single_impl(source), limited_spec) catch {
+  try
+    @taint.analyze_function_like(parse_single_impl(source), limited_spec)
+  catch {
     @taint.TaintAnalysisError::FixpointDidNotConverge(
       rule_id~,
       loop_kind~,

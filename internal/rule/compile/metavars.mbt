@@ -410,8 +410,7 @@ fn ellipsis_container_is_grouping_list(
   let parent = path[index - 1]
   match parent.kind {
     Expr_Group | Type_Group => true
-    Pattern_Tuple =>
-      @cst.raw_child(parent, "pattern_group") is Some(_)
+    Pattern_Tuple => @cst.raw_child(parent, "pattern_group") is Some(_)
     _ => false
   }
 }
@@ -421,18 +420,16 @@ fn ellipsis_slot_for_container(
   kind : @untyped_cst.NodeKind,
 ) -> EllipsisItemSlot? {
   match kind {
-    Expression | List_BlockStatementList =>
-      Some(EllipsisExprSlot)
+    Expression | List_BlockStatementList => Some(EllipsisExprSlot)
     List_ArgumentList => Some(EllipsisArgumentSlot)
     List_TuplePatternList => Some(EllipsisPatternSlot)
     List_ConstructorPatternArgumentList =>
       Some(EllipsisConstrPatternArgumentSlot)
     List_ArrayPatternList => Some(EllipsisArrayPatternSlot)
     List_TupleElementList => Some(EllipsisExprSlot)
-    List_TupleTypeList | List_TypeArgumentList =>
-      Some(EllipsisTypeSlot)
-    List_ParameterList
-    | List_TraitMethodParameterList => Some(EllipsisParameterSlot)
+    List_TupleTypeList | List_TypeArgumentList => Some(EllipsisTypeSlot)
+    List_ParameterList | List_TraitMethodParameterList =>
+      Some(EllipsisParameterSlot)
     List_ArrayElementList => Some(EllipsisSpreadableExprSlot)
     _ => None
   }

@@ -95,16 +95,14 @@ fn append_syntax_semantics(
   match syntax.kind {
     Syntax_Attribute =>
       for entry in syntax.children {
-        if entry.1.kind
-          is (Attribute_Simple | Attribute_Qualified) {
+        if entry.1.kind is (Attribute_Simple | Attribute_Qualified) {
           result.push((outer_label, entry.1))
         }
       }
     Syntax_Interpolation =>
       for entry in syntax.children {
         match entry.1.kind {
-          InterpSegment_Literal
-          | InterpSegment_Source =>
+          InterpSegment_Literal | InterpSegment_Source =>
             result.push((semantic_label(entry.0), entry.1))
           _ => ()
         }
@@ -159,10 +157,7 @@ pub fn semantic_children(
     let (label, child) = entry
     if label == Some("doc") ||
       is_location_label(label) ||
-      (
-        node.kind is InterpSegment_Source &&
-        label == Some("payload")
-      ) ||
+      (node.kind is InterpSegment_Source && label == Some("payload")) ||
       is_pure_punctuation_kind(child.kind) {
       continue
     }
@@ -274,9 +269,7 @@ pub fn int_payload(node : @untyped_cst.CstNode) -> Int? {
 
 ///|
 pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
-  guard node.kind is (LongIdent_Ident | LongIdent_Dot) else {
-    return None
-  }
+  guard node.kind is (LongIdent_Ident | LongIdent_Dot) else { return None }
   let components = raw_children(node, "component")
   guard !components.is_empty() else { return None }
   let groups : Array[String] = []
@@ -301,8 +294,7 @@ pub fn normalized_long_ident(node : @untyped_cst.CstNode) -> String? {
 
 ///|
 fn normalized_constructor_identity(node : @untyped_cst.CstNode) -> String? {
-  if node.kind is Expr_Constr &&
-    raw_child(node, "type") is Some(type_name) {
+  if node.kind is Expr_Constr && raw_child(node, "type") is Some(type_name) {
     guard normalized_constructor_identity(type_name) is Some(prefix) else {
       return None
     }
@@ -318,11 +310,8 @@ fn normalized_constructor_identity(node : @untyped_cst.CstNode) -> String? {
 ///|
 pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
   match node.kind {
-    Expr_Constr | Pattern_Constr =>
-      normalized_constructor_identity(node)
-    Syntax_Identifier
-    | Syntax_Label
-    | Syntax_Accessor =>
+    Expr_Constr | Pattern_Constr => normalized_constructor_identity(node)
+    Syntax_Identifier | Syntax_Label | Syntax_Accessor =>
       if string_payload(node) is Some(value) {
         Some(value)
       } else {
@@ -344,8 +333,7 @@ pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
     | Operator_UnaryMinus
     | Operator_UnaryNot
     | Accessor_Label => string_payload(node)
-    LongIdent_Ident | LongIdent_Dot =>
-      normalized_long_ident(node)
+    LongIdent_Ident | LongIdent_Dot => normalized_long_ident(node)
     Name_Binder
     | Name_Label
     | Name_Type
@@ -435,8 +423,7 @@ pub fn argument_label_name(node : @untyped_cst.CstNode) -> String? {
     Argument_Labelled
     | Argument_LabelledPun
     | Argument_LabelledOption
-    | Argument_LabelledOptionPun =>
-      name_node(node).bind(normalized_name)
+    | Argument_LabelledOptionPun => name_node(node).bind(normalized_name)
     _ => None
   }
 }

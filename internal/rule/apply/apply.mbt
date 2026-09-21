@@ -155,8 +155,7 @@ fn sink_pattern_index(
   sink_count : Int,
 ) -> Int raise RuleApplyError {
   match sink_id {
-    PatternIndex(index) if index >= 0 && index < sink_count =>
-      index
+    PatternIndex(index) if index >= 0 && index < sink_count => index
     _ => raise InvalidTaintSinkId(sink_id~, sink_count~)
   }
 }

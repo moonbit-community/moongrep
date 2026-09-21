@@ -55,7 +55,8 @@ test "shared metavar syntax parses bare typed qualified and wildcard forms" {
     @matching.parse_metavar_syntax("$(value:const)") == Typed("value", Constant),
   )
   assert_true(
-    @matching.parse_metavar_syntax("@pkg.$(callee:id)") == Typed("callee", Identifier),
+    @matching.parse_metavar_syntax("@pkg.$(callee:id)") ==
+    Typed("callee", Identifier),
   )
   assert_true(@matching.parse_metavar_syntax("$_") == Wildcard)
   assert_true(@matching.parse_metavar_syntax("ordinary") == NotMetavar)
@@ -67,14 +68,19 @@ test "shared metavar syntax parses bare typed qualified and wildcard forms" {
 
 ///|
 test "shared metavar syntax preserves ellipsis constraints" {
-  assert_true(@matching.parse_metavar_syntax("$$$items") == EllipsisSyntax("items", None))
-  assert_true(@matching.parse_metavar_syntax("$$$_") == EllipsisSyntax("_", None))
+  assert_true(
+    @matching.parse_metavar_syntax("$$$items") == EllipsisSyntax("items", None),
+  )
+  assert_true(
+    @matching.parse_metavar_syntax("$$$_") == EllipsisSyntax("_", None),
+  )
   assert_true(
     @matching.parse_metavar_syntax("$$$(items:arg)") ==
     EllipsisSyntax("items", Some(ArgItem)),
   )
   assert_true(
-    @matching.parse_metavar_syntax("$$$(_:const)") == EllipsisSyntax("_", Some(ConstItem)),
+    @matching.parse_metavar_syntax("$$$(_:const)") ==
+    EllipsisSyntax("_", Some(ConstItem)),
   )
   assert_true(
     @matching.parse_metavar_syntax("@pkg.$$$(items:type)") ==
@@ -86,9 +92,12 @@ test "shared metavar syntax preserves ellipsis constraints" {
 test "shared metavar syntax rejects qualified wildcard forms" {
   assert_true(@matching.parse_metavar_syntax("@pkg.$_") == InvalidMetavar)
   assert_true(@matching.parse_metavar_syntax("Type::$_") == InvalidMetavar)
-  assert_true(@matching.parse_metavar_syntax("@pkg.$$$_") == InvalidEllipsisMetavar)
   assert_true(
-    @matching.parse_metavar_syntax("Type::$$$(_:const)") == InvalidEllipsisMetavar,
+    @matching.parse_metavar_syntax("@pkg.$$$_") == InvalidEllipsisMetavar,
+  )
+  assert_true(
+    @matching.parse_metavar_syntax("Type::$$$(_:const)") ==
+    InvalidEllipsisMetavar,
   )
 }
 

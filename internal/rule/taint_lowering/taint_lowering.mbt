@@ -79,10 +79,7 @@ fn transfer_compiled_taint_call(
         is Some(target) {
         let origins = @taint.taint_tree_origins(target.taint)
         if origins.length() > 0 {
-          findings.push({
-            sink_id: PatternIndex(index),
-            sink_loc: target.loc,
-          })
+          findings.push({ sink_id: PatternIndex(index), sink_loc: target.loc, })
         }
       }
     }

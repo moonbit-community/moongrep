@@ -17,8 +17,7 @@ impl Hash for SemanticValue with fn hash_combine(self, hasher) {
       match payload {
         String(value) => hasher.combine_string(value)
         Int(value) => hasher.combine_int(value)
-        Bool(value) =>
-          hasher.combine_int(if value { 1 } else { 0 })
+        Bool(value) => hasher.combine_int(if value { 1 } else { 0 })
       }
     }
     // NodeKind has Eq but no Hash. Equal child lists may collide across kinds;

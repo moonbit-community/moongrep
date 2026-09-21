@@ -94,8 +94,7 @@ fn SourceIndex::function_body_cursor(
   self
   .raw(id, "body")
   .map(body => {
-    if self.node(body).kind.is_expr() ||
-      self.node(body).kind is Expression {
+    if self.node(body).kind.is_expr() || self.node(body).kind is Expression {
       self.scan(self.target(body))
     } else {
       self.node_roots(body)
@@ -174,8 +173,7 @@ fn SourceIndex::case_cursor(
 ) -> CursorId {
   let cases : Array[NodeId] = []
   for list in self.raw_all(id, label) {
-    if self.node(list).kind
-      is (Case_MatchCase | Case_LexScanCase) {
+    if self.node(list).kind is (Case_MatchCase | Case_LexScanCase) {
       cases.push(list)
     } else {
       cases.append(self.raw_all(list, "case"))
@@ -317,9 +315,7 @@ fn SourceIndex::direct_children(
       for label in ["cond", "body", "else"] {
         pieces.push(self.named_cursor(id, label))
       }
-    Expr_For
-    | Expr_ForEach
-    | Expr_ListComprehension => {
+    Expr_For | Expr_ForEach | Expr_ListComprehension => {
       if self.raw(id, "pattern") is Some(_) {
         pieces.push(self.named_cursor(id, "expr"))
       }
@@ -337,9 +333,7 @@ fn SourceIndex::direct_children(
         pieces.push(self.named_cursor(id, "where"))
       }
     }
-    Expr_Match
-    | Expr_LexMatch
-    | Expr_LexScan => {
+    Expr_Match | Expr_LexMatch | Expr_LexScan => {
       pieces.push(self.named_cursor(id, "expr"))
       pieces.push(self.case_cursor(id, "case"))
     }

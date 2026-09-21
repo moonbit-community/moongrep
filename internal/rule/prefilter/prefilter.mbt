@@ -208,8 +208,7 @@ fn collect_node_literals(
     return
   }
   match node.kind {
-    InterpSegment_Literal
-    | MultilineStringElement_String =>
+    InterpSegment_Literal | MultilineStringElement_String =>
       if @cst.string_payload(node) is Some(value) {
         push_literal(literals, value)
       }

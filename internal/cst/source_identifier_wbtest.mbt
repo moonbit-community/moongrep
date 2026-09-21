@@ -33,16 +33,8 @@ test "identifier origins distinguish declarations from their incoming scope" {
     "fn sample(item : Int) { let item = item; if input is Some(item) { sink(item) } else { sink(item) } }",
   )
   let index = SourceIndex::new(root)
-  let binders = indexed_names(
-    index,
-    kind => kind is Name_Binder,
-    "item",
-  )
-  let references = indexed_names(
-    index,
-    kind => kind is Name_Var,
-    "item",
-  )
+  let binders = indexed_names(index, kind => kind is Name_Binder, "item")
+  let references = indexed_names(index, kind => kind is Name_Var, "item")
   assert_eq(binders.length(), 3)
   assert_eq(references.length(), 3)
   let origins = binders.map(node => {
@@ -67,16 +59,8 @@ test "enumview parameters retain their binding across nested block shadowing" {
     "enumview ValueView { Value(Int) } for Int with view(item) { sink(item); { let item = source(); sink(item) }; Value(item) }",
   )
   let index = SourceIndex::new(root)
-  let binders = indexed_names(
-    index,
-    kind => kind is Name_Binder,
-    "item",
-  )
-  let references = indexed_names(
-    index,
-    kind => kind is Name_Var,
-    "item",
-  )
+  let binders = indexed_names(index, kind => kind is Name_Binder, "item")
+  let references = indexed_names(index, kind => kind is Name_Var, "item")
   assert_eq(binders.length(), 2)
   assert_eq(references.length(), 3)
   let origins = binders.map(node => {
@@ -109,8 +93,7 @@ test "field label constructor and type names are not lexical references" {
       assert_eq(index.identifier_source(node).unwrap().binding, NonLexical)
     }
   }
-  for
-    node in indexed_names(index, kind => kind is Name_Var, "item") {
+  for node in indexed_names(index, kind => kind is Name_Var, "item") {
     assert_true(
       index.identifier_source(node).unwrap().binding is Lexical(Some(_)),
     )
@@ -123,11 +106,7 @@ test "free references retain an unbound origin before later declarations" {
     "fn sample { sink(item); let item = source(); sink(item) }",
   )
   let index = SourceIndex::new(root)
-  let references = indexed_names(
-    index,
-    kind => kind is Name_Var,
-    "item",
-  )
+  let references = indexed_names(index, kind => kind is Name_Var, "item")
   assert_eq(references.length(), 2)
   debug_inspect(
     index.identifier_source(references[0]).unwrap().binding,
@@ -145,10 +124,7 @@ fn check_wrapped_binder_source(body : String) -> Unit raise {
   )
   let index = SourceIndex::new(root)
   let owners = index.nodes.filter_map(entry => {
-    if entry.node.kind
-      is (Pattern_Alias
-      | RegexPattern_Alias
-      | Expr_Quantifier) {
+    if entry.node.kind is (Pattern_Alias | RegexPattern_Alias | Expr_Quantifier) {
       Some(entry.node)
     } else {
       None
@@ -161,16 +137,8 @@ fn check_wrapped_binder_source(body : String) -> Unit raise {
   assert_eq(origin.binding, Lexical(Some(index.node_id(owner))))
   assert_eq(index.identifier_source(semantic), Some(origin))
   assert_true(index.node_id(syntax) != index.node_id(semantic))
-  let binders = indexed_names(
-    index,
-    kind => kind is Name_Binder,
-    "item",
-  )
-  let references = indexed_names(
-    index,
-    kind => kind is Name_Var,
-    "item",
-  )
+  let binders = indexed_names(index, kind => kind is Name_Binder, "item")
+  let references = indexed_names(index, kind => kind is Name_Var, "item")
   assert_eq(binders.length(), 2)
   assert_eq(
     references.map(node => index.identifier_source(node).unwrap().binding),
@@ -217,16 +185,8 @@ test "assignment targets resolve at the assignment occurrence" {
       "fn sample { item \{operator} 0; let mut item = 1; item \{operator} 2; { let mut item = 3; item \{operator} 4 }; item \{operator} 5; object.item \{operator} 6 }",
     )
     let index = SourceIndex::new(root)
-    let binders = indexed_names(
-      index,
-      kind => kind is Name_Binder,
-      "item",
-    )
-    let references = indexed_names(
-      index,
-      kind => kind is Name_Var,
-      "item",
-    )
+    let binders = indexed_names(index, kind => kind is Name_Binder, "item")
+    let references = indexed_names(index, kind => kind is Name_Var, "item")
     assert_eq(binders.length(), 2)
     let outer = index.identifier_source(binders[0]).unwrap().binding
     let inner = index.identifier_source(binders[1]).unwrap().binding
@@ -235,11 +195,7 @@ test "assignment targets resolve at the assignment occurrence" {
       references.map(node => index.identifier_source(node).unwrap().binding),
       [Lexical(None), outer, inner, outer],
     )
-    let fields = indexed_names(
-      index,
-      kind => kind is Accessor_Label,
-      "item",
-    )
+    let fields = indexed_names(index, kind => kind is Accessor_Label, "item")
     assert_eq(fields.length(), 1)
     assert_eq(index.identifier_source(fields[0]).unwrap().binding, NonLexical)
   }
@@ -256,16 +212,8 @@ test "parameter defaults see preceding parameters and bodies see all parameters"
     ] {
     let index = SourceIndex::new(parse_identifier_source(source))
     for (name, count) in [("item", 2), ("next", 2), ("last", 1)] {
-      let binders = indexed_names(
-        index,
-        kind => kind is Name_Binder,
-        name,
-      )
-      let references = indexed_names(
-        index,
-        kind => kind is Name_Var,
-        name,
-      )
+      let binders = indexed_names(index, kind => kind is Name_Binder, name)
+      let references = indexed_names(index, kind => kind is Name_Var, name)
       assert_eq(binders.length(), 1)
       assert_eq(references.length(), count)
       let binding = index.identifier_source(binders[0]).unwrap().binding
@@ -286,16 +234,8 @@ test "current and later parameters do not shadow outer bindings in defaults" {
   )
   for
     (name, expected) in [("item", [0, 1, 1]), ("later", [0, 1]), ("first", [0])] {
-    let binders = indexed_names(
-      index,
-      kind => kind is Name_Binder,
-      name,
-    )
-    let references = indexed_names(
-      index,
-      kind => kind is Name_Var,
-      name,
-    )
+    let binders = indexed_names(index, kind => kind is Name_Binder, name)
+    let references = indexed_names(index, kind => kind is Name_Var, name)
     let bindings = binders.map(node => {
       index.identifier_source(node).unwrap().binding
     })
@@ -342,11 +282,7 @@ test "for update names retain init bindings across condition and body shadowing"
     let origin = index.identifier_source(name).unwrap()
     assert_eq(origin.binding, origins[1 - position])
   }
-  let binders = indexed_names(
-    index,
-    kind => kind is Name_Binder,
-    "i",
-  )
+  let binders = indexed_names(index, kind => kind is Name_Binder, "i")
   assert_eq(binders.length(), 4)
   let condition = index.identifier_source(binders[1]).unwrap().binding
   let body_binding = index.identifier_source(binders[3]).unwrap().binding
@@ -355,20 +291,12 @@ test "for update names retain init bindings across condition and body shadowing"
     body_binding != condition &&
     body_binding != origins[0],
   )
-  let references = indexed_names(
-    index,
-    kind => kind is Name_Var,
-    "i",
-  )
+  let references = indexed_names(index, kind => kind is Name_Var, "i")
   assert_true(
     references.map(node => index.identifier_source(node).unwrap().binding) ==
     [origins[0], condition, condition, body_binding],
   )
-  let j_references = indexed_names(
-    index,
-    kind => kind is Name_Var,
-    "j",
-  )
+  let j_references = indexed_names(index, kind => kind is Name_Var, "j")
   assert_true(
     j_references.map(node => index.identifier_source(node).unwrap().binding) ==
     [origins[1], origins[1]],

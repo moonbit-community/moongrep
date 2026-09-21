@@ -210,10 +210,8 @@ fn SourceIndex::after_statement(
   id : NodeId,
 ) -> ScopeId {
   match self.node(id).kind {
-    Expr_Let | Expr_LetMut =>
-      self.bind_pattern(scope, self.raw(id, "pattern"))
-    Expr_LetFn | Expr_ProofLet =>
-      self.bind_named(scope, id)
+    Expr_Let | Expr_LetMut => self.bind_pattern(scope, self.raw(id, "pattern"))
+    Expr_LetFn | Expr_ProofLet => self.bind_named(scope, id)
     Expr_LetAnd => self.bind_recursive(scope, id)
     Expr_Guard => self.bind_condition(scope, self.raw(id, "cond"))
     _ => scope
@@ -237,11 +235,7 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
         }
       Expr_Is | Expr_RegexMatch =>
         ignore(self.bind_pattern(scope, self.raw(id, "pattern")))
-      Impl_Function
-      | Impl_Test
-      | Expr_Function
-      | Expr_LetFn
-      | Binding_LetRec => {
+      Impl_Function | Impl_Test | Expr_Function | Expr_LetFn | Binding_LetRec => {
         let named = if node.kind is Expr_LetFn {
           self.bind_named(scope, id)
         } else {
@@ -253,15 +247,12 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
       Impl_EnumView =>
         // The body field contains constructors; the view function is in expr.
         overrides["expr"] = self.bind_list(scope, self.raw(id, "params"))
-      Expr_LetAnd =>
-        overrides["binding"] = self.bind_recursive(scope, id)
+      Expr_LetAnd => overrides["binding"] = self.bind_recursive(scope, id)
       Expr_Infix if operator_name(node) == Some("&&") =>
         overrides["rhs"] = self.bind_condition(scope, self.raw(id, "lhs"))
       Expr_If | Expr_While =>
         overrides["body"] = self.bind_condition(scope, self.raw(id, "cond"))
-      Expr_For
-      | Expr_ForEach
-      | Expr_ListComprehension => {
+      Expr_For | Expr_ForEach | Expr_ListComprehension => {
         self.mark_for_updates(id)
         let loop_scope = self.bind_list(
           self.bind_pattern(scope, self.raw(id, "pattern")),
@@ -295,15 +286,10 @@ fn SourceIndex::index_scopes(self : SourceIndex, root : NodeId) -> Unit {
     let mut current = scope
     for (label, child) in self.nodes[id].children {
       let statement = (
-          node.kind is Expression &&
-          self.node(child).kind.is_expr()
+          node.kind is Expression && self.node(child).kind.is_expr()
         ) ||
-        (
-          node.kind is List_BlockStatementList &&
-          label == Some("item")
-        )
-      let parameter = node.kind is List_ParameterList &&
-        label == Some("item")
+        (node.kind is List_BlockStatementList && label == Some("item"))
+      let parameter = node.kind is List_ParameterList && label == Some("item")
       let child_scope = if statement || parameter {
         current
       } else {
