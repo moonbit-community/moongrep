@@ -263,3 +263,9 @@ pub(all) struct CompiledRule {
   definition : CompiledRuleDefinition
   prefilter : RulePrefilter
 }
+
+///|
+pub extend RuleLoadError with Debug::{to_repr}
+
+///|
+pub extend RuleLoadError with Show::{to_string, output}

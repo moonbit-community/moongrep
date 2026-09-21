@@ -17,6 +17,7 @@ pub suberror TaintAnalysisError {
   UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)
   FixpointDidNotConverge(rule_id~ : String, loop_kind~ : String, loc~ : @basic.Location, budget~ : Int)
 } derive(@debug.Debug)
+pub fn TaintAnalysisError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
 pub(all) struct AnalysisResult {

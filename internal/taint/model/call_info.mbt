@@ -53,3 +53,9 @@ pub fn CallInfo::argument_at(self : CallInfo, index : Int) -> CallArgument? {
   }
   None
 }
+
+///|
+pub extend CallKind with Eq::{not_equal, equal}
+
+///|
+pub extend CallKind with Debug::{to_repr}

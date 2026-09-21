@@ -33,8 +33,11 @@ pub(all) suberror CliError {
 } derive(@debug.Debug)
 pub fn CliError::exit_code(Self) -> Int
 pub fn CliError::internal(String) -> Self
+pub fn CliError::output(Self, &Logger) -> Unit
 pub fn CliError::output_error(String, String) -> Self
 pub fn CliError::render_json(Self) -> String
+pub fn CliError::to_repr(Self) -> @debug.Repr
+pub fn CliError::to_string(Self) -> String
 pub impl Show for CliError
 
 // Types and methods
@@ -51,6 +54,7 @@ pub(all) enum CliDiagnostic {
   Fields(summary~ : String, source~ : String?, reason~ : String?, help~ : String?, pattern~ : String?)
   ParserMessage(message~ : String)
 } derive(@debug.Debug)
+pub fn CliDiagnostic::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CliOptions {
   rules_root : String?

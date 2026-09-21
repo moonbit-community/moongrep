@@ -74,3 +74,33 @@ pub(all) struct SinkFinding {
   sink_id : SinkId
   sink_loc : @basic.Location
 } derive(Eq, Debug)
+
+///|
+pub extend ValueSite with Eq::{not_equal, equal}
+
+///|
+pub extend ValueSite with Debug::{to_repr}
+
+///|
+pub extend TaintOrigin with Eq::{not_equal, equal}
+
+///|
+pub extend TaintOrigin with Debug::{to_repr}
+
+///|
+pub extend RelativeTaint with Eq::{not_equal, equal}
+
+///|
+pub extend RelativeTaint with Debug::{to_repr}
+
+///|
+pub extend SinkId with Eq::{not_equal, equal}
+
+///|
+pub extend SinkId with Debug::{to_repr}
+
+///|
+pub extend SinkFinding with Eq::{not_equal, equal}
+
+///|
+pub extend SinkFinding with Debug::{to_repr}

@@ -57,6 +57,15 @@ fn MatchContext::accept_source(
 }
 
 ///|
+pub extend IdentifierCaptureSource with Eq::{not_equal, equal}
+
+///|
+pub extend IdentifierCaptureSource with Hash::{hash, hash_combine}
+
+///|
+pub extend IdentifierCaptureSource with Debug::{to_repr}
+
+///|
 fn bind_identifier(
   bindings : MatchContext,
   name : String,

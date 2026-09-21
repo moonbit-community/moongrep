@@ -19,3 +19,6 @@ pub suberror TaintAnalysisError {
 pub(all) struct AnalysisResult {
   findings : Array[SinkFinding]
 }
+
+///|
+pub extend TaintAnalysisError with Debug::{to_repr}
