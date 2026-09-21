@@ -3,7 +3,7 @@ using @model {type CompiledRule, type RuleLoadError}
 
 ///|
 fn compile_one(source : String) -> Array[CompiledRule] raise {
-  compile_rules([
+  @compile.compile_rules([
     @model.RawRuleSpec::from_str(
       "/tmp/rules/example.yaml", "/tmp/rules", source,
     ),

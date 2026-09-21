@@ -28,10 +28,10 @@ fn apply_structural_test_rules(
   root_node : @untyped_cst.CstNode,
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] {
-  apply_structural_scan_plan_to_node(
+  @apply.apply_structural_scan_plan_to_node(
     file,
     root_node,
-    ScanPlan::from_rules(rules),
+    @apply.ScanPlan::from_rules(rules),
   )
 }
 
@@ -42,16 +42,16 @@ fn apply_taint_test_rules(
   rules : Array[CompiledRule],
 ) -> Array[RuleFinding] raise {
   let hits : Array[RuleFinding] = []
-  let plan = ScanPlan::from_rules(rules)
+  let plan = @apply.ScanPlan::from_rules(rules)
   if root_node.kind is Impls {
     for node in @cst.toplevel_nodes(root_node) {
-      let node_hits = apply_taint_scan_plan_to_node(file, node, plan)
+      let node_hits = @apply.apply_taint_scan_plan_to_node(file, node, plan)
       for hit in node_hits {
         hits.push(hit)
       }
     }
   } else {
-    let node_hits = apply_taint_scan_plan_to_node(file, root_node, plan)
+    let node_hits = @apply.apply_taint_scan_plan_to_node(file, root_node, plan)
     for hit in node_hits {
       hits.push(hit)
     }

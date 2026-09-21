@@ -28,9 +28,9 @@ fn valid_taint_rule_source() -> String {
 ///|
 fn expect_invalid_rule_info(source : String, expected : String) -> Unit raise {
   try
-    RawRuleSpec::from_str("/tmp/rules/example.yaml", "/tmp/rules", source)
+    @model.RawRuleSpec::from_str("/tmp/rules/example.yaml", "/tmp/rules", source)
   catch {
-    RuleLoadError::InvalidRule(path=_, info~) => inspect(info, content=expected)
+    @model.RuleLoadError::InvalidRule(path=_, info~) => inspect(info, content=expected)
     _ => fail("expected RuleLoadError")
   } noraise {
     _ => fail("expected invalid rule")
@@ -39,7 +39,7 @@ fn expect_invalid_rule_info(source : String, expected : String) -> Unit raise {
 
 ///|
 test "model shows rule load error path and info" {
-  let error = RuleLoadError::InvalidRule(
+  let error = @model.RuleLoadError::InvalidRule(
     path="/tmp/rules/example.yaml",
     info="missing required key id",
   )
@@ -51,7 +51,7 @@ test "model shows rule load error path and info" {
 
 ///|
 test "model shows invalid pattern fields in separate blocks" {
-  let error = RuleLoadError::InvalidPattern(
+  let error = @model.RuleLoadError::InvalidPattern(
     path="/tmp/rules/example.yaml",
     shape="wrap($$$items + 1)",
     info="the pattern uses ellipsis metavar $$$items outside a complete ordered CST list item",
@@ -80,7 +80,7 @@ test "model shows invalid pattern fields in separate blocks" {
 
 ///|
 test "model shows multiline invalid pattern shape with relative indentation" {
-  let error = RuleLoadError::InvalidPattern(
+  let error = @model.RuleLoadError::InvalidPattern(
     path="rules/example.yaml",
     shape="match value {\r\n  Some(item) => item\r\n\r\n  None => 0\r\n}\r\n",
     info="the pattern is not valid",
@@ -98,14 +98,14 @@ test "model shows multiline invalid pattern shape with relative indentation" {
 
 ///|
 test "model shows an empty rule directory as a source error" {
-  let error = RuleLoadError::NoRuleFiles(path="/tmp/rules")
+  let error = @model.RuleLoadError::NoRuleFiles(path="/tmp/rules")
   inspect(error.to_string(), content="/tmp/rules: no YAML rule files found")
 }
 
 ///|
 test "model wraps YAML parser errors with the rule path" {
-  try RawRuleSpec::from_str("broken.yaml", ".", "{") catch {
-    RuleLoadError::InvalidRule(path~, info~) => {
+  try @model.RawRuleSpec::from_str("broken.yaml", ".", "{") catch {
+    @model.RuleLoadError::InvalidRule(path~, info~) => {
       inspect(path, content="broken.yaml")
       inspect(
         info,
@@ -121,7 +121,7 @@ test "model wraps YAML parser errors with the rule path" {
 
 ///|
 test "model parses structural rule and prefixes yaml id with rule directory" {
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/language/example.yaml",
     "/tmp/rules",
     valid_structural_rule_source(),
@@ -152,7 +152,7 @@ test "model preserves metavar shape text" {
     #|patterns:
     #|  - shape: $(counter:id) + $(body:exp)
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -167,7 +167,7 @@ test "model preserves metavar shape text" {
 
 ///|
 test "model derives root rule id from yaml id" {
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/from-filename.yaml",
     "/tmp/rules",
     valid_structural_rule_source(),
@@ -177,12 +177,12 @@ test "model derives root rule id from yaml id" {
 
 ///|
 test "model ignores yaml and yml file names when deriving rule id" {
-  let yaml_rule = RawRuleSpec::from_str(
+  let yaml_rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/language/first.yaml",
     "/tmp/rules",
     valid_structural_rule_source(),
   )
-  let yml_rule = RawRuleSpec::from_str(
+  let yml_rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/language/second.yml",
     "/tmp/rules",
     valid_structural_rule_source(),
@@ -193,7 +193,7 @@ test "model ignores yaml and yml file names when deriving rule id" {
 
 ///|
 test "model derives nested yml rule id from yaml id" {
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/language/ignored-file-name.yml",
     "/tmp/rules",
     valid_structural_rule_source(),
@@ -204,20 +204,20 @@ test "model derives nested yml rule id from yaml id" {
 ///|
 test "model keeps POSIX rule path prefix and dotdot semantics" {
   if @path.sep == '/' {
-    let rule = RawRuleSpec::from_str(
+    let rule = @model.RawRuleSpec::from_str(
       "/tmp/rules/nested/../outside.yaml",
       "/tmp/rules",
       valid_structural_rule_source(),
     )
     inspect(rule.rule_id, content="nested/../example")
     try
-      RawRuleSpec::from_str(
+      @model.RawRuleSpec::from_str(
         "/TMP/rules/example.yaml",
         "/tmp/rules",
         valid_structural_rule_source(),
       )
     catch {
-      RuleLoadError::InvalidRule(path=_, info~) =>
+      @model.RuleLoadError::InvalidRule(path=_, info~) =>
         inspect(info, content="rule path is outside rules root /tmp/rules")
       err => fail("unexpected error \{err}")
     } noraise {
@@ -235,11 +235,11 @@ test "model derives Windows drive and UNC rule ids with slash separators" {
       #|patterns:
       #|  - shape: target()
       #|
-    let drive_rule = RawRuleSpec::from_str(
+    let drive_rule = @model.RawRuleSpec::from_str(
       "C:\\Rules\\Nested\\rule.yaml", "c:\\rules", source,
     )
     inspect(drive_rule.rule_id, content="Nested/ExampleCase")
-    let unc_rule = RawRuleSpec::from_str(
+    let unc_rule = @model.RawRuleSpec::from_str(
       "\\\\Server\\Share\\Rules\\Deep\\rule.yml", "\\\\server\\share\\rules", source,
     )
     inspect(unc_rule.rule_id, content="Deep/ExampleCase")
@@ -257,9 +257,9 @@ test "model rejects Windows rule paths outside drive or UNC roots" {
     for item in cases {
       let (path, rules_root) = item
       try
-        RawRuleSpec::from_str(path, rules_root, valid_structural_rule_source())
+        @model.RawRuleSpec::from_str(path, rules_root, valid_structural_rule_source())
       catch {
-        RuleLoadError::InvalidRule(path=actual, info~) => {
+        @model.RuleLoadError::InvalidRule(path=actual, info~) => {
           inspect(actual, content=path)
           inspect(info, content="rule path is outside rules root \{rules_root}")
         }
@@ -273,7 +273,7 @@ test "model rejects Windows rule paths outside drive or UNC roots" {
 
 ///|
 test "model parses taint rule and defaults sanitizers to empty" {
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/taint/user-input.yaml",
     "/tmp/rules",
     valid_taint_rule_source(),
@@ -357,7 +357,7 @@ test "model parses structural pattern guard map" {
     #|      $callee: "^@html\\.render$"
     #|      $value: "danger|raw"
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -388,7 +388,7 @@ test "model parses structural patterns-not shape and guard map" {
     #|      $callee: "^allow_"
     #|      $literal: "^ok$"
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -416,7 +416,7 @@ test "model parses root positives and negatives" {
     #|patterns-not:
     #|  - shape: safe($(value:exp))
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -437,7 +437,7 @@ test "model parses then positives and negatives" {
     #|        - shape: arr[$(name:id)]
     #|      patterns-not:
     #|        - shape: $(name:id)
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -463,7 +463,7 @@ test "model parses inside toplevel shape and guard map" {
     #|patterns:
     #|  - shape: call($(param:id))
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -494,7 +494,7 @@ test "model parses explicit inside toplevel match modes" {
     #|patterns:
     #|  - shape: call()
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -587,7 +587,7 @@ test "model derives reject-uncovered-negative for inside toplevel positives and 
     #|patterns-not:
     #|  - shape: $(name:id)
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -620,7 +620,7 @@ test "model allows then with only patterns-not" {
     #|    then:
     #|      patterns-not:
     #|        - shape: block($(name:id))
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -654,7 +654,7 @@ test "model allows inside toplevel with only patterns-not" {
     #|patterns-not:
     #|  - shape: block($(name:id))
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -684,7 +684,7 @@ test "model parses then shape and guard map" {
     #|    then:
     #|      patterns:
     #|        - shape: call($(name:id))
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -794,7 +794,7 @@ test "model rejects invalid inside toplevel combinations" {
     #|inside-toplevel:
     #|  - shape: fn sample { __TARGET__ }
   ignore(
-    RawRuleSpec::from_str(
+    @model.RawRuleSpec::from_str(
       "/tmp/rules/example.yaml", "/tmp/rules", with_inside_expr,
     ),
   )
@@ -1123,7 +1123,7 @@ test "model parses ordered then alternatives" {
     #|    then:
     #|      patterns:
     #|        - shape: target()
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {
@@ -1155,7 +1155,7 @@ test "model parses ordered inside toplevel alternatives" {
     #|patterns:
     #|  - shape: target($(name:id))
     #|
-  let rule = RawRuleSpec::from_str(
+  let rule = @model.RawRuleSpec::from_str(
     "/tmp/rules/example.yaml", "/tmp/rules", source,
   )
   match rule.definition {

@@ -2,17 +2,17 @@
 test "semantic view ignores formatting and exposes payloads" {
   let compact = @untyped_cst.parse_expression("f(1, label=x)").root()
   let spaced = @untyped_cst.parse_expression("f( 1 /* c */, label = x )").root()
-  let left = expression_root(compact)
-  let right = expression_root(spaced)
+  let left = @cst.expression_root(compact)
+  let right = @cst.expression_root(spaced)
   assert_true(left.kind is Expr_Apply)
   assert_true(right.kind is Expr_Apply)
   debug_inspect(
-    normalized_expr_identifier_name(child(left, "func").unwrap()),
+    @cst.normalized_expr_identifier_name(@cst.child(left, "func").unwrap()),
     content="Some(\"f\")",
   )
-  let args = child(left, "arg").unwrap()
-  assert_eq(items(args).length(), 2)
-  debug_inspect(argument_label_name(items(args)[1]), content="Some(\"label\")")
+  let args = @cst.child(left, "arg").unwrap()
+  assert_eq(@cst.items(args).length(), 2)
+  debug_inspect(@cst.argument_label_name(@cst.items(args)[1]), content="Some(\"label\")")
 }
 
 ///|
@@ -24,11 +24,11 @@ test "interpolation semantics use the parsed expression" {
     is Some(segment) else {
     fail("expected interpolation source")
   }
-  guard semantic_children(segment) is [(Some("expr"), expr)] else {
+  guard @cst.semantic_children(segment) is [(Some("expr"), expr)] else {
     fail("expected only the parsed interpolation expression")
   }
   assert_true(expr.kind is Expr_Ident)
-  debug_inspect(string_payload(segment), content="Some(\"value\")")
+  debug_inspect(@cst.string_payload(segment), content="Some(\"value\")")
 }
 
 ///|
@@ -36,11 +36,11 @@ test "groups and structure roots are normalized" {
   let pattern = @untyped_cst.parse_expression("match x { (Some(y)) => y }").root()
   let grouped = find_first_node(pattern, fn(node) {
     node.kind is Pattern_Tuple &&
-    raw_child(node, "pattern_group") is Some(_)
+    @cst.raw_child(node, "pattern_group") is Some(_)
   }).unwrap()
-  assert_true(unwrap_groups(grouped).kind is Pattern_Constr)
+  assert_true(@cst.unwrap_groups(grouped).kind is Pattern_Constr)
   let impls = @untyped_cst.parse_structure("fn f {}\nlet x = 1").root()
-  assert_eq(toplevel_nodes(impls).length(), 2)
+  assert_eq(@cst.toplevel_nodes(impls).length(), 2)
 }
 
 ///|
@@ -58,9 +58,9 @@ test "constructor identities retain every qualifier" {
     guard parsed.diagnostics_view().is_empty() else {
       fail("expected constructor expression to parse: \{source}")
     }
-    let constructor_expr = expression_root(parsed.root())
+    let constructor_expr = @cst.expression_root(parsed.root())
     assert_true(constructor_expr.kind is Expr_Constr)
-    assert_eq(normalized_name(constructor_expr), Some(expected))
+    assert_eq(@cst.normalized_name(constructor_expr), Some(expected))
   }
   let pattern = @untyped_cst.parse_expression(
     "match input { @pkg.Type::@other.Ctor(value) => value }",
@@ -72,7 +72,7 @@ test "constructor identities retain every qualifier" {
     fail("expected constructor pattern")
   }
   assert_eq(
-    normalized_name(constructor_pattern),
+    @cst.normalized_name(constructor_pattern),
     Some("@pkg.Type::@other.Ctor"),
   )
 }
@@ -80,8 +80,8 @@ test "constructor identities retain every qualifier" {
 ///|
 test "qualified attributes expose metadata" {
   let root = @untyped_cst.parse_structure("#moongrep.skip\nfn f {}").root()
-  let item = toplevel_nodes(root)[0]
-  guard attributes(item) is [attribute] else { fail("expected one attribute") }
+  let item = @cst.toplevel_nodes(root)[0]
+  guard @cst.attributes(item) is [attribute] else { fail("expected one attribute") }
   assert_eq(attribute.qualifier, Some("moongrep"))
   assert_eq(attribute.name, "skip")
   assert_eq(attribute.raw_payload, "")
@@ -97,8 +97,8 @@ test "top-level and nested docstrings remain trivia" {
     "///| BBB\nfn same {}",
     name="same-doc-location",
   )
-  guard toplevel_nodes(first.root()) is [first_node] &&
-    toplevel_nodes(second.root()) is [second_node] else {
+  guard @cst.toplevel_nodes(first.root()) is [first_node] &&
+    @cst.toplevel_nodes(second.root()) is [second_node] else {
     fail("expected functions")
   }
   assert_true(
@@ -110,13 +110,13 @@ test "top-level and nested docstrings remain trivia" {
   assert_false(semantic_tree_has_doc_trivia(first.root()))
   assert_false(semantic_tree_has_doc_trivia(second.root()))
   assert_eq(
-    semantic_children(first_node).length(),
-    semantic_children(second_node).length(),
+    @cst.semantic_children(first_node).length(),
+    @cst.semantic_children(second_node).length(),
   )
   let nested = @untyped_cst.parse_structure(
     "struct Sample {\n  /// field docs\n  value : Int\n}",
   )
-  guard toplevel_nodes(nested.root()) is [struct_node] else {
+  guard @cst.toplevel_nodes(nested.root()) is [struct_node] else {
     fail("expected struct")
   }
   assert_true(
@@ -130,7 +130,7 @@ test "top-level and nested docstrings remain trivia" {
 
 ///|
 fn semantic_tree_has_doc_trivia(node : @untyped_cst.CstNode) -> Bool {
-  for entry in semantic_children(node) {
+  for entry in @cst.semantic_children(node) {
     let (label, child) = entry
     if label == Some("doc") || child.kind is Syntax_Comment {
       return true

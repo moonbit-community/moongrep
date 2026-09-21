@@ -5,9 +5,9 @@ fn then_hits(rule : String, source : String) -> Array[@model.RuleFinding] raise 
   )
   let full_source = "fn sample {\n" + source + "\n}"
   let node = parse_root_node(full_source)
-  let plan = ScanPlan::from_rules(rules)
-  let hits = apply_structural_scan_plan_to_node("sample.mbt", node, plan)
-  let filtered = apply_structural_scan_plan_to_node(
+  let plan = @apply.ScanPlan::from_rules(rules)
+  let hits = @apply.apply_structural_scan_plan_to_node("sample.mbt", node, plan)
+  let filtered = @apply.apply_structural_scan_plan_to_node(
     "sample.mbt",
     node,
     plan.filter_source(full_source),

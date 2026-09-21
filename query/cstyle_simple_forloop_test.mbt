@@ -18,12 +18,12 @@ test "query can emulate cstyle forward simple forloop patterns-not by iterating 
     #|for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
     #|  $(body:exp)
     #|}
-  let captures = ExprQuery::ExprQuery(pattern).captures(
+  let captures = @query.ExprQuery::ExprQuery(pattern).captures(
     source_name="sample.mbt",
     source,
   )
   assert_eq(captures.length(), 3)
-  let filtered_capture_maps : Array[Map[String, BoundValue]] = []
+  let filtered_capture_maps : Array[Map[String, @query.BoundValue]] = []
   for capture in captures {
     if capture.get("counter") is Some(Single(counter_node)) &&
       @cst.normalized_name(counter_node) is Some(counter_name) &&

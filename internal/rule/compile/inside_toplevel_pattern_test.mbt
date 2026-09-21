@@ -27,7 +27,7 @@ fn compile_inside_toplevel_pattern_through_rule(
 fn direct_inside_toplevel_pattern_error(
   shape : String,
 ) -> (String, String, String) raise {
-  try ignore(compile_inside_toplevel_pattern(shape)) catch {
+  try ignore(@compile.compile_inside_toplevel_pattern(shape)) catch {
     @model.RuleLoadError::InvalidPattern(path~, shape=error_shape, info~) =>
       (path, error_shape, info)
     _ => fail("expected InvalidPattern from direct compilation")
@@ -49,7 +49,7 @@ fn rule_inside_toplevel_pattern_error_info(shape : String) -> String raise {
 ///|
 test "compile_inside_toplevel_pattern matches one default rule entry" {
   let shape = "fn $(name:id) { __TARGET__ }"
-  let direct = compile_inside_toplevel_pattern(shape)
+  let direct = @compile.compile_inside_toplevel_pattern(shape)
   let through_rule = compile_inside_toplevel_pattern_through_rule(shape)
   assert_eq(direct.cst.kind, through_rule.cst.kind)
   assert_eq(

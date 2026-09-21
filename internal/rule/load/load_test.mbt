@@ -14,7 +14,7 @@ async test "load single rule file derives rule id from yaml id" {
   } else {
     "testdata/recursive-rule-discovery-rules/nested/b.yml"
   }
-  let rule = load_rule(rule_file)
+  let rule = @load.load_rule(rule_file)
   inspect(rule.rule_id, content="example")
   inspect(
     rule.path,
@@ -31,7 +31,7 @@ async test "load rule directory normalizes traversal paths and keeps slash ids" 
   } else {
     "testdata/recursive-rule-discovery-rules"
   }
-  let rules = load_rules(rules_root)
+  let rules = @load.load_rules(rules_root)
   let ids : Array[String] = []
   let paths : Array[String] = []
   for rule in rules {
@@ -63,7 +63,7 @@ async test "load rule directory skips a symlink cycle" {
   )
   let cycle_path = @path.Path::join(rules_root, "again").to_string()
   @fs.symlink(cycle_path, target=@fs.realpath(rules_root))
-  let rules = load_rules(rules_root)
+  let rules = @load.load_rules(rules_root)
   guard rules is [rule] else { fail("expected exactly one loaded rule") }
   inspect(rule.rule_id, content="example")
   assert_eq(rule.path, rule_path)

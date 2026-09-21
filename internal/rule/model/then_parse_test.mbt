@@ -29,13 +29,13 @@ test "then is only a positive structural entry field" {
       "taint: {sources: [{shape: source(), then: {patterns: [{shape: target()}]}}], sinks: [{shape: 'sink(__SOURCE__)'}]}",
     ] {
     try
-      RawRuleSpec::from_str(
+      @model.RawRuleSpec::from_str(
         "/tmp/example.yaml",
         "/tmp",
         "id: example\ndescription: Example.\n" + source,
       )
     catch {
-      RuleLoadError::InvalidRule(info~, ..) =>
+      @model.RuleLoadError::InvalidRule(info~, ..) =>
         assert_true(info.contains("unsupported key then"))
       err => fail("unexpected error: \{err}")
     } noraise {

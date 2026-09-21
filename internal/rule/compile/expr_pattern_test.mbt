@@ -8,7 +8,7 @@ fn compile_expr_pattern_through_rule(
     $|patterns:
     $|  - shape: \{shape}
     $|
-  let rules = compile_rules([
+  let rules = @compile.compile_rules([
     @model.RawRuleSpec::from_str(
       "/tmp/rules/anonymous.yaml", "/tmp/rules", source,
     ),
@@ -39,7 +39,7 @@ fn expr_pattern_test_candidate(source : String) -> @untyped_cst.CstNode raise {
 
 ///|
 fn direct_expr_pattern_error(shape : String) -> (String, String, String) raise {
-  try ignore(compile_expr_pattern(shape)) catch {
+  try ignore(@compile.compile_expr_pattern(shape)) catch {
     @model.RuleLoadError::InvalidPattern(path~, shape=error_shape, info~) =>
       (path, error_shape, info)
     _ => fail("expected InvalidPattern from direct compilation")
@@ -61,7 +61,7 @@ fn rule_expr_pattern_error_info(shape : String) -> String raise {
 ///|
 test "compile_expr_pattern matches one raw rule pattern" {
   let shape = "sink($(value:exp), $(name:id), $(literal:const))"
-  let direct = compile_expr_pattern(shape)
+  let direct = @compile.compile_expr_pattern(shape)
   let through_rule = compile_expr_pattern_through_rule(shape)
   assert_eq(direct.cst.kind, through_rule.cst.kind)
   assert_eq(
