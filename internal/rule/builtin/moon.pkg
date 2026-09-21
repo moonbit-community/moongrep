@@ -1,5 +1,5 @@
 import {
-  "moonbit-community/moongrep/internal/rule/internal/rules/moonbitlang" @moonbitlang_rules,
+  "moonbit-community/moongrep/internal/rule/lintrules/moonbitlang" @moonbitlang_rules,
   "moonbit-community/moongrep/internal/rule/model",
 }
 
