@@ -254,9 +254,7 @@ fn match_split_pattern_constructor_identity(
     }
   }
   guard has_identifier_placeholder else { return None }
-  guard candidate.kind is Pattern_Constr else {
-    return Some(false)
-  }
+  guard candidate.kind is Pattern_Constr else { return Some(false) }
   let candidate_names = @cst.raw_children(candidate, "name")
   guard pattern_names.length() == candidate_names.length() else {
     return Some(false)
@@ -302,9 +300,7 @@ fn match_constructor_identity_placeholder(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool? {
-  guard pattern.kind is (Expr_Constr | Pattern_Constr) else {
-    return None
-  }
+  guard pattern.kind is (Expr_Constr | Pattern_Constr) else { return None }
   guard @cst.raw_child(pattern, "type") is None else { return None }
   guard @cst.normalized_name(pattern) is Some(pattern_name) else { return None }
   guard metavariable_qualified_prefix(pattern_name) is None else { return None }
@@ -492,21 +488,16 @@ fn match_expression_container(
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool {
-  if pattern.kind is Expr_Block &&
-    !(candidate.kind is Expr_Block) {
+  if pattern.kind is Expr_Block && !(candidate.kind is Expr_Block) {
     return false
   }
-  if pattern.kind is Expr_Sequence &&
-    !(candidate.kind is Expr_Sequence) {
+  if pattern.kind is Expr_Sequence && !(candidate.kind is Expr_Sequence) {
     return false
   }
   let pattern_items = sequence_items(pattern)
   let candidate_items = sequence_items(candidate)
   if candidate_items is [] {
-    if candidate.kind
-      is (Expression
-      | Expr_Block
-      | Expr_Sequence) {
+    if candidate.kind is (Expression | Expr_Block | Expr_Sequence) {
       return pattern_items.is_empty()
     }
     return pattern_items is [single] &&
@@ -552,9 +543,8 @@ fn match_expression_container(
 fn sequence_items(node : @untyped_cst.CstNode) -> Array[@untyped_cst.CstNode] {
   match node.kind {
     Expression => @cst.expression_nodes(node)
-    Expr_Block
-    | Expr_Sequence
-    | List_BlockStatementList => @cst.sequence_items(node)
+    Expr_Block | Expr_Sequence | List_BlockStatementList =>
+      @cst.sequence_items(node)
     _ => []
   }
 }
@@ -581,8 +571,7 @@ fn structural_match(
     return false
   }
   match (pattern.kind, candidate.kind) {
-    (Leaf(_), Leaf(_)) =>
-      pattern.kind == candidate.kind
+    (Leaf(_), Leaf(_)) => pattern.kind == candidate.kind
     _ =>
       match_children(
         pattern.kind,

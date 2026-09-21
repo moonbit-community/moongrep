@@ -186,19 +186,13 @@ test "function bodies are sequences while nested blocks stay direct" {
     fail("expected function body sequence")
   }
   assert_eq(body.length(), 2)
-  assert_eq(
-    direct_candidate_count(plain, kind => kind is Expr_Block),
-    0,
-  )
+  assert_eq(direct_candidate_count(plain, kind => kind is Expr_Block), 0)
   let nested : Array[TestScopedCandidate] = []
   collect_scoped_expr_match_candidate_roots_for_test(
     parse_scoped_structure("fn sample { { first(); second() } }"),
     nested,
   )
-  assert_eq(
-    direct_candidate_count(nested, kind => kind is Expr_Block),
-    1,
-  )
+  assert_eq(direct_candidate_count(nested, kind => kind is Expr_Block), 1)
   let mut nested_sequence_count = 0
   for item in nested {
     if item.candidate is Sequence(items) && items.length() == 2 {
@@ -216,24 +210,14 @@ test "continuation owners expose suffixes instead of header-only candidates" {
     parse_scoped_structure(source),
     candidates,
   )
+  assert_eq(direct_candidate_count(candidates, kind => kind is Expr_LetMut), 0)
+  assert_eq(direct_candidate_count(candidates, kind => kind is Expr_Defer), 0)
   assert_eq(
-    direct_candidate_count(candidates, kind => kind is Expr_LetMut),
+    direct_candidate_count(candidates, kind => kind is Expr_ErrDefer),
     0,
   )
   assert_eq(
-    direct_candidate_count(candidates, kind => kind is Expr_Defer),
-    0,
-  )
-  assert_eq(
-    direct_candidate_count(candidates, kind => {
-      kind is Expr_ErrDefer
-    }),
-    0,
-  )
-  assert_eq(
-    direct_candidate_count(candidates, kind => {
-      kind is Expr_ProofLet
-    }),
+    direct_candidate_count(candidates, kind => kind is Expr_ProofLet),
     1,
   )
   let mut let_suffix = false
@@ -241,10 +225,8 @@ test "continuation owners expose suffixes instead of header-only candidates" {
   let mut errdefer_suffix = false
   for item in candidates {
     match item.candidate {
-      Sequence([first, ..]) if first.kind is Expr_LetMut =>
-        let_suffix = true
-      Sequence([first, ..]) if first.kind is Expr_Defer =>
-        defer_suffix = true
+      Sequence([first, ..]) if first.kind is Expr_LetMut => let_suffix = true
+      Sequence([first, ..]) if first.kind is Expr_Defer => defer_suffix = true
       Sequence([first, ..]) if first.kind is Expr_ErrDefer =>
         errdefer_suffix = true
       _ => ()

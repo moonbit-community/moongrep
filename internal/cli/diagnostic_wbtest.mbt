@@ -249,10 +249,7 @@ test "rule pattern diagnostics keep source and shape separate" {
   )
   let shape = "$(name:id)()"
   let anonymous_error = new_compiled_rule_error(
-    InvalidRule(
-      path=shape,
-      info="patterns[0].guard.$name has invalid regex",
-    ),
+    InvalidRule(path=shape, info="patterns[0].guard.$name has invalid regex"),
     [{ shape, guards: Map([]), match_mode: Default, }],
   )
   inspect(

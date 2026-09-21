@@ -35,16 +35,8 @@ test "explicit regex binders share semantic declaration identity across shadowin
         let name = raw_child(binding, label_field).unwrap()
         assert_eq(index.identifier_source(name).unwrap().binding, NonLexical)
       }
-      let binders = indexed_names(
-        index,
-        kind => kind is Name_Binder,
-        "item",
-      )
-      let references = indexed_names(
-        index,
-        kind => kind is Name_Var,
-        "item",
-      )
+      let binders = indexed_names(index, kind => kind is Name_Binder, "item")
+      let references = indexed_names(index, kind => kind is Name_Var, "item")
       assert_eq(binders.length(), 3)
       let outer = index.identifier_source(binders[0]).unwrap().binding
       let shadow = index.identifier_source(binders[2]).unwrap().binding
@@ -72,11 +64,7 @@ test "regex labels and absent or wildcard binders do not declare variables" {
       ),
     )
     for name in ["before", "after"] {
-      let references = indexed_names(
-        index,
-        kind => kind is Name_Var,
-        name,
-      )
+      let references = indexed_names(index, kind => kind is Name_Var, name)
       assert_eq(references.length(), 1)
       let reference = references[0]
       assert_eq(

@@ -12,15 +12,16 @@ test "semantic view ignores formatting and exposes payloads" {
   )
   let args = @cst.child(left, "arg").unwrap()
   assert_eq(@cst.items(args).length(), 2)
-  debug_inspect(@cst.argument_label_name(@cst.items(args)[1]), content="Some(\"label\")")
+  debug_inspect(
+    @cst.argument_label_name(@cst.items(args)[1]),
+    content="Some(\"label\")",
+  )
 }
 
 ///|
 test "interpolation semantics use the parsed expression" {
   let root = @untyped_cst.parse_expression("\"hello \\{value}\"").root()
-  guard find_first_node(root, node => {
-      node.kind is InterpSegment_Source
-    })
+  guard find_first_node(root, node => node.kind is InterpSegment_Source)
     is Some(segment) else {
     fail("expected interpolation source")
   }
@@ -65,9 +66,7 @@ test "constructor identities retain every qualifier" {
   let pattern = @untyped_cst.parse_expression(
     "match input { @pkg.Type::@other.Ctor(value) => value }",
   ).root()
-  guard find_first_node(pattern, node => {
-      node.kind is Pattern_Constr
-    })
+  guard find_first_node(pattern, node => node.kind is Pattern_Constr)
     is Some(constructor_pattern) else {
     fail("expected constructor pattern")
   }
@@ -81,7 +80,9 @@ test "constructor identities retain every qualifier" {
 test "qualified attributes expose metadata" {
   let root = @untyped_cst.parse_structure("#moongrep.skip\nfn f {}").root()
   let item = @cst.toplevel_nodes(root)[0]
-  guard @cst.attributes(item) is [attribute] else { fail("expected one attribute") }
+  guard @cst.attributes(item) is [attribute] else {
+    fail("expected one attribute")
+  }
   assert_eq(attribute.qualifier, Some("moongrep"))
   assert_eq(attribute.name, "skip")
   assert_eq(attribute.raw_payload, "")
@@ -102,9 +103,7 @@ test "top-level and nested docstrings remain trivia" {
     fail("expected functions")
   }
   assert_true(
-    find_first_node(first.root(), node => {
-      node.kind is Syntax_Comment
-    })
+    find_first_node(first.root(), node => node.kind is Syntax_Comment)
     is Some(_),
   )
   assert_false(semantic_tree_has_doc_trivia(first.root()))
@@ -120,10 +119,7 @@ test "top-level and nested docstrings remain trivia" {
     fail("expected struct")
   }
   assert_true(
-    find_first_node(struct_node, node => {
-      node.kind is Syntax_Comment
-    })
-    is Some(_),
+    find_first_node(struct_node, node => node.kind is Syntax_Comment) is Some(_),
   )
   assert_false(semantic_tree_has_doc_trivia(struct_node))
 }

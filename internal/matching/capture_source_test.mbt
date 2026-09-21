@@ -24,7 +24,13 @@ test "indexed typed identifier lists keep complete items and parameter origins" 
   ])
   let mut reference_sources : @matching.IdentifierCaptureSource? = None
   index.walk(index.scan(matched.target.unwrap().region), fn(region) {
-    if @matching.match_indexed_expr_pattern(call, index, region, HashMap([]), HashMap([]))
+    if @matching.match_indexed_expr_pattern(
+        call,
+        index,
+        region,
+        HashMap([]),
+        HashMap([]),
+      )
       is Some(found) {
       reference_sources = found.sources.get("names")
       return NodeVisitReturn

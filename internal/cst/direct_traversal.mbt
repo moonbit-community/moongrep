@@ -238,9 +238,7 @@ fn visit_direct_candidate_children(
         ["cond", "body", "else"],
         visitor,
       )
-    Expr_For
-    | Expr_ForEach
-    | Expr_ListComprehension => {
+    Expr_For | Expr_ForEach | Expr_ListComprehension => {
       if raw_child(expr, "pattern") is Some(_) &&
         visit_named_candidate_descendants(context, expr, "expr", visitor)
         is NodeVisitReturn {
@@ -279,9 +277,7 @@ fn visit_direct_candidate_children(
       }
       NodeVisitContinue
     }
-    Expr_Match
-    | Expr_LexMatch
-    | Expr_LexScan => {
+    Expr_Match | Expr_LexMatch | Expr_LexScan => {
       if visit_named_candidate_descendants(context, expr, "expr", visitor)
         is NodeVisitReturn {
         return NodeVisitReturn
@@ -395,8 +391,7 @@ fn visit_case_candidates(
   visitor : (ExprMatchCandidate, SequencePosition?) -> NodeVisitAction,
 ) -> NodeVisitAction {
   for list in raw_children(node, label) {
-    if list.kind
-      is (Case_MatchCase | Case_LexScanCase) {
+    if list.kind is (Case_MatchCase | Case_LexScanCase) {
       if visit_one_case_candidates(context, list, visitor) is NodeVisitReturn {
         return NodeVisitReturn
       }

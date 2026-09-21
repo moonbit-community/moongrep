@@ -279,8 +279,7 @@ fn add_array_pattern_item_bound_roots(
       }
     ArrayPattern_ConstSpread => add_binder_root_name(roots, item)
     Pattern_Rest => add_binder_root_name(roots, item)
-    ArrayPattern_BytesSpread
-    | ArrayPattern_StringSpread => ()
+    ArrayPattern_BytesSpread | ArrayPattern_StringSpread => ()
     _ => ()
   }
 }
@@ -374,8 +373,7 @@ fn bind_pattern(
       let mut after_rest = false
       let mut positional_index = 0
       for item in items {
-        let segment : PathSegment = if after_rest ||
-          item.kind is Pattern_Rest {
+        let segment : PathSegment = if after_rest || item.kind is Pattern_Rest {
           AnyIndex
         } else {
           ConstIndex(positional_index.to_string())
@@ -435,8 +433,7 @@ fn bind_array_pattern_item(
       }
     ArrayPattern_ConstSpread | Pattern_Rest =>
       bind_binder(item, tree_project_for_binding(value, segment), state)
-    ArrayPattern_BytesSpread
-    | ArrayPattern_StringSpread => state
+    ArrayPattern_BytesSpread | ArrayPattern_StringSpread => state
     _ => state
   }
 }
