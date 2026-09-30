@@ -103,7 +103,7 @@ test "top-level and nested docstrings remain trivia" {
     fail("expected functions")
   }
   assert_true(
-    find_first_node(first.root(), node => node.kind is Syntax_Comment)
+    find_first_node(first.root(), node => node.kind is Syntax_Token(TK_COMMENT))
     is Some(_),
   )
   assert_false(semantic_tree_has_doc_trivia(first.root()))
@@ -119,7 +119,8 @@ test "top-level and nested docstrings remain trivia" {
     fail("expected struct")
   }
   assert_true(
-    find_first_node(struct_node, node => node.kind is Syntax_Comment) is Some(_),
+    find_first_node(struct_node, node => node.kind is Syntax_Token(TK_COMMENT))
+    is Some(_),
   )
   assert_false(semantic_tree_has_doc_trivia(struct_node))
 }
@@ -128,7 +129,7 @@ test "top-level and nested docstrings remain trivia" {
 fn semantic_tree_has_doc_trivia(node : @untyped_cst.CstNode) -> Bool {
   for entry in @cst.semantic_children(node) {
     let (label, child) = entry
-    if label == Some("doc") || child.kind is Syntax_Comment {
+    if label == Some("doc") || child.kind is Syntax_Token(TK_COMMENT) {
       return true
     }
     if semantic_tree_has_doc_trivia(child) {
