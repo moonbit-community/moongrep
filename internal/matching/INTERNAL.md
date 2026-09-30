@@ -135,13 +135,14 @@ never enter this view.
 ## Semantic CST View
 
 The matcher does not compare raw `CstNode.children`. `@cst.semantic_children`
-removes `_loc` fields, `Aggregate_Span`, EOF, `doc` fields, `Syntax_Comment`,
-delimiters, separators, and other pure punctuation. This makes docstrings
-non-semantic at every nesting level and in every matching mode. The view expands
-semantic names, constants, operators, attributes, interpolation segments, and
-flags from parser wrappers. An interpolation source's raw payload is omitted in
-favor of its parsed expression. Redundant constructor qualification metadata is
-ignored because the normalized name already preserves that identity.
+removes `doc` fields and filters `Syntax_Token` nodes for `TK_EOF`,
+`TK_COMMENT`, delimiters, separators, and other pure punctuation. This makes
+docstrings non-semantic at every nesting level and in every matching mode. The
+view expands semantic names, constants, operators, attributes, interpolation
+segments, and flags from parser wrappers. An interpolation source's raw payload
+is omitted in favor of its parsed expression. Redundant constructor
+qualification metadata is ignored because the normalized name already preserves
+that identity.
 
 `Pattern_Group` and `Type_Group` wrappers that the previous representation
 eliminated are unwrapped. Expression blocks remain structural, except a block

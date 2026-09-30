@@ -113,8 +113,8 @@ constructor pattern 不是 identity 节点，仍要求 kind 相同并递归比�
 ## 语义 CST 视图
 
 matcher 不直接比较原始 `CstNode.children`。`@cst.semantic_children` 会移除
-`_loc` 字段、`Aggregate_Span`、EOF、`doc` 字段、`Syntax_Comment`、delimiter、
-separator 和其他纯标点。因此，任何嵌套层级、任何匹配模式都把 docstring 视为
+`doc` 字段，并过滤 `TK_EOF`、`TK_COMMENT`、delimiter、separator 和其他纯标点对应的
+`Syntax_Token` 节点。因此，任何嵌套层级、任何匹配模式都把 docstring 视为
 无语义注释。该视图还会从 parser wrapper 中展开语义名称、常量、操作符、
 attribute、插值片段和 flag。插值源码的原始 payload 会被忽略，改用解析后的表达式。
 冗余的 constructor qualification 元数据会被忽略，因为规范化名称已经保留该

@@ -359,7 +359,7 @@ let _embed_rulespec_md : String =
   #|untyped CST. Valid examples include argument, expression, parameter, pattern,
   #|and type lists. It cannot occupy the root, a normal named field, a label, or
   #|part of another node. A block's final value has no following
-  #|`Syntax_Separator`, so it is not a replaceable statement sequence.
+  #|`Syntax_Token(TK_SEMI)`, so it is not a replaceable statement sequence.
   #|
   #|Matching processes pattern items from left to right. At an ellipsis it tries
   #|the shortest possible capture first, starting with the empty sequence, and
