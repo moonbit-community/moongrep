@@ -3,13 +3,13 @@ package "moonbit-community/moongrep/internal/rule/apply"
 
 import {
   "moonbit-community/moongrep/internal/rule/model",
-  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
-pub fn apply_structural_scan_plan_to_node(String, @untyped_cst.CstNode, ScanPlan) -> Array[@model.RuleFinding]
+pub fn apply_structural_scan_plan_to_node(String, @node.CstNode, ScanPlan) -> Array[@model.RuleFinding]
 
-pub fn apply_taint_scan_plan_to_node(String, @untyped_cst.CstNode, ScanPlan) -> Array[@model.RuleFinding] raise
+pub fn apply_taint_scan_plan_to_node(String, @node.CstNode, ScanPlan) -> Array[@model.RuleFinding] raise
 
 // Errors
 

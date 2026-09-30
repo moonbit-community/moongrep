@@ -7,11 +7,11 @@ import {
   "moonbitlang/core/debug",
   "moonbitlang/core/hashmap",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
-pub fn match_expr_pattern(CompiledExprPattern, @untyped_cst.CstNode) -> ExprMatch?
+pub fn match_expr_pattern(CompiledExprPattern, @node.CstNode) -> ExprMatch?
 
 pub fn match_expr_pattern_candidate(CompiledExprPattern, @cst.ExprMatchCandidate) -> ExprMatch?
 
@@ -25,7 +25,7 @@ pub fn parse_metavar_syntax(String) -> MetavarSyntax
 
 // Types and methods
 pub(all) struct CompiledExprPattern {
-  cst : @untyped_cst.CstNode
+  cst : @node.CstNode
   metavars : MetavarRegistry
   ignored_fields : Array[IgnoredPatternField]
 }
@@ -59,7 +59,7 @@ pub fn IdentifierCaptureSource::not_equal(Self, Self) -> Bool
 pub fn IdentifierCaptureSource::to_repr(Self) -> @debug.Repr
 
 pub(all) struct IgnoredPatternField {
-  parent_kind : @untyped_cst.NodeKind
+  parent_kind : @node.NodeKind
   child_name : String
 }
 
