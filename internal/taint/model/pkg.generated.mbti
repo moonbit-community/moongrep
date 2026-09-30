@@ -5,7 +5,7 @@ import {
   "moonbit-community/moongrep/internal/taint/domain",
   "moonbitlang/core/debug",
   "moonbitlang/lexer/basic",
-  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
@@ -16,7 +16,7 @@ import {
 pub(all) struct CallArgument {
   index : Int
   label : String?
-  expr : @untyped_cst.CstNode
+  expr : @node.CstNode
   loc : @basic.Location
   path : @domain.StoragePath?
   site : @domain.ValueSite
@@ -39,7 +39,7 @@ pub fn CallEffect::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CallInfo {
   kind : CallKind
-  cst : @untyped_cst.CstNode
+  cst : @node.CstNode
   loc : @basic.Location
   callee_name : String?
   receiver_path : @domain.StoragePath?

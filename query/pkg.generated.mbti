@@ -3,7 +3,7 @@ package "moonbit-community/moongrep/query"
 
 import {
   "moonbit-community/moongrep/model",
-  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
@@ -14,7 +14,7 @@ import {
 type ExprQuery
 pub fn ExprQuery::ExprQuery(String) -> Self raise
 pub fn ExprQuery::captures(Self, source_name~ : String, String) -> ArrayView[Map[String, @model.BoundValue]] raise
-pub fn ExprQuery::captures_from_cst(Self, cst~ : @untyped_cst.CstNode) -> ArrayView[Map[String, @model.BoundValue]]
+pub fn ExprQuery::captures_from_cst(Self, cst~ : @node.CstNode) -> ArrayView[Map[String, @model.BoundValue]]
 
 // Type aliases
 pub using @model {type BoundValue}

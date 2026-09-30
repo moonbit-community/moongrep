@@ -5,11 +5,11 @@ import {
   "moonbit-community/moongrep/internal/taint/domain",
   "moonbit-community/moongrep/internal/taint/engine",
   "moonbit-community/moongrep/internal/taint/model",
-  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
-pub fn analyze_function_like(@untyped_cst.CstNode, @model.TaintSpec) -> @engine.AnalysisResult raise
+pub fn analyze_function_like(@node.CstNode, @model.TaintSpec) -> @engine.AnalysisResult raise
 
 pub fn taint_tree_origins(Array[@domain.RelativeTaint]) -> Array[@domain.TaintOrigin]
 

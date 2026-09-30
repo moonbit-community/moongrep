@@ -3,69 +3,69 @@ package "moonbit-community/moongrep/internal/cst"
 
 import {
   "moonbitlang/core/debug",
-  "moonbitlang/parser/untyped_cst",
+  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
-pub fn argument_label_name(@untyped_cst.CstNode) -> String?
+pub fn argument_label_name(@node.CstNode) -> String?
 
-pub fn argument_value(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+pub fn argument_value(@node.CstNode) -> @node.CstNode?
 
-pub fn attribute_info(@untyped_cst.CstNode) -> AttributeInfo?
+pub fn attribute_info(@node.CstNode) -> AttributeInfo?
 
-pub fn attributes(@untyped_cst.CstNode) -> Array[AttributeInfo]
+pub fn attributes(@node.CstNode) -> Array[AttributeInfo]
 
-pub fn bool_payload(@untyped_cst.CstNode) -> Bool?
+pub fn bool_payload(@node.CstNode) -> Bool?
 
-pub fn child(@untyped_cst.CstNode, String) -> @untyped_cst.CstNode?
+pub fn child(@node.CstNode, String) -> @node.CstNode?
 
-pub fn constant(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+pub fn constant(@node.CstNode) -> @node.CstNode?
 
-pub fn expression_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+pub fn expression_nodes(@node.CstNode) -> Array[@node.CstNode]
 
-pub fn expression_root(@untyped_cst.CstNode) -> @untyped_cst.CstNode
+pub fn expression_root(@node.CstNode) -> @node.CstNode
 
-pub fn first_recovery_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+pub fn first_recovery_node(@node.CstNode) -> @node.CstNode?
 
-pub fn int_payload(@untyped_cst.CstNode) -> Int?
+pub fn int_payload(@node.CstNode) -> Int?
 
-pub fn is_syntax_kind(@untyped_cst.NodeKind) -> Bool
+pub fn is_syntax_kind(@node.NodeKind) -> Bool
 
-pub fn items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+pub fn items(@node.CstNode) -> Array[@node.CstNode]
 
-pub fn name_node(@untyped_cst.CstNode) -> @untyped_cst.CstNode?
+pub fn name_node(@node.CstNode) -> @node.CstNode?
 
-pub fn normalized_expr_identifier_name(@untyped_cst.CstNode) -> String?
+pub fn normalized_expr_identifier_name(@node.CstNode) -> String?
 
-pub fn normalized_long_ident(@untyped_cst.CstNode) -> String?
+pub fn normalized_long_ident(@node.CstNode) -> String?
 
-pub fn normalized_name(@untyped_cst.CstNode) -> String?
+pub fn normalized_name(@node.CstNode) -> String?
 
-pub fn normalized_pattern_identifier_name(@untyped_cst.CstNode) -> String?
+pub fn normalized_pattern_identifier_name(@node.CstNode) -> String?
 
-pub fn operator_name(@untyped_cst.CstNode) -> String?
+pub fn operator_name(@node.CstNode) -> String?
 
-pub fn payload(@untyped_cst.CstNode) -> @untyped_cst.NodePayload?
+pub fn payload(@node.CstNode) -> @node.NodePayload?
 
-pub fn raw_child(@untyped_cst.CstNode, String) -> @untyped_cst.CstNode?
+pub fn raw_child(@node.CstNode, String) -> @node.CstNode?
 
-pub fn raw_children(@untyped_cst.CstNode, String) -> Array[@untyped_cst.CstNode]
+pub fn raw_children(@node.CstNode, String) -> Array[@node.CstNode]
 
-pub fn semantic_children(@untyped_cst.CstNode) -> Array[(String?, @untyped_cst.CstNode)]
+pub fn semantic_children(@node.CstNode) -> Array[(String?, @node.CstNode)]
 
-pub fn sequence_items(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+pub fn sequence_items(@node.CstNode) -> Array[@node.CstNode]
 
-pub fn source_text(@untyped_cst.CstNode, String) -> String
+pub fn source_text(@node.CstNode, String) -> String
 
-pub fn string_payload(@untyped_cst.CstNode) -> String?
+pub fn string_payload(@node.CstNode) -> String?
 
-pub fn toplevel_nodes(@untyped_cst.CstNode) -> Array[@untyped_cst.CstNode]
+pub fn toplevel_nodes(@node.CstNode) -> Array[@node.CstNode]
 
-pub fn unwrap_groups(@untyped_cst.CstNode) -> @untyped_cst.CstNode
+pub fn unwrap_groups(@node.CstNode) -> @node.CstNode
 
 pub fn visit_expr_match_candidate_children(ExprMatchCandidate, (ExprMatchCandidate) -> Unit) -> Unit
 
-pub fn visit_expr_match_candidate_roots(@untyped_cst.CstNode, (ExprMatchCandidate) -> NodeVisitAction) -> Unit
+pub fn visit_expr_match_candidate_roots(@node.CstNode, (ExprMatchCandidate) -> NodeVisitAction) -> Unit
 
 // Errors
 
@@ -74,12 +74,12 @@ pub(all) struct AttributeInfo {
   qualifier : String?
   name : String
   raw_payload : String
-  node : @untyped_cst.CstNode
+  node : @node.CstNode
 }
 
 pub(all) enum ExprMatchCandidate {
-  Direct(@untyped_cst.CstNode)
-  Sequence(ArrayView[@untyped_cst.CstNode])
+  Direct(@node.CstNode)
+  Sequence(ArrayView[@node.CstNode])
 }
 
 pub(all) enum IdentifierBinding {
@@ -115,10 +115,10 @@ pub fn SourceIndex::candidate(Self, Int) -> ExprMatchCandidate
 pub fn SourceIndex::children(Self, Int, full? : Bool) -> Int
 pub fn SourceIndex::continuation(Self, Int, Int) -> Int
 pub fn SourceIndex::direct(Self, Int) -> Int
-pub fn SourceIndex::identifier_source(Self, @untyped_cst.CstNode) -> IdentifierSource?
-pub fn SourceIndex::new(@untyped_cst.CstNode) -> Self
-pub fn SourceIndex::node(Self, Int) -> @untyped_cst.CstNode
-pub fn SourceIndex::node_id(Self, @untyped_cst.CstNode) -> Int
+pub fn SourceIndex::identifier_source(Self, @node.CstNode) -> IdentifierSource?
+pub fn SourceIndex::new(@node.CstNode) -> Self
+pub fn SourceIndex::node(Self, Int) -> @node.CstNode
+pub fn SourceIndex::node_id(Self, @node.CstNode) -> Int
 pub fn SourceIndex::resolve(Self, Int, String) -> Int?
 pub fn SourceIndex::roots(Self) -> Int
 pub fn SourceIndex::scan(Self, Int) -> Int
