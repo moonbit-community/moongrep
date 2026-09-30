@@ -268,7 +268,7 @@ patterns:
 
 标记必须占据 untyped CST 中没有字段名的完整 child。调用实参列表、表达式列表、
 parameter 列表、pattern 列表和类型列表都可以支持它。它不能作为根、普通具名字段、
-标签或另一个节点的一部分。块的最终值后没有 `Syntax_Separator`，
+标签或另一个节点的一部分。块的最终值后没有 `Syntax_Token(TK_SEMI)`，
 因此它不是可替换的语句序列。
 
 匹配器从左到右处理 pattern item。遇到 ellipsis 时从空序列开始尝试最短捕获，
