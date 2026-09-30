@@ -29,32 +29,27 @@ pub fn raw_children(
 
 ///|
 pub fn is_syntax_kind(kind : @untyped_cst.NodeKind) -> Bool {
-  match kind {
-    Syntax_Keyword
-    | Syntax_Delimiter
-    | Syntax_Separator
-    | Syntax_Operator
-    | Syntax_Identifier
-    | Syntax_Label
-    | Syntax_Accessor
-    | Syntax_Literal
-    | Syntax_Interpolation
-    | Syntax_Attribute
-    | Syntax_Comment
-    | Syntax_Eof
-    | Syntax_Unexpected => true
-    _ => false
-  }
+  kind.is_syntax_token()
 }
 
 ///|
 fn is_pure_punctuation_kind(kind : @untyped_cst.NodeKind) -> Bool {
   match kind {
-    Syntax_Delimiter
-    | Syntax_Separator
-    | Syntax_Eof
-    | Syntax_Comment
-    | Aggregate_Span
+    Syntax_Token(
+      TK_LPAREN
+      | TK_RPAREN
+      | TK_LBRACE
+      | TK_RBRACE
+      | TK_LBRACKET
+      | TK_RBRACKET
+      | TK_LBRACKET_BAR
+      | TK_BAR_RBRACKET
+      | TK_COMMA
+      | TK_SEMI
+      | TK_NEWLINE
+      | TK_EOF
+      | TK_COMMENT
+    )
     | TrailingMark_Comma
     | TrailingMark_Semi
     | TrailingMark_None
@@ -93,13 +88,18 @@ fn append_syntax_semantics(
   syntax : @untyped_cst.CstNode,
 ) -> Unit {
   match syntax.kind {
-    Syntax_Attribute =>
+    Syntax_Token(TK_ATTRIBUTE) =>
       for entry in syntax.children {
         if entry.1.kind is (Attribute_Simple | Attribute_Qualified) {
           result.push((outer_label, entry.1))
         }
       }
-    Syntax_Interpolation =>
+    Syntax_Token(
+      TK_INTERP
+      | TK_BYTES_INTERP
+      | TK_MULTILINE_INTERP
+      | TK_REGEX_INTERP
+    ) =>
       for entry in syntax.children {
         match entry.1.kind {
           InterpSegment_Literal | InterpSegment_Source =>
@@ -107,13 +107,21 @@ fn append_syntax_semantics(
           _ => ()
         }
       }
-    Syntax_Identifier | Syntax_Label =>
+    Syntax_Token(
+      TK_LIDENT
+      | TK_UIDENT
+      | TK_PACKAGE_NAME
+      | TK_POST_LABEL
+      | TK_POST_LABEL_TRANSPARENT
+      | TK_EXTEND
+      | TK_UNDERSCORE
+    ) =>
       if raw_child(parent, "semantic_name") is None {
         if raw_child(syntax, "name_value") is Some(name) {
           result.push((outer_label, name))
         }
       }
-    Syntax_Accessor =>
+    Syntax_Token(TK_DOT_LIDENT | TK_DOT_UIDENT | TK_DOT_INT | TK_DOT_LPAREN) =>
       if raw_child(parent, "semantic_name") is None &&
         raw_child(parent, "field") is None {
         if raw_child(syntax, "accessor") is Some(accessor) {
@@ -122,7 +130,35 @@ fn append_syntax_semantics(
           result.push((outer_label, name))
         }
       }
-    Syntax_Operator => {
+    Syntax_Token(
+      TK_INFIX1
+      | TK_INFIX2
+      | TK_INFIX3
+      | TK_INFIX4
+      | TK_AUGMENTED_ASSIGNMENT
+      | TK_PLUS_EQUAL
+      | TK_EQUAL
+      | TK_MINUS
+      | TK_QUESTION
+      | TK_EXCLAMATION
+      | TK_PLUS
+      | TK_STAR
+      | TK_BAR
+      | TK_AMPERAMPER
+      | TK_AMPER
+      | TK_CARET
+      | TK_BARBAR
+      | TK_PIPE
+      | TK_PIPE_LEFT
+      | TK_IMPLIES
+      | TK_DOTDOT
+      | TK_RANGE_EXCLUSIVE
+      | TK_RANGE_INCLUSIVE
+      | TK_RANGE_LT_INCLUSIVE
+      | TK_RANGE_INCLUSIVE_REV
+      | TK_RANGE_EXCLUSIVE_REV
+      | TK_READONLY
+    ) => {
       let duplicate = raw_child(parent, "operator")
         .map(node => !is_syntax_kind(node.kind))
         .unwrap_or(false)
@@ -132,7 +168,18 @@ fn append_syntax_semantics(
         }
       }
     }
-    Syntax_Literal =>
+    Syntax_Token(
+      TK_CHAR
+      | TK_INT
+      | TK_BYTE
+      | TK_BYTES
+      | TK_FLOAT
+      | TK_DOUBLE
+      | TK_STRING
+      | TK_REGEX_LITERAL
+      | TK_TRUE
+      | TK_FALSE
+    ) =>
       if raw_child(parent, "semantic_constant") is None {
         if raw_child(syntax, "constant") is Some(constant) {
           result.push((outer_label, constant))
@@ -311,7 +358,19 @@ fn normalized_constructor_identity(node : @untyped_cst.CstNode) -> String? {
 pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
   match node.kind {
     Expr_Constr | Pattern_Constr => normalized_constructor_identity(node)
-    Syntax_Identifier | Syntax_Label | Syntax_Accessor =>
+    Syntax_Token(
+      TK_LIDENT
+      | TK_UIDENT
+      | TK_PACKAGE_NAME
+      | TK_POST_LABEL
+      | TK_POST_LABEL_TRANSPARENT
+      | TK_EXTEND
+      | TK_UNDERSCORE
+      | TK_DOT_LIDENT
+      | TK_DOT_UIDENT
+      | TK_DOT_INT
+      | TK_DOT_LPAREN
+    ) =>
       if string_payload(node) is Some(value) {
         Some(value)
       } else {

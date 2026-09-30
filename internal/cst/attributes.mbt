@@ -23,7 +23,7 @@ pub fn attribute_info(node : @untyped_cst.CstNode) -> AttributeInfo? {
 pub fn attributes(node : @untyped_cst.CstNode) -> Array[AttributeInfo] {
   let result : Array[AttributeInfo] = []
   for entry in node.children {
-    if entry.1.kind is Syntax_Attribute {
+    if entry.1.kind is Syntax_Token(TK_ATTRIBUTE) {
       for child in entry.1.children {
         if attribute_info(child.1) is Some(info) {
           result.push(info)

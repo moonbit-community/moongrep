@@ -458,7 +458,7 @@ fn block_statement_has_separator_after(
   let mut found = false
   for entry in container.children {
     if found {
-      return entry.1.kind is Syntax_Separator
+      return entry.1.kind is Syntax_Token(TK_SEMI)
     }
     if entry.1.source_span == item.source_span && entry.1.kind == item.kind {
       found = true

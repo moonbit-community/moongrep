@@ -55,7 +55,14 @@ fn is_indexable_cst_child(
     is_pure_punctuation_kind(child.kind) {
     return false
   }
-  !is_syntax_kind(child.kind) || child.kind is Syntax_Interpolation
+  !is_syntax_kind(child.kind) ||
+  child.kind
+  is Syntax_Token(
+    TK_INTERP
+    | TK_BYTES_INTERP
+    | TK_MULTILINE_INTERP
+    | TK_REGEX_INTERP
+  )
 }
 
 ///|
