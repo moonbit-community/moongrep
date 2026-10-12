@@ -1,22 +1,34 @@
 # Exit status matrix
 
+```mooncram-import
+head : cli/head@0.2.0
+```
+
 The success cases include help, findings, no findings, and recoverable source
 warnings. Each command below exits with status 0.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- help > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep help
+@STDOUT (ignore)
+@STDERR (ignore)
 ```
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'target()' testdata/custom-rules > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --pattern 'target()' ../testdata/custom-rules
+@STDOUT (ignore)
+@STDERR (ignore)
 ```
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'missing()' testdata/custom-rules > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --pattern 'missing()' ../testdata/custom-rules
+@STDOUT (ignore)
+@STDERR (ignore)
 ```
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern 'target()' testdata/parse-warning > /dev/null 2> /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --pattern 'target()' ../testdata/parse-warning
+@STDOUT (ignore)
+@STDERR (ignore)
 ```
 
 Status 1 is reserved for internal and otherwise unclassified failures, so it
@@ -26,8 +38,8 @@ unreachable command-state path.
 Failure diagnostics are written to standard error. Discarding standard error
 therefore leaves standard output empty while preserving the failure status.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- docs MissingDoc 2> /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep docs MissingDoc
 [2]
 ```
 
@@ -35,8 +47,10 @@ For `scan --json`, mode selection happens before argparse rejects an
 unknown option. Its complete multiline diagnostic is escaped inside one JSON
 record on standard error.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --unknown 2>&1 >/dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --json --unknown
+@STDOUT (ignore)
+@STDERR
 {"type":"error","category":"usage","exit_code":2,"message":"error: unexpected argument '--unknown' found\n\nUsage: moongrep scan [options] [scan-root]\n\nScan MoonBit source files.\n\nArguments:\n  scan-root  Directory or .mbt file to scan.\n\nOptions:\n  -h, --help           Show help information.\n  --verbose            Write loaded rule ids and traversal progress to stderr.\n  --json               Write JSON Lines findings to stdout and diagnostics to stderr.\n  -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]\n  --rule <rule>        Single YAML rule file.\n  --pattern <pattern>  Anonymous structural pattern to match.\n  --guard <guard>      YAML guard map for the preceding anonymous pattern.\n  --exclude <exclude>  File or directory name or path to skip while recursively scanning. May be repeated.\n  --disable <disable>  Rule id to disable after loading rules. May be repeated.\n"}
 [2]
 ```
@@ -44,8 +58,10 @@ $ moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --unknown 2>&1 >/dev/null
 Unknown documents are usage errors with status 2. Discarding standard output
 exposes the diagnostic from standard error.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- docs MissingDoc 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep docs MissingDoc
+@STDOUT (ignore)
+@STDERR
 error: unknown document
   source: MissingDoc
   help: run `moongrep docs --list` to list embedded documents
@@ -55,8 +71,10 @@ error: unknown document
 Invalid dump input in exit-code mode still writes its diagnostic and uses
 status 3.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- dump --exit-code --expr 'value +' 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep dump --exit-code --expr 'value +'
+@STDOUT (ignore)
+@STDERR
 error: could not parse dump input
   source: dump --expr
   reason: Unexpected end of file, missing simple expression here.
@@ -66,10 +84,12 @@ error: could not parse dump input
 
 An empty rule directory is a rule-source error with status 4.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/empty-rule-root testdata/custom-rules 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rules ../testdata/empty-rule-root ../testdata/custom-rules
+@STDOUT (ignore)
+@STDERR
 error: no rules found
-  source: testdata/empty-rule-root
+  source: ../testdata/empty-rule-root
   reason: the directory contains no YAML rule files
   help: add a .yaml or .yml rule file or choose another --rules directory
 [4]
@@ -77,8 +97,10 @@ error: no rules found
 
 An invalid anonymous pattern is a rule-content error with status 5.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '$$$items' testdata/ellipsis/sample.mbt 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --pattern '$$$items' ../testdata/ellipsis/sample.mbt
+@STDOUT (ignore)
+@STDERR
 error: invalid anonymous pattern
   source: --pattern
   pattern:
@@ -91,16 +113,20 @@ error: invalid anonymous pattern
 The same rule-content failure uses a structured JSON error record when
 requested.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rule testdata/exit-codes/invalid.yaml testdata/custom-rules 2>&1 >/dev/null
-{"type":"error","category":"rule_content","exit_code":5,"message":"invalid rule","source":"testdata/exit-codes/invalid.yaml","reason":"line 2, column 1: while parsing a node, did not find expected node content","help":"fix the rule and try again"}
+```mooncram moonbit-community/moongrep
+$ moongrep scan --json --rule ../testdata/exit-codes/invalid.yaml ../testdata/custom-rules
+@STDOUT (ignore)
+@STDERR
+{"type":"error","category":"rule_content","exit_code":5,"message":"invalid rule","source":"../testdata/exit-codes/invalid.yaml","reason":"line 2, column 1: while parsing a node, did not find expected node content","help":"fix the rule and try again"}
 [5]
 ```
 
 A qualified ignore placeholder is rejected with the same rule-content status.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --pattern '@html.$_' testdata/cli-pattern/hit.mbt 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --pattern '@html.$_' ../testdata/cli-pattern/hit.mbt
+@STDOUT (ignore)
+@STDERR
 error: invalid anonymous pattern
   source: --pattern
   pattern:
@@ -112,10 +138,12 @@ error: invalid anonymous pattern
 
 Malformed rule YAML is in the same rule-content category.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/exit-codes/invalid.yaml testdata/custom-rules 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/exit-codes/invalid.yaml ../testdata/custom-rules
+@STDOUT (ignore)
+@STDERR
 error: invalid rule
-  source: testdata/exit-codes/invalid.yaml
+  source: ../testdata/exit-codes/invalid.yaml
   reason: line 2, column 1: while parsing a node, did not find expected node content
   help: fix the rule and try again
 [5]
@@ -123,10 +151,12 @@ error: invalid rule
 
 A missing scan root is a scan-input error with status 6.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules e2etests/rules/structural testdata/does-not-exist 2>&1 > /dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rules ../rules/structural ../testdata/does-not-exist
+@STDOUT (ignore)
+@STDERR
 error: could not access scan path
-  source: testdata/does-not-exist
+  source: ../testdata/does-not-exist
   reason: No such file or directory
   help: check that the scan path exists and is readable
 [6]
@@ -135,16 +165,20 @@ error: could not access scan path
 JSON mode also keeps scan-input failures on standard error and preserves status
 6.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --json --rules e2etests/rules/structural testdata/does-not-exist 2>&1 >/dev/null
-{"type":"error","category":"scan_input","exit_code":6,"message":"could not access scan path","source":"testdata/does-not-exist","reason":"No such file or directory","help":"check that the scan path exists and is readable"}
+```mooncram moonbit-community/moongrep
+$ moongrep scan --json --rules ../rules/structural ../testdata/does-not-exist
+@STDOUT (ignore)
+@STDERR
+{"type":"error","category":"scan_input","exit_code":6,"message":"could not access scan path","source":"../testdata/does-not-exist","reason":"No such file or directory","help":"check that the scan path exists and is readable"}
 [6]
 ```
 
 A broken standard-output pipe takes precedence and uses status 7.
 
-```mooncram
-$ bash -o pipefail -c 'moonrun "$1"/../moongrep.wasm -- docs CLISpec | head -n 0' _ "$TESTDIR" 2>&1 >/dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep docs CLISpec | head -n 0
+@STDOUT (empty)
+@STDERR
 error: could not write output
   source: standard output
   reason: Broken pipe

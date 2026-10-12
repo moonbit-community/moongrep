@@ -1,12 +1,16 @@
 ## Builtin rules
 
+```mooncram-import
+jq : cli/jq@0.2.1
+```
+
 This fixture contains one hit for each embedded rule. The lint command checks
 the stable rule order, each selected report range, and the explanatory
 diagnostic shown with each match.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint testdata/builtin-rules-all
-testdata/builtin-rules-all/catch_all.mbt:3:3-5:4
+```mooncram moonbit-community/moongrep
+$ moongrep lint ../testdata/builtin-rules-all
+../testdata/builtin-rules-all/catch_all.mbt:3:3-5:4
 rule: moonbitlang/catch_all
 description:
   Single catch arm handles every error, which can hide unexpected failures.
@@ -19,7 +23,7 @@ source:
 5 >   }
 6 | }
 
-testdata/builtin-rules-all/match_option.mbt:3:3-11:4
+../testdata/builtin-rules-all/match_option.mbt:3:3-11:4
 rule: moonbitlang/match_option
 description:
   Found an Option value handled with match over Some and None.
@@ -36,7 +40,7 @@ source:
 11 >   }
 12 | }
 
-testdata/builtin-rules-all/inspect_number.mbt:3:3-3:26
+../testdata/builtin-rules-all/inspect_number.mbt:3:3-3:26
 rule: moonbitlang/inspect_number
 description:
   Found inspect() snapshots whose expected value is a plain number.
@@ -47,7 +51,7 @@ source:
 3 >   inspect(1, content="1")
 4 | }
 
-testdata/builtin-rules-all/inspect_boolean.mbt:3:3-3:32
+../testdata/builtin-rules-all/inspect_boolean.mbt:3:3-3:32
 rule: moonbitlang/inspect_boolean
 description:
   Found inspect(), debug_inspect(), or json_inspect() snapshots whose expected value is true or false.
@@ -58,7 +62,7 @@ source:
 3 >   inspect(flag, content="true")
 4 | }
 
-testdata/builtin-rules-all/unnecessary_else.mbt:3:3-6:12
+../testdata/builtin-rules-all/unnecessary_else.mbt:3:3-6:12
 rule: moonbitlang/unnecessary_else
 description:
   Found an if expression whose else branch is empty or only returns ().
@@ -73,7 +77,7 @@ source:
 7 | }
 8 | ///|
 
-testdata/builtin-rules-all/simplifiable_assignment.mbt:4:3-4:19
+../testdata/builtin-rules-all/simplifiable_assignment.mbt:4:3-4:19
 rule: moonbitlang/simplifiable_assignment
 description:
   Assignment repeats its target as the operand of a binary expression.
@@ -88,7 +92,7 @@ source:
 5 |   foo
 6 | }
 
-testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt:3:3-5:4
+../testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt:3:3-5:4
 rule: moonbitlang/cstyle_forward_simple_forloop
 description:
   C-style forward for loops that can be rewritten as simple for-in loops.
@@ -100,7 +104,7 @@ source:
 5 >   }
 6 | }
 
-testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt:3:3-5:4
+../testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt:3:3-5:4
 rule: moonbitlang/cstyle_backward_simple_forloop
 description:
   C-style backward for loops that can be rewritten as simple for-in loops.
@@ -112,7 +116,7 @@ source:
 5 >   }
 6 | }
 
-testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt:3:3-5:4
+../testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt:3:3-5:4
 rule: moonbitlang/cstyle_forward_array_iteration
 description:
   C-style forward array iteration that can be rewritten as simple for-in loops.
@@ -124,7 +128,7 @@ source:
 5 >   }
 6 | }
 
-testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt:3:3-5:4
+../testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt:3:3-5:4
 rule: moonbitlang/cstyle_backward_array_iteration
 description:
   C-style backward array iteration that can be rewritten as simple for-in loops.
@@ -141,8 +145,10 @@ source:
 
 The former misspelled rule ID is rejected by `--disable`.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --disable moonbitlang/unnessary_else testdata/builtin-rules-all/unnecessary_else.mbt 2>&1 >/dev/null
+```mooncram moonbit-community/moongrep
+$ moongrep lint --disable moonbitlang/unnessary_else ../testdata/builtin-rules-all/unnecessary_else.mbt
+@STDOUT (ignore)
+@STDERR
 error: unknown rule id in --disable
   source: moonbitlang/unnessary_else
   help: use the exact id of a loaded rule
@@ -155,18 +161,18 @@ The same builtin matches can be streamed as one JSON object per line. Each
 record preserves the rule description, report range, matched source, and
 annotated source context from the human-readable result.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --json testdata/builtin-rules-all
-{"type":"finding","file":"testdata/builtin-rules-all/catch_all.mbt","rule_id":"moonbitlang/catch_all","description":"Single catch arm handles every error, which can hide unexpected failures.\nPrefer matching only the specific error cases that can be recovered from.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"try risky() catch {\n    _ => recover()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"async fn catches_everything(_) -> Unit {","is_match":false},{"line":3,"text":"  try risky() catch {","is_match":true},{"line":4,"text":"    _ => recover()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/match_option.mbt","rule_id":"moonbitlang/match_option","description":"Found an Option value handled with match over Some and None.\nPrefer if + is for simple Option checks.","range":{"start":{"line":3,"column":3},"end":{"line":11,"column":4}},"matched_source":"match value {\n    Some(inner) => {\n      let prepared = prepare(inner)\n      let validated = validate(prepared)\n      let normalized = normalize(validated)\n      finish(normalized)\n    }\n    None => false\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn option_match(value : Int?) -> Bool {","is_match":false},{"line":3,"text":"  match value {","is_match":true},{"line":4,"text":"    Some(inner) => {","is_match":true},{"line":5,"text":"      let prepared = prepare(inner)","is_match":true},{"line":6,"text":"      let validated = validate(prepared)","is_match":true},{"line":7,"text":"      let normalized = normalize(validated)","is_match":true},{"line":8,"text":"      finish(normalized)","is_match":true},{"line":9,"text":"    }","is_match":true},{"line":10,"text":"    None => false","is_match":true},{"line":11,"text":"  }","is_match":true},{"line":12,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/inspect_number.mbt","rule_id":"moonbitlang/inspect_number","description":"Found inspect() snapshots whose expected value is a plain number.\nPrefer numeric assertions for numeric checks.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":26}},"matched_source":"inspect(1, content=\"1\")","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn number_snapshot() -> Unit {","is_match":false},{"line":3,"text":"  inspect(1, content=\"1\")","is_match":true},{"line":4,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/inspect_boolean.mbt","rule_id":"moonbitlang/inspect_boolean","description":"Found inspect(), debug_inspect(), or json_inspect() snapshots whose expected value is true or false.\nPrefer assert_true(...) or assert_false(...) for boolean checks.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":32}},"matched_source":"inspect(flag, content=\"true\")","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn boolean_snapshot(flag : Bool) -> Unit {","is_match":false},{"line":3,"text":"  inspect(flag, content=\"true\")","is_match":true},{"line":4,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/unnecessary_else.mbt","rule_id":"moonbitlang/unnecessary_else","description":"Found an if expression whose else branch is empty or only returns ().\nPrefer omitting the unnecessary else branch.","range":{"start":{"line":3,"column":3},"end":{"line":6,"column":12}},"matched_source":"if flag {\n    prepare()\n    finish()\n  } else {}","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn unnecessary_empty_else(flag : Bool) -> Unit {","is_match":false},{"line":3,"text":"  if flag {","is_match":true},{"line":4,"text":"    prepare()","is_match":true},{"line":5,"text":"    finish()","is_match":true},{"line":6,"text":"  } else {}","is_match":true},{"line":7,"text":"}","is_match":false},{"line":8,"text":"///|","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/simplifiable_assignment.mbt","rule_id":"moonbitlang/simplifiable_assignment","description":"Assignment repeats its target as the operand of a binary expression.\nPrefer the corresponding augmented assignment, such as foo += 1, foo.bar += 1, foo[i] +=1.\nNote: Apply this rewrite only when the target expression and any index expression\nare free of side effects. Augmented assignment may evaluate them a different\nnumber of times.","range":{"start":{"line":4,"column":3},"end":{"line":4,"column":19}},"matched_source":"foo = foo + step","source_context":[{"line":2,"text":"fn simplifiable_assignment(step : Int) -> Int {","is_match":false},{"line":3,"text":"  let mut foo = 0","is_match":false},{"line":4,"text":"  foo = foo + step","is_match":true},{"line":5,"text":"  foo","is_match":false},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_forward_simple_forloop","description":"C-style forward for loops that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < limit; i = i + 1 {\n    tick()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < limit; i = i + 1 {","is_match":true},{"line":4,"text":"    tick()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_backward_simple_forloop","description":"C-style backward for loops that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = limit; i > 0; i = i - 1 {\n    tick_back()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = limit; i > 0; i = i - 1 {","is_match":true},{"line":4,"text":"    tick_back()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_forward_array_iteration","description":"C-style forward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < items.length(); i = i + 1 {\n    consume(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < items.length(); i = i + 1 {","is_match":true},{"line":4,"text":"    consume(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_backward_array_iteration","description":"C-style backward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = items.length() - 1; i >= 0; i = i - 1 {\n    consume_reverse(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = items.length() - 1; i >= 0; i = i - 1 {","is_match":true},{"line":4,"text":"    consume_reverse(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+```mooncram moonbit-community/moongrep
+$ moongrep lint --json ../testdata/builtin-rules-all
+{"type":"finding","file":"../testdata/builtin-rules-all/catch_all.mbt","rule_id":"moonbitlang/catch_all","description":"Single catch arm handles every error, which can hide unexpected failures.\nPrefer matching only the specific error cases that can be recovered from.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"try risky() catch {\n    _ => recover()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"async fn catches_everything(_) -> Unit {","is_match":false},{"line":3,"text":"  try risky() catch {","is_match":true},{"line":4,"text":"    _ => recover()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/match_option.mbt","rule_id":"moonbitlang/match_option","description":"Found an Option value handled with match over Some and None.\nPrefer if + is for simple Option checks.","range":{"start":{"line":3,"column":3},"end":{"line":11,"column":4}},"matched_source":"match value {\n    Some(inner) => {\n      let prepared = prepare(inner)\n      let validated = validate(prepared)\n      let normalized = normalize(validated)\n      finish(normalized)\n    }\n    None => false\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn option_match(value : Int?) -> Bool {","is_match":false},{"line":3,"text":"  match value {","is_match":true},{"line":4,"text":"    Some(inner) => {","is_match":true},{"line":5,"text":"      let prepared = prepare(inner)","is_match":true},{"line":6,"text":"      let validated = validate(prepared)","is_match":true},{"line":7,"text":"      let normalized = normalize(validated)","is_match":true},{"line":8,"text":"      finish(normalized)","is_match":true},{"line":9,"text":"    }","is_match":true},{"line":10,"text":"    None => false","is_match":true},{"line":11,"text":"  }","is_match":true},{"line":12,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/inspect_number.mbt","rule_id":"moonbitlang/inspect_number","description":"Found inspect() snapshots whose expected value is a plain number.\nPrefer numeric assertions for numeric checks.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":26}},"matched_source":"inspect(1, content=\"1\")","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn number_snapshot() -> Unit {","is_match":false},{"line":3,"text":"  inspect(1, content=\"1\")","is_match":true},{"line":4,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/inspect_boolean.mbt","rule_id":"moonbitlang/inspect_boolean","description":"Found inspect(), debug_inspect(), or json_inspect() snapshots whose expected value is true or false.\nPrefer assert_true(...) or assert_false(...) for boolean checks.","range":{"start":{"line":3,"column":3},"end":{"line":3,"column":32}},"matched_source":"inspect(flag, content=\"true\")","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn boolean_snapshot(flag : Bool) -> Unit {","is_match":false},{"line":3,"text":"  inspect(flag, content=\"true\")","is_match":true},{"line":4,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/unnecessary_else.mbt","rule_id":"moonbitlang/unnecessary_else","description":"Found an if expression whose else branch is empty or only returns ().\nPrefer omitting the unnecessary else branch.","range":{"start":{"line":3,"column":3},"end":{"line":6,"column":12}},"matched_source":"if flag {\n    prepare()\n    finish()\n  } else {}","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn unnecessary_empty_else(flag : Bool) -> Unit {","is_match":false},{"line":3,"text":"  if flag {","is_match":true},{"line":4,"text":"    prepare()","is_match":true},{"line":5,"text":"    finish()","is_match":true},{"line":6,"text":"  } else {}","is_match":true},{"line":7,"text":"}","is_match":false},{"line":8,"text":"///|","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/simplifiable_assignment.mbt","rule_id":"moonbitlang/simplifiable_assignment","description":"Assignment repeats its target as the operand of a binary expression.\nPrefer the corresponding augmented assignment, such as foo += 1, foo.bar += 1, foo[i] +=1.\nNote: Apply this rewrite only when the target expression and any index expression\nare free of side effects. Augmented assignment may evaluate them a different\nnumber of times.","range":{"start":{"line":4,"column":3},"end":{"line":4,"column":19}},"matched_source":"foo = foo + step","source_context":[{"line":2,"text":"fn simplifiable_assignment(step : Int) -> Int {","is_match":false},{"line":3,"text":"  let mut foo = 0","is_match":false},{"line":4,"text":"  foo = foo + step","is_match":true},{"line":5,"text":"  foo","is_match":false},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_forward_simple_forloop","description":"C-style forward for loops that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < limit; i = i + 1 {\n    tick()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < limit; i = i + 1 {","is_match":true},{"line":4,"text":"    tick()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_backward_simple_forloop","description":"C-style backward for loops that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = limit; i > 0; i = i - 1 {\n    tick_back()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = limit; i > 0; i = i - 1 {","is_match":true},{"line":4,"text":"    tick_back()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_forward_array_iteration","description":"C-style forward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < items.length(); i = i + 1 {\n    consume(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < items.length(); i = i + 1 {","is_match":true},{"line":4,"text":"    consume(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_backward_array_iteration","description":"C-style backward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = items.length() - 1; i >= 0; i = i - 1 {\n    consume_reverse(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = items.length() - 1; i >= 0; i = i - 1 {","is_match":true},{"line":4,"text":"    consume_reverse(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
 ```
 
 ## Catch-all async function variants
@@ -174,8 +180,8 @@ $ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --json test
 This focused fixture checks several async signatures and includes a synchronous
 function with the same catch expression to make sure it is not reported.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --json testdata/builtin-catch-all-variants | sed -n 's/.*"rule_id":"\([^"]*\)".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*/\1 \2:\3/p'
+```mooncram moonbit-community/moongrep
+$ moongrep lint --json ../testdata/builtin-catch-all-variants | jq -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)"'
 moonbitlang/catch_all 3:3
 moonbitlang/catch_all 7:3
 moonbitlang/catch_all 11:3
@@ -188,8 +194,8 @@ All eighteen rule shapes are reported: local variables, fields, and indexed
 values using `+`, `-`, `*`, or `/`, including both operand orders supported for
 commutative operators and compound expressions in the other operand.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --json testdata/builtin-simplifiable-assignment-variants/positive.mbt | sed -n 's#.*"rule_id":"moonbitlang/simplifiable_assignment".*"range":{"start":{"line":\([0-9][0-9]*\),"column":\([0-9][0-9]*\)}.*"matched_source":"\([^"]*\)".*#\1:\2 \3#p'
+```mooncram moonbit-community/moongrep
+$ moongrep lint --json ../testdata/builtin-simplifiable-assignment-variants/positive.mbt | jq -r 'select(.rule_id == "moonbitlang/simplifiable_assignment") | "\(.range.start.line):\(.range.start.column) \(.matched_source | @json | .[1:-1])"'
 14:3 add_left = add_left + step * 2
 16:3 add_right = step * 2 + add_right
 18:3 subtract = subtract - step
@@ -215,8 +221,8 @@ indexed targets, different field receivers or indexed collections, reversed
 `-` and `/`, and existing augmented assignments. It produces no findings for
 this rule.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint --json testdata/builtin-simplifiable-assignment-variants/negative.mbt | sed -n 's#"rule_id":"moonbitlang/simplifiable_assignment"#&#p' | wc -l
+```mooncram moonbit-community/moongrep
+$ moongrep lint --json ../testdata/builtin-simplifiable-assignment-variants/negative.mbt | jq -s '[.[] | select(.rule_id == "moonbitlang/simplifiable_assignment")] | length'
 0
 ```
 
@@ -226,9 +232,9 @@ Linting without a separate rule directory reports every embedded rule that
 matches the fixture. The default human-readable output includes locations,
 rule metadata, and source context.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- lint testdata/builtin-rules
-testdata/builtin-rules/hit.mbt:3:3-3:26
+```mooncram moonbit-community/moongrep
+$ moongrep lint ../testdata/builtin-rules
+../testdata/builtin-rules/hit.mbt:3:3-3:26
 rule: moonbitlang/inspect_number
 description:
   Found inspect() snapshots whose expected value is a plain number.
@@ -240,7 +246,7 @@ source:
 4 |   assert_true(
 5 |     match value {
 
-testdata/builtin-rules/hit.mbt:5:5-8:6
+../testdata/builtin-rules/hit.mbt:5:5-8:6
 rule: moonbitlang/match_option
 description:
   Found an Option value handled with match over Some and None.

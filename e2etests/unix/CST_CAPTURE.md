@@ -3,9 +3,9 @@
 Separate type and constructor captures remain addressable through
 `inside-toplevel` and recursive `then`. This valid rule produces one finding.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/constructor.yaml testdata/capture-scope/constructor.mbt
-testdata/capture-scope/constructor.mbt:3:28-3:47
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/constructor.yaml ../testdata/capture-scope/constructor.mbt
+../testdata/capture-scope/constructor.mbt:3:28-3:47
 rule: split-constructor
 description:
   Type and constructor captures remain separate across rule levels.
@@ -21,9 +21,9 @@ Explicit `before` and `after` binders in `lexscan` and `=~` preserve their
 binding identity across rule levels. Only the four functions with `let other`
 produce findings; the four functions with `let item` shadow the capture.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/regex.yaml testdata/capture-scope/regex.mbt
-testdata/capture-scope/regex.mbt:10:29-10:73
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/regex.yaml ../testdata/capture-scope/regex.mbt
+../testdata/capture-scope/regex.mbt:10:29-10:73
 rule: regex-origin
 description:
   Explicit regex captures retain their declaration binding.
@@ -34,7 +34,7 @@ source:
 11 |   }
 12 | }
 
-testdata/capture-scope/regex.mbt:22:28-22:72
+../testdata/capture-scope/regex.mbt:22:28-22:72
 rule: regex-origin
 description:
   Explicit regex captures retain their declaration binding.
@@ -45,7 +45,7 @@ source:
 23 |   }
 24 | }
 
-testdata/capture-scope/regex.mbt:34:5-34:49
+../testdata/capture-scope/regex.mbt:34:5-34:49
 rule: regex-origin
 description:
   Explicit regex captures retain their declaration binding.
@@ -56,7 +56,7 @@ source:
 35 |   }
 36 | }
 
-testdata/capture-scope/regex.mbt:46:5-46:49
+../testdata/capture-scope/regex.mbt:46:5-46:49
 rule: regex-origin
 description:
   Explicit regex captures retain their declaration binding.

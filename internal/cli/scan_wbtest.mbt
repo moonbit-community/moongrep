@@ -119,10 +119,10 @@ test "bare skip remains effective beside invalid payloads" {
 ///|
 fn skip_scan_options() -> CliOptions {
   {
-    rules_root: Some("testdata/skip-structural/rules"),
+    rules_root: Some("e2etests/testdata/skip-structural/rules"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/skip-structural/src",
+    scan_root: "e2etests/testdata/skip-structural/src",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -136,15 +136,17 @@ fn excluded_entry_scan_options() -> CliOptions {
   let (rules_root, scan_root, excludes) = if scan_uses_windows_paths() {
     (
       ".\\e2etests\\rules/structural\\.",
-      ".\\testdata/exclude-dirs\\.",
-      ["IGNORED\\", ".\\testdata/exclude-dirs\\GENERATED\\\\", "EXCLUDED.MBT"],
+      ".\\e2etests/testdata/exclude-dirs\\.",
+      [
+        "IGNORED\\", ".\\e2etests/testdata/exclude-dirs\\GENERATED\\\\", "EXCLUDED.MBT",
+      ],
     )
   } else {
     (
       "e2etests/rules/structural",
-      "testdata/exclude-dirs",
+      "e2etests/testdata/exclude-dirs",
       [
-        "ignored/", "./testdata/exclude-dirs/generated/", "./testdata/exclude-dirs/excluded.mbt",
+        "ignored/", "./e2etests/testdata/exclude-dirs/generated/", "./e2etests/testdata/exclude-dirs/excluded.mbt",
       ],
     )
   }
@@ -167,7 +169,7 @@ fn excluded_scan_root_options() -> CliOptions {
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/exclude-dirs/hit.mbt",
+    scan_root: "e2etests/testdata/exclude-dirs/hit.mbt",
     excludes: ["hit.mbt"],
     disabled_rules: [],
     verbose: false,
@@ -180,9 +182,11 @@ fn excluded_scan_root_options() -> CliOptions {
 fn single_rule_file_scan_options() -> CliOptions {
   {
     rules_root: None,
-    rule_file: Some("testdata/recursive-rule-discovery-rules/nested/b.yml"),
+    rule_file: Some(
+      "e2etests/testdata/recursive-rule-discovery-rules/nested/b.yml",
+    ),
     patterns: [],
-    scan_root: "testdata/recursive-rule-discovery-src",
+    scan_root: "e2etests/testdata/recursive-rule-discovery-src",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -203,7 +207,7 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
         match_mode: Default,
       },
     ],
-    scan_root: "testdata/guard",
+    scan_root: "e2etests/testdata/guard",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -215,10 +219,10 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
 ///|
 fn verbose_rules_scan_options() -> CliOptions {
   {
-    rules_root: Some("testdata/recursive-rule-discovery-rules"),
+    rules_root: Some("e2etests/testdata/recursive-rule-discovery-rules"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/recursive-rule-discovery-src",
+    scan_root: "e2etests/testdata/recursive-rule-discovery-src",
     excludes: [],
     disabled_rules: [],
     verbose: true,
@@ -233,7 +237,7 @@ fn block_prefilter_scan_options() -> CliOptions {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/prefilter-impl",
+    scan_root: "e2etests/testdata/prefilter-impl",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -248,7 +252,7 @@ fn irrelevant_broken_block_scan_options() -> CliOptions {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/prefilter-block/irrelevant-broken.mbt",
+    scan_root: "e2etests/testdata/prefilter-block/irrelevant-broken.mbt",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -263,7 +267,7 @@ fn matched_broken_block_scan_options() -> CliOptions {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/prefilter-block/matched-broken.mbt",
+    scan_root: "e2etests/testdata/prefilter-block/matched-broken.mbt",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -278,7 +282,7 @@ fn disabled_rule_scan_options() -> CliOptions {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/prefilter-impl",
+    scan_root: "e2etests/testdata/prefilter-impl",
     excludes: [],
     disabled_rules: ["target"],
     verbose: true,
@@ -293,7 +297,7 @@ fn unknown_disabled_rule_scan_options() -> CliOptions {
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/prefilter-impl",
+    scan_root: "e2etests/testdata/prefilter-impl",
     excludes: [],
     disabled_rules: ["missing"],
     verbose: false,
@@ -322,7 +326,7 @@ fn builtin_api_options() -> CliOptions {
     rules_root: None,
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/builtin-rules",
+    scan_root: "e2etests/testdata/builtin-rules",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -343,7 +347,7 @@ fn non_bmp_scan_options() -> CliOptions {
         match_mode: Default,
       },
     ],
-    scan_root: "testdata/scan-non-bmp/single.mbt",
+    scan_root: "e2etests/testdata/scan-non-bmp/single.mbt",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -408,8 +412,8 @@ async test "scan enforces moongrep skip structural and taint contract" {
     rendered_warnings.join("\n"),
     content=native_scan_test_path(
       (
-        #|warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
-        #|warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+        #|warning: e2etests/testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip
+        #|warning: e2etests/testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip
       ),
     ),
   )
@@ -448,7 +452,9 @@ async test "scan renders non-BMP matches with Unicode code point columns" {
   guard result.hits is [hit, ..] else { fail("expected a non-BMP scan hit") }
   inspect(
     format_location(hit.finding.file, hit.finding.loc),
-    content=native_scan_test_path("testdata/scan-non-bmp/single.mbt:3:3-3:23"),
+    content=native_scan_test_path(
+      "e2etests/testdata/scan-non-bmp/single.mbt:3:3-3:23",
+    ),
   )
   inspect(hit.matched_source, content="let str = \"Hello🤣🤣🤣\"")
   assert_true(
@@ -477,12 +483,14 @@ async test "scan excludes configured file and directory entries" {
   for hit in result.hits {
     summaries.push(hit.finding.file)
   }
-  assert_eq(summaries, [native_scan_test_path("testdata/exclude-dirs/hit.mbt")])
+  assert_eq(summaries, [
+    native_scan_test_path("e2etests/testdata/exclude-dirs/hit.mbt"),
+  ])
   assert_true(
     string_array_contains(
       result.traces,
       native_scan_test_path(
-        "moongrep scan: skipping testdata/exclude-dirs/ignored",
+        "moongrep scan: skipping e2etests/testdata/exclude-dirs/ignored",
       ),
     ),
   )
@@ -490,7 +498,7 @@ async test "scan excludes configured file and directory entries" {
     string_array_contains(
       result.traces,
       native_scan_test_path(
-        "moongrep scan: skipping testdata/exclude-dirs/generated",
+        "moongrep scan: skipping e2etests/testdata/exclude-dirs/generated",
       ),
     ),
   )
@@ -498,7 +506,7 @@ async test "scan excludes configured file and directory entries" {
     string_array_contains(
       result.traces,
       native_scan_test_path(
-        "moongrep scan: skipping testdata/exclude-dirs/excluded.mbt",
+        "moongrep scan: skipping e2etests/testdata/exclude-dirs/excluded.mbt",
       ),
     ),
   )
@@ -550,7 +558,9 @@ async test "scan does not apply excludes to the explicit scan root" {
   for hit in result.hits {
     files.push(hit.finding.file)
   }
-  assert_eq(files, [native_scan_test_path("testdata/exclude-dirs/hit.mbt")])
+  assert_eq(files, [
+    native_scan_test_path("e2etests/testdata/exclude-dirs/hit.mbt"),
+  ])
 }
 
 ///|
@@ -609,7 +619,7 @@ async test "scan isolates matching source block parse failures" {
   assert_true(
     render_scan_warning(Parse(skipped)).has_prefix(
       native_scan_test_path(
-        "warning: skipping testdata/prefilter-block/matched-broken.mbt block starting at line 5: parse failed due to ",
+        "warning: skipping e2etests/testdata/prefilter-block/matched-broken.mbt block starting at line 5: parse failed due to ",
       ),
     ),
   )
@@ -625,9 +635,11 @@ async test "scan disables configured rule ids before planning" {
   assert_eq(summaries, ["other:6"])
   assert_eq(result.traces, [
     "moongrep scan: loaded rule other",
-    native_scan_test_path("moongrep scan: entering testdata/prefilter-impl"),
     native_scan_test_path(
-      "moongrep scan: file testdata/prefilter-impl/hits.mbt",
+      "moongrep scan: entering e2etests/testdata/prefilter-impl",
+    ),
+    native_scan_test_path(
+      "moongrep scan: file e2etests/testdata/prefilter-impl/hits.mbt",
     ),
   ])
 }
@@ -723,12 +735,12 @@ async test "scan keeps rule disabling case sensitive on every host" {
 
 ///|
 async test "scan classifies rule source, rule content, and scan input failures" {
-  try load_rule_directory("testdata/missing-rule-root") catch {
+  try load_rule_directory("e2etests/testdata/missing-rule-root") catch {
     CliError::RuleSource(diagnostic~) as err => {
       let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 4)
       assert_true(message.contains("error: could not read rule directory"))
-      assert_true(message.contains("testdata/missing-rule-root"))
+      assert_true(message.contains("e2etests/testdata/missing-rule-root"))
       assert_false(message.contains("OSError"))
       assert_false(message.contains("@fs."))
     }
@@ -736,7 +748,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
   } noraise {
     _ => fail("expected missing rule source error")
   }
-  try load_rule_directory("testdata/empty-rule-root") catch {
+  try load_rule_directory("e2etests/testdata/empty-rule-root") catch {
     CliError::RuleSource(diagnostic~) as err => {
       let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 4)
@@ -745,7 +757,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
         content=native_scan_test_path(
           (
             #|error: no rules found
-            #|  source: testdata/empty-rule-root
+            #|  source: e2etests/testdata/empty-rule-root
             #|  reason: the directory contains no YAML rule files
             #|  help: add a .yaml or .yml rule file or choose another --rules directory
           ),
@@ -760,7 +772,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     rules_root: None,
     rule_file: None,
     patterns: [{ shape: "target(", guards: Map([]), match_mode: Default, }],
-    scan_root: "testdata/custom-rules",
+    scan_root: "e2etests/testdata/custom-rules",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -788,7 +800,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
   } noraise {
     _ => fail("expected rule content error")
   }
-  try load_rule_file("testdata/exit-codes/invalid.yaml") catch {
+  try load_rule_file("e2etests/testdata/exit-codes/invalid.yaml") catch {
     CliError::RuleContent(diagnostic~) as err => {
       let message = render_cli_diagnostic(diagnostic)
       assert_eq(err.exit_code(), 5)
@@ -797,7 +809,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
         content=native_scan_test_path(
           (
             #|error: invalid rule
-            #|  source: testdata/exit-codes/invalid.yaml
+            #|  source: e2etests/testdata/exit-codes/invalid.yaml
             #|  reason: line 2, column 1: while parsing a node, did not find expected node content
             #|  help: fix the rule and try again
           ),
@@ -813,7 +825,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/does-not-exist",
+    scan_root: "e2etests/testdata/does-not-exist",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -826,7 +838,9 @@ async test "scan classifies rule source, rule content, and scan input failures" 
       assert_eq(err.exit_code(), 6)
       assert_true(message.contains("error: could not access scan path"))
       assert_true(
-        message.contains(native_scan_test_path("testdata/does-not-exist")),
+        message.contains(
+          native_scan_test_path("e2etests/testdata/does-not-exist"),
+        ),
       )
       assert_false(message.contains("OSError"))
       assert_false(message.contains("@fs."))
@@ -844,10 +858,10 @@ async test "scan verbose lists loaded rule ids before traversal" {
     "moongrep scan: loaded rule example",
     "moongrep scan: loaded rule nested/example",
     native_scan_test_path(
-      "moongrep scan: entering testdata/recursive-rule-discovery-src",
+      "moongrep scan: entering e2etests/testdata/recursive-rule-discovery-src",
     ),
     native_scan_test_path(
-      "moongrep scan: file testdata/recursive-rule-discovery-src/hits.mbt",
+      "moongrep scan: file e2etests/testdata/recursive-rule-discovery-src/hits.mbt",
     ),
   ])
 }

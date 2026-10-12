@@ -1,28 +1,39 @@
 # Windows junction traversal
 
+```mooncram-import
+grep : cli/grep@0.2.0
+wc : cli/wc@0.2.0
+```
+
 ## Scan-directory cycle
 
-Windows directory junctions are followed during source traversal. A junction
-back to the scan root is reported as skipped, and the source is scanned only
-once.
+The e2e runner prepares a directory junction back to the scan root and removes
+it after testing. Source traversal follows the junction, reports the cycle as
+skipped, and scans the source only once.
 
-```mooncram
-$ $root = Join-Path $env:TESTDIR 'fs-walk-scan.tmp'; $cycle = Join-Path $root 'again'; if (Test-Path -LiteralPath $root) { if (Test-Path -LiteralPath $cycle) { [IO.Directory]::Delete($cycle) }; Remove-Item -LiteralPath $root -Recurse -Force }; $scanStatus = 1; try { $null = New-Item -ItemType Directory -Path $root; [IO.File]::WriteAllText((Join-Path $root 'hit.mbt'), "///|`nfn sample {`n  target()`n}`n"); $null = New-Item -ItemType Junction -Path $cycle -Target $root; Set-Location "$env:TESTDIR/../.."; $stdoutPath = Join-Path $root 'stdout.txt'; $stderrPath = Join-Path $root 'stderr.txt'; moonrun e2etests/moongrep.wasm -- scan --verbose --pattern 'target()' e2etests/windows/fs-walk-scan.tmp 1>$stdoutPath 2>$stderrPath; $scanStatus = $LASTEXITCODE; $scanOutput = @(Get-Content -LiteralPath $stdoutPath); "status: $scanStatus"; "hit count: $(@($scanOutput | Where-Object { $_ -eq 'rule: target()' }).Count)"; Get-Content -LiteralPath $stderrPath | Where-Object { $_ -match '^moongrep scan: (entering|skipping|file) ' } } finally { if (Test-Path -LiteralPath $cycle) { [IO.Directory]::Delete($cycle) }; if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } }; $global:LASTEXITCODE = $scanStatus
-status: 0
-hit count: 1
-moongrep scan: entering e2etests\windows\fs-walk-scan.tmp
-moongrep scan: skipping e2etests\windows\fs-walk-scan.tmp\again
-moongrep scan: file e2etests\windows\fs-walk-scan.tmp\hit.mbt
+```mooncram moonbit-community/moongrep
+$ moongrep scan --verbose --pattern 'target()' fs-walk-scan.tmp | grep -x 'rule: target()' | wc -l
+1
+```
+
+The same traversal exposes its entering, skipping, and file events on stderr.
+
+```mooncram moonbit-community/moongrep
+$ moongrep scan --verbose --pattern 'target()' fs-walk-scan.tmp 1>/dev/null 2>&1 | grep -E '^moongrep scan: (entering|skipping|file) '
+moongrep scan: entering fs-walk-scan.tmp
+moongrep scan: skipping fs-walk-scan.tmp\again
+moongrep scan: file fs-walk-scan.tmp\hit.mbt
 ```
 
 ## Rule-directory cycle
 
-Rule discovery also follows Windows directory junctions and stops when a
-junction resolves to an already visited rule directory.
+The runner also prepares a rule directory with a junction back to itself.
+Rule discovery follows the junction, stops at the already visited directory,
+and reports one finding with no stderr output.
 
-```mooncram
-$ $root = Join-Path $env:TESTDIR 'fs-walk-rules.tmp'; $cycle = Join-Path $root 'again'; if (Test-Path -LiteralPath $root) { if (Test-Path -LiteralPath $cycle) { [IO.Directory]::Delete($cycle) }; Remove-Item -LiteralPath $root -Recurse -Force }; $scanStatus = 1; try { $null = New-Item -ItemType Directory -Path $root; [IO.File]::WriteAllText((Join-Path $root 'example.yaml'), "id: example`ndescription: Windows junction rule.`npatterns:`n  - shape: target()`n"); $null = New-Item -ItemType Junction -Path $cycle -Target $root; Set-Location "$env:TESTDIR/../.."; $stdoutPath = Join-Path $root 'stdout.txt'; $stderrPath = Join-Path $root 'stderr.txt'; moonrun e2etests/moongrep.wasm -- scan --rules e2etests/windows/fs-walk-rules.tmp testdata/symlink/scan-dir-target/hit.mbt 1>$stdoutPath 2>$stderrPath; $scanStatus = $LASTEXITCODE; $scanOutput = @(Get-Content -LiteralPath $stdoutPath); $scanError = @(Get-Content -LiteralPath $stderrPath); "status: $scanStatus"; "hit count: $(@($scanOutput | Where-Object { $_ -eq 'rule: example' }).Count)"; "stderr count: $($scanError.Count)" } finally { if (Test-Path -LiteralPath $cycle) { [IO.Directory]::Delete($cycle) }; if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } }; $global:LASTEXITCODE = $scanStatus
-status: 0
-hit count: 1
-stderr count: 0
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rules fs-walk-rules.tmp ../testdata/symlink/scan-dir-target/hit.mbt | grep -x 'rule: example' | wc -l
+@STDOUT
+1
+@STDERR (empty)
 ```

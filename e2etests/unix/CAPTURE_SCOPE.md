@@ -3,9 +3,9 @@
 The four report examples produce 0, 0, 1, and 0 findings respectively. Only
 the accessor case matches; the other three reuse a different variable binding.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rules testdata/capture-scope/rules testdata/capture-scope/report.mbt
-testdata/capture-scope/report.mbt:18:3-21:5
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rules ../testdata/capture-scope/rules ../testdata/capture-scope/report.mbt
+../testdata/capture-scope/report.mbt:18:3-21:5
 rule: field-origin
 description:
   Local variables do not shadow accessor names.
@@ -23,9 +23,9 @@ source:
 An `inside-toplevel` parameter capture checks the occurrence after the local
 declaration in a multi-statement candidate. Only the second function matches.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/parameter.yaml testdata/capture-scope/parameter.mbt
-testdata/capture-scope/parameter.mbt:7:3-8:13
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/parameter.yaml ../testdata/capture-scope/parameter.mbt
+../testdata/capture-scope/parameter.mbt:7:3-8:13
 rule: parameter-origin
 description:
   A parameter binding survives only where it is still visible.
@@ -41,9 +41,9 @@ Alias and quantifier captures must not crash the index. Each declaration is
 inherited through `inside-toplevel` and a recursive `then`; only the four
 functions without a shadowing local variable match.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/wrapped.yaml testdata/capture-scope/wrapped.mbt
-testdata/capture-scope/wrapped.mbt:4:24-4:68
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/wrapped.yaml ../testdata/capture-scope/wrapped.mbt
+../testdata/capture-scope/wrapped.mbt:4:24-4:68
 rule: wrapped-origin
 description:
   Alias and quantifier captures retain their declaration binding.
@@ -54,7 +54,7 @@ source:
 5 |   }
 6 | }
 
-testdata/capture-scope/wrapped.mbt:16:24-16:68
+../testdata/capture-scope/wrapped.mbt:16:24-16:68
 rule: wrapped-origin
 description:
   Alias and quantifier captures retain their declaration binding.
@@ -65,7 +65,7 @@ source:
 17 |   }
 18 | }
 
-testdata/capture-scope/wrapped.mbt:27:17-27:61
+../testdata/capture-scope/wrapped.mbt:27:17-27:61
 rule: wrapped-origin
 description:
   Alias and quantifier captures retain their declaration binding.
@@ -76,7 +76,7 @@ source:
 28 | }
 29 | ///|
 
-testdata/capture-scope/wrapped.mbt:35:17-35:61
+../testdata/capture-scope/wrapped.mbt:35:17-35:61
 rule: wrapped-origin
 description:
   Alias and quantifier captures retain their declaration binding.
@@ -91,9 +91,9 @@ source:
 Assignments and augmented assignments resolve the left-hand variable at its
 occurrence. Only the two functions that preserve the outer binding match.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/assignment.yaml testdata/capture-scope/assignment.mbt
-testdata/capture-scope/assignment.mbt:9:3-9:49
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/assignment.yaml ../testdata/capture-scope/assignment.mbt
+../testdata/capture-scope/assignment.mbt:9:3-9:49
 rule: assignment-origin
 description:
   Assignments match only the captured variable binding.
@@ -104,7 +104,7 @@ source:
 10 | }
 11 | ///|
 
-testdata/capture-scope/assignment.mbt:19:3-19:50
+../testdata/capture-scope/assignment.mbt:19:3-19:50
 rule: assignment-origin
 description:
   Assignments match only the captured variable binding.
@@ -118,9 +118,9 @@ source:
 A parameter captured by `inside-toplevel` remains visible in a later
 parameter's default value. The call in the default produces one finding.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/default.yaml testdata/capture-scope/default.mbt
-testdata/capture-scope/default.mbt:1:37-1:47
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/default.yaml ../testdata/capture-scope/default.mbt
+../testdata/capture-scope/default.mbt:1:37-1:47
 rule: default-origin
 description:
   A default value sees the preceding parameter.
@@ -133,9 +133,9 @@ source:
 A `for` update target captures the loop variable. The local `let i` in the
 first loop shadows it, so only the second loop produces a finding.
 
-```mooncram
-$ cd "$TESTDIR"/../.. && moonrun "$TESTDIR"/../moongrep.wasm -- scan --rule testdata/capture-scope/for-update.yaml testdata/capture-scope/for-update.mbt
-testdata/capture-scope/for-update.mbt:9:3-12:4
+```mooncram moonbit-community/moongrep
+$ moongrep scan --rule ../testdata/capture-scope/for-update.yaml ../testdata/capture-scope/for-update.mbt
+../testdata/capture-scope/for-update.mbt:9:3-12:4
 rule: for-update-origin
 description:
   An update target refers to the loop variable.

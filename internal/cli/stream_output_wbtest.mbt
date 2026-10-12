@@ -1,10 +1,10 @@
 ///|
 fn stream_event_scan_options() -> CliOptions {
   {
-    rules_root: Some("testdata/skip-structural/rules"),
+    rules_root: Some("e2etests/testdata/skip-structural/rules"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/stream-events",
+    scan_root: "e2etests/testdata/stream-events",
     excludes: ["ignored"],
     disabled_rules: [],
     verbose: true,
@@ -19,7 +19,7 @@ fn stream_order_scan_options() -> CliOptions {
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/stream-order",
+    scan_root: "e2etests/testdata/stream-order",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -34,7 +34,7 @@ fn no_match_stream_options(output_json : Bool) -> CliOptions {
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/prefilter-irrelevant",
+    scan_root: "e2etests/testdata/prefilter-irrelevant",
     excludes: [],
     disabled_rules: [],
     verbose: false,
@@ -49,7 +49,7 @@ fn parse_warning_stream_options() -> CliOptions {
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
-    scan_root: "testdata/parse-warning",
+    scan_root: "e2etests/testdata/parse-warning",
     excludes: [],
     disabled_rules: [],
     verbose: true,
@@ -89,7 +89,7 @@ fn scan_event_summary(event : ScanEvent) -> String {
 }
 
 ///|
-fn string_index_containing(items : Array[String], needle : String) -> Int {
+fn string_index_containing(items : Array[String], needle : String) -> Int32 {
   for index, item in items {
     if item.contains(needle) {
       return index
@@ -108,45 +108,49 @@ async test "scan events stream before visiting later files" {
     "trace:moongrep scan: loaded rule taint",
     "trace:moongrep scan: loaded rule structural",
     native_scan_test_path(
-      "trace:moongrep scan: entering testdata/stream-events",
+      "trace:moongrep scan: entering e2etests/testdata/stream-events",
     ),
     native_scan_test_path(
-      "trace:moongrep scan: file testdata/stream-events/a.mbt",
-    ),
-    native_scan_test_path("hit:testdata/stream-events/a.mbt:structural:2"),
-    native_scan_test_path("hit:testdata/stream-events/a.mbt:taint:4"),
-    native_scan_test_path(
-      "trace:moongrep scan: entering testdata/stream-events/later",
+      "trace:moongrep scan: file e2etests/testdata/stream-events/a.mbt",
     ),
     native_scan_test_path(
-      "trace:moongrep scan: entering testdata/stream-events/later/nested",
+      "hit:e2etests/testdata/stream-events/a.mbt:structural:2",
+    ),
+    native_scan_test_path("hit:e2etests/testdata/stream-events/a.mbt:taint:4"),
+    native_scan_test_path(
+      "trace:moongrep scan: entering e2etests/testdata/stream-events/later",
     ),
     native_scan_test_path(
-      "trace:moongrep scan: file testdata/stream-events/later/nested/b.mbt",
+      "trace:moongrep scan: entering e2etests/testdata/stream-events/later/nested",
     ),
     native_scan_test_path(
-      "hit:testdata/stream-events/later/nested/b.mbt:structural:2",
+      "trace:moongrep scan: file e2etests/testdata/stream-events/later/nested/b.mbt",
     ),
     native_scan_test_path(
-      "trace:moongrep scan: skipping testdata/stream-events/ignored",
+      "hit:e2etests/testdata/stream-events/later/nested/b.mbt:structural:2",
     ),
     native_scan_test_path(
-      "trace:moongrep scan: file testdata/stream-events/broken.mbt",
+      "trace:moongrep scan: skipping e2etests/testdata/stream-events/ignored",
     ),
-    native_scan_test_path("warning:testdata/stream-events/broken.mbt"),
+    native_scan_test_path(
+      "trace:moongrep scan: file e2etests/testdata/stream-events/broken.mbt",
+    ),
+    native_scan_test_path("warning:e2etests/testdata/stream-events/broken.mbt"),
   ])
   let structural = string_index_containing(
     events,
-    native_scan_test_path("hit:testdata/stream-events/a.mbt:structural:2"),
+    native_scan_test_path(
+      "hit:e2etests/testdata/stream-events/a.mbt:structural:2",
+    ),
   )
   let taint = string_index_containing(
     events,
-    native_scan_test_path("hit:testdata/stream-events/a.mbt:taint:4"),
+    native_scan_test_path("hit:e2etests/testdata/stream-events/a.mbt:taint:4"),
   )
   let later = string_index_containing(
     events,
     native_scan_test_path(
-      "trace:moongrep scan: entering testdata/stream-events/later",
+      "trace:moongrep scan: entering e2etests/testdata/stream-events/later",
     ),
   )
   assert_true(structural >= 0 && structural < taint)
@@ -155,7 +159,7 @@ async test "scan events stream before visiting later files" {
     string_index_containing(
       events,
       native_scan_test_path(
-        "trace:moongrep scan: entering testdata/stream-events/later/nested",
+        "trace:moongrep scan: entering e2etests/testdata/stream-events/later/nested",
       ),
     ) >=
     0,
@@ -164,7 +168,7 @@ async test "scan events stream before visiting later files" {
     string_index_containing(
       events,
       native_scan_test_path(
-        "trace:moongrep scan: skipping testdata/stream-events/ignored",
+        "trace:moongrep scan: skipping e2etests/testdata/stream-events/ignored",
       ),
     ) >=
     0,
@@ -172,14 +176,16 @@ async test "scan events stream before visiting later files" {
   assert_true(
     string_index_containing(
       events,
-      native_scan_test_path("warning:testdata/stream-events/broken.mbt"),
+      native_scan_test_path(
+        "warning:e2etests/testdata/stream-events/broken.mbt",
+      ),
     ) >=
     0,
   )
   assert_true(
     string_index_containing(
       events,
-      native_scan_test_path("hit:testdata/stream-events/ignored"),
+      native_scan_test_path("hit:e2etests/testdata/stream-events/ignored"),
     ) <
     0,
   )
@@ -195,8 +201,8 @@ async test "stream order follows DFS traversal" {
     }
   })
   assert_eq(streamed_files, [
-    native_scan_test_path("testdata/stream-order/a/hit.mbt"),
-    native_scan_test_path("testdata/stream-order/a.mbt"),
+    native_scan_test_path("e2etests/testdata/stream-order/a/hit.mbt"),
+    native_scan_test_path("e2etests/testdata/stream-order/a.mbt"),
   ])
 }
 
@@ -215,19 +221,19 @@ async test "human stream writes one complete chunk per hit" {
   assert_false(stdout_chunks[0].has_prefix("\n"))
   assert_true(
     stdout_chunks[0].contains(
-      native_scan_test_path("testdata/stream-order/a/hit.mbt"),
+      native_scan_test_path("e2etests/testdata/stream-order/a/hit.mbt"),
     ),
   )
   assert_false(
     stdout_chunks[0].contains(
-      native_scan_test_path("testdata/stream-order/a.mbt:2"),
+      native_scan_test_path("e2etests/testdata/stream-order/a.mbt:2"),
     ),
   )
   assert_true(stdout_chunks[1].has_prefix("\n"))
   assert_true(stdout_chunks[1].has_suffix("\n"))
   assert_true(
     stdout_chunks[1].contains(
-      native_scan_test_path("testdata/stream-order/a.mbt"),
+      native_scan_test_path("e2etests/testdata/stream-order/a.mbt"),
     ),
   )
   assert_true(stderr_chunks.is_empty())
@@ -261,7 +267,7 @@ async test "stream writer is awaited before traversal resumes" {
   let next_file = string_index_containing(
     timeline,
     native_scan_test_path(
-      "stderr:moongrep scan: file testdata/stream-order/a.mbt",
+      "stderr:moongrep scan: file e2etests/testdata/stream-order/a.mbt",
     ),
   )
   assert_true(start >= 0 && start < end)
@@ -353,7 +359,7 @@ async test "stream diagnostics are written only to stderr" {
   assert_true(
     stderr.contains(
       native_scan_test_path(
-        "warning: skipping testdata/parse-warning/bad.mbt: parse failed",
+        "warning: skipping e2etests/testdata/parse-warning/bad.mbt: parse failed",
       ),
     ),
   )
@@ -407,10 +413,10 @@ async test "skip payload warnings keep streaming and JSON stdout clean" {
   assert_false(human_stdout.join("").contains("warning:"))
   assert_eq(human_stderr, [
     native_scan_test_path(
-      "warning: testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip\n",
+      "warning: e2etests/testdata/skip-structural/src/hit.mbt:7:1-7:22: #moongrep.skip does not accept a payload; use bare #moongrep.skip\n",
     ),
     native_scan_test_path(
-      "warning: testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip\n",
+      "warning: e2etests/testdata/skip-structural/src/hit.mbt:13:1-13:17: #moongrep.skip does not accept a payload; use bare #moongrep.skip\n",
     ),
   ])
   let json_stdout : Array[String] = []

@@ -1,5 +1,10 @@
 # Subcommands without arguments
 
+```mooncram-import
+tee : cli/tee@0.2.0
+cmp : cli/cmp@0.2.0
+```
+
 ## moongrep subcommands without arguments
 
 The `docs` and `dump` subcommands print their help when invoked without
@@ -9,20 +14,33 @@ builtin rules automatically.
 
 The docs subcommand uses the same no-argument help behavior.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- docs > /dev/null && diff -u <(moonrun "$TESTDIR"/../moongrep.wasm -- docs --help) <(moonrun "$TESTDIR"/../moongrep.wasm -- docs)
+```mooncram moonbit-community/moongrep
+$ moongrep docs --help | tee "${E2E_TEMP}/docs"
+@STDOUT (ignore)
+@STDERR (ignore)
+
+$ moongrep docs | cmp "${E2E_TEMP}/docs" -
 ```
 
 The dump subcommand also prints help instead of attempting to parse an empty
 input.
 
-```mooncram
-$ moonrun "$TESTDIR"/../moongrep.wasm -- dump > /dev/null && diff -u <(moonrun "$TESTDIR"/../moongrep.wasm -- dump --help) <(moonrun "$TESTDIR"/../moongrep.wasm -- dump)
+```mooncram moonbit-community/moongrep
+$ moongrep dump --help | tee "${E2E_TEMP}/dump"
+@STDOUT (ignore)
+@STDERR (ignore)
+
+$ moongrep dump | cmp "${E2E_TEMP}/dump" -
 ```
 
 Running bare `lint` from a fixture directory produces the same output as an
 explicit current-directory lint target.
 
-```mooncram
-$ cd "$TESTDIR"/../../testdata/builtin-rules && diff -u <(moonrun "$TESTDIR"/../moongrep.wasm -- lint) <(moonrun "$TESTDIR"/../moongrep.wasm -- lint .)
+```mooncram moonbit-community/moongrep
+$ set-current-working-directory ../testdata/builtin-rules
+$ moongrep lint | tee "${E2E_TEMP}/lint"
+@STDOUT (ignore)
+@STDERR (ignore)
+
+$ moongrep lint . | cmp "${E2E_TEMP}/lint" -
 ```

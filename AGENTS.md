@@ -46,7 +46,7 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
 
 - Run `node scripts/e2e.mjs test` to check the e2etest suite.
 
-- Run `node scripts/e2e.mjs update --replace -y` to update the e2etest cram snapshots when the
+- Run `node scripts/e2e.mjs update` to update the e2etest cram snapshots when the
   expected output changes.
 
 - You can run `moon check` to check the code is linted correctly.
