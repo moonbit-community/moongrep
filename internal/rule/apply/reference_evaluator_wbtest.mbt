@@ -3,9 +3,9 @@
 // keeps the declarative priority, pruning, and negative-coverage semantics.
 fn reference_candidate(
   session : ScanSession,
-  group_id : Int,
+  group_id : Int32,
   region : @cst.RegionId,
-  env : Int,
+  env : Int32,
 ) -> GroupCandidateResult {
   let group = session.plan.groups[group_id]
   for
@@ -40,13 +40,13 @@ fn reference_candidate(
 ///|
 fn reference_scan(
   session : ScanSession,
-  group_id : Int,
+  group_id : Int32,
   region : @cst.RegionId,
-  env : Int,
-  publish : (Int, @basic.Location) -> Unit,
+  env : Int32,
+  publish : (Int32, @basic.Location) -> Unit,
 ) -> Bool {
   let group = session.plan.groups[group_id]
-  let pending : Array[(Int, @basic.Location)] = []
+  let pending : Array[(Int32, @basic.Location)] = []
   let mut rejected = false
   session.index.walk(session.index.scan(region), fn(candidate) {
     match reference_candidate(session, group_id, candidate, env) {
@@ -156,7 +156,7 @@ fn reference_findings(
 ///|
 fn complete_finding_signature(
   finding : RuleFinding,
-) -> (String, String, String, Int, @basic.Location) {
+) -> (String, String, String, Int32, @basic.Location) {
   (
     finding.file,
     finding.rule_id,

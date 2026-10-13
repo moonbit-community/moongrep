@@ -443,8 +443,8 @@ fn compile_pattern(
   pattern : RulePatternSpec,
   compiled_shape : MetavarShape,
   context : PatternCompileContext,
-  special_expr_placeholders? : Array[String] = [],
-  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
+  special_expr_placeholders~ : Array[String] = [],
+  ignored_fields~ : Array[@matching.IgnoredPatternField] = [],
 ) -> CompiledRulePattern raise {
   let compiled = build_compiled_expr_pattern(
     compiled_shape,
@@ -457,8 +457,8 @@ fn compile_pattern(
 ///|
 fn build_compiled_expr_pattern(
   compiled_shape : MetavarShape,
-  special_expr_placeholders? : Array[String] = [],
-  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
+  special_expr_placeholders~ : Array[String] = [],
+  ignored_fields~ : Array[@matching.IgnoredPatternField] = [],
 ) -> @matching.CompiledExprPattern {
   let metavars = compiled_shape.metavars.copy()
   for placeholder in special_expr_placeholders {
@@ -645,7 +645,7 @@ fn reject_missing_inherited_inside_context_metavar(
   path : String,
   context : String,
   outer_context : String,
-  outer_index : Int,
+  outer_index : Int32,
   inner : @matching.MetavarEntry,
 ) -> Unit raise {
   let info = match inner.kind {

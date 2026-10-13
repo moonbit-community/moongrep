@@ -59,7 +59,7 @@ pub fn taint_tree_origins(tree : TaintTree) -> Array[TaintOrigin] {
 /// index used by rule lowering when a sink corresponds to an ordered pattern.
 pub(all) enum SinkId {
   Named(String)
-  PatternIndex(Int)
+  PatternIndex(Int32)
 } derive(Eq, Debug)
 
 ///|

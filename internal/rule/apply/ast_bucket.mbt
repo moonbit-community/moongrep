@@ -26,7 +26,7 @@
 
 ///|
 priv struct IndexedCompiledRulePattern {
-  pattern_index : Int
+  pattern_index : Int32
   pattern : CompiledRulePattern
 }
 

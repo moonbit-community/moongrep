@@ -73,8 +73,8 @@ fn root_key_signature(key : ExprRootKey?) -> String {
 ///|
 fn bucket_pattern_indices(
   patterns : Array[IndexedCompiledRulePattern],
-) -> Array[Int] {
-  let indices : Array[Int] = []
+) -> Array[Int32] {
+  let indices : Array[Int32] = []
   for pattern in patterns {
     indices.push(pattern.pattern_index)
   }
@@ -82,7 +82,7 @@ fn bucket_pattern_indices(
 }
 
 ///|
-fn int_array_signature(values : Array[Int]) -> String {
+fn int_array_signature(values : Array[Int32]) -> String {
   let parts : Array[String] = []
   for value in values {
     parts.push(value.to_string())

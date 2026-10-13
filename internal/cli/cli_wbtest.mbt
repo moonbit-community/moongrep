@@ -1,5 +1,5 @@
 ///|
-fn expect_cli_usage(argv : Array[String], exit_code : Int) -> Unit raise {
+fn expect_cli_usage(argv : Array[String], exit_code : Int32) -> Unit raise {
   try parse_cli_command(argv) catch {
     CliError::Usage(..) as err =>
       inspect(err.exit_code(), content=exit_code.to_string())
@@ -75,7 +75,7 @@ fn expect_no_patterns(options : CliOptions) -> Unit raise {
 ///|
 fn expect_pattern_shape(
   options : CliOptions,
-  index : Int,
+  index : Int32,
   expected : String,
 ) -> Unit raise {
   inspect(options.patterns[index].shape, content=expected)
@@ -84,7 +84,7 @@ fn expect_pattern_shape(
 ///|
 fn expect_pattern_guard(
   options : CliOptions,
-  index : Int,
+  index : Int32,
   key : String,
   expected : String,
 ) -> Unit raise {

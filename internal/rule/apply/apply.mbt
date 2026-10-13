@@ -12,7 +12,7 @@ using @taint_lowering {lower_compiled_taint_rule}
 
 ///|
 priv suberror RuleApplyError {
-  InvalidTaintSinkId(sink_id~ : @taint.SinkId, sink_count~ : Int)
+  InvalidTaintSinkId(sink_id~ : @taint.SinkId, sink_count~ : Int32)
 } derive(Debug)
 
 ///|
@@ -99,7 +99,7 @@ fn apply_scan_session(
 fn push_structural_hit(
   file : String,
   rule : CompiledRule,
-  index : Int,
+  index : Int32,
   loc : @basic.Location,
   hits : Array[RuleFinding],
 ) -> Unit {
@@ -152,8 +152,8 @@ fn apply_planned_taint_rule_to_node(
 ///|
 fn sink_pattern_index(
   sink_id : @taint.SinkId,
-  sink_count : Int,
-) -> Int raise RuleApplyError {
+  sink_count : Int32,
+) -> Int32 raise RuleApplyError {
   match sink_id {
     PatternIndex(index) if index >= 0 && index < sink_count => index
     _ => raise InvalidTaintSinkId(sink_id~, sink_count~)

@@ -1,7 +1,7 @@
 ///|
 priv struct JsonScanPosition {
-  line : Int
-  column : Int
+  line : Int32
+  column : Int32
 } derive(ToJson)
 
 ///|
@@ -12,7 +12,7 @@ priv struct JsonScanRange {
 
 ///|
 priv struct JsonSourceContextLine {
-  line : Int
+  line : Int32
   text : String
   is_match : Bool
 } derive(ToJson)

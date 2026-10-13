@@ -236,7 +236,7 @@ fn observe_sink_origins(
 }
 
 ///|
-fn sink_location(finding : @taint.SinkFinding) -> (Int, Int, Int, Int) {
+fn sink_location(finding : @taint.SinkFinding) -> (Int32, Int32, Int32, Int32) {
   let loc = finding.sink_loc
   (loc.start.lnum, loc.start.column(), loc.end.lnum, loc.end.column())
 }
@@ -245,7 +245,7 @@ fn sink_location(finding : @taint.SinkFinding) -> (Int, Int, Int, Int) {
 fn simple_spec(
   sources~ : Array[@taint.SourceModel],
   call_models~ : Array[@taint.CallModel],
-  unknown_call_policy? : @taint.UnknownCallPolicy = PropagateArgumentsToReturn,
+  unknown_call_policy~ : @taint.UnknownCallPolicy = PropagateArgumentsToReturn,
 ) -> @taint.TaintSpec {
   {
     rule_id: "test/rule",

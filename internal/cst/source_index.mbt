@@ -1,17 +1,17 @@
 ///|
-pub type NodeId = Int
+pub type NodeId = Int32
 
 ///|
-pub type RegionId = Int
+pub type RegionId = Int32
 
 ///|
-pub type ScopeId = Int
+pub type ScopeId = Int32
 
 ///|
-pub type BindingId = Int
+pub type BindingId = Int32
 
 ///|
-pub type CursorId = Int
+pub type CursorId = Int32
 
 ///|
 /// A forest cursor. Shared suffixes are evaluated independently of their callers.
@@ -27,7 +27,7 @@ pub(all) enum SourceStep {
 ///|
 priv enum RegionKey {
   Node(NodeId)
-  Slice(Int, Int, Int)
+  Slice(Int32, Int32, Int32)
 } derive(Eq, Hash)
 
 ///|
@@ -37,8 +37,8 @@ priv struct IndexedNode {
   mut scope : ScopeId
   mut identifier_role : SourceIdentifierRole
   mut function_body : Bool
-  mut sequence : Int?
-  mut statement : (Int, Int)?
+  mut sequence : Int32?
+  mut statement : (Int32, Int32)?
 }
 
 ///|
@@ -61,7 +61,7 @@ priv struct LexicalScope {
 pub struct SourceIndex {
   priv mut scoped : Bool
   priv nodes : Array[IndexedNode]
-  priv node_buckets : Map[(Int, Int), Array[NodeId]]
+  priv node_buckets : Map[(Int32, Int32), Array[NodeId]]
   priv sequences : Array[SourceSequence]
   priv scopes : Array[LexicalScope]
   priv scope_ids : Map[(ScopeId, BindingId), ScopeId]
@@ -73,7 +73,7 @@ pub struct SourceIndex {
   priv child_cursors : Map[(RegionId, Bool), CursorId]
   priv root_cursors : Map[NodeId, CursorId]
   priv descendant_cursors : Map[NodeId, CursorId]
-  priv sequence_cursors : Map[(Int, Int, Int), CursorId]
+  priv sequence_cursors : Map[(Int32, Int32, Int32), CursorId]
   priv direct_cursors : Map[(NodeId, TraversalLayer), CursorId]
 }
 
@@ -251,9 +251,9 @@ pub fn SourceIndex::direct(self : SourceIndex, id : NodeId) -> RegionId {
 ///|
 fn SourceIndex::slice(
   self : SourceIndex,
-  list : Int,
-  start : Int,
-  end : Int,
+  list : Int32,
+  start : Int32,
+  end : Int32,
 ) -> RegionId {
   self.intern_region(Slice(list, start, end))
 }
@@ -275,7 +275,7 @@ pub fn SourceIndex::target(self : SourceIndex, id : NodeId) -> RegionId {
 pub fn SourceIndex::continuation(
   self : SourceIndex,
   header : NodeId,
-  length : Int,
+  length : Int32,
 ) -> RegionId {
   let (list, start) = self.nodes[header].statement.unwrap()
   self.slice(list, start + 1, start + length)
@@ -321,7 +321,7 @@ fn SourceIndex::intern_step(self : SourceIndex, step : SourceStep) -> CursorId {
 pub fn SourceIndex::visit(
   self : SourceIndex,
   region : RegionId,
-  next? : CursorId = 0,
+  next~ : CursorId = 0,
 ) -> CursorId {
   self.intern_step(Visit(region, next))
 }
@@ -342,7 +342,7 @@ fn SourceIndex::concat(
 }
 
 ///|
-pub fn SourceIndex::state_count(self : SourceIndex) -> Int {
+pub fn SourceIndex::state_count(self : SourceIndex) -> Int32 {
   self.regions.length() + self.steps.length()
 }
 

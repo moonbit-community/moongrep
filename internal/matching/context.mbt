@@ -83,7 +83,7 @@ fn MatchContext::select_node(
 fn MatchContext::select_continuation(
   self : MatchContext,
   header : @untyped_cst.CstNode,
-  length : Int,
+  length : Int32,
 ) -> Unit {
   if self.index is Some(index) {
     let region = index.continuation(index.node_id(header), length)

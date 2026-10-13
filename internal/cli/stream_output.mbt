@@ -1,6 +1,6 @@
 ///|
 priv struct ScanOutputState {
-  mut hit_count : Int
+  mut hit_count : Int32
 }
 
 ///|

@@ -1,5 +1,5 @@
 ///|
-fn recursive_bench_rule(depth : Int, leaf : String) -> CompiledRule raise {
+fn recursive_bench_rule(depth : Int32, leaf : String) -> CompiledRule raise {
   let mut source = "id: recursive-bench\ndescription: Recursive scan baseline.\n"
   let mut indent = ""
   for _ in 0..<depth {

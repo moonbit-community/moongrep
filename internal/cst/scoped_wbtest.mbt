@@ -84,7 +84,7 @@ fn parse_scoped_structure(source : String) -> @untyped_cst.CstNode raise {
 fn direct_candidate_count(
   candidates : Array[TestScopedCandidate],
   expected : (@untyped_cst.NodeKind) -> Bool,
-) -> Int {
+) -> Int32 {
   let mut count = 0
   for item in candidates {
     if item.candidate is Direct(node) && expected(node.kind) {

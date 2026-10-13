@@ -751,7 +751,7 @@ test "apply structural root patterns preserve pattern indexes" {
     parse_root_node(source),
     compile_rule_source(rule_source),
   )
-  let pattern_indices : Array[Int] = []
+  let pattern_indices : Array[Int32] = []
   for hit in hits {
     pattern_indices.push(hit.pattern_index)
   }

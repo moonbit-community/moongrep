@@ -2,7 +2,7 @@
 fn count_bindable_expr_identifier_in_node(
   node : @untyped_cst.CstNode,
   name : String,
-) -> Int {
+) -> Int32 {
   if node.kind is Expr_Ident {
     if @cst.normalized_expr_identifier_name(node) == Some(name) {
       1
@@ -23,7 +23,7 @@ fn count_bindable_expr_identifier_in_node(
 fn count_supported_name_in_node(
   node : @untyped_cst.CstNode,
   name : String,
-) -> Int {
+) -> Int32 {
   match node.kind {
     Expr_Ident =>
       if @cst.normalized_expr_identifier_name(node) == Some(name) {
@@ -54,7 +54,7 @@ fn count_supported_name_in_node(
 fn count_supported_name_in_node_children(
   node : @untyped_cst.CstNode,
   name : String,
-) -> Int {
+) -> Int32 {
   let mut total = 0
   for entry in @cst.semantic_children(node) {
     let (_, child) = entry

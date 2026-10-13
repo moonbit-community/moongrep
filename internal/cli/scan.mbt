@@ -3,7 +3,7 @@
 // scan diagnostics stay here as warnings for the CLI renderer.
 priv struct ParseWarning {
   file : String
-  block_start_line : Int?
+  block_start_line : Int32?
   reason : String
 }
 

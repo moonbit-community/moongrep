@@ -5,7 +5,7 @@ priv struct SourceContext {
 
 ///|
 priv struct SourceContextLine {
-  line_number : Int
+  line_number : Int32
   text : String
   is_match : Bool
 }
@@ -13,7 +13,7 @@ priv struct SourceContextLine {
 ///|
 priv struct SourceLines {
   lines : Array[StringView]
-  line_count : Int
+  line_count : Int32
 }
 
 ///|
@@ -29,7 +29,7 @@ fn make_scan_hit(
 }
 
 ///|
-fn utf16_index_for_unicode_column(line : StringView, column : Int) -> Int {
+fn utf16_index_for_unicode_column(line : StringView, column : Int32) -> Int32 {
   if column <= 1 {
     0
   } else if line.offset_of_nth_char(column - 1) is Some(index) {

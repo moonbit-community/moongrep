@@ -145,7 +145,7 @@ fn resolve_disabled_scan_rule_ids(
 ///|
 fn anonymous_pattern_rule(
   pattern : @rule_model.RulePatternSpec,
-  _index : Int,
+  _index : Int32,
 ) -> @rule_model.RawRuleSpec {
   {
     path: pattern.shape,

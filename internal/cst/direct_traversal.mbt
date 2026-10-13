@@ -1,7 +1,7 @@
 ///|
 priv struct SequencePosition {
-  list : Int
-  start : Int
+  list : Int32
+  start : Int32
 }
 
 ///|
@@ -13,7 +13,7 @@ priv enum CandidateTraversalContext {
 ///|
 fn SequencePosition::advance(
   self : SequencePosition,
-  offset : Int,
+  offset : Int32,
 ) -> SequencePosition {
   { list: self.list, start: self.start + offset, }
 }

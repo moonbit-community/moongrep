@@ -15,7 +15,7 @@ pub(all) enum CallKind {
 /// argument `0`. `path` is present only when the argument expression can be
 /// represented as storage.
 pub(all) struct CallArgument {
-  index : Int
+  index : Int32
   label : String?
   expr : @untyped_cst.CstNode
   loc : @basic.Location
@@ -45,7 +45,7 @@ pub(all) struct CallInfo {
 ///
 /// Semantic indexes account for pipe desugaring and need not match positions
 /// in the `arguments` array.
-pub fn CallInfo::argument_at(self : CallInfo, index : Int) -> CallArgument? {
+pub fn CallInfo::argument_at(self : CallInfo, index : Int32) -> CallArgument? {
   for argument in self.arguments {
     if argument.index == index {
       return Some(argument)

@@ -11,6 +11,6 @@ pub(all) struct RuleFinding {
   file : String
   rule_id : String
   description : String
-  pattern_index : Int
+  pattern_index : Int32
   loc : @basic.Location
 }

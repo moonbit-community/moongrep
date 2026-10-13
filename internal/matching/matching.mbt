@@ -622,8 +622,8 @@ fn match_children_from(
   parent_kind : @untyped_cst.NodeKind,
   pattern : Array[(String?, @untyped_cst.CstNode)],
   candidate : Array[(String?, @untyped_cst.CstNode)],
-  pattern_index : Int,
-  candidate_index : Int,
+  pattern_index : Int32,
+  candidate_index : Int32,
   compiled : CompiledExprPattern,
   bindings : MatchContext,
 ) -> Bool {
@@ -741,9 +741,9 @@ fn compiled_ignores_field(
 ///|
 fn minimum_fixed_children(
   pattern : Array[(String?, @untyped_cst.CstNode)],
-  start : Int,
+  start : Int32,
   compiled : CompiledExprPattern,
-) -> Int {
+) -> Int32 {
   let mut count = 0
   for index in start..<pattern.length() {
     let (name, value) = pattern[index]
@@ -820,7 +820,7 @@ fn same_metavariable_qualified_prefix(
 }
 
 ///|
-fn last_separator(name : String) -> Int? {
+fn last_separator(name : String) -> Int32? {
   for index = name.length() - 1; index >= 0; index = index - 1 {
     if name[index] == '.' || name[index] == ':' {
       return Some(index)

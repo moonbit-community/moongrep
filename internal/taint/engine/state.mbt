@@ -1,7 +1,7 @@
 ///|
 priv struct StateKey {
   path : StoragePath
-  hash : Int
+  hash : Int32
 }
 
 ///|
@@ -32,15 +32,15 @@ priv struct StateEntry {
 // and reads do not repeatedly scan unrelated entries or build string keys.
 priv struct TaintState {
   entries : Array[StateEntry]
-  entry_indices : Map[StateKey, Int]
-  root_indices : Map[String, Array[Int]]
+  entry_indices : Map[StateKey, Int32]
+  root_indices : Map[String, Array[Int32]]
 }
 
 ///|
 priv struct StateBuilder {
   entries : Array[StateEntry]
-  entry_indices : Map[StateKey, Int]
-  root_indices : Map[String, Array[Int]]
+  entry_indices : Map[StateKey, Int32]
+  root_indices : Map[String, Array[Int32]]
 }
 
 ///|
@@ -84,7 +84,7 @@ fn copy_tree(tree : TaintTree) -> TaintTree {
 }
 
 ///|
-fn state_path_hash(path : StoragePath) -> Int {
+fn state_path_hash(path : StoragePath) -> Int32 {
   let hasher = Hasher()
   hasher.combine_string(path.root)
   hasher.combine_int(path.segments.length())

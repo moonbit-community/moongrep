@@ -315,7 +315,7 @@ fn SourceIndex::add_sequence(
   self : SourceIndex,
   owner : NodeId,
   nodes : Array[NodeId],
-) -> Int {
+) -> Int32 {
   let list = self.sequences.length()
   let scopes : Array[ScopeId] = []
   self.sequences.push({

@@ -1,7 +1,7 @@
 ///|
 fn test_expr(
   source : String,
-  name? : String = "matching test",
+  name~ : String = "matching test",
 ) -> @untyped_cst.CstNode raise {
   let parsed = @untyped_cst.parse_expression(source, name~, enable_metavar=true)
   guard parsed.diagnostics_view().is_empty() else {
@@ -13,7 +13,7 @@ fn test_expr(
 ///|
 fn test_impl(
   source : String,
-  name? : String = "matching test",
+  name~ : String = "matching test",
 ) -> @untyped_cst.CstNode raise {
   let parsed = @untyped_cst.parse_structure(source, name~, enable_metavar=true)
   guard parsed.diagnostics_view().is_empty() else {
@@ -28,9 +28,9 @@ fn test_impl(
 ///|
 fn test_compiled(
   cst : @untyped_cst.CstNode,
-  entries? : Array[@matching.MetavarEntry] = [],
-  special_expr_placeholders? : Array[String] = [],
-  ignored_fields? : Array[@matching.IgnoredPatternField] = [],
+  entries~ : Array[@matching.MetavarEntry] = [],
+  special_expr_placeholders~ : Array[String] = [],
+  ignored_fields~ : Array[@matching.IgnoredPatternField] = [],
 ) -> @matching.CompiledExprPattern {
   let metavars = @matching.MetavarRegistry::new()
   for entry in entries {
