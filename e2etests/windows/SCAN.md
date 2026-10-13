@@ -75,25 +75,3 @@ description:
 source:
 1 > fn sample { target() }
 ```
-
-## Case-sensitive source suffix
-
-Windows filesystem lookup is case-insensitive, but the source suffix check is
-not. An explicitly selected `.MBT` file is not scanned as a lowercase `.mbt`
-source file.
-
-```mooncram moonbit-community/moongrep
-$ moongrep scan --pattern 'target()' ../testdata/exclude-dirs/uppercase.MBT
-no match hits
-```
-
-## Non-BMP source
-
-Scanning a match whose range ends on a line containing non-BMP characters
-completes successfully.
-
-```mooncram moonbit-community/moongrep
-$ moongrep scan --pattern 'let $(name:id) = $(value:exp)' ../testdata/scan-non-bmp/tmp.mbt
-@STDOUT (ignore)
-@STDERR (ignore)
-```

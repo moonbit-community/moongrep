@@ -1,0 +1,6 @@
+# Keep source snapshots and byte-for-byte documentation comparisons stable.
+/e2etests/testdata/**/*.mbt text eol=lf
+/e2etests/testdata/**/*.yaml text eol=lf
+/e2etests/testdata/**/*.yml text eol=lf
+/e2etests/rules/**/*.yaml text eol=lf
+/internal/docs/*.md text eol=lf

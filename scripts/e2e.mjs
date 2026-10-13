@@ -3,7 +3,7 @@
 /**
  * Run the common and current platform's e2e tests with pinned mooncram.
  * Test blocks start in their Markdown file's directory and use ../testdata
- * and ../rules to access the shared fixtures from unix/ or windows/.
+ * and ../rules to access the shared fixtures from common/, unix/, or windows/.
  */
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
@@ -80,7 +80,7 @@ async function main() {
     process.platform === "win32" ? "windows" : "unix",
   );
   const tests = [
-    path.join(e2eDirectory, "BASIC.md"),
+    ...(await listMarkdownTests(path.join(e2eDirectory, "common"))),
     ...(await listMarkdownTests(platformDirectory)),
   ].map((file) => path.relative(projectRoot, file));
   const temporaryDirectory = await mkdtemp(

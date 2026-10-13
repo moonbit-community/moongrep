@@ -1,4 +1,4 @@
-# Docs command on Unix
+# Docs command
 
 ```mooncram-import
 grep : cli/grep@0.2.0
