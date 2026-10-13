@@ -89,7 +89,7 @@ fn scan_event_summary(event : ScanEvent) -> String {
 }
 
 ///|
-fn string_index_containing(items : Array[String], needle : String) -> Int {
+fn string_index_containing(items : Array[String], needle : String) -> Int32 {
   for index, item in items {
     if item.contains(needle) {
       return index

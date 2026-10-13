@@ -29,7 +29,7 @@ pub(all) suberror CliError {
 
 ///|
 /// Returns the fixed process exit code for this failure category.
-pub fn CliError::exit_code(self : CliError) -> Int {
+pub fn CliError::exit_code(self : CliError) -> Int32 {
   match self {
     Internal(_) => 1
     Usage(_) => 2
@@ -497,7 +497,7 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 /// `CliError::Usage`.
 pub fn parse_cli_command(
   argv : Array[String],
-  env? : Map[String, String] = Map([]),
+  env~ : Map[String, String] = Map([]),
 ) -> CliCommand raise {
   let matches = moongrep_command.parse(argv~, env~) catch {
     err => {

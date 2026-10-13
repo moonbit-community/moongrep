@@ -2,8 +2,8 @@
 priv struct ShapeMetavarOccurrence {
   raw : String
   syntax : @matching.MetavarSyntax
-  start : Int
-  end : Int
+  start : Int32
+  end : Int32
   uppercase_identifier : Bool
 }
 

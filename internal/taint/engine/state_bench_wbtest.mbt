@@ -5,7 +5,7 @@ let state_bench_entry_count = 256
 let state_bench_root_count = 16
 
 ///|
-fn state_bench_path(index : Int) -> StoragePath {
+fn state_bench_path(index : Int32) -> StoragePath {
   {
     root: "root-\{index % state_bench_root_count}",
     segments: [Field("field-\{index}")],
@@ -13,7 +13,7 @@ fn state_bench_path(index : Int) -> StoragePath {
 }
 
 ///|
-fn state_bench_tree(index : Int) -> TaintTree {
+fn state_bench_tree(index : Int32) -> TaintTree {
   [
     {
       path: [],
@@ -30,7 +30,7 @@ fn state_bench_tree(index : Int) -> TaintTree {
 }
 
 ///|
-fn state_bench_make_state(start : Int, count : Int) -> TaintState {
+fn state_bench_make_state(start : Int32, count : Int32) -> TaintState {
   let mut state = empty_state()
   for index in start..<(start + count) {
     state = state_write_path(

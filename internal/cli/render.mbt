@@ -31,7 +31,7 @@ fn render_scan_trace(trace : ScanTrace) -> String {
 // Keep hit output stable and line-oriented for downstream agents. The first
 // line is always a location, followed by rule metadata and indented
 // description text.
-fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
+fn render_scan_hit(hit : ScanHit, no_color~ : Bool = false) -> String {
   let finding = hit.finding
   let lines : Array[String] = [
     format_location(finding.file, finding.loc),
@@ -95,8 +95,8 @@ fn render_scan_hit(hit : ScanHit, no_color? : Bool = false) -> String {
 fn render_source_context_line(
   line : SourceContextLine,
   match_loc : @basic.Location,
-  line_number_width : Int,
-  no_color? : Bool = false,
+  line_number_width : Int32,
+  no_color~ : Bool = false,
 ) -> String {
   let separator = if no_color && line.is_match { " > " } else { " | " }
   let line_number = line.line_number
@@ -152,11 +152,11 @@ fn render_highlighted_match_text(
 
 ///|
 fn render_omitted_source_lines(
-  first_line : Int,
-  last_line : Int,
-  line_number_width : Int,
+  first_line : Int32,
+  last_line : Int32,
+  line_number_width : Int32,
   indent : String,
-  no_color? : Bool = false,
+  no_color~ : Bool = false,
 ) -> String {
   let count = last_line - first_line + 1
   let line_range = if first_line == last_line {

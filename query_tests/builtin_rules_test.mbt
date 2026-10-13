@@ -1,5 +1,5 @@
 ///|
-fn query_match_count(pattern : String, source : String) -> Int raise {
+fn query_match_count(pattern : String, source : String) -> Int32 raise {
   @query.ExprQuery::ExprQuery(pattern)
   .captures(source_name="builtin_rule_example.mbt", source)
   .length()
@@ -9,7 +9,7 @@ fn query_match_count(pattern : String, source : String) -> Int raise {
 fn query_alternative_match_count(
   patterns : ArrayView[String],
   source : String,
-) -> Int raise {
+) -> Int32 raise {
   let mut count = 0
   for pattern in patterns {
     count += query_match_count(pattern, source)

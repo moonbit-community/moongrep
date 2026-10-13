@@ -5,7 +5,7 @@
 /// elements when array contents are merged.
 pub(all) enum PathSegment {
   Field(String)
-  TupleIndex(Int)
+  TupleIndex(Int32)
   ConstIndex(String)
   AnyIndex
 } derive(Eq, Debug)

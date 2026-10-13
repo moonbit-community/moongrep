@@ -212,7 +212,7 @@ fn constant_integer_text(expr : @untyped_cst.CstNode) -> String? {
 ///|
 fn segment_from_argument_kind(
   argument : @untyped_cst.CstNode,
-  positional_index : Int,
+  positional_index : Int32,
 ) -> PathSegment {
   if @cst.argument_label_name(argument) is Some(label) {
     Field(label)

@@ -645,7 +645,7 @@ test "query captures zero one and many sibling arguments with ellipsis" {
     #|
   let matches = query.captures(source_name="sample.mbt", source)
   assert_eq(matches.length(), 3)
-  let lengths : Array[Int] = []
+  let lengths : Array[Int32] = []
   for capture in matches {
     guard capture.get("args") is Some(Multiple(args)) else {
       fail("expected multiple argument capture")

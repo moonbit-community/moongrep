@@ -1,9 +1,9 @@
 ///|
 fn render_test_location(
-  start_line : Int,
-  start_column : Int,
-  end_line : Int,
-  end_column : Int,
+  start_line : Int32,
+  start_column : Int32,
+  end_line : Int32,
+  end_column : Int32,
 ) -> @basic.Location {
   {
     start: {
@@ -17,7 +17,7 @@ fn render_test_location(
 }
 
 ///|
-fn render_test_hit(start_line : Int, end_line : Int) -> ScanHit {
+fn render_test_hit(start_line : Int32, end_line : Int32) -> ScanHit {
   let context_lines : Array[SourceContextLine] = []
   for line_number in (start_line - 1)..<=(end_line + 1) {
     context_lines.push({

@@ -225,7 +225,7 @@ fn find_metavar_occurrence_context_in(
   node : @untyped_cst.CstNode,
   occurrence : ShapeMetavarOccurrence,
   path : Array[@untyped_cst.CstNode],
-  report : (MetavarOccurrenceContext, Int) -> Unit,
+  report : (MetavarOccurrenceContext, Int32) -> Unit,
 ) -> Unit {
   path.push(node)
   if metavar_node_matches_occurrence(node, occurrence) {
@@ -402,7 +402,7 @@ fn ellipsis_slot_from_path(
 ///|
 fn ellipsis_container_is_grouping_list(
   path : Array[@untyped_cst.CstNode],
-  index : Int,
+  index : Int32,
 ) -> Bool {
   if index == 0 {
     return false

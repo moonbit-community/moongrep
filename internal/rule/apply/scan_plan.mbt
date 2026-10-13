@@ -2,7 +2,7 @@
 priv struct CstStructuralRuleEntry {
   rule : CompiledRule
   structural : CompiledStructuralRule
-  group : Int
+  group : Int32
   inside_pattern_buckets : ExprPatternBuckets
   plain_root : Bool
 }
@@ -10,7 +10,7 @@ priv struct CstStructuralRuleEntry {
 ///|
 priv struct PlannedTaintRule {
   rule : CompiledRule
-  sink_count : Int
+  sink_count : Int32
   spec : @taint.TaintSpec
 }
 
@@ -147,14 +147,14 @@ fn structural_rule_has_plain_root(rule : CompiledStructuralRule) -> Bool {
 priv struct PlannedStructuralGroup {
   positive : ExprPatternBuckets
   negative : ExprPatternBuckets
-  children : Array[Int?]
-  needed : Array[Int]
+  children : Array[Int32?]
+  needed : Array[Int32]
   has_positive : Bool
   reject_negative : Bool
 }
 
 ///|
-fn capture_id(names : Array[String], name : String) -> Int {
+fn capture_id(names : Array[String], name : String) -> Int32 {
   for id, existing in names {
     if existing == name {
       return id
@@ -169,8 +169,8 @@ fn capture_id(names : Array[String], name : String) -> Int {
 fn pattern_dependencies(
   pattern : CompiledRulePattern,
   names : Array[String],
-) -> Array[Int] {
-  let ids : Array[Int] = []
+) -> Array[Int32] {
+  let ids : Array[Int32] = []
   for entry in pattern.compiled.metavars.entries {
     ids.push(capture_id(names, entry.name))
   }
@@ -189,14 +189,14 @@ fn plan_structural_group(
   root : @model.CompiledStructuralPatternGroup,
   groups : Array[PlannedStructuralGroup],
   names : Array[String],
-) -> Int {
+) -> Int32 {
   let offset = groups.length()
   let pending = [root]
-  let children : Array[Array[Int?]] = []
+  let children : Array[Array[Int32?]] = []
   // New child groups extend the work list while it is being traversed.
   for i = 0 {
     guard pending.get(i) is Some(group) else { break }
-    let child_ids : Array[Int?] = []
+    let child_ids : Array[Int32?] = []
     for pattern in group.patterns {
       if pattern.then_body is Some(body) {
         child_ids.push(Some(offset + pending.length()))
@@ -206,7 +206,7 @@ fn plan_structural_group(
       }
     }
     children.push(child_ids)
-    let needed : Array[Int] = []
+    let needed : Array[Int32] = []
     let patterns = group.patterns.map(p => p.pattern)
     for pattern in patterns + group.patterns_not {
       for id in pattern_dependencies(pattern, names) {

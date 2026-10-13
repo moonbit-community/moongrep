@@ -262,7 +262,7 @@ fn eval_rev_pipe_call(
 ///|
 fn eval_arguments(
   args : @untyped_cst.CstNode,
-  start_index : Int,
+  start_index : Int32,
   state : TaintState,
   spec : TaintSpec,
   findings : Array[SinkFinding],
@@ -296,7 +296,7 @@ fn eval_arguments(
 
 ///|
 fn evaled_argument_from_path(
-  index : Int,
+  index : Int32,
   label : String?,
   expr : @untyped_cst.CstNode,
   path : FlowPath,
@@ -306,7 +306,7 @@ fn evaled_argument_from_path(
 
 ///|
 fn call_argument_from_path(
-  index : Int,
+  index : Int32,
   label : String?,
   expr : @untyped_cst.CstNode,
   flow_path : FlowPath,

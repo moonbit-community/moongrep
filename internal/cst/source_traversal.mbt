@@ -191,7 +191,7 @@ fn SourceIndex::case_cursor(
 pub fn SourceIndex::children(
   self : SourceIndex,
   region : RegionId,
-  full? : Bool = false,
+  full~ : Bool = false,
 ) -> CursorId {
   if self.child_cursors.get((region, full)) is Some(cursor) {
     return cursor
@@ -231,9 +231,9 @@ pub fn SourceIndex::children(
 // or proceeds to the shared suffix. No suffix array is copied.
 fn SourceIndex::sequence_cursor(
   self : SourceIndex,
-  list : Int,
-  start : Int,
-  end : Int,
+  list : Int32,
+  start : Int32,
+  end : Int32,
 ) -> CursorId {
   if self.sequence_cursors.get((list, start, end)) is Some(cursor) {
     return cursor

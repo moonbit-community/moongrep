@@ -75,12 +75,12 @@ pub(all) struct CallModel {
 /// patterns.
 pub(all) enum CallEffect {
   ReturnFreshSource(String, String?, Array[PathSegment])
-  PropagateArgToReturn(Int)
+  PropagateArgToReturn(Int32)
   PropagateReceiverToReturn
-  PropagateArgSubpathToReturn(Int, Array[PathSegment])
-  KillArg(Int)
+  PropagateArgSubpathToReturn(Int32, Array[PathSegment])
+  KillArg(Int32)
   KillReceiver
-  ReportSinkArg(SinkId, Int)
+  ReportSinkArg(SinkId, Int32)
   ReportSinkReceiver(SinkId)
 } derive(Eq, Debug)
 
@@ -97,7 +97,7 @@ pub(all) struct TaintSpec {
   sources : Array[SourceModel]
   call_models : Array[CallModel]
   unknown_call_policy : UnknownCallPolicy
-  max_fixpoint_iterations : Int
+  max_fixpoint_iterations : Int32
   custom_transfer_call : (CallInfo) -> CallTransfer?
 }
 

@@ -70,7 +70,7 @@ fn finding_signature(finding : RuleFinding) -> String {
 }
 
 ///|
-fn int_array_signature(values : Array[Int]) -> String {
+fn int_array_signature(values : Array[Int32]) -> String {
   let parts : Array[String] = []
   for value in values {
     parts.push(value.to_string())

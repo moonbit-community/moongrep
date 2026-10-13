@@ -1,8 +1,8 @@
 ///|
 priv struct SourceBlock {
   source : StringView
-  start_line : Int
-  start_cnum : Int
+  start_line : Int32
+  start_cnum : Int32
 }
 
 ///|

@@ -1,10 +1,10 @@
 ///|
 #cfg(target="wasm")
-fn runtime_exit(code : Int) -> Unit = "wasi_snapshot_preview1" "proc_exit"
+fn runtime_exit(code : Int32) -> Unit = "wasi_snapshot_preview1" "proc_exit"
 
 ///|
 #cfg(target="native")
-extern "c" fn runtime_exit(code : Int) -> Unit = "exit"
+extern "c" fn runtime_exit(code : Int32) -> Unit = "exit"
 
 ///|
 async fn write_raw_cli_stdout(output : String) -> Unit {
@@ -30,7 +30,7 @@ async fn write_raw_cli_stderr(output : String) -> Unit {
 
 ///|
 #warnings("-alert_internal")
-fn cli_errno_reason(errno : Int) -> String {
+fn cli_errno_reason(errno : Int32) -> String {
   @os_error.errno_to_string(errno)
 }
 

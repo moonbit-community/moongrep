@@ -306,7 +306,7 @@ test "scan plan taint apply returns expected findings" {
 ///|
 fn expect_invalid_taint_sink_id(
   sink_id : @taint.SinkId,
-  sink_count : Int,
+  sink_count : Int32,
 ) -> Unit raise {
   try sink_pattern_index(sink_id, sink_count) catch {
     InvalidTaintSinkId(sink_id=actual_sink_id, sink_count=actual_sink_count) => {

@@ -307,7 +307,7 @@ pub fn bool_payload(node : @untyped_cst.CstNode) -> Bool? {
 }
 
 ///|
-pub fn int_payload(node : @untyped_cst.CstNode) -> Int? {
+pub fn int_payload(node : @untyped_cst.CstNode) -> Int32? {
   match payload(node) {
     Some(Int(value)) => Some(value)
     _ => None

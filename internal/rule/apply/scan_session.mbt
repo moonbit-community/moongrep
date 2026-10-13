@@ -1,15 +1,15 @@
 ///|
 priv enum GroupCandidateResult {
-  GroupHit(Int, @basic.Location)
+  GroupHit(Int32, @basic.Location)
   GroupNegative
   GroupMiss
 }
 
 ///|
 priv struct EvaluationKey {
-  group : Int
-  source : Int
-  env : Int
+  group : Int32
+  source : Int32
+  env : Int32
 } derive(Eq, Hash)
 
 ///|
@@ -27,12 +27,12 @@ priv struct ScanSession {
   index : @cst.SourceIndex
   values : @matching.ValueInterner
   environments : Array[CaptureEnvironment]
-  environment_ids : Map[EnvironmentKey, Int]
-  projections : Map[(Int, Int), Int]
+  environment_ids : Map[EnvironmentKey, Int32]
+  projections : Map[(Int32, Int32), Int32]
   candidates : Map[EvaluationKey, GroupCandidateResult]
   regions : Map[EvaluationKey, RegionResult]
-  mut candidate_expansions : Int
-  mut region_expansions : Int
+  mut candidate_expansions : Int32
+  mut region_expansions : Int32
 }
 
 ///|
@@ -59,9 +59,9 @@ fn ScanSession::new(
 ///|
 fn ScanSession::key(
   self : ScanSession,
-  group : Int,
-  source : Int,
-  env : Int,
+  group : Int32,
+  source : Int32,
+  env : Int32,
 ) -> EvaluationKey {
   { group, source, env: self.project_environment(env, group), }
 }
@@ -69,12 +69,12 @@ fn ScanSession::key(
 ///|
 priv enum EvaluationFrame {
   Candidate(EvaluationKey)
-  Positive(EvaluationKey, Array[IndexedCompiledRulePattern], Int)
+  Positive(EvaluationKey, Array[IndexedCompiledRulePattern], Int32)
   AfterThen(
     EvaluationKey,
     Array[IndexedCompiledRulePattern],
-    Int,
-    Int,
+    Int32,
+    Int32,
     @basic.Location,
     EvaluationKey
   )
@@ -89,9 +89,9 @@ priv enum EvaluationFrame {
 ///|
 fn ScanSession::candidate(
   self : ScanSession,
-  group : Int,
+  group : Int32,
   region : @cst.RegionId,
-  env : Int,
+  env : Int32,
 ) -> GroupCandidateResult {
   let key = self.key(group, region, env)
   self.evaluate(Candidate(key))
@@ -101,9 +101,9 @@ fn ScanSession::candidate(
 ///|
 fn ScanSession::scan(
   self : ScanSession,
-  group : Int,
+  group : Int32,
   region : @cst.RegionId,
-  env : Int,
+  env : Int32,
 ) -> Bool {
   let key = self.key(group, self.index.scan(region), env)
   self.evaluate(Region(key))
@@ -253,7 +253,7 @@ fn ScanSession::evaluate_positive(
   self : ScanSession,
   key : EvaluationKey,
   patterns : Array[IndexedCompiledRulePattern],
-  start : Int,
+  start : Int32,
   stack : Array[EvaluationFrame],
 ) -> Unit {
   let group = self.plan.groups[key.group]

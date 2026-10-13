@@ -1,8 +1,8 @@
 ///|
 priv struct Capture {
-  id : Int
+  id : Int32
   value : @bound_value_model.BoundValue
-  identity : Int
+  identity : Int32
   source : @matching.IdentifierCaptureSource?
 }
 
@@ -13,11 +13,11 @@ priv struct CaptureEnvironment {
 
 ///|
 priv struct EnvironmentKey {
-  values : Array[(Int, Int, @matching.IdentifierCaptureSource?)]
+  values : Array[(Int32, Int32, @matching.IdentifierCaptureSource?)]
 } derive(Eq, Hash)
 
 ///|
-fn CaptureEnvironment::get(self : CaptureEnvironment, id : Int) -> Capture? {
+fn CaptureEnvironment::get(self : CaptureEnvironment, id : Int32) -> Capture? {
   for capture in self.captures {
     if capture.id == id {
       return Some(capture)
@@ -30,7 +30,7 @@ fn CaptureEnvironment::get(self : CaptureEnvironment, id : Int) -> Capture? {
 fn ScanSession::intern_environment(
   self : ScanSession,
   captures : Array[Capture],
-) -> Int {
+) -> Int32 {
   let key : EnvironmentKey = {
     values: captures.map(c => (c.id, c.identity, c.source)),
   }
@@ -46,9 +46,9 @@ fn ScanSession::intern_environment(
 ///|
 fn ScanSession::project_environment(
   self : ScanSession,
-  env : Int,
-  group : Int,
-) -> Int {
+  env : Int32,
+  group : Int32,
+) -> Int32 {
   if self.projections.get((env, group)) is Some(id) {
     return id
   }
@@ -65,7 +65,7 @@ fn ScanSession::environment_blocks_guard(
   self : ScanSession,
   pattern : CompiledRulePattern,
   region : @cst.RegionId,
-  env : Int,
+  env : Int32,
 ) -> Bool {
   if pattern.guards.is_empty() || self.environments[env].captures.is_empty() {
     return false
@@ -89,7 +89,7 @@ fn ScanSession::match_pattern(
   self : ScanSession,
   pattern : CompiledRulePattern,
   region : @cst.RegionId,
-  env : Int,
+  env : Int32,
 ) -> @matching.IndexedExprMatch? {
   if self.environment_blocks_guard(pattern, region, env) {
     return None
@@ -123,9 +123,9 @@ fn ScanSession::match_pattern(
 fn ScanSession::target_environment(
   self : ScanSession,
   matched : @matching.IndexedExprMatch,
-  env : Int,
-  child : Int,
-) -> Int {
+  env : Int32,
+  child : Int32,
+) -> Int32 {
   let inherited = self.environments[env]
   let captures : Array[Capture] = []
   for id in self.plan.groups[child].needed {

@@ -21,7 +21,7 @@ fn run_loop_fixpoint(
   rule_id : String,
   loop_kind : String,
   loc : @basic.Location,
-  budget : Int,
+  budget : Int32,
   step : (TaintState) -> LoopIterationSummary raise,
 ) -> LoopFixpointSummary raise {
   let mut current = initial

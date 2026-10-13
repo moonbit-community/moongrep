@@ -10,7 +10,7 @@ pub suberror TaintAnalysisError {
     rule_id~ : String,
     loop_kind~ : String,
     loc~ : @basic.Location,
-    budget~ : Int
+    budget~ : Int32
   )
 } derive(Debug)
 

@@ -2,7 +2,7 @@
 priv enum SemanticValue {
   Identity(String)
   Leaf(@untyped_cst.NodePayload)
-  Node(@untyped_cst.NodeKind, Array[(String?, Int)])
+  Node(@untyped_cst.NodeKind, Array[(String?, Int32)])
 } derive(Eq)
 
 ///|
@@ -31,15 +31,15 @@ impl Hash for SemanticValue with fn hash_combine(self, hasher) {
 
 ///|
 priv enum BoundIdentity {
-  SingleIdentity(Int)
-  MultipleIdentity(Array[Int])
+  SingleIdentity(Int32)
+  MultipleIdentity(Array[Int32])
 } derive(Eq, Hash)
 
 ///|
 /// Intern the matcher's location-insensitive equality, retaining value variants.
 pub struct ValueInterner {
-  priv nodes : Map[SemanticValue, Int]
-  priv values : Map[BoundIdentity, Int]
+  priv nodes : Map[SemanticValue, Int32]
+  priv values : Map[BoundIdentity, Int32]
 }
 
 ///|
@@ -48,7 +48,10 @@ pub fn ValueInterner::new() -> ValueInterner {
 }
 
 ///|
-fn ValueInterner::node(self : ValueInterner, raw : @untyped_cst.CstNode) -> Int {
+fn ValueInterner::node(
+  self : ValueInterner,
+  raw : @untyped_cst.CstNode,
+) -> Int32 {
   let node = @cst.unwrap_groups(raw)
   let key = if normalized_identity_node(node) &&
     @cst.normalized_name(node) is Some(name) {
@@ -74,7 +77,7 @@ fn ValueInterner::node(self : ValueInterner, raw : @untyped_cst.CstNode) -> Int 
 }
 
 ///|
-pub fn ValueInterner::intern(self : ValueInterner, value : BoundValue) -> Int {
+pub fn ValueInterner::intern(self : ValueInterner, value : BoundValue) -> Int32 {
   let key = match value {
     Single(node) => SingleIdentity(self.node(node))
     Multiple(nodes) => MultipleIdentity(nodes.map(node => self.node(node)))

@@ -206,8 +206,8 @@ pub(all) struct CompiledStructuralPatternGroup {
 /// the original argument slot even when labelled and positional arguments mix.
 pub(all) enum TaintTarget {
   Receiver
-  PositionalArg(Int)
-  LabelledArg(label~ : String, index~ : Int)
+  PositionalArg(Int32)
+  LabelledArg(label~ : String, index~ : Int32)
 }
 
 ///|
