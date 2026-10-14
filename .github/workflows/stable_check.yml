@@ -15,6 +15,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     continue-on-error: false
+    env:
+      NO_COLOR: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -46,5 +48,24 @@ jobs:
       - name: query tests
         run: moon test query_tests --target all
 
-      - name: e2e test
-        run: node scripts/e2e.mjs test
+      - name: setup e2e fixtures
+        run: node scripts/setup-e2e.mjs
+
+      - name: create e2e temp directory
+        shell: bash
+        env:
+          E2E_TEMP: ${{ runner.temp }}/moongrep-e2e
+        run: |
+          mkdir -p "$E2E_TEMP"
+          echo "E2E_TEMP=$E2E_TEMP" >> "$GITHUB_ENV"
+
+      - name: common e2e tests
+        run: moonx moonbit-community/mooncram@0.0.6 test e2etests/common
+
+      - name: unix e2e tests
+        if: runner.os != 'Windows'
+        run: moonx moonbit-community/mooncram@0.0.6 test e2etests/unix
+
+      - name: windows e2e tests
+        if: runner.os == 'Windows'
+        run: moonx moonbit-community/mooncram@0.0.6 test e2etests/windows

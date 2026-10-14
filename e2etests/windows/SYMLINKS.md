@@ -7,8 +7,8 @@ wc : cli/wc@0.2.0
 
 ## Scan-directory cycle
 
-The e2e runner prepares a directory junction back to the scan root and removes
-it after testing. Source traversal follows the junction, reports the cycle as
+The setup script prepares a directory junction back to the scan root.
+Source traversal follows the junction, reports the cycle as
 skipped, and scans the source only once.
 
 ```mooncram moonbit-community/moongrep
@@ -27,7 +27,7 @@ moongrep scan: file fs-walk-scan.tmp\hit.mbt
 
 ## Rule-directory cycle
 
-The runner also prepares a rule directory with a junction back to itself.
+The setup script also prepares a rule directory with a junction back to itself.
 Rule discovery follows the junction, stops at the already visited directory,
 and reports one finding with no stderr output.
 

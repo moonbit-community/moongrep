@@ -5,4 +5,5 @@ _build/
 .moonagent/
 
 target/
+e2etests/testdata/skip-dirs/*/
 e2etests/windows/fs-walk-*.tmp/

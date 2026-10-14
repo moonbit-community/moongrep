@@ -44,10 +44,17 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
   testing, so when your changes indeed change the behavior of the code, you
   should run `moon test --update` to update the snapshot.
 
-- Run `node scripts/e2e.mjs test` to check the e2etest suite.
+- Run the e2e tests from the project root (Bash):
 
-- Run `node scripts/e2e.mjs update` to update the e2etest cram snapshots when the
-  expected output changes.
+  ```sh
+  node scripts/setup-e2e.mjs
+  export NO_COLOR=1 E2E_TEMP="$(mktemp -d)"
+  moonx moonbit-community/mooncram@0.0.6 test e2etests/common e2etests/unix
+  rm -rf "$E2E_TEMP"
+  ```
+
+  Use `e2etests/windows` instead of `e2etests/unix` on Windows. Replace `test`
+  with `update` to update the cram snapshots when the expected output changes.
 
 - You can run `moon check` to check the code is linted correctly.
 
