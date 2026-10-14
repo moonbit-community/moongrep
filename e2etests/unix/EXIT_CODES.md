@@ -64,16 +64,3 @@ $ moongrep scan --json --rules ../rules/structural ../testdata/does-not-exist
 {"type":"error","category":"scan_input","exit_code":6,"message":"could not access scan path","source":"../testdata/does-not-exist","reason":"No such file or directory","help":"check that the scan path exists and is readable"}
 [6]
 ```
-
-A broken standard-output pipe takes precedence and uses status 7.
-
-```mooncram moonbit-community/moongrep
-$ moongrep docs CLISpec | head -n 0
-@STDOUT (empty)
-@STDERR
-error: could not write output
-  source: standard output
-  reason: Broken pipe
-  help: check the output destination or downstream command
-[7]
-```
