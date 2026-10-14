@@ -123,7 +123,6 @@ pub fn SourceIndex::resolve(Self, Int, String) -> Int?
 pub fn SourceIndex::roots(Self) -> Int
 pub fn SourceIndex::scan(Self, Int) -> Int
 pub fn SourceIndex::scope(Self, Int) -> Int
-pub fn SourceIndex::state_count(Self) -> Int
 pub fn SourceIndex::step(Self, Int) -> SourceStep
 pub fn SourceIndex::target(Self, Int) -> Int
 pub fn SourceIndex::visit(Self, Int, next? : Int) -> Int

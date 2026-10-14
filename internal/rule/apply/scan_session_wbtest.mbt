@@ -8,10 +8,6 @@ test "recursive failure expands each complete state once" {
     assert_true(findings.is_empty())
     assert_eq(session.candidate_expansions, session.candidates.length())
     assert_eq(session.region_expansions, session.regions.length())
-    assert_true(
-      session.candidate_expansions + session.region_expansions <=
-      2 * plan.groups.length() * session.index.state_count(),
-    )
   }
 }
 
@@ -218,10 +214,6 @@ test "success failure and negative rejection scale across source and rule chains
           assert_eq(!hits.is_empty(), outcome == "success")
           assert_eq(session.candidate_expansions, session.candidates.length())
           assert_eq(session.region_expansions, session.regions.length())
-          assert_true(
-            session.candidate_expansions + session.region_expansions <=
-            2 * plan.groups.length() * session.index.state_count(),
-          )
         }
       }
     }

@@ -342,11 +342,6 @@ fn SourceIndex::concat(
 }
 
 ///|
-pub fn SourceIndex::state_count(self : SourceIndex) -> Int32 {
-  self.regions.length() + self.steps.length()
-}
-
-///|
 pub fn SourceIndex::scan(self : SourceIndex, region : RegionId) -> CursorId {
   self.intern_step(Scan(region))
 }
