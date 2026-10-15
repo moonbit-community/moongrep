@@ -19,7 +19,10 @@ $ moongrep scan --verbose --pattern 'target()' fs-walk-scan.tmp | grep -x 'rule:
 The same traversal exposes its entering, skipping, and file events on stderr.
 
 ```mooncram moonbit-community/moongrep
-$ moongrep scan --verbose --pattern 'target()' fs-walk-scan.tmp 1>/dev/null 2>&1 | grep -E '^moongrep scan: (entering|skipping|file) '
+$ moongrep scan --verbose --pattern 'target()' fs-walk-scan.tmp
+@STDOUT (ignore)
+@STDERR
+moongrep scan: loaded rule target()
 moongrep scan: entering fs-walk-scan.tmp
 moongrep scan: skipping fs-walk-scan.tmp\again
 moongrep scan: file fs-walk-scan.tmp\hit.mbt
