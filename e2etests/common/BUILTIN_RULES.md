@@ -27,6 +27,20 @@ moonbitlang/catch_all 11:3
 moonbitlang/catch_all 17:3
 ```
 
+## Single-case match variants
+
+Constructor matches with explicit unit wildcard fallbacks suggest `if` + `is`.
+Guards, side effects in the fallback, extra arms, aliases, and or-patterns are
+outside this rule's scope. A bare `{}` fallback can be an empty Map and must not
+be assumed to be unit.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep lint --json ../testdata/builtin-match-single-case-variants | moonx cli/jq@0.2.1 -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)"'
+moonbitlang/match_single_case 3:3
+moonbitlang/match_single_case 7:3
+moonbitlang/match_single_case 14:3
+```
+
 ## Simplifiable assignment variants
 
 All eighteen rule shapes are reported: local variables, fields, and indexed

@@ -18,6 +18,12 @@ dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
 
 dev_build(
   rule: "embed",
+  input: "match_single_case.yaml",
+  output: "match_single_case.mbt",
+)
+
+dev_build(
+  rule: "embed",
   input: "unnecessary_else.yaml",
   output: "unnecessary_else.mbt",
 )

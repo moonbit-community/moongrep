@@ -13,6 +13,7 @@ test "builtin rules load moonbitlang rules" {
       #|  "moonbitlang/inspect_boolean",
       #|  "moonbitlang/inspect_number",
       #|  "moonbitlang/match_option",
+      #|  "moonbitlang/match_single_case",
       #|  "moonbitlang/unnecessary_else",
       #|  "moonbitlang/simplifiable_assignment",
       #|  "moonbitlang/cstyle_forward_simple_forloop",

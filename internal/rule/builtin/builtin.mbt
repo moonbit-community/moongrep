@@ -42,6 +42,10 @@ fn builtin_rule_sources() -> Array[BuiltinRuleSource] {
       yaml: @moonbitlang_rules.match_option_yaml,
     },
     {
+      path: "builtin/moonbitlang/match_single_case.yaml",
+      yaml: @moonbitlang_rules.match_single_case_yaml,
+    },
+    {
       path: "builtin/moonbitlang/unnecessary_else.yaml",
       yaml: @moonbitlang_rules.unnecessary_else_yaml,
     },
