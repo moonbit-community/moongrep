@@ -1,14 +1,14 @@
 name = "moonbit-community/moongrep"
 
-version = "0.3.6"
+version = "0.3.7"
 
 preferred_target = "wasm"
 
 import {
-  "moonbitlang/parser@0.4.4",
+  "moonbitlang/parser@0.4.5",
   "moonbit-community/yaml@0.0.6",
   "moonbit-community/chalk@0.0.1",
-  "moonbitlang/lexer@0.4.2",
+  "moonbitlang/lexer@0.4.3",
   "moonbitlang/async@0.22.4",
   "moonbitlang/x@0.5.1",
 }
