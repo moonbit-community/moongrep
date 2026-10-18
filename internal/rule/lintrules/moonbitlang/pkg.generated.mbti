@@ -2,6 +2,10 @@
 package "moonbit-community/moongrep/internal/rule/lintrules/moonbitlang"
 
 // Values
+pub let boolean_if_yaml : String
+
+pub let boolean_match_yaml : String
+
 pub let catch_all_yaml : String
 
 pub let cstyle_backward_array_iteration_yaml : String
@@ -15,6 +19,8 @@ pub let cstyle_forward_simple_forloop_yaml : String
 pub let inspect_boolean_yaml : String
 
 pub let inspect_number_yaml : String
+
+pub let match_option_early_exit_yaml : String
 
 pub let match_option_yaml : String
 

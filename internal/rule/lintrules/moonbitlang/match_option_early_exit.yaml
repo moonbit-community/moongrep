@@ -1,0 +1,47 @@
+id: match_option_early_exit
+description: |
+  A let binding unwraps a value with a match whose fallback exits.
+  Prefer guard value is Some(binding) else { ... }, preserving the exiting branch.
+
+# The catch-all negative requires the fallback itself to be an exit expression,
+# rather than merely containing one in a nested function or conditional.
+patterns:
+  - shape: |
+      let $(binding:id) = match $(input:exp) {
+        Some($(value:id)) => $(value:id)
+        None => __TARGET__
+      }
+    then:
+      patterns:
+        - shape: return $_
+        - shape: return
+        - shape: continue
+        - shape: raise $_
+      patterns-not:
+        - shape: $_
+  - shape: |
+      let $(binding:id) = match $(input:exp) {
+        None => __TARGET__
+        Some($(value:id)) => $(value:id)
+      }
+    then:
+      patterns:
+        - shape: return $_
+        - shape: return
+        - shape: continue
+        - shape: raise $_
+      patterns-not:
+        - shape: $_
+  - shape: |
+      let $(binding:id) = match $(input:exp) {
+        Some($(value:id)) => $(value:id)
+        _ => __TARGET__
+      }
+    then:
+      patterns:
+        - shape: return $_
+        - shape: return
+        - shape: continue
+        - shape: raise $_
+      patterns-not:
+        - shape: $_

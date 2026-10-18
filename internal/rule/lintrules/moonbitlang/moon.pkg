@@ -16,6 +16,20 @@ dev_build(
 
 dev_build(rule: "embed", input: "match_option.yaml", output: "match_option.mbt")
 
+dev_build(rule: "embed", input: "boolean_if.yaml", output: "boolean_if.mbt")
+
+dev_build(
+  rule: "embed",
+  input: "boolean_match.yaml",
+  output: "boolean_match.mbt",
+)
+
+dev_build(
+  rule: "embed",
+  input: "match_option_early_exit.yaml",
+  output: "match_option_early_exit.mbt",
+)
+
 dev_build(
   rule: "embed",
   input: "match_single_case.yaml",
