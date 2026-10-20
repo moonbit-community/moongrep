@@ -76,7 +76,7 @@ test "taint lowering preserves internal source and sink ids" {
     fail("expected call-result source")
   }
   debug_inspect(callee, content="Some(\"get_user_input\")")
-  inspect(loc.start.lnum, content="2")
+  assert_eq(loc.start.lnum, 2)
   let sink_loc = result.findings[0].sink_loc
   debug_inspect(
     (

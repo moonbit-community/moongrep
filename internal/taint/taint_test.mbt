@@ -332,9 +332,10 @@ fn analyze_call_source_sink(
   )
   @taint.analyze_function_like(
     node,
-    match sink_origins {
-      Some(origins) => observe_sink_origins(spec, origins)
-      None => spec
+    if sink_origins is Some(origins) {
+      observe_sink_origins(spec, origins)
+    } else {
+      spec
     },
   )
 }
