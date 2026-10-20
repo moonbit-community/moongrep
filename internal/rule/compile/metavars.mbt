@@ -555,23 +555,21 @@ fn register_metavar_kind(
   kind : @matching.MetavarKind,
   name : String,
 ) -> Unit raise {
-  match metavars.register(name, kind) {
-    RegistrationConflict(previous) =>
-      match (previous, kind) {
-        (Ellipsis(_), Ellipsis(_)) =>
-          raise context.invalid_pattern(
-            "the pattern declares ellipsis metavar \{name} as multiple metavar kinds",
-          )
-        (Ellipsis(_), _) | (_, Ellipsis(_)) =>
-          raise context.invalid_pattern(
-            "the pattern cannot use \{name} as both an ellipsis metavar and a single-node metavar",
-          )
-        _ =>
-          raise context.invalid_pattern(
-            "the pattern declares metavar \{name} as multiple metavar kinds",
-          )
-      }
-    _ => ()
+  if metavars.register(name, kind) is RegistrationConflict(previous) {
+    match (previous, kind) {
+      (Ellipsis(_), Ellipsis(_)) =>
+        raise context.invalid_pattern(
+          "the pattern declares ellipsis metavar \{name} as multiple metavar kinds",
+        )
+      (Ellipsis(_), _) | (_, Ellipsis(_)) =>
+        raise context.invalid_pattern(
+          "the pattern cannot use \{name} as both an ellipsis metavar and a single-node metavar",
+        )
+      _ =>
+        raise context.invalid_pattern(
+          "the pattern declares metavar \{name} as multiple metavar kinds",
+        )
+    }
   }
 }
 
@@ -622,16 +620,13 @@ fn infer_bare_metavar_kinds(
     }
   }
   for index in 0..<occurrences.length() {
-    match occurrences[index].syntax {
-      Bare(name) => {
-        guard metavars.kind_of(name) is Some(kind) else {
-          raise context.invalid_pattern(
-            "the pattern cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
-          )
-        }
-        validate_metavar_position(context, kind, name, contexts[index])
+    if occurrences[index].syntax is Bare(name) {
+      guard metavars.kind_of(name) is Some(kind) else {
+        raise context.invalid_pattern(
+          "the pattern cannot infer kind for bare metavar $\{name} in a pattern variable position; use explicit typed syntax like $(\{name}:id), $(\{name}:const), or $(\{name}:pat)",
+        )
       }
-      _ => ()
+      validate_metavar_position(context, kind, name, contexts[index])
     }
   }
 }

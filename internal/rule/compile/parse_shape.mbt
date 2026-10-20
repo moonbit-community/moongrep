@@ -85,10 +85,8 @@ fn reject_shape_lex_errors(
     return
   }
   for error_entry in errors {
-    match error_entry.2 {
-      InvalidMetavarSyntax(raw) =>
-        raise context.invalid_pattern(invalid_metavar_syntax_message(raw))
-      _ => ()
+    if error_entry.2 is InvalidMetavarSyntax(raw) {
+      raise context.invalid_pattern(invalid_metavar_syntax_message(raw))
     }
   }
   raise context.invalid_pattern("the pattern has lexical errors")
