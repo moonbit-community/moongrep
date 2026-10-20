@@ -42,18 +42,15 @@ fn append_cli_diagnostic_pattern(
   output : StringBuilder,
   value : String?,
 ) -> Unit {
-  match value {
-    Some(text) => {
-      let normalized = normalize_cli_diagnostic_pattern(text)
-      output.write_string("\n  pattern:")
-      if normalized != "" {
-        for line in normalized.split("\n") {
-          output.write_string("\n    ")
-          output.write_string(line.to_owned())
-        }
+  if value is Some(text) {
+    let normalized = normalize_cli_diagnostic_pattern(text)
+    output.write_string("\n  pattern:")
+    if normalized != "" {
+      for line in normalized.split("\n") {
+        output.write_string("\n    ")
+        output.write_string(line.to_owned())
       }
     }
-    _ => ()
   }
 }
 
