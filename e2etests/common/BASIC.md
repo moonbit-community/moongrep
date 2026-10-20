@@ -3,7 +3,7 @@
 ## moongrep help
 
 The top-level help introduces the command, lists every subcommand, and shows
-the global help option.
+the global help and version options.
 
 ```mooncram moonbit-community/moongrep
 $ moonx moonbit-community/moongrep help
@@ -19,7 +19,20 @@ Commands:
   help  Print help for the subcommand(s).
 
 Options:
-  -h, --help  Show help information.
+  -h, --help     Show help information.
+  -V, --version  Show version information.
+```
+
+## moongrep --version
+
+The version options print the module version without requiring a subcommand.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep --version
+0.3.8
+
+$ moonx moonbit-community/moongrep -V
+0.3.8
 ```
 
 ## moongrep docs

@@ -48,6 +48,11 @@ moongrep provides four commands:
 Running moongrep without a command prints a missing-subcommand diagnostic and
 top-level help, then exits with status 2.
 
+### Version
+
+`moongrep --version` and `moongrep -V` print the module version from `moon.mod`
+to standard output and exit with status 0. No subcommand is required.
+
 ### Help and No-Argument Behavior
 
 `-h` and `--help` print help for the selected command. The `help` command

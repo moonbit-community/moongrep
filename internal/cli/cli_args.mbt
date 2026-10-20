@@ -249,6 +249,7 @@ let dump_command : @argparse.Command = Command(
 let moongrep_command : @argparse.Command = Command(
   "moongrep",
   about="Scan MoonBit source files with structural and taint rules.",
+  version=MODULE_VERSION,
   subcommands=[scan_command, lint_command, docs_command, dump_command],
   subcommand_required=true,
 )
@@ -475,7 +476,8 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 ///|
 /// Parses command-line arguments after the executable name has been removed.
 ///
-/// A supported subcommand is required after the executable name. Within `scan`,
+/// `--version` or `-V` prints the module version and exits successfully.
+/// Otherwise, a supported subcommand is required. Within `scan`,
 /// `--rules <rules-root>`, `--rules=<rules-root>`, and `-r <rules-root>` select
 /// a rules directory. When no rule source is given, the rules directory
 /// defaults to `./.moongrep/rules`. An explicit `--rule <rule-file>`, at least
