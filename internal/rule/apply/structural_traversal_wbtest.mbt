@@ -197,6 +197,53 @@ test "mixed scans retain top-level rule and candidate publication order" {
 }
 
 ///|
+test "context publication visits at most the complete direct candidate tree" {
+  let plan = ScanPlan::from_rules(
+    compile_scan_plan_rules([
+      (
+        #|id: bounded
+        #|description: Publication follows each candidate edge once.
+        #|inside-toplevel:
+        #|  - shape: fn sample { __TARGET__ }
+        #|patterns:
+        #|  - shape: target()
+      ),
+    ]),
+  )
+  for depth in 0..<=6 {
+    let mut body = "target(); target(); other()"
+    for _ in 0..<depth {
+      body = "fn() { \{body} }"
+    }
+    for
+      wrapped in [
+        body,
+        "let f = \{body}; finish()",
+        "if ready() { \{body} } else { other() }",
+      ] {
+      let root = parse_scan_plan_root("fn sample { \{wrapped} }")
+      let mut candidates = 0
+      @cst.visit_expr_match_candidate_roots(root, fn(_) {
+        candidates += 1
+        NodeVisitContinue
+      })
+      let session = ScanSession::new(plan, root)
+      let hits = apply_scan_session(
+        "bounded.mbt",
+        root,
+        session,
+        StructuralFindingCollector::new(),
+      )
+      assert_eq(hits.length(), 2)
+      assert_true(session.publication_visits > 0)
+      assert_true(session.publication_visits <= candidates)
+      assert_eq(session.candidate_expansions, session.candidates.length())
+      assert_eq(session.region_expansions, session.regions.length())
+    }
+  }
+}
+
+///|
 test "nested context negatives distinguish function bodies and explicit blocks" {
   let plan = ScanPlan::from_rules(
     compile_scan_plan_rules([

@@ -67,6 +67,7 @@ fn apply_scan_session(
         pending.push((left, entries))
       }
       Visit(region, next) => {
+        session.publication_visits += 1
         pending.push((next, entries))
         let children : Array[CstStructuralRuleEntry] = []
         for entry in entries {

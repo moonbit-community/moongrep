@@ -19,7 +19,7 @@ priv struct RegionResult {
 }
 
 ///|
-// Expansion counters are observed by white-box complexity tests.
+// Expansion and publication counters are observed by white-box complexity tests.
 #warnings("-unused_field")
 priv struct ScanSession {
   plan : ScanPlan
@@ -32,6 +32,7 @@ priv struct ScanSession {
   regions : Map[EvaluationKey, RegionResult]
   mut candidate_expansions : Int32
   mut region_expansions : Int32
+  mut publication_visits : Int32
 }
 
 ///|
@@ -50,6 +51,7 @@ fn ScanSession::new(
     regions: Map([]),
     candidate_expansions: 0,
     region_expansions: 0,
+    publication_visits: 0,
   }
   ignore(session.intern_environment([]))
   session

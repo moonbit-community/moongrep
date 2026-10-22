@@ -18,6 +18,7 @@ fn ScanSession::apply_toplevel_group(
           // Publish only after the entire selected context passes its negatives.
           if self.plan.groups[entry.group].has_positive {
             self.index.walk(self.index.scan(target.region), fn(candidate) {
+              self.publication_visits += 1
               match self.candidate(entry.group, candidate, env) {
                 GroupHit(index, loc) => {
                   collector.add(file, entry.rule, index, loc)
