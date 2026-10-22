@@ -5,12 +5,12 @@ version = "0.3.8"
 preferred_target = "wasm"
 
 import {
-  "moonbitlang/parser@0.4.5",
+  "moonbitlang/parser@0.4.6",
   "moonbit-community/yaml@0.0.6",
   "moonbit-community/chalk@0.0.1",
-  "moonbitlang/lexer@0.4.3",
+  "moonbitlang/lexer@0.4.4",
   "moonbitlang/async@0.22.4",
-  "moonbitlang/x@0.5.1",
+  "moonbitlang/x@0.5.6",
 }
 
 readme = "README.md"
