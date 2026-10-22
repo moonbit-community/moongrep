@@ -124,8 +124,6 @@ fn reference_findings(
   ) -> Unit {
     match session.index.step(cursor) {
       End => ()
-      Scan(_) | Finish(_) | AfterContinue(_, _) =>
-        abort("expected an ordinary root cursor")
       Concat(left, right) => {
         visit(left, entries)
         visit(right, entries)

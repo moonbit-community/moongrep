@@ -62,8 +62,6 @@ fn apply_scan_session(
     }
     match session.index.step(cursor) {
       End => ()
-      Scan(_) | Finish(_) | AfterContinue(_, _) =>
-        abort("expected an ordinary root cursor")
       Concat(left, right) => {
         pending.push((right, entries))
         pending.push((left, entries))

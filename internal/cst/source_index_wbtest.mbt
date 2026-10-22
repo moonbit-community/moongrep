@@ -123,6 +123,41 @@ test "source identity does not merge equal spans" {
 }
 
 ///|
+test "scanning empty and partial continuations respects the selected bounds" {
+  let parsed = @untyped_cst.parse_expression(
+    "let item = source(); one(); two()",
+    name="selected bounds",
+  )
+  assert_true(parsed.diagnostics_view().is_empty())
+  let index = SourceIndex::new(parsed.root())
+  let header = index.node_id(expression_nodes(parsed.root())[0])
+  let empty = index.continuation(header, 1)
+  let partial = index.continuation(header, 2)
+  let signatures : Array[String] = []
+  index.walk(index.scan(empty), fn(region) {
+    signatures.push(candidate_signature(index.candidate(region)))
+    NodeVisitContinue
+  })
+  debug_inspect(signatures, content="[\"S:\"]")
+  let regions : Array[RegionId] = []
+  index.walk(index.scan(partial), fn(region) {
+    regions.push(region)
+    if candidate_call_name(index.candidate(region)) is Some(name) {
+      signatures.push(name)
+    }
+    NodeVisitContinue
+  })
+  debug_inspect(signatures, content="[\"S:\", \"one\"]")
+  guard index.candidate(partial) is Sequence([one]) else {
+    fail("expected a one-statement continuation")
+  }
+  let direct = index.direct(index.node_id(one))
+  assert_true(partial != direct)
+  assert_true(regions.contains(partial) && regions.contains(direct))
+  assert_eq(index.scan(partial), index.visit(partial))
+}
+
+///|
 test "split constructor pattern names retain their original indexed references" {
   let root = parse_identifier_source(
     "fn sample { match input { Option::Some(value) => sink(value) } }",

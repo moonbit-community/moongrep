@@ -16,7 +16,6 @@ priv struct EvaluationKey {
 priv struct RegionResult {
   hit : Bool
   rejected : Bool
-  pruned : Bool
 }
 
 ///|
@@ -79,11 +78,9 @@ priv enum EvaluationFrame {
     EvaluationKey
   )
   Region(EvaluationKey)
-  AfterCandidate(EvaluationKey, EvaluationKey, @cst.CursorId, Bool)
+  AfterCandidate(EvaluationKey, EvaluationKey, @cst.CursorId)
   AfterLeft(EvaluationKey, EvaluationKey, @cst.CursorId)
   AfterRight(EvaluationKey, RegionResult, EvaluationKey)
-  AfterReplay(EvaluationKey, EvaluationKey, @cst.CursorId)
-  FinishRegion(EvaluationKey, EvaluationKey)
 }
 
 ///|
@@ -147,8 +144,7 @@ fn ScanSession::evaluate(self : ScanSession, initial : EvaluationFrame) -> Unit 
         }
         self.region_expansions += 1
         match self.index.step(key.source) {
-          End =>
-            self.regions[key] = { hit: false, rejected: false, pruned: false, }
+          End => self.regions[key] = { hit: false, rejected: false, }
           Concat(left, right) => {
             let left = { ..key, source: left, }
             stack.push(AfterLeft(key, left, right))
@@ -156,32 +152,17 @@ fn ScanSession::evaluate(self : ScanSession, initial : EvaluationFrame) -> Unit 
           }
           Visit(region, next) => {
             let candidate = { ..key, source: region, }
-            stack.push(AfterCandidate(key, candidate, next, false))
+            stack.push(AfterCandidate(key, candidate, next))
             stack.push(Candidate(candidate))
-          }
-          Scan(region) => {
-            let candidate = { ..key, source: region, }
-            stack.push(AfterCandidate(key, candidate, 0, true))
-            stack.push(Candidate(candidate))
-          }
-          Finish(inner) => {
-            let inner = { ..key, source: inner, }
-            stack.push(FinishRegion(key, inner))
-            stack.push(Region(inner))
-          }
-          AfterContinue(first, second) => {
-            let first = { ..key, source: first, }
-            stack.push(AfterReplay(key, first, second))
-            stack.push(Region(first))
           }
         }
       }
-      AfterCandidate(key, candidate, next, full) =>
+      AfterCandidate(key, candidate, next) =>
         match self.candidates[candidate] {
           GroupHit(_, _) =>
             self.evaluate_right(
               key,
-              { hit: true, rejected: false, pruned: true, },
+              { hit: true, rejected: false, },
               next,
               stack,
             )
@@ -192,31 +173,17 @@ fn ScanSession::evaluate(self : ScanSession, initial : EvaluationFrame) -> Unit 
               {
                 hit: false,
                 rejected: group.reject_negative || !group.has_positive,
-                pruned: true,
               },
               next,
               stack,
             )
           }
           GroupMiss => {
-            let left = {
-              ..key,
-              source: self.index.children(candidate.source, full~),
-            }
+            let left = { ..key, source: self.index.children(candidate.source), }
             stack.push(AfterLeft(key, left, next))
             stack.push(Region(left))
           }
         }
-      FinishRegion(key, inner) =>
-        self.regions[key] = { ..self.regions[inner], pruned: false, }
-      AfterReplay(key, first, second) => {
-        let first = self.regions[first]
-        if first.pruned || first.rejected {
-          self.regions[key] = first
-        } else {
-          self.evaluate_right(key, first, second, stack)
-        }
-      }
       AfterLeft(key, left, right) =>
         self.evaluate_right(key, self.regions[left], right, stack)
       AfterRight(key, left, right) => {
@@ -224,7 +191,6 @@ fn ScanSession::evaluate(self : ScanSession, initial : EvaluationFrame) -> Unit 
         self.regions[key] = {
           hit: left.hit || right.hit,
           rejected: left.rejected || right.rejected,
-          pruned: right.pruned,
         }
       }
     }

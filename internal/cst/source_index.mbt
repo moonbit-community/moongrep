@@ -19,9 +19,6 @@ pub(all) enum SourceStep {
   End
   Visit(RegionId, CursorId)
   Concat(CursorId, CursorId)
-  Scan(RegionId)
-  Finish(CursorId)
-  AfterContinue(CursorId, CursorId)
 } derive(Eq, Hash)
 
 ///|
@@ -70,11 +67,8 @@ pub struct SourceIndex {
   priv region_ids : Map[RegionKey, RegionId]
   priv steps : Array[SourceStep]
   priv step_ids : Map[SourceStep, CursorId]
-  priv child_cursors : Map[(RegionId, Bool), CursorId]
+  priv child_cursors : Map[RegionId, CursorId]
   priv root_cursors : Map[NodeId, CursorId]
-  priv descendant_cursors : Map[NodeId, CursorId]
-  priv sequence_cursors : Map[(Int32, Int32, Int32), CursorId]
-  priv direct_cursors : Map[(NodeId, TraversalLayer), CursorId]
 }
 
 ///|
@@ -119,9 +113,6 @@ pub fn SourceIndex::new(root : @untyped_cst.CstNode) -> SourceIndex {
     step_ids: Map([]),
     child_cursors: Map([]),
     root_cursors: Map([]),
-    descendant_cursors: Map([]),
-    sequence_cursors: Map([]),
-    direct_cursors: Map([]),
   }
   // Index raw occurrences first. Spans only choose an identity lookup bucket;
   // reference equality, never span equality, identifies an original CST node.
@@ -224,15 +215,6 @@ fn SourceIndex::raw_all(
 }
 
 ///|
-fn SourceIndex::semantic_child(
-  self : SourceIndex,
-  id : NodeId,
-  label : String,
-) -> NodeId? {
-  child(self.node(id), label).map(node => self.node_id(node))
-}
-
-///|
 fn SourceIndex::intern_region(self : SourceIndex, key : RegionKey) -> RegionId {
   if self.region_ids.get(key) is Some(id) {
     return id
@@ -327,32 +309,8 @@ pub fn SourceIndex::visit(
 }
 
 ///|
-fn SourceIndex::concat(
-  self : SourceIndex,
-  left : CursorId,
-  right : CursorId,
-) -> CursorId {
-  if left == 0 {
-    right
-  } else if right == 0 {
-    left
-  } else {
-    self.intern_step(Concat(left, right))
-  }
-}
-
-///|
 pub fn SourceIndex::scan(self : SourceIndex, region : RegionId) -> CursorId {
-  self.intern_step(Scan(region))
-}
-
-///|
-fn SourceIndex::finish(self : SourceIndex, cursor : CursorId) -> CursorId {
-  if cursor == 0 {
-    0
-  } else {
-    self.intern_step(Finish(cursor))
-  }
+  self.visit(region)
 }
 
 ///|

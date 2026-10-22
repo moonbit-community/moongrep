@@ -112,7 +112,7 @@ pub struct SourceIndex {
   // private fields
 }
 pub fn SourceIndex::candidate(Self, Int32) -> ExprMatchCandidate
-pub fn SourceIndex::children(Self, Int32, full? : Bool) -> Int32
+pub fn SourceIndex::children(Self, Int32) -> Int32
 pub fn SourceIndex::continuation(Self, Int32, Int32) -> Int32
 pub fn SourceIndex::direct(Self, Int32) -> Int32
 pub fn SourceIndex::identifier_source(Self, @node.CstNode) -> IdentifierSource?
@@ -132,9 +132,6 @@ pub(all) enum SourceStep {
   End
   Visit(Int32, Int32)
   Concat(Int32, Int32)
-  Scan(Int32)
-  Finish(Int32)
-  AfterContinue(Int32, Int32)
 } derive(Eq, Hash)
 pub fn SourceStep::equal(Self, Self) -> Bool
 pub fn SourceStep::hash(Self) -> Int32
