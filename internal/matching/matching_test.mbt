@@ -81,6 +81,18 @@ fn test_single_binding(
 }
 
 ///|
+fn test_multiple_binding(
+  result : @matching.ExprMatch?,
+  name : String,
+) -> Array[@untyped_cst.CstNode] raise {
+  guard result is Some(result) else { fail("expected match") }
+  match result.bindings.get(name) {
+    Some(Multiple(nodes)) => nodes
+    _ => fail("expected multiple binding for \{name}")
+  }
+}
+
+///|
 test "semantic equality ignores locations formatting comments and separators" {
   let compact = test_expr("f(1, label=x)", name="compact")
   let formatted = test_expr(
@@ -442,6 +454,75 @@ test "ellipsis captures ordered argument spans including empty spans" {
   }
   assert_true(
     @matching.match_expr_pattern(compiled, test_expr("call(tail)")) is Some(_),
+  )
+}
+
+///|
+test "trailing ellipsis binds an empty argument span" {
+  for
+    (pattern, source) in [
+      ("call($$$items)", "call()"),
+      ("call(head, $$$items)", "call(head)"),
+    ] {
+    let compiled = test_compiled(test_expr(pattern), entries=[
+      test_metavar_entry("items", Ellipsis(AnyItem)),
+    ])
+    let items = test_multiple_binding(
+      @matching.match_expr_pattern(compiled, test_expr(source)),
+      "items",
+    )
+    inspect(items.length(), content="0")
+  }
+}
+
+///|
+test "trailing ellipsis captures all arguments after a fixed prefix" {
+  let compiled = test_compiled(test_expr("call(head, $$$items)"), entries=[
+    test_metavar_entry("items", Ellipsis(AnyItem)),
+  ])
+  let source = "call(head, 1, label=x, 3)"
+  let items = test_multiple_binding(
+    @matching.match_expr_pattern(compiled, test_expr(source)),
+    "items",
+  )
+  debug_inspect(
+    items.map(node => @cst.source_text(node, source)),
+    content="[\"1\", \"label=x\", \"3\"]",
+  )
+}
+
+///|
+test "trailing ellipsis captures long argument lists in full and in order" {
+  let compiled = test_compiled(test_expr("call($$$items)"), entries=[
+    test_metavar_entry("items", Ellipsis(AnyItem)),
+  ])
+  for count in [64, 256] {
+    let arguments = [ for index in 0..<count => "arg\{index}" ]
+    let source = "call(" + arguments.join(", ") + ")"
+    let items = test_multiple_binding(
+      @matching.match_expr_pattern(compiled, test_expr(source)),
+      "items",
+    )
+    assert_eq(items.length(), count)
+    for index, item in items {
+      assert_eq(@cst.source_text(item, source), arguments[index])
+    }
+  }
+}
+
+///|
+test "repeated trailing ellipsis retries after unequal earlier bindings" {
+  let compiled = test_compiled(test_expr("f($$$items, marker, $$$items)"), entries=[
+    test_metavar_entry("items", Ellipsis(AnyItem)),
+  ])
+  let source = "f(a, marker, b, marker, a, marker, b)"
+  let items = test_multiple_binding(
+    @matching.match_expr_pattern(compiled, test_expr(source)),
+    "items",
+  )
+  debug_inspect(
+    items.map(node => @cst.source_text(node, source)),
+    content="[\"a\", \"marker\", \"b\"]",
   )
 }
 
