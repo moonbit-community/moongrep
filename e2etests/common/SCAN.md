@@ -93,18 +93,21 @@ $ moonx moonbit-community/moongrep scan --json --pattern '{ a; b }' ../testdata/
 
 Nested closures, conditionals, and let initializers report each structural
 match once. Separate source blocks in the same file retain their own findings.
-The text and JSON outputs consume the same normalized findings.
+The text and JSON outputs consume the same normalized findings. Both commands
+select one rule and one source file. The text snapshot uses the bare filename
+on every platform.
 
 ```mooncram moonbit-community/moongrep
-$ moonx moonbit-community/moongrep scan --rules ../rules/structural-unique ../testdata/structural-unique | moonx cli/grep@0.2.0 -E '^(../testdata/|rule:)'
-../testdata/structural-unique/nested.mbt:5:9-5:17
+#cwd(../testdata/structural-unique)
+$ moonx moonbit-community/moongrep scan --rule ../../rules/structural-unique/unique.yaml nested.mbt | moonx cli/grep@0.2.0 -E '^(nested[.]mbt:|rule:)'
+nested.mbt:5:9-5:17
 rule: unique
-../testdata/structural-unique/nested.mbt:15:3-15:11
+nested.mbt:15:3-15:11
 rule: unique
-../testdata/structural-unique/nested.mbt:16:3-16:11
+nested.mbt:16:3-16:11
 rule: unique
 
-$ moonx moonbit-community/moongrep scan --json --rules ../rules/structural-unique ../testdata/structural-unique | moonx cli/jq@0.2.1 -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)-\(.range["end"].line):\(.range["end"].column)"'
+$ moonx moonbit-community/moongrep scan --json --rule ../../rules/structural-unique/unique.yaml nested.mbt | moonx cli/jq@0.2.1 -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)-\(.range["end"].line):\(.range["end"].column)"'
 unique 5:9-5:17
 unique 15:3-15:11
 unique 16:3-16:11
