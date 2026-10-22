@@ -100,8 +100,10 @@ block 表达式候选。body 内的语句组成 sequence 候选，其中的每�
 `fn sample { a; b }` 的函数体容器，但会匹配 `fn sample { { a; b } }` 中的
 嵌套 block。该显式 block 的 finding range 包含花括号。
 
-普通正向 pattern、`patterns-not`、`then` target 遍历和 expression query
-都使用同一套候选及 range 规则。
+普通扫描、`then` target、`inside-toplevel` target 和 expression query
+都使用同一套候选边界及 range 规则，也适用于嵌套闭包。选中的函数体仍是
+sequence 容器，不会因此把外层花括号暴露为显式 block 候选。空 sequence
+和选中的部分 continuation 保留其精确的语句边界。
 
 ### 省略 body 的 let shape
 
@@ -607,6 +609,11 @@ patterns:
 - 兄弟表达式子树以及其他规则会继续扫描
 
 同一条规则中的所有 pattern 共享同一个规则 id 和 `description`。
+
+在同一个解析源码块中，结构 finding 按文件、规则 id 和完整的起止源码范围保持
+唯一。首次成功的 finding 保留其 `pattern_index`、description 和发布顺序。
+不同规则或不同范围仍分别报告，独立解析的源码块各自保留结果。文本和 JSON
+输出使用相同的 finding。
 
 ### `patterns-not`
 
