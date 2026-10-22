@@ -103,3 +103,124 @@ test "then searches nested closures with the ordinary block boundary" {
     }
   }
 }
+
+///|
+test "equivalent ordinary and context rules publish the same internal findings" {
+  let header = "id: equivalent\ndescription: Equivalent candidate boundaries.\n"
+  let bodies = [
+    "target(); target()", "fn() { target(); target() }", "let closure = fn() { target(); other() }; target()",
+    "if ready() { target() } else { target() }", "let item = source(); target(); other()",
+    "{ a; b }; fn() { a; b }; fn() { { a; b } }", "fn() {}; target()", "letrec f = fn(x) { target(); x }; f(1)",
+    "try target() catch { _ => target() }",
+  ]
+  for
+    shape in ["target()", "$(name:id)", "let $_ = source()", "a; b", "{ a; b }"] {
+    let patterns = "patterns:\n  - shape: '\{shape}'\n"
+    let plain = ScanPlan::from_rules(
+      compile_scan_plan_rules([header + patterns]),
+    )
+    let context = ScanPlan::from_rules(
+      compile_scan_plan_rules([
+        header +
+        "inside-toplevel:\n  - shape: fn $_ { __TARGET__ }\n" +
+        patterns,
+      ]),
+    )
+    for body in bodies {
+      let root = parse_scan_plan_root(
+        "fn sample { \{body} }\nfn second { target() }",
+      )
+      let expected = apply_structural_scan_plan_to_node("same.mbt", root, plain).map(
+        complete_finding_signature,
+      )
+      for plan in [force_indexed_root_entries(plain), context] {
+        assert_eq(
+          apply_structural_scan_plan_to_node("same.mbt", root, plan).map(
+            complete_finding_signature,
+          ),
+          expected,
+        )
+      }
+    }
+  }
+}
+
+///|
+test "mixed scans retain top-level rule and candidate publication order" {
+  let plan = ScanPlan::from_rules(
+    compile_scan_plan_rules([
+      "id: before\ndescription: First plain rule.\npatterns:\n  - shape: target($_)\n",
+      (
+        #|id: recursive
+        #|description: Successful parent covers its child.
+        #|patterns:
+        #|  - shape: holder(__TARGET__)
+        #|    then:
+        #|      patterns:
+        #|        - shape: target($_)
+      ),
+      "id: inside\ndescription: Context runs before ordinary roots.\ninside-toplevel:\n  - shape: fn $_ { __TARGET__ }\npatterns:\n  - shape: target($_)\n",
+      "id: after\ndescription: Last plain rule.\npatterns:\n  - shape: target($_)\n",
+    ]),
+  )
+  let source = "fn sample { holder(target(1)); target(2); let f = fn() { target(3); target(4) }; finish() }\nfn second { target(5) }"
+  let hits = apply_structural_scan_plan_to_node(
+    "order.mbt",
+    parse_scan_plan_root(source),
+    plan,
+  )
+  debug_inspect(
+    hits.map(hit => {
+      hit.rule_id + "|" + source[hit.loc.start.cnum:hit.loc.end.cnum].to_owned()
+    }),
+    content=(
+      #|[
+      #|  "inside|target(1)",
+      #|  "inside|target(2)",
+      #|  "inside|target(3)",
+      #|  "inside|target(4)",
+      #|  "inside|target(5)",
+      #|  "recursive|holder(target(1))",
+      #|  "before|target(1)",
+      #|  "after|target(1)",
+      #|  "before|target(2)",
+      #|  "after|target(2)",
+      #|  "before|target(3)",
+      #|  "after|target(3)",
+      #|  "before|target(4)",
+      #|  "after|target(4)",
+      #|  "before|target(5)",
+      #|  "after|target(5)",
+      #|]
+    ),
+  )
+}
+
+///|
+test "nested context negatives distinguish function bodies and explicit blocks" {
+  let plan = ScanPlan::from_rules(
+    compile_scan_plan_rules([
+      (
+        #|id: clean
+        #|description: Only explicit blocks veto a context.
+        #|inside-toplevel:
+        #|  - shape: fn $_ { __TARGET__ }
+        #|patterns-not:
+        #|  - shape: '{ a; b }'
+      ),
+    ]),
+  )
+  for
+    (body, expected) in [
+      ("fn() { a; b }", 1),
+      ("fn() { { a; b } }", 0),
+      ("fn() {}", 1),
+    ] {
+    let root = parse_scan_plan_root("fn sample { \{body} }")
+    let hits = apply_structural_scan_plan_to_node("negative.mbt", root, plan)
+    assert_eq(hits.length(), expected)
+    for hit in hits {
+      assert_eq(hit.loc.start.column(), 1)
+    }
+  }
+}
