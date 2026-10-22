@@ -4,7 +4,12 @@ test "recursive failure expands each complete state once" {
     let plan = ScanPlan::from_rules([recursive_bench_rule(depth, "absent()")])
     let root = parse_scan_plan_root(recursive_bench_source())
     let session = ScanSession::new(plan, root)
-    let findings = apply_scan_session("sample.mbt", root, session)
+    let findings = apply_scan_session(
+      "sample.mbt",
+      root,
+      session,
+      StructuralFindingCollector::new(),
+    )
     assert_true(findings.is_empty())
     assert_eq(session.candidate_expansions, session.candidates.length())
     assert_eq(session.region_expansions, session.regions.length())
@@ -210,7 +215,12 @@ test "success failure and negative rejection scale across source and rule chains
           }
           let root = parse_scan_plan_root(source)
           let session = ScanSession::new(plan, root)
-          let hits = apply_scan_session("scale.mbt", root, session)
+          let hits = apply_scan_session(
+            "scale.mbt",
+            root,
+            session,
+            StructuralFindingCollector::new(),
+          )
           assert_eq(!hits.is_empty(), outcome == "success")
           assert_eq(session.candidate_expansions, session.candidates.length())
           assert_eq(session.region_expansions, session.regions.length())
@@ -248,7 +258,12 @@ test "mixed scans keep plain entries out of evaluation caches" {
   let plan = ScanPlan::from_rules(rules)
   let root = parse_scan_plan_root("fn sample { wrapper(target()) }")
   let session = ScanSession::new(plan, root)
-  let findings = apply_scan_session("mixed.mbt", root, session)
+  let findings = apply_scan_session(
+    "mixed.mbt",
+    root,
+    session,
+    StructuralFindingCollector::new(),
+  )
   debug_inspect(
     findings.map(finding => finding.rule_id),
     content="[\"plain-before\", \"recursive\", \"plain-after\"]",

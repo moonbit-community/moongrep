@@ -80,7 +80,7 @@ fn reference_findings(
   plan : ScanPlan,
 ) -> Array[RuleFinding] {
   let session = ScanSession::new(plan, node)
-  let hits : Array[RuleFinding] = []
+  let collector = StructuralFindingCollector::new()
   let toplevel = if node.kind is Impls {
     @cst.toplevel_nodes(node)
   } else {
@@ -104,12 +104,10 @@ fn reference_findings(
               entry.group,
               target.region,
               env,
-              fn(index, loc) {
-                push_structural_hit(file, entry.rule, index, loc, hits)
-              },
+              fn(index, loc) { collector.add(file, entry.rule, index, loc) },
             )
             if success && !plan.groups[entry.group].has_positive {
-              push_structural_hit(file, entry.rule, 0, matched.result.loc, hits)
+              collector.add(file, entry.rule, 0, matched.result.loc)
             }
           }
           break
@@ -136,8 +134,7 @@ fn reference_findings(
         let remaining : Array[CstStructuralRuleEntry] = []
         for entry in entries {
           match reference_candidate(session, entry.group, region, 0) {
-            GroupHit(index, loc) =>
-              push_structural_hit(file, entry.rule, index, loc, hits)
+            GroupHit(index, loc) => collector.add(file, entry.rule, index, loc)
             GroupNegative => ()
             GroupMiss => remaining.push(entry)
           }
@@ -150,7 +147,7 @@ fn reference_findings(
     }
   }
   visit(session.index.roots(), entries)
-  hits
+  collector.findings
 }
 
 ///|

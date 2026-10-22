@@ -24,10 +24,11 @@ pub fn apply_structural_scan_plan_to_node(
   if plan.structural_entries.is_empty() {
     return []
   }
+  let collector = StructuralFindingCollector::new()
   if plan.has_only_plain_structural_entries() {
-    return apply_plain_structural_entries_to_node(file, node, plan)
+    return apply_plain_structural_entries_to_node(file, node, plan, collector)
   }
-  apply_scan_session(file, node, ScanSession::new(plan, node))
+  apply_scan_session(file, node, ScanSession::new(plan, node), collector)
 }
 
 ///|
@@ -35,8 +36,8 @@ fn apply_scan_session(
   file : String,
   node : @untyped_cst.CstNode,
   session : ScanSession,
+  collector : StructuralFindingCollector,
 ) -> Array[RuleFinding] {
-  let hits : Array[RuleFinding] = []
   let toplevel = if node.kind is Impls {
     @cst.toplevel_nodes(node)
   } else {
@@ -46,7 +47,7 @@ fn apply_scan_session(
     if node.kind.is_impl() {
       for entry in session.plan.structural_entries {
         if !entry.structural.inside_toplevel.is_empty() {
-          session.apply_toplevel_group(file, entry, node, hits)
+          session.apply_toplevel_group(file, entry, node, collector)
         }
       }
     }
@@ -80,8 +81,7 @@ fn apply_scan_session(
             session.candidate(entry.group, region, 0)
           }
           match result {
-            GroupHit(index, loc) =>
-              push_structural_hit(file, entry.rule, index, loc, hits)
+            GroupHit(index, loc) => collector.add(file, entry.rule, index, loc)
             GroupNegative => ()
             GroupMiss => children.push(entry)
           }
@@ -92,24 +92,7 @@ fn apply_scan_session(
       }
     }
   }
-  hits
-}
-
-///|
-fn push_structural_hit(
-  file : String,
-  rule : CompiledRule,
-  index : Int32,
-  loc : @basic.Location,
-  hits : Array[RuleFinding],
-) -> Unit {
-  hits.push({
-    file,
-    rule_id: rule.rule_id,
-    description: rule.description,
-    pattern_index: index,
-    loc,
-  })
+  collector.findings
 }
 
 ///|

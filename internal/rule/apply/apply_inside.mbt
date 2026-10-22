@@ -4,7 +4,7 @@ fn ScanSession::apply_toplevel_group(
   file : String,
   entry : CstStructuralRuleEntry,
   node : @untyped_cst.CstNode,
-  hits : Array[RuleFinding],
+  collector : StructuralFindingCollector,
 ) -> Unit {
   let region = self.index.direct(self.index.node_id(node))
   for
@@ -20,7 +20,7 @@ fn ScanSession::apply_toplevel_group(
             self.index.walk(self.index.scan(target.region), fn(candidate) {
               match self.candidate(entry.group, candidate, env) {
                 GroupHit(index, loc) => {
-                  push_structural_hit(file, entry.rule, index, loc, hits)
+                  collector.add(file, entry.rule, index, loc)
                   NodeVisitPrune
                 }
                 GroupNegative => NodeVisitPrune
@@ -28,7 +28,7 @@ fn ScanSession::apply_toplevel_group(
               }
             })
           } else {
-            push_structural_hit(file, entry.rule, 0, matched.result.loc, hits)
+            collector.add(file, entry.rule, 0, matched.result.loc)
           }
         }
       }

@@ -33,19 +33,19 @@ fn apply_plain_structural_entries_to_node(
   file : String,
   node : @untyped_cst.CstNode,
   plan : ScanPlan,
+  collector : StructuralFindingCollector,
 ) -> Array[RuleFinding] {
-  let hits : Array[RuleFinding] = []
   @cst.visit_expr_match_candidate_roots(node, fn(candidate) {
     apply_plain_structural_entries_to_candidate(
       file,
       plan,
       plan.structural_entries,
       candidate,
-      hits,
+      collector,
     )
     NodeVisitPrune
   })
-  hits
+  collector.findings
 }
 
 ///|
@@ -54,13 +54,12 @@ fn apply_plain_structural_entries_to_candidate(
   plan : ScanPlan,
   entries : Array[CstStructuralRuleEntry],
   candidate : @cst.ExprMatchCandidate,
-  hits : Array[RuleFinding],
+  collector : StructuralFindingCollector,
 ) -> Unit {
   let child_entries : Array[CstStructuralRuleEntry] = []
   for entry in entries {
     match evaluate_plain_group_candidate(plan.groups[entry.group], candidate) {
-      GroupHit(index, loc) =>
-        push_structural_hit(file, entry.rule, index, loc, hits)
+      GroupHit(index, loc) => collector.add(file, entry.rule, index, loc)
       GroupNegative => ()
       GroupMiss => child_entries.push(entry)
     }
@@ -70,7 +69,7 @@ fn apply_plain_structural_entries_to_candidate(
   }
   @cst.visit_expr_match_candidate_children(candidate, fn(child) {
     apply_plain_structural_entries_to_candidate(
-      file, plan, child_entries, child, hits,
+      file, plan, child_entries, child, collector,
     )
   })
 }
