@@ -89,6 +89,36 @@ $ moonx moonbit-community/moongrep scan --json --pattern '{ a; b }' ../testdata/
 3:3-3:11 { a; b }
 ```
 
+## Unique structural findings
+
+Nested closures, conditionals, and let initializers report each structural
+match once. Separate source blocks in the same file retain their own findings.
+The text and JSON outputs consume the same normalized findings.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep scan --rules ../rules/structural-unique ../testdata/structural-unique | moonx cli/grep@0.2.0 -E '^(../testdata/|rule:)'
+../testdata/structural-unique/nested.mbt:5:9-5:17
+rule: unique
+../testdata/structural-unique/nested.mbt:15:3-15:11
+rule: unique
+../testdata/structural-unique/nested.mbt:16:3-16:11
+rule: unique
+
+$ moonx moonbit-community/moongrep scan --json --rules ../rules/structural-unique ../testdata/structural-unique | moonx cli/jq@0.2.1 -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)-\(.range["end"].line):\(.range["end"].column)"'
+unique 5:9-5:17
+unique 15:3-15:11
+unique 16:3-16:11
+```
+
+The builtin `catch_all` rule also reports each catch expression once through
+the nested closures and across source blocks.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep lint --json ../testdata/structural-unique | moonx cli/jq@0.2.1 -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)"'
+moonbitlang/catch_all 6:9
+moonbitlang/catch_all 17:3
+```
+
 ## Constant source spelling
 
 Constant equality preserves the spelling stored in the parser CST instead of

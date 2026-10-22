@@ -1,0 +1,6 @@
+id: unique
+description: Each structural match is reported once.
+inside-toplevel:
+  - shape: async fn $_ { __TARGET__ }
+patterns:
+  - shape: target()
