@@ -1,5 +1,35 @@
 # Recursive scan benchmark comparison
 
+## Unified structural traversal follow-up
+
+Measured on Linux on 2026-10-22 with `moon 0.1.20261016`, comparing pre-fix
+commit `60117bc` with the unified candidate traversal and finding collector.
+Both trees used the same dependencies and release fixtures. Each value is the
+median of three benchmark means, alternating baseline and working-tree runs
+for each backend.
+
+Initial default parallel runs varied widely, including the unchanged query
+path. The measurements below pin both builds to CPU 2 and use
+`--no-parallelize` so benchmark cases run sequentially. Parsing and planning
+remain outside the timed callbacks. Timings are diagnostic; deterministic
+candidate expansion and publication counts remain the CI gates.
+
+| Backend | Case | Before | After | Ratio | Limit |
+| --- | --- | ---: | ---: | ---: | ---: |
+| native | ordinary structural scan | 23.65 µs | 24.38 µs | 1.03× | 1.15× |
+| native | query captures from CST | 21.54 µs | 21.94 µs | 1.02× | 1.15× |
+| native | recursive failure bytes=84 depth=8 | 365.56 µs | 282.16 µs | 0.77× | 1.10× |
+| native | builtin structural scan | 55.71 µs | 57.90 µs | 1.04× | 1.05× |
+| wasm | ordinary structural scan | 91.32 µs | 94.72 µs | 1.04× | 1.15× |
+| wasm | query captures from CST | 81.62 µs | 83.41 µs | 1.02× | 1.15× |
+| wasm | recursive failure bytes=84 depth=8 | 1.62 ms | 1.01 ms | 0.62× | 1.10× |
+| wasm | builtin structural scan | 214.03 µs | 202.77 µs | 0.95× | 1.05× |
+
+All eight ratios pass the existing budgets against the pre-fix tree. Repeat
+the commands from `INTERNAL.md` with `--no-parallelize`, using the same CPU
+affinity for both trees, to reproduce this comparison on another host. The
+older measurements below use their original hosts and baselines.
+
 ## Lightweight execution follow-up
 
 A root structural entry is plain when it has no `inside-toplevel` clause and no
