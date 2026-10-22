@@ -642,7 +642,13 @@ fn match_children_from(
     if maximum_length < 0 {
       return false
     }
-    for length in 0..<=maximum_length {
+    // A trailing ellipsis must consume all remaining candidate children.
+    let minimum_length = if pattern_index + 1 == pattern.length() {
+      maximum_length
+    } else {
+      0
+    }
+    for length in minimum_length..<=maximum_length {
       let captured : Array[@untyped_cst.CstNode] = []
       let mut compatible = true
       for offset in 0..<length {
