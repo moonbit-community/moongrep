@@ -43,36 +43,36 @@ moonbitlang/match_single_case 14:3
 
 ## Simplifiable assignment variants
 
-All eighteen rule shapes are reported: local variables, fields, and indexed
-values using `+`, `-`, `*`, or `/`, including both operand orders supported for
-commutative operators and compound expressions in the other operand.
+All twelve rule shapes are reported: local variables, fields, and indexed
+values using `+`, `-`, `*`, or `/`, with the repeated target as the left operand.
+The fixture also covers compound expressions in the other operand and string
+suffix concatenation for all three target forms.
 
 ```mooncram moonbit-community/moongrep
 $ moonx moonbit-community/moongrep lint --json ../testdata/builtin-simplifiable-assignment-variants/positive.mbt | moonx cli/jq@0.2.1 -r 'select(.rule_id == "moonbitlang/simplifiable_assignment") | "\(.range.start.line):\(.range.start.column) \(.matched_source | @json | .[1:-1])"'
-14:3 add_left = add_left + step * 2
-16:3 add_right = step * 2 + add_right
-18:3 subtract = subtract - step
-20:3 multiply_left = multiply_left * (step + 1)
-22:3 multiply_right = (step + 1) * multiply_right
-24:3 divide = divide / step
-32:3 target.add_left = target.add_left + step * 2
-33:3 target.add_right = step * 2 + target.add_right
-34:3 target.subtract = target.subtract - step
-35:3 target.multiply_left = target.multiply_left * (step + 1)
-36:3 target.multiply_right = (step + 1) * target.multiply_right
-37:3 target.divide = target.divide / step
-42:3 target[0] = target[0] + step * 2
-43:3 target[1] = step * 2 + target[1]
-44:3 target[2] = target[2] - step
-45:3 target[3] = target[3] * (step + 1)
-46:3 target[4] = (step + 1) * target[4]
-47:3 target[5] = target[5] / step
+12:3 add_left = add_left + step * 2
+14:3 subtract = subtract - step
+16:3 multiply_left = multiply_left * (step + 1)
+18:3 divide = divide / step
+26:3 target.add_left = target.add_left + step * 2
+27:3 target.subtract = target.subtract - step
+28:3 target.multiply_left = target.multiply_left * (step + 1)
+29:3 target.divide = target.divide / step
+34:3 target[0] = target[0] + step * 2
+35:3 target[1] = target[1] - step
+36:3 target[2] = target[2] * (step + 1)
+37:3 target[3] = target[3] / step
+51:3 text = text + \" world\"
+52:3 target.text = target.text + \" world\"
+53:3 values[0] = values[0] + \" world\"
 ```
 
 The negative fixture checks unsupported operators, different local, field, or
-indexed targets, different field receivers or indexed collections, reversed
-`-` and `/`, and existing augmented assignments. It produces no findings for
-this rule.
+indexed targets, different field receivers or indexed collections, all four
+operators with the repeated target as the right operand, and existing augmented
+assignments. The reversed cases include string prefix concatenation,
+noncommutative overloaded multiplication, and integer addition with side
+effects. The fixture produces no findings for this rule.
 
 ```mooncram moonbit-community/moongrep
 $ moonx moonbit-community/moongrep lint --json ../testdata/builtin-simplifiable-assignment-variants/negative.mbt | moonx cli/jq@0.2.1 -s '[.[] | select(.rule_id == "moonbitlang/simplifiable_assignment")] | length'

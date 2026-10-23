@@ -153,5 +153,5 @@ test "builtin simplifiable_assignment matches supported augmented assignment ope
       matches.push("\{finding.pattern_index}@\{finding.loc.start.lnum}")
     }
   }
-  inspect(matches.join(","), content="0@3,6@5,9@7,15@9")
+  inspect(matches.join(","), content="0@3,3@5,6@7,9@9")
 }

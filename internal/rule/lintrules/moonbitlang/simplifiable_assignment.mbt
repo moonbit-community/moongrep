@@ -4,7 +4,7 @@
 let _embed_simplifiable_assignment_yaml : String =
   #|id: simplifiable_assignment
   #|description: |
-  #|  Assignment repeats its target as the operand of a binary expression.
+  #|  Assignment repeats its target as the left operand of a binary expression.
   #|  Prefer the corresponding augmented assignment, such as foo += 1, foo.bar += 1, foo[i] +=1.
   #|  Note: Apply this rewrite only when the target expression and any index expression
   #|  are free of side effects. Augmented assignment may evaluate them a different
@@ -18,12 +18,6 @@ let _embed_simplifiable_assignment_yaml : String =
   #|  - shape: |
   #|      $target[$index] = $target[$index] + $_
   #|  - shape: |
-  #|      $(target:id) = $_ + $(target:id)
-  #|  - shape: |
-  #|      $target.$(field:id) = $_ + $target.$(field:id)
-  #|  - shape: |
-  #|      $target[$index] = $_ + $target[$index]
-  #|  - shape: |
   #|      $(target:id) = $(target:id) - $_
   #|  - shape: |
   #|      $target.$(field:id) = $target.$(field:id) - $_
@@ -35,12 +29,6 @@ let _embed_simplifiable_assignment_yaml : String =
   #|      $target.$(field:id) = $target.$(field:id) * $_
   #|  - shape: |
   #|      $target[$index] = $target[$index] * $_
-  #|  - shape: |
-  #|      $(target:id) = $_ * $(target:id)
-  #|  - shape: |
-  #|      $target.$(field:id) = $_ * $target.$(field:id)
-  #|  - shape: |
-  #|      $target[$index] = $_ * $target[$index]
   #|  - shape: |
   #|      $(target:id) = $(target:id) / $_
   #|  - shape: |

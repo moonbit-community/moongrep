@@ -104,9 +104,8 @@ test "query implements match_option structural alternatives" {
 ///|
 test "query implements simplifiable_assignment repeated targets" {
   let patterns = [
-    "$(target:id) = $(target:id) + $_", "$(target:id) = $_ + $(target:id)", "$target.$(field:id) = $target.$(field:id) + $_",
-    "$target.$(field:id) = $_ + $target.$(field:id)", "$target[$index] = $target[$index] + $_",
-    "$target[$index] = $_ + $target[$index]",
+    "$(target:id) = $(target:id) + $_", "$target.$(field:id) = $target.$(field:id) + $_",
+    "$target[$index] = $target[$index] + $_",
   ]
   let source =
     #|fn update(state : State, values : Array[Int], step : Int) -> Unit {
@@ -123,7 +122,7 @@ test "query implements simplifiable_assignment repeated targets" {
     #|  values[0] = values[1] + step
     #|}
     #|
-  assert_eq(query_alternative_match_count(patterns, source), 6)
+  assert_eq(query_alternative_match_count(patterns, source), 3)
 }
 
 ///|
