@@ -1,21 +1,17 @@
 ///|
 using @domain {
-  type PathSegment,
-  type SinkFinding,
-  type SinkId,
+  type TaintValue,
   type StoragePath,
   type TaintOrigin,
-  type TaintTree,
-  type ValueSite,
-  taint_tree_origins,
+  type SinkFinding,
 }
 
 ///|
 using @model {
-  type CallArgument,
-  type CallInfo,
-  type CallKind,
-  type CallMatcher,
   type TaintSpec,
-  type UnknownCallPolicy,
+  type CallInfo,
+  type CallTransfer,
+  type CallOutcome,
+  type CallEffect,
+  type CallMatcher,
 }

@@ -10,7 +10,13 @@ using @model {
 priv struct TargetValue {
   loc : @basic.Location
   path : @taint.StoragePath?
-  taint : @taint.TaintTree
+  taint : @taint.TaintValue
+}
+
+///|
+priv enum BoundTarget {
+  Argument(Int32)
+  Receiver
 }
 
 ///|
@@ -23,71 +29,97 @@ pub fn lower_compiled_taint_rule(
     sources: [],
     call_models: [],
     unknown_call_policy: NoEffect,
-    max_fixpoint_iterations: 64,
-    custom_transfer_call: call => {
-      transfer_compiled_taint_call(rule.rule_id, taint_rule, call)
-    },
+    bind_call: call => bind_compiled_taint_call(rule.rule_id, taint_rule, call),
   }
 }
 
 ///|
-// Implements YAML taint rules as a custom call transfer instead of teaching the
-// taint engine about rule syntax. The rule package family owns pattern matching;
-// the taint package only sees generic call facts and transfer results.
-fn transfer_compiled_taint_call(
+// Match each pattern once, before solving. The returned transfer depends only
+// on its evaluated snapshots and has no matcher/cache side effects.
+fn bind_compiled_taint_call(
   rule_id : String,
-  taint_rule : CompiledTaintRule,
+  rule : CompiledTaintRule,
   call : @taint.CallInfo,
-) -> @taint.CallTransfer? {
-  let mut matched = false
-  let return_taint : @taint.TaintTree = []
-  let killed_paths : Array[@taint.StoragePath] = []
-  let findings : Array[@taint.SinkFinding] = []
-  for index in 0..<taint_rule.sources.length() {
-    if taint_pattern_match(taint_rule.sources[index].pattern, call.cst)
-      is Some(_) {
-      matched = true
-      return_taint.push({
-        path: [],
-        origins: [
-          {
-            rule_id,
-            origin_id: "source:\{index}",
-            site: CallResult(call.callee_name, call.loc),
-            note: None,
-          },
-        ],
-      })
+) -> (@taint.CallInfo) -> @taint.CallTransfer? {
+  let sources : Array[Int32] = []
+  let sanitizers : Array[BoundTarget] = []
+  let sinks : Array[(Int32, BoundTarget)] = []
+  for i in 0..<rule.sources.length() {
+    if taint_pattern_match(rule.sources[i].pattern, call.cst) is Some(_) {
+      sources.push(i)
     }
   }
-  for index in 0..<taint_rule.sanitizers.length() {
-    let sanitizer = taint_rule.sanitizers[index]
-    if taint_pattern_match(sanitizer.pattern, call.cst) is Some(pattern_match) {
-      matched = true
-      if target_value_for_match(call, sanitizer.target, pattern_match)
-        is Some(target) &&
-        target.path is Some(path) {
+  for sanitizer in rule.sanitizers {
+    if taint_pattern_match(sanitizer.pattern, call.cst) is Some(found) &&
+      bind_target(call, sanitizer.target, found) is Some(target) {
+      sanitizers.push(target)
+    }
+  }
+  for i in 0..<rule.sinks.length() {
+    let sink = rule.sinks[i]
+    if taint_pattern_match(sink.pattern, call.cst) is Some(found) &&
+      bind_target(call, sink.target, found) is Some(target) {
+      sinks.push((i, target))
+    }
+  }
+  call => {
+    if sources.is_empty() && sanitizers.is_empty() && sinks.is_empty() {
+      return None
+    }
+    let mut value = @taint.TaintValue::clean()
+    for index in sources {
+      value = value.join(
+        @taint.TaintValue::source({
+          rule_id,
+          origin_id: "source:\{index}",
+          site: CallResult(call.callee_name, call.loc),
+          note: None,
+        }),
+      )
+    }
+    let killed_paths : Array[@taint.StoragePath] = []
+    for target in sanitizers {
+      if bound_value(call, target) is Some(value) && value.path is Some(path) {
         killed_paths.push(path)
       }
     }
-  }
-  for index in 0..<taint_rule.sinks.length() {
-    let sink = taint_rule.sinks[index]
-    if taint_pattern_match(sink.pattern, call.cst) is Some(pattern_match) {
-      matched = true
-      if target_value_for_match(call, sink.target, pattern_match)
-        is Some(target) {
-        let origins = @taint.taint_tree_origins(target.taint)
-        if origins.length() > 0 {
-          findings.push({ sink_id: PatternIndex(index), sink_loc: target.loc, })
-        }
+    let findings : Array[@taint.SinkFinding] = []
+    for (index, target) in sinks {
+      if bound_value(call, target) is Some(value) && !value.taint.is_clean() {
+        findings.push({ sink_id: PatternIndex(index), sink_loc: value.loc, })
       }
     }
+    Some(@taint.CallTransfer::normal(value, killed_paths~, findings~))
   }
-  if matched {
-    Some({ return_taint, killed_paths, findings, })
-  } else {
-    None
+}
+
+///|
+fn bind_target(
+  call : @taint.CallInfo,
+  target : TaintTarget,
+  found : @matching.ExprMatch,
+) -> BoundTarget? {
+  let selected = target_value_for_match(call, target, found)
+  guard selected is Some(selected) else { return None }
+  if target is Receiver {
+    return Some(Receiver)
+  }
+  for argument in call.arguments {
+    if argument.loc == selected.loc {
+      return Some(Argument(argument.index))
+    }
+  }
+  None
+}
+
+///|
+fn bound_value(call : @taint.CallInfo, target : BoundTarget) -> TargetValue? {
+  match target {
+    Receiver => target_value(call, Receiver)
+    Argument(index) =>
+      call
+      .argument_at(index)
+      .map(arg => { loc: arg.loc, path: arg.path, taint: arg.taint, })
   }
 }
 

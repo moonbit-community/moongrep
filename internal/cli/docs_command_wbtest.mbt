@@ -31,6 +31,7 @@ test "docs show rejects unknown document name" {
 ///|
 test "docs rejects unreachable command state as internal" {
   let options : CliOptions = {
+    strict_taint: false,
     rules_root: None,
     rule_file: None,
     patterns: [],

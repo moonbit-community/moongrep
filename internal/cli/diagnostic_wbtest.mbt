@@ -1,5 +1,5 @@
 ///|
-test "fatal diagnostics cover all seven exit categories" {
+test "fatal diagnostics cover all eight exit categories" {
   let errors : Array[CliError] = [
     new_internal_error("unexpected state"),
     new_unknown_document_error("MissingDoc"),
@@ -8,8 +8,9 @@ test "fatal diagnostics cover all seven exit categories" {
     new_invalid_rule_error("rules/example.yaml", "missing required key id"),
     new_scan_input_error("src", "read scan directory", "permission denied"),
     new_output_error("standard output", "broken pipe"),
+    new_taint_incomplete_error(),
   ]
-  assert_eq(errors.map(error => error.exit_code()), [1, 2, 3, 4, 5, 6, 7])
+  assert_eq(errors.map(error => error.exit_code()), [1, 2, 3, 4, 5, 6, 7, 8])
   inspect(
     errors.map(error => "\{error}").join("\n---\n"),
     content=(
@@ -45,12 +46,15 @@ test "fatal diagnostics cover all seven exit categories" {
       #|  source: standard output
       #|  reason: broken pipe
       #|  help: check the output destination or downstream command
+      #|---
+      #|error: taint analysis incomplete
+      #|  reason: see taint_incomplete warnings for skipped functions and rules
     ),
   )
 }
 
 ///|
-test "JSON errors cover all seven stable categories" {
+test "JSON errors cover all eight stable categories" {
   let diagnostic = new_cli_diagnostic("summary", None, None, None)
   let errors : Array[CliError] = [
     Internal(diagnostic~),
@@ -60,6 +64,7 @@ test "JSON errors cover all seven stable categories" {
     RuleContent(diagnostic~),
     ScanInput(diagnostic~),
     Output(diagnostic~),
+    TaintIncomplete(diagnostic~),
   ]
   json_inspect(errors.map(error => @json.parse(error.render_json())), content=[
     {
@@ -102,6 +107,12 @@ test "JSON errors cover all seven stable categories" {
       "type": "error",
       "category": "output",
       "exit_code": 7,
+      "message": "summary",
+    },
+    {
+      "type": "error",
+      "category": "taint_incomplete",
+      "exit_code": 8,
       "message": "summary",
     },
   ])

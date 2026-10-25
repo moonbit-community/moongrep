@@ -106,6 +106,7 @@ fn cli_error_diagnostic(error : CliError) -> CliDiagnostic {
     RuleContent(diagnostic~) => diagnostic
     ScanInput(diagnostic~) => diagnostic
     Output(diagnostic~) => diagnostic
+    TaintIncomplete(diagnostic~) => diagnostic
   }
 }
 
@@ -119,6 +120,7 @@ fn cli_error_category(error : CliError) -> String {
     RuleContent(..) => "rule_content"
     ScanInput(..) => "scan_input"
     Output(..) => "output"
+    TaintIncomplete(..) => "taint_incomplete"
   }
 }
 
@@ -476,4 +478,16 @@ fn new_output_os_error(
   error : @os_error.OSError,
 ) -> CliError {
   new_output_error(destination, os_error_reason(error))
+}
+
+///|
+fn new_taint_incomplete_error() -> CliError {
+  TaintIncomplete(
+    diagnostic=new_cli_diagnostic(
+      "taint analysis incomplete",
+      None,
+      Some("see taint_incomplete warnings for skipped functions and rules"),
+      None,
+    ),
+  )
 }

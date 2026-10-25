@@ -1,14 +1,14 @@
 ///|
 pub using @domain {
+  type BindingId,
+  type ParameterPath,
   type PathSegment,
   type StoragePath,
   type ValueSite,
   type TaintOrigin,
-  type RelativeTaint,
-  type TaintTree,
+  type TaintValue,
   type SinkId,
   type SinkFinding,
-  taint_tree_origins,
 }
 
 ///|
@@ -16,6 +16,8 @@ pub using @model {
   type CallKind,
   type CallArgument,
   type CallInfo,
+  type CallOutcome,
+  type StorageWrite,
   type CallTransfer,
   type UnknownCallPolicy,
   type SourceModel,
@@ -26,8 +28,16 @@ pub using @model {
 }
 
 ///|
+pub using @lowering {type Diagnostic, type Preparation, prepare_function_like}
+
+///|
 pub using @engine {
-  type TaintAnalysisError,
+  type AnalysisOptions,
+  type AnalysisMetrics,
   type AnalysisResult,
-  analyze_function_like,
+  type InvalidGraph,
+  analyze,
 }
+
+///|
+pub using @cfg {type PreparedFunction}

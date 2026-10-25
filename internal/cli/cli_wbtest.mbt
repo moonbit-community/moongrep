@@ -20,9 +20,10 @@ test "cli error categories have fixed exit codes" {
     RuleContent(diagnostic~),
     ScanInput(diagnostic~),
     Output(diagnostic~),
+    TaintIncomplete(diagnostic~),
   ]
   let exit_codes = errors.map(error => error.exit_code())
-  assert_eq(exit_codes, [1, 2, 3, 4, 5, 6, 7])
+  assert_eq(exit_codes, [1, 2, 3, 4, 5, 6, 7, 8])
 }
 
 ///|

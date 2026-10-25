@@ -7,11 +7,30 @@ import {
 }
 
 // Values
-pub fn taint_tree_origins(Array[RelativeTaint]) -> Array[TaintOrigin]
 
 // Errors
 
 // Types and methods
+pub(all) struct BindingId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+pub fn BindingId::compare(Self, Self) -> Int32
+pub fn BindingId::equal(Self, Self) -> Bool
+pub fn BindingId::hash(Self) -> Int32
+pub fn BindingId::hash_combine(Self, Hasher) -> Unit
+pub fn BindingId::not_equal(Self, Self) -> Bool
+pub fn BindingId::op_ge(Self, Self) -> Bool
+pub fn BindingId::op_gt(Self, Self) -> Bool
+pub fn BindingId::op_le(Self, Self) -> Bool
+pub fn BindingId::op_lt(Self, Self) -> Bool
+pub fn BindingId::to_repr(Self) -> @debug.Repr
+
+pub(all) struct ParameterPath {
+  root : String
+  segments : Array[PathSegment]
+} derive(Eq, @debug.Debug)
+pub fn ParameterPath::equal(Self, Self) -> Bool
+pub fn ParameterPath::not_equal(Self, Self) -> Bool
+pub fn ParameterPath::to_repr(Self) -> @debug.Repr
+
 pub(all) enum PathSegment {
   Field(String)
   TupleIndex(Int32)
@@ -21,14 +40,6 @@ pub(all) enum PathSegment {
 pub fn PathSegment::equal(Self, Self) -> Bool
 pub fn PathSegment::not_equal(Self, Self) -> Bool
 pub fn PathSegment::to_repr(Self) -> @debug.Repr
-
-pub(all) struct RelativeTaint {
-  path : Array[PathSegment]
-  origins : Array[TaintOrigin]
-} derive(Eq, @debug.Debug)
-pub fn RelativeTaint::equal(Self, Self) -> Bool
-pub fn RelativeTaint::not_equal(Self, Self) -> Bool
-pub fn RelativeTaint::to_repr(Self) -> @debug.Repr
 
 pub(all) struct SinkFinding {
   sink_id : SinkId
@@ -47,7 +58,7 @@ pub fn SinkId::not_equal(Self, Self) -> Bool
 pub fn SinkId::to_repr(Self) -> @debug.Repr
 
 pub(all) struct StoragePath {
-  root : String
+  root : BindingId
   segments : Array[PathSegment]
 } derive(Eq, @debug.Debug)
 pub fn StoragePath::equal(Self, Self) -> Bool
@@ -64,6 +75,23 @@ pub fn TaintOrigin::equal(Self, Self) -> Bool
 pub fn TaintOrigin::not_equal(Self, Self) -> Bool
 pub fn TaintOrigin::to_repr(Self) -> @debug.Repr
 
+pub struct TaintValue {
+  // private fields
+} derive(@debug.Debug)
+pub fn TaintValue::clean() -> Self
+pub fn TaintValue::collapse(Self) -> Self
+pub fn TaintValue::equal(Self, Self) -> Bool
+pub fn TaintValue::is_clean(Self) -> Bool
+pub fn TaintValue::join(Self, Self) -> Self
+pub fn TaintValue::not_equal(Self, Self) -> Bool
+pub fn TaintValue::origins(Self) -> Array[TaintOrigin]
+pub fn TaintValue::project(Self, Array[PathSegment]) -> Self
+pub fn TaintValue::sanitize(Self, Array[PathSegment]) -> Self
+pub fn TaintValue::source(TaintOrigin) -> Self
+pub fn TaintValue::to_repr(Self) -> @debug.Repr
+pub fn TaintValue::write(Self, Array[PathSegment], Self) -> Self
+pub impl Eq for TaintValue
+
 pub(all) enum ValueSite {
   Path(StoragePath)
   CallResult(String?, @basic.Location)
@@ -75,6 +103,5 @@ pub fn ValueSite::not_equal(Self, Self) -> Bool
 pub fn ValueSite::to_repr(Self) -> @debug.Repr
 
 // Type aliases
-pub type TaintTree = Array[RelativeTaint]
 
 // Traits

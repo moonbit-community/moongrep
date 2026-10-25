@@ -10,6 +10,7 @@ priv struct ParseWarning {
 ///|
 priv enum ScanWarning {
   Parse(ParseWarning)
+  TaintIncomplete(@rule_apply.TaintDiagnostic)
   InvalidMoongrepSkipPayload(String, @basic.Location)
 }
 

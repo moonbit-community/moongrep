@@ -1,0 +1,9 @@
+id: cfg
+description: CFG analysis.
+taint:
+  sources:
+    - shape: source()
+  sinks:
+    - shape: sink(__SOURCE__)
+  sanitizers:
+    - shape: sanitize(__SOURCE__)

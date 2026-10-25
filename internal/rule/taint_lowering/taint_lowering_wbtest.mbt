@@ -48,36 +48,16 @@ test "taint lowering preserves internal source and sink ids" {
     #|
   let (rule, taint_rule) = compile_single_taint_rule(rule_source)
   let spec = lower_compiled_taint_rule(rule, taint_rule)
-  assert_eq(spec.max_fixpoint_iterations, 64)
-  let sink_origins : Array[Array[@taint.TaintOrigin]] = []
-  let transfer_call = spec.custom_transfer_call
-  let observed_spec : @taint.TaintSpec = {
-    ..spec,
-    custom_transfer_call: call => {
-      if call.callee_name == Some("sink") &&
-        call.argument_at(0) is Some(argument) {
-        sink_origins.push(@taint.taint_tree_origins(argument.taint))
-      }
-      transfer_call(call)
-    },
+  guard @taint.prepare_function_like(parse_single_taint_impl(source))
+    is Prepared(graph) else {
+    fail("expected CFG")
   }
-  let result = @taint.analyze_function_like(
-    parse_single_taint_impl(source),
-    observed_spec,
-  )
-  assert_eq(result.findings.length(), 1)
-  assert_eq(result.findings[0].sink_id, PatternIndex(0))
-  debug_inspect(
-    sink_origins.map(origins => origins.map(origin => origin.origin_id)),
-    content="[[\"source:0\"]]",
-  )
-  assert_eq(sink_origins[0][0].rule_id, rule.rule_id)
-  guard sink_origins[0][0].site is CallResult(callee, loc) else {
-    fail("expected call-result source")
+  guard @taint.analyze(graph, spec) is Complete(findings) else {
+    fail("expected complete analysis")
   }
-  debug_inspect(callee, content="Some(\"get_user_input\")")
-  assert_eq(loc.start.lnum, 2)
-  let sink_loc = result.findings[0].sink_loc
+  assert_eq(findings.length(), 1)
+  assert_eq(findings[0].sink_id, PatternIndex(0))
+  let sink_loc = findings[0].sink_loc
   debug_inspect(
     (
       sink_loc.start.lnum,

@@ -514,7 +514,7 @@ let _embed_clispec_md : String =
   #|```
   #|
   #|`category` is one of `internal`, `usage`, `dump_input`, `rule_source`,
-  #|`rule_content`, `scan_input`, or `output`. For a structured diagnostic,
+  #|`rule_content`, `scan_input`, `output`, or `taint_incomplete`. For a structured diagnostic,
   #|`message` is its summary. For an argparse diagnostic, `message` contains the
   #|complete multiline diagnostic as one escaped JSON string. Empty optional fields
   #|are omitted. Pattern line endings are normalized to LF and one trailing line
@@ -615,7 +615,7 @@ let _embed_clispec_md : String =
   #|
   #|moongrep uses one fixed status for each actionable failure category:
   #|
-  #|In human mode, fatal diagnostics for statuses 1 through 7 use this layout:
+  #|In human mode, fatal diagnostics for statuses 1 through 8 use this layout:
   #|
   #|```text
   #|error: <summary>
@@ -660,6 +660,7 @@ let _embed_clispec_md : String =
   #|| 5 | Invalid rule content or strict dump pattern |
   #|| 6 | Scan-input failure |
   #|| 7 | Output failure |
+  #|| 8 | Incomplete taint analysis with `--strict-taint` |
   #|
   #|### Exit Status 0
   #|
@@ -729,6 +730,21 @@ let _embed_clispec_md : String =
   #|frontend does not retry the diagnostic on standard output. Findings already
   #|written by a streaming scan are not withdrawn when a later write or scan-input
   #|failure occurs.
+  #|
+  #|### Incomplete taint analysis
+  #|
+  #|`scan` and `lint` accept `--strict-taint` (off by default). Unsupported executable
+  #|syntax, a nonconvergent taint SCC, or a matching source block that cannot be
+  #|parsed emits a `taint_incomplete` warning on stderr. The warning contains the
+  #|file, source range, affected rule IDs and reason. Scanning continues. Strict
+  #|mode returns status 8 after scanning; default mode still succeeds unless another
+  #|error occurs. Unsupported functions and incomplete function/rule pairs publish
+  #|no partial findings. Structural-only scans do not prepare taint CFGs.
+  #|
+  #|JSON warning records contain `type: "warning"`, `category: "taint_incomplete"`,
+  #|`message`, `file`, `range`, `rule_ids` (an array), and `reason`. Strict mode also
+  #|ends with an error record whose category is `taint_incomplete` and exit code is
+  #|8. Existing finding fields and coordinates remain unchanged.
   #|
 
 ///|

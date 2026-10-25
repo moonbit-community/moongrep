@@ -89,6 +89,14 @@ fn render_scan_warning_json(warning : ScanWarning) -> String {
         record["block_start_line"] = ToJson::to_json(line)
       }
     }
+    TaintIncomplete(diagnostic) => {
+      record["category"] = Json::string("taint_incomplete")
+      record["message"] = Json::string(scan_warning_message(warning))
+      record["file"] = Json::string(diagnostic.file)
+      record["range"] = ToJson::to_json(json_scan_range(diagnostic.loc))
+      record["rule_ids"] = ToJson::to_json(diagnostic.rule_ids)
+      record["reason"] = Json::string(diagnostic.reason)
+    }
     InvalidMoongrepSkipPayload(file, loc) => {
       record["category"] = Json::string("invalid_skip_payload")
       record["message"] = Json::string(scan_warning_message(warning))

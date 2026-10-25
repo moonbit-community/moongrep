@@ -20,7 +20,7 @@ pub(all) struct CallArgument {
   loc : @basic.Location
   path : @domain.StoragePath?
   site : @domain.ValueSite
-  taint : Array[@domain.RelativeTaint]
+  taint : @domain.TaintValue
 }
 
 pub(all) enum CallEffect {
@@ -32,6 +32,8 @@ pub(all) enum CallEffect {
   KillReceiver
   ReportSinkArg(@domain.SinkId, Int32)
   ReportSinkReceiver(@domain.SinkId)
+  RaiseArg(Int32)
+  NoReturn
 } derive(Eq, @debug.Debug)
 pub fn CallEffect::equal(Self, Self) -> Bool
 pub fn CallEffect::not_equal(Self, Self) -> Bool
@@ -42,9 +44,10 @@ pub(all) struct CallInfo {
   cst : @node.CstNode
   loc : @basic.Location
   callee_name : String?
+  callee_binding : @domain.BindingId?
   receiver_path : @domain.StoragePath?
   receiver_site : @domain.ValueSite?
-  receiver_taint : Array[@domain.RelativeTaint]
+  receiver_taint : @domain.TaintValue
   arguments : Array[CallArgument]
 }
 pub fn CallInfo::argument_at(Self, Int32) -> CallArgument?
@@ -61,6 +64,7 @@ pub fn CallKind::to_repr(Self) -> @debug.Repr
 
 pub(all) enum CallMatcher {
   CalleeName(String)
+  CalleeBinding(@domain.BindingId)
   MethodName(String)
   AnyCall
 } derive(Eq, @debug.Debug)
@@ -76,30 +80,46 @@ pub fn CallModel::equal(Self, Self) -> Bool
 pub fn CallModel::not_equal(Self, Self) -> Bool
 pub fn CallModel::to_repr(Self) -> @debug.Repr
 
+pub(all) struct CallOutcome {
+  value : @domain.TaintValue
+  writes : Array[StorageWrite]
+} derive(Eq, @debug.Debug)
+pub fn CallOutcome::equal(Self, Self) -> Bool
+pub fn CallOutcome::not_equal(Self, Self) -> Bool
+pub fn CallOutcome::to_repr(Self) -> @debug.Repr
+
 pub(all) struct CallTransfer {
-  return_taint : Array[@domain.RelativeTaint]
-  killed_paths : Array[@domain.StoragePath]
+  normal : CallOutcome?
+  exceptional : CallOutcome?
   findings : Array[@domain.SinkFinding]
 } derive(Eq, @debug.Debug)
 pub fn CallTransfer::equal(Self, Self) -> Bool
+pub fn CallTransfer::normal(@domain.TaintValue, killed_paths? : Array[@domain.StoragePath], findings? : Array[@domain.SinkFinding]) -> Self
 pub fn CallTransfer::not_equal(Self, Self) -> Bool
 pub fn CallTransfer::to_repr(Self) -> @debug.Repr
 
 pub(all) enum SourceModel {
-  EntryPath(@domain.StoragePath, String, String?)
+  EntryPath(@domain.ParameterPath, String, String?)
   CallReturn(CallMatcher, String, String?, Array[@domain.PathSegment])
 } derive(Eq, @debug.Debug)
 pub fn SourceModel::equal(Self, Self) -> Bool
 pub fn SourceModel::not_equal(Self, Self) -> Bool
 pub fn SourceModel::to_repr(Self) -> @debug.Repr
 
+pub(all) enum StorageWrite {
+  Set(@domain.StoragePath, @domain.TaintValue)
+  Sanitize(@domain.StoragePath)
+} derive(Eq, @debug.Debug)
+pub fn StorageWrite::equal(Self, Self) -> Bool
+pub fn StorageWrite::not_equal(Self, Self) -> Bool
+pub fn StorageWrite::to_repr(Self) -> @debug.Repr
+
 pub(all) struct TaintSpec {
   rule_id : String
   sources : Array[SourceModel]
   call_models : Array[CallModel]
   unknown_call_policy : UnknownCallPolicy
-  max_fixpoint_iterations : Int32
-  custom_transfer_call : (CallInfo) -> CallTransfer?
+  bind_call : (CallInfo) -> (CallInfo) -> CallTransfer?
 }
 
 pub(all) enum UnknownCallPolicy {

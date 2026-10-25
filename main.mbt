@@ -84,6 +84,8 @@ async fn main {
       exit_with_cli_error(err, output_json)
     @cli.CliError::ScanInput(..) as err => exit_with_cli_error(err, output_json)
     @cli.CliError::Output(..) as err => exit_with_cli_error(err, output_json)
+    @cli.CliError::TaintIncomplete(..) as err =>
+      exit_with_cli_error(err, output_json)
     err => exit_with_cli_error(@cli.CliError::internal("\{err}"), output_json)
   }
 }

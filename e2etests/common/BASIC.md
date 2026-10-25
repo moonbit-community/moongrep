@@ -41,8 +41,8 @@ The docs registry lists the English rule and CLI specifications in that order.
 
 ```mooncram moonbit-community/moongrep
 $ moonx moonbit-community/moongrep docs --list
-RuleSpec	YAML rule keys, validation, and matcher semantics.
-CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
+"RuleSpec\tYAML rule keys, validation, and matcher semantics." (escaped)
+"CLISpec\tCommand-line parsing, scanning, output, diagnostics, and exit behavior." (escaped)
 ```
 
 ## moongrep lint --help
@@ -61,6 +61,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Write loaded rule ids and traversal progress to stderr.
+  --strict-taint       Exit with code 8 after scanning if taint analysis is incomplete.
   --json               Write JSON Lines findings to stdout and diagnostics to stderr.
   -r, --rules <rules>  Directory containing YAML rules.
   --rule <rule>        Single YAML rule file.
@@ -87,6 +88,7 @@ Arguments:
 Options:
   -h, --help           Show help information.
   --verbose            Write loaded rule ids and traversal progress to stderr.
+  --strict-taint       Exit with code 8 after scanning if taint analysis is incomplete.
   --json               Write JSON Lines findings to stdout and diagnostics to stderr.
   -r, --rules <rules>  Directory containing YAML rules. [default: ./.moongrep/rules]
   --rule <rule>        Single YAML rule file.

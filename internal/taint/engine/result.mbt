@@ -1,24 +1,19 @@
 ///|
-/// Errors raised by the taint analyzer.
-pub suberror TaintAnalysisError {
-  /// The supplied parser `Impl` is not a function or method body that the
-  /// analyzer can execute.
-  UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)
-  /// A loop's abstract state was still growing when its safety budget was
-  /// exhausted, so no partial analysis result was produced.
-  FixpointDidNotConverge(
-    rule_id~ : String,
-    loop_kind~ : String,
-    loc~ : @basic.Location,
-    budget~ : Int32
-  )
-} derive(Debug)
-
-///|
-/// Result of analyzing one function-like CST node for one rule.
-pub(all) struct AnalysisResult {
-  findings : Array[SinkFinding]
+/// The SCC budget belongs to analysis, independently of the rule model.
+pub(all) struct AnalysisOptions {
+  max_scc_rounds : Int32
 }
 
 ///|
-pub extend TaintAnalysisError with Debug::{to_repr}
+pub fn AnalysisOptions::default() -> AnalysisOptions {
+  { max_scc_rounds: 64, }
+}
+
+///|
+pub(all) enum AnalysisResult {
+  Complete(Array[SinkFinding])
+  Incomplete(Array[@lowering.Diagnostic])
+}
+
+///|
+pub using @cfg {type InvalidGraph}

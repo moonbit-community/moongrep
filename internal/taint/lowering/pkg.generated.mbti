@@ -1,0 +1,35 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/taint/lowering"
+
+import {
+  "moonbit-community/moongrep/internal/taint/cfg",
+  "moonbitlang/core/debug",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/untyped_cst/node",
+}
+
+// Values
+pub fn prepare_function_like(@node.CstNode) -> Preparation raise @cfg.InvalidGraph
+
+pub fn supports(@node.NodeKind) -> Bool
+
+// Errors
+
+// Types and methods
+pub(all) struct Diagnostic {
+  loc : @basic.Location
+  reason : String
+} derive(Eq, @debug.Debug)
+pub fn Diagnostic::equal(Self, Self) -> Bool
+pub fn Diagnostic::not_equal(Self, Self) -> Bool
+pub fn Diagnostic::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Preparation {
+  NotApplicable
+  Prepared(@cfg.PreparedFunction)
+  Unsupported(Array[Diagnostic])
+}
+
+// Type aliases
+
+// Traits

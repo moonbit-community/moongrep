@@ -3,13 +3,14 @@ package "moonbit-community/moongrep/internal/rule/apply"
 
 import {
   "moonbit-community/moongrep/internal/rule/model",
+  "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
 pub fn apply_structural_scan_plan_to_node(String, @node.CstNode, ScanPlan) -> Array[@model.RuleFinding]
 
-pub fn apply_taint_scan_plan_to_node(String, @node.CstNode, ScanPlan) -> Array[@model.RuleFinding] raise
+pub fn apply_taint_scan_plan_to_node(String, @node.CstNode, ScanPlan) -> TaintScanResult raise
 
 // Errors
 
@@ -20,6 +21,19 @@ pub struct ScanPlan {
 pub fn ScanPlan::filter_source(Self, StringView) -> Self
 pub fn ScanPlan::from_rules(Array[@model.CompiledRule]) -> Self
 pub fn ScanPlan::is_empty(Self) -> Bool
+pub fn ScanPlan::taint_rule_ids(Self) -> Array[String]
+
+pub(all) struct TaintDiagnostic {
+  file : String
+  loc : @basic.Location
+  rule_ids : Array[String]
+  reason : String
+}
+
+pub(all) struct TaintScanResult {
+  findings : Array[@model.RuleFinding]
+  diagnostics : Array[TaintDiagnostic]
+}
 
 // Type aliases
 

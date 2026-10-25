@@ -119,6 +119,7 @@ test "bare skip remains effective beside invalid payloads" {
 ///|
 fn skip_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/testdata/skip-structural/rules"),
     rule_file: None,
     patterns: [],
@@ -151,6 +152,7 @@ fn excluded_entry_scan_options() -> CliOptions {
     )
   }
   {
+    strict_taint: false,
     rules_root: Some(rules_root),
     rule_file: None,
     patterns: [],
@@ -166,6 +168,7 @@ fn excluded_entry_scan_options() -> CliOptions {
 ///|
 fn excluded_scan_root_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
@@ -181,6 +184,7 @@ fn excluded_scan_root_options() -> CliOptions {
 ///|
 fn single_rule_file_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: None,
     rule_file: Some(
       "e2etests/testdata/recursive-rule-discovery-rules/nested/b.yml",
@@ -198,6 +202,7 @@ fn single_rule_file_scan_options() -> CliOptions {
 ///|
 fn guarded_cli_pattern_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: None,
     rule_file: None,
     patterns: [
@@ -219,6 +224,7 @@ fn guarded_cli_pattern_scan_options() -> CliOptions {
 ///|
 fn verbose_rules_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/testdata/recursive-rule-discovery-rules"),
     rule_file: None,
     patterns: [],
@@ -234,6 +240,7 @@ fn verbose_rules_scan_options() -> CliOptions {
 ///|
 fn block_prefilter_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
@@ -249,6 +256,7 @@ fn block_prefilter_scan_options() -> CliOptions {
 ///|
 fn irrelevant_broken_block_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
@@ -264,6 +272,7 @@ fn irrelevant_broken_block_scan_options() -> CliOptions {
 ///|
 fn matched_broken_block_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
@@ -279,6 +288,7 @@ fn matched_broken_block_scan_options() -> CliOptions {
 ///|
 fn disabled_rule_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
@@ -294,6 +304,7 @@ fn disabled_rule_scan_options() -> CliOptions {
 ///|
 fn unknown_disabled_rule_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/prefilter"),
     rule_file: None,
     patterns: [],
@@ -323,6 +334,7 @@ fn compilation_invalid_builtin_scan_rule() -> @rule_model.RawRuleSpec raise {
 ///|
 fn builtin_api_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: None,
     rule_file: None,
     patterns: [],
@@ -338,6 +350,7 @@ fn builtin_api_options() -> CliOptions {
 ///|
 fn non_bmp_scan_options() -> CliOptions {
   {
+    strict_taint: false,
     rules_root: None,
     rule_file: None,
     patterns: [
@@ -529,6 +542,7 @@ async test "scan skips a symlink cycle" {
   let cycle_path = join_scan_path(scan_root, "again")
   @fs.symlink(cycle_path, target=@fs.realpath(scan_root))
   let options : CliOptions = {
+    strict_taint: false,
     rules_root: None,
     rule_file: None,
     patterns: [{ shape: "target()", guards: Map([]), match_mode: Default, }],
@@ -769,6 +783,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     _ => fail("expected rule source error")
   }
   let invalid_pattern_options : CliOptions = {
+    strict_taint: false,
     rules_root: None,
     rule_file: None,
     patterns: [{ shape: "target(", guards: Map([]), match_mode: Default, }],
@@ -822,6 +837,7 @@ async test "scan classifies rule source, rule content, and scan input failures" 
     _ => fail("expected YAML rule content error")
   }
   let missing_scan_root_options : CliOptions = {
+    strict_taint: false,
     rules_root: Some("e2etests/rules/structural"),
     rule_file: None,
     patterns: [],
