@@ -2,23 +2,31 @@
 package "moonbit-community/moongrep/internal/taint"
 
 import {
+  "moonbit-community/moongrep/internal/taint/cfg",
   "moonbit-community/moongrep/internal/taint/domain",
   "moonbit-community/moongrep/internal/taint/engine",
+  "moonbit-community/moongrep/internal/taint/lowering",
   "moonbit-community/moongrep/internal/taint/model",
   "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
-pub fn analyze_function_like(@node.CstNode, @model.TaintSpec) -> @engine.AnalysisResult raise
+pub fn analyze(@cfg.PreparedFunction, @model.TaintSpec, options? : @engine.AnalysisOptions, metrics? : @engine.AnalysisMetrics) -> @engine.AnalysisResult
 
-pub fn taint_tree_origins(Array[@domain.RelativeTaint]) -> Array[@domain.TaintOrigin]
+pub fn prepare_function_like(@node.CstNode) -> @lowering.Preparation raise @cfg.InvalidGraph
 
 // Errors
 
 // Types and methods
 
 // Type aliases
+pub using @engine {type AnalysisMetrics}
+
+pub using @engine {type AnalysisOptions}
+
 pub using @engine {type AnalysisResult}
+
+pub using @domain {type BindingId}
 
 pub using @model {type CallArgument}
 
@@ -32,11 +40,21 @@ pub using @model {type CallMatcher}
 
 pub using @model {type CallModel}
 
+pub using @model {type CallOutcome}
+
 pub using @model {type CallTransfer}
+
+pub using @lowering {type Diagnostic}
+
+pub using @cfg {type InvalidGraph}
+
+pub using @domain {type ParameterPath}
 
 pub using @domain {type PathSegment}
 
-pub using @domain {type RelativeTaint}
+pub using @lowering {type Preparation}
+
+pub using @cfg {type PreparedFunction}
 
 pub using @domain {type SinkFinding}
 
@@ -46,13 +64,13 @@ pub using @model {type SourceModel}
 
 pub using @domain {type StoragePath}
 
-pub using @engine {type TaintAnalysisError}
+pub using @model {type StorageWrite}
 
 pub using @domain {type TaintOrigin}
 
 pub using @model {type TaintSpec}
 
-pub type TaintTree = Array[@domain.RelativeTaint]
+pub using @domain {type TaintValue}
 
 pub using @model {type UnknownCallPolicy}
 

@@ -30,6 +30,7 @@ pub(all) suberror CliError {
   RuleContent(diagnostic~ : CliDiagnostic)
   ScanInput(diagnostic~ : CliDiagnostic)
   Output(diagnostic~ : CliDiagnostic)
+  TaintIncomplete(diagnostic~ : CliDiagnostic)
 } derive(@debug.Debug)
 pub fn CliError::exit_code(Self) -> Int32
 pub fn CliError::internal(String) -> Self
@@ -66,6 +67,7 @@ pub(all) struct CliOptions {
   verbose : Bool
   no_color : Bool
   output_json : Bool
+  strict_taint : Bool
 }
 
 // Type aliases

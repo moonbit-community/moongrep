@@ -1,0 +1,13 @@
+import {
+  "moonbit-community/moongrep/internal/cst",
+  "moonbit-community/moongrep/internal/taint/cfg",
+  "moonbit-community/moongrep/internal/taint/domain",
+  "moonbit-community/moongrep/internal/taint/model",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/core/string",
+  "moonbitlang/parser/untyped_cst",
+}
+
+import {
+  "moonbit-community/moongrep/internal/cst",
+} for "test"

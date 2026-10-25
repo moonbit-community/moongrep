@@ -1,0 +1,147 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "moonbit-community/moongrep/internal/taint/cfg"
+
+import {
+  "moonbit-community/moongrep/internal/taint/domain",
+  "moonbit-community/moongrep/internal/taint/model",
+  "moonbitlang/core/debug",
+  "moonbitlang/lexer/basic",
+  "moonbitlang/parser/untyped_cst/node",
+}
+
+// Values
+
+// Errors
+pub suberror InvalidGraph {
+  InvalidGraph(Array[String])
+} derive(@debug.Debug)
+pub fn InvalidGraph::to_repr(Self) -> @debug.Repr
+
+// Types and methods
+pub(all) struct Argument {
+  index : Int32
+  label : String?
+  expr : @node.CstNode
+  loc : @basic.Location
+  path : @domain.StoragePath?
+  value : ValueId
+}
+
+pub(all) struct Binding {
+  id : @domain.BindingId
+  name : String
+  scope : ScopeId
+  parameter : Bool
+}
+
+pub(all) struct Block {
+  parameters : Array[ValueId]
+  instructions : Array[Instruction]
+  mut terminator : Terminator
+  loc : @basic.Location
+}
+
+pub(all) struct BlockId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+pub fn BlockId::compare(Self, Self) -> Int32
+pub fn BlockId::equal(Self, Self) -> Bool
+pub fn BlockId::hash(Self) -> Int32
+pub fn BlockId::hash_combine(Self, Hasher) -> Unit
+pub fn BlockId::not_equal(Self, Self) -> Bool
+pub fn BlockId::op_ge(Self, Self) -> Bool
+pub fn BlockId::op_gt(Self, Self) -> Bool
+pub fn BlockId::op_le(Self, Self) -> Bool
+pub fn BlockId::op_lt(Self, Self) -> Bool
+pub fn BlockId::to_repr(Self) -> @debug.Repr
+
+pub(all) struct CallSite {
+  kind : @model.CallKind
+  cst : @node.CstNode
+  loc : @basic.Location
+  callee_name : String?
+  callee_binding : @domain.BindingId?
+  receiver : Argument?
+  arguments : Array[Argument]
+  result : ValueId
+  error : ValueId
+}
+
+pub(all) struct Edge {
+  target : BlockId
+  arguments : Array[ValueId]
+}
+
+pub(all) struct Graph {
+  entry : BlockId
+  blocks : Array[Block]
+  bindings : Array[Binding]
+  calls : Array[CallSite]
+  value_count : Int32
+  scope_count : Int32
+  loc : @basic.Location
+}
+pub fn Graph::components(Self) -> Array[Array[BlockId]]
+pub fn Graph::live_values(Self) -> Array[Array[Bool]]
+pub fn Graph::validate(Self) -> Array[String]
+
+pub(all) struct Instruction {
+  result : ValueId
+  operation : Operation
+}
+
+pub(all) enum Operation {
+  Clean
+  Read(@domain.StoragePath)
+  Project(ValueId, @domain.PathSegment)
+  Update(ValueId, @domain.PathSegment, ValueId)
+  Compute(Array[ValueId])
+  Write(@domain.StoragePath, ValueId)
+}
+pub fn Operation::inputs(Self) -> Array[ValueId]
+
+pub struct PreparedFunction {
+  graph : Graph
+  components : Array[Array[BlockId]]
+  live_values : Array[Array[Bool]]
+}
+pub fn PreparedFunction::components(Self) -> Array[Array[BlockId]]
+pub fn PreparedFunction::graph(Self) -> Graph
+pub fn PreparedFunction::live_values(Self) -> Array[Array[Bool]]
+pub fn PreparedFunction::new(Graph) -> Self raise InvalidGraph
+
+pub(all) struct ScopeId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+pub fn ScopeId::compare(Self, Self) -> Int32
+pub fn ScopeId::equal(Self, Self) -> Bool
+pub fn ScopeId::hash(Self) -> Int32
+pub fn ScopeId::hash_combine(Self, Hasher) -> Unit
+pub fn ScopeId::not_equal(Self, Self) -> Bool
+pub fn ScopeId::op_ge(Self, Self) -> Bool
+pub fn ScopeId::op_gt(Self, Self) -> Bool
+pub fn ScopeId::op_le(Self, Self) -> Bool
+pub fn ScopeId::op_lt(Self, Self) -> Bool
+pub fn ScopeId::to_repr(Self) -> @debug.Repr
+
+pub(all) enum Terminator {
+  Jump(Edge)
+  Branch(ValueId, Edge, Edge)
+  Invoke(Int32, Edge, Edge)
+  Return(ValueId)
+  Raise(ValueId)
+  Abort
+}
+pub fn Terminator::edges(Self) -> Array[Edge]
+
+pub(all) struct ValueId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+pub fn ValueId::compare(Self, Self) -> Int32
+pub fn ValueId::equal(Self, Self) -> Bool
+pub fn ValueId::hash(Self) -> Int32
+pub fn ValueId::hash_combine(Self, Hasher) -> Unit
+pub fn ValueId::not_equal(Self, Self) -> Bool
+pub fn ValueId::op_ge(Self, Self) -> Bool
+pub fn ValueId::op_gt(Self, Self) -> Bool
+pub fn ValueId::op_le(Self, Self) -> Bool
+pub fn ValueId::op_lt(Self, Self) -> Bool
+pub fn ValueId::to_repr(Self) -> @debug.Repr
+
+// Type aliases
+
+// Traits

@@ -95,40 +95,85 @@ fn apply_scan_session(
 }
 
 ///|
+pub(all) struct TaintDiagnostic {
+  file : String
+  loc : @basic.Location
+  rule_ids : Array[String]
+  reason : String
+}
+
+///|
+pub(all) struct TaintScanResult {
+  findings : Array[RuleFinding]
+  diagnostics : Array[TaintDiagnostic]
+}
+
+///|
+pub fn ScanPlan::taint_rule_ids(self : ScanPlan) -> Array[String] {
+  self.taint_entries.map(entry => entry.rule.rule_id)
+}
+
+///|
 pub fn apply_taint_scan_plan_to_node(
   file : String,
   node : @untyped_cst.CstNode,
   plan : ScanPlan,
-) -> Array[RuleFinding] raise {
-  let hits : Array[RuleFinding] = []
-  for entry in plan.taint_entries {
-    apply_planned_taint_rule_to_node(file, entry, node, hits)
-  }
-  hits
+) -> TaintScanResult raise {
+  apply_taint_with_preparer(file, node, plan, @taint.prepare_function_like)
 }
 
 ///|
-fn apply_planned_taint_rule_to_node(
+fn apply_taint_with_preparer(
   file : String,
-  entry : PlannedTaintRule,
   node : @untyped_cst.CstNode,
-  hits : Array[RuleFinding],
-) -> Unit raise {
-  try @taint.analyze_function_like(node, entry.spec) catch {
-    @taint.TaintAnalysisError::UnsupportedFunctionLike(..) => ()
-    err => raise err
-  } noraise {
-    result =>
-      for finding in result.findings {
-        hits.push({
+  plan : ScanPlan,
+  prepare : (@untyped_cst.CstNode) -> @taint.Preparation raise @taint.InvalidGraph,
+) -> TaintScanResult raise {
+  let findings : Array[RuleFinding] = []
+  let diagnostics : Array[TaintDiagnostic] = []
+  if plan.taint_entries.is_empty() {
+    return { findings, diagnostics, }
+  }
+  match prepare(node) {
+    NotApplicable => ()
+    Unsupported(reasons) =>
+      for diagnostic in reasons {
+        add_taint_diagnostic(diagnostics, {
           file,
-          rule_id: entry.rule.rule_id,
-          description: entry.rule.description,
-          pattern_index: sink_pattern_index(finding.sink_id, entry.sink_count),
-          loc: finding.sink_loc,
+          loc: diagnostic.loc,
+          reason: diagnostic.reason,
+          rule_ids: plan.taint_rule_ids(),
         })
       }
+    Prepared(prepared) =>
+      for entry in plan.taint_entries {
+        match @taint.analyze(prepared, entry.spec) {
+          Incomplete(reasons) =>
+            for diagnostic in reasons {
+              add_taint_diagnostic(diagnostics, {
+                file,
+                loc: diagnostic.loc,
+                reason: diagnostic.reason,
+                rule_ids: [entry.rule.rule_id],
+              })
+            }
+          Complete(hits) =>
+            for finding in hits {
+              findings.push({
+                file,
+                rule_id: entry.rule.rule_id,
+                description: entry.rule.description,
+                pattern_index: sink_pattern_index(
+                  finding.sink_id,
+                  entry.sink_count,
+                ),
+                loc: finding.sink_loc,
+              })
+            }
+        }
+      }
   }
+  { findings, diagnostics, }
 }
 
 ///|
@@ -140,4 +185,27 @@ fn sink_pattern_index(
     PatternIndex(index) if index >= 0 && index < sink_count => index
     _ => raise InvalidTaintSinkId(sink_id~, sink_count~)
   }
+}
+
+///|
+fn add_taint_diagnostic(
+  diagnostics : Array[TaintDiagnostic],
+  diagnostic : TaintDiagnostic,
+) -> Unit {
+  for i in 0..<diagnostics.length() {
+    let previous = diagnostics[i]
+    if previous.file == diagnostic.file &&
+      previous.loc == diagnostic.loc &&
+      previous.reason == diagnostic.reason {
+      let rule_ids = previous.rule_ids.copy()
+      for id in diagnostic.rule_ids {
+        if !rule_ids.contains(id) {
+          rule_ids.push(id)
+        }
+      }
+      diagnostics[i] = { ..previous, rule_ids, }
+      return
+    }
+  }
+  diagnostics.push(diagnostic)
 }

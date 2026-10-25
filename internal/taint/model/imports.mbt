@@ -1,9 +1,11 @@
 ///|
 using @domain {
+  type BindingId,
   type PathSegment,
   type SinkFinding,
   type SinkId,
   type StoragePath,
-  type TaintTree,
+  type TaintValue,
+  type ParameterPath,
   type ValueSite,
 }

@@ -2,28 +2,36 @@
 package "moonbit-community/moongrep/internal/taint/engine"
 
 import {
+  "moonbit-community/moongrep/internal/taint/cfg",
   "moonbit-community/moongrep/internal/taint/domain",
+  "moonbit-community/moongrep/internal/taint/lowering",
   "moonbit-community/moongrep/internal/taint/model",
-  "moonbitlang/core/debug",
-  "moonbitlang/lexer/basic",
-  "moonbitlang/parser/untyped_cst/node",
 }
 
 // Values
-pub fn analyze_function_like(@node.CstNode, @model.TaintSpec) -> AnalysisResult raise
+pub fn analyze(@cfg.PreparedFunction, @model.TaintSpec, options? : AnalysisOptions, metrics? : AnalysisMetrics) -> AnalysisResult
 
 // Errors
-pub suberror TaintAnalysisError {
-  UnsupportedFunctionLike(kind~ : String, loc~ : @basic.Location)
-  FixpointDidNotConverge(rule_id~ : String, loop_kind~ : String, loc~ : @basic.Location, budget~ : Int32)
-} derive(@debug.Debug)
-pub fn TaintAnalysisError::to_repr(Self) -> @debug.Repr
 
 // Types and methods
-pub(all) struct AnalysisResult {
-  findings : Array[@domain.SinkFinding]
+pub(all) struct AnalysisMetrics {
+  mut block_visits : Int32
+  mut input_updates : Int32
+  mut bound_calls : Int32
+}
+pub fn AnalysisMetrics::new() -> Self
+
+pub(all) struct AnalysisOptions {
+  max_scc_rounds : Int32
+}
+pub fn AnalysisOptions::default() -> Self
+
+pub(all) enum AnalysisResult {
+  Complete(Array[@domain.SinkFinding])
+  Incomplete(Array[@lowering.Diagnostic])
 }
 
 // Type aliases
+pub using @cfg {type InvalidGraph}
 
 // Traits

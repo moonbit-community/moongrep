@@ -12,6 +12,8 @@ fn scan_warning_message(warning : ScanWarning) -> String {
       } else {
         "skipping \{parse_warning.file}: \{parse_warning.reason}"
       }
+    TaintIncomplete(diagnostic) =>
+      "taint_incomplete: \{format_location(diagnostic.file, diagnostic.loc)}: rules \{diagnostic.rule_ids.join(", ")}: \{diagnostic.reason}"
     InvalidMoongrepSkipPayload(file, loc) =>
       "\{format_location(file, loc)}: #moongrep.skip does not accept a payload; use bare #moongrep.skip"
   }

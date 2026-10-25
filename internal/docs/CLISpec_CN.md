@@ -525,7 +525,7 @@ match-mode 选项。
 
 moongrep 为每个可处置的失败类别使用固定状态码：
 
-文本模式下，状态码 1 到 7 的致命诊断使用以下面向用户的格式：
+文本模式下，状态码 1 到 8 的致命诊断使用以下面向用户的格式：
 
 ```text
 error: <摘要>
@@ -564,6 +564,7 @@ error: <摘要>
 | 5 | 规则内容或严格 dump pattern 错误 |
 | 6 | 扫描输入错误 |
 | 7 | 输出错误 |
+| 8 | `--strict-taint` 模式下污点分析不完整 |
 
 ### 退出状态 0
 
@@ -623,3 +624,15 @@ error: <摘要>
 状态 7 表示写入标准输出或标准错误失败，包括 broken pipe。如果向标准错误写出
 原始失败诊断本身也失败，状态 7 优先于该失败原本的状态码，前端不会再尝试把诊断
 写到标准输出。流式扫描后续发生输出或扫描输入错误时，不撤回此前已经写出的命中。
+
+### 污点分析不完整
+
+`scan` 和 `lint` 支持 `--strict-taint`，默认关闭。不支持的可执行语法、未收敛的
+污点 SCC 或无法解析的相关源码块，会在 stderr 输出 `taint_incomplete` warning，
+包含文件、范围、受影响规则 ID 和原因，并继续扫描。严格模式在扫描完成后以状态码 8
+结束；默认模式在没有其他错误时成功。受影响的函数或函数与规则组合不发布部分 finding。
+纯结构扫描不构建污点 CFG。
+
+JSON warning 包含 `type: "warning"`、`category: "taint_incomplete"`、`message`、
+`file`、`range`、`rule_ids` 数组和 `reason`。严格模式末尾另有 category 为
+`taint_incomplete`、exit_code 为 8 的 error 记录。原有 finding 字段和坐标不变。

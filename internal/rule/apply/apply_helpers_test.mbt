@@ -46,13 +46,13 @@ fn apply_taint_test_rules(
   if root_node.kind is Impls {
     for node in @cst.toplevel_nodes(root_node) {
       let node_hits = @apply.apply_taint_scan_plan_to_node(file, node, plan)
-      for hit in node_hits {
+      for hit in node_hits.findings {
         hits.push(hit)
       }
     }
   } else {
     let node_hits = @apply.apply_taint_scan_plan_to_node(file, root_node, plan)
-    for hit in node_hits {
+    for hit in node_hits.findings {
       hits.push(hit)
     }
   }

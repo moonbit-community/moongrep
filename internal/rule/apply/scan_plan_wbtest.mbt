@@ -296,11 +296,11 @@ test "scan plan taint apply returns expected findings" {
   )
   debug_inspect(
     [
-      for hit in plan_hits => hit.rule_id
+      for hit in plan_hits.findings => hit.rule_id
     ],
     content="[\"taint-flow\"]",
   )
-  assert_eq(plan_hits[0].pattern_index, 0)
+  assert_eq(plan_hits.findings[0].pattern_index, 0)
 }
 
 ///|
@@ -512,4 +512,39 @@ test "plain execution agrees with forced indexed execution" {
     direct.map(complete_finding_signature),
     indexed.map(complete_finding_signature),
   )
+}
+
+///|
+test "multiple taint rules share one preparation and structural scans skip it" {
+  let rule = "id: first\ndescription: test\ntaint:\n  sources:\n    - shape: source()\n  sinks:\n    - shape: sink(__SOURCE__)\n"
+  let rules = compile_scan_plan_rules([
+    rule,
+    rule.replace_all(old="first", new="second"),
+  ])
+  let node = @cst.toplevel_nodes(
+      parse_scan_plan_root("fn sample { sink(source()) }"),
+    )[0]
+  let mut preparations = 0
+  let prepare = node => {
+    preparations += 1
+    @taint.prepare_function_like(node)
+  }
+  let result = apply_taint_with_preparer(
+    "sample.mbt",
+    node,
+    ScanPlan::from_rules(rules),
+    prepare,
+  )
+  assert_eq(preparations, 1)
+  assert_eq(result.findings.length(), 2)
+  let structural = compile_scan_plan_rules([
+    "id: structural\ndescription: test\npatterns:\n  - shape: sink(_)\n",
+  ])
+  let _ = apply_taint_with_preparer(
+    "sample.mbt",
+    node,
+    ScanPlan::from_rules(structural),
+    prepare,
+  )
+  assert_eq(preparations, 1)
 }

@@ -21,7 +21,7 @@ pub(all) struct CallArgument {
   loc : @basic.Location
   path : StoragePath?
   site : ValueSite
-  taint : TaintTree
+  taint : TaintValue
 }
 
 ///|
@@ -34,9 +34,10 @@ pub(all) struct CallInfo {
   cst : @untyped_cst.CstNode
   loc : @basic.Location
   callee_name : String?
+  callee_binding : BindingId?
   receiver_path : StoragePath?
   receiver_site : ValueSite?
-  receiver_taint : TaintTree
+  receiver_taint : TaintValue
   arguments : Array[CallArgument]
 }
 

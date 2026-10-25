@@ -1,6 +1,7 @@
 ///|
 priv struct ScanOutputState {
   mut hit_count : Int32
+  mut taint_incomplete : Bool
 }
 
 ///|
@@ -67,12 +68,15 @@ async fn run_scan_mode_command_with_writers(
   stdout_writer : async (String) -> Unit,
   stderr_writer : async (String) -> Unit,
 ) -> Unit {
-  let state : ScanOutputState = { hit_count: 0, }
+  let state : ScanOutputState = { hit_count: 0, taint_incomplete: false, }
   scan_events(mode, options, event => {
     write_stream_scan_event(event, options, state, stdout_writer, stderr_writer)
   })
   if state.hit_count == 0 && !options.output_json {
     invoke_scan_writer(stdout_writer, "no match hits\n")
+  }
+  if options.strict_taint && state.taint_incomplete {
+    raise new_taint_incomplete_error()
   }
 }
 
@@ -94,6 +98,9 @@ async fn write_stream_scan_event(
       invoke_scan_writer(stderr_writer, rendered + "\n")
     }
     Warning(warning) => {
+      if warning is TaintIncomplete(_) {
+        state.taint_incomplete = true
+      }
       let rendered = if options.output_json {
         render_scan_warning_json(warning)
       } else {

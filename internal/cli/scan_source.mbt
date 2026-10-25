@@ -58,6 +58,20 @@ async fn scan_source_file(
           }),
         ),
       )
+      let rule_ids = block_plan.taint_rule_ids()
+      if !rule_ids.is_empty() {
+        let loc = block.rebase_location(reports[0].loc)
+        receive(
+          Warning(
+            TaintIncomplete({
+              file,
+              loc,
+              rule_ids,
+              reason: "parse failure prevents taint analysis",
+            }),
+          ),
+        )
+      }
       continue
     }
     for node in impls {
@@ -80,7 +94,17 @@ async fn scan_source_file(
       let taint_hits = @rule_apply.apply_taint_scan_plan_to_node(
         file, node, block_plan,
       )
-      for finding in taint_hits {
+      for diagnostic in taint_hits.diagnostics {
+        receive(
+          Warning(
+            TaintIncomplete({
+              ..diagnostic,
+              loc: block.rebase_location(diagnostic.loc),
+            }),
+          ),
+        )
+      }
+      for finding in taint_hits.findings {
         receive(Hit(make_scan_hit(source_lines, block.rebase_finding(finding))))
       }
     }

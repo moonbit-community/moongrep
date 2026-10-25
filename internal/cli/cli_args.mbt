@@ -25,6 +25,7 @@ pub(all) suberror CliError {
   RuleContent(diagnostic~ : CliDiagnostic)
   ScanInput(diagnostic~ : CliDiagnostic)
   Output(diagnostic~ : CliDiagnostic)
+  TaintIncomplete(diagnostic~ : CliDiagnostic)
 } derive(Debug)
 
 ///|
@@ -38,6 +39,7 @@ pub fn CliError::exit_code(self : CliError) -> Int32 {
     RuleContent(_) => 5
     ScanInput(_) => 6
     Output(_) => 7
+    TaintIncomplete(_) => 8
   }
 }
 
@@ -64,6 +66,7 @@ pub(all) struct CliOptions {
   verbose : Bool
   no_color : Bool
   output_json : Bool
+  strict_taint : Bool
 }
 
 ///|
@@ -134,6 +137,13 @@ fn scan_like_command(
       about="Write loaded rule ids and traversal progress to stderr.",
     ),
   ]
+  flags.push(
+    FlagArg(
+      "strict-taint",
+      long="strict-taint",
+      about="Exit with code 8 after scanning if taint analysis is incomplete.",
+    ),
+  )
   flags.push(
     FlagArg(
       "json",
@@ -365,6 +375,7 @@ fn scan_cli_options(
     verbose,
     no_color,
     output_json,
+    strict_taint: cli_flag_enabled(scan_matches.flags, "strict-taint"),
   }
 }
 
