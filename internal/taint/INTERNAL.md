@@ -1,385 +1,112 @@
-# taint Internal Notes
-
-This document records implementation details that are easy to miss when
-changing the `internal/taint` packages and their rule integration. It is for maintainers
-of the analyzer and callers, not for rule authors.
-
-## Package Role
-
-The root `internal/taint` package is the compatibility facade for a generic
-intraprocedural taint engine over MoonBit parser CSTs. Its production source
-contains only three `pub using` blocks. The implementation is split into:
-
-- `internal/taint/domain`: storage paths, value sites, origins, relative taint, sink
-  identifiers, and sink findings
-- `internal/taint/model`: normalized calls, transfers, matchers, effects, and rule specs
-- `internal/taint/engine`: public analysis results and entry points, plus private state,
-  CST helpers, and evaluation
-
-Dependencies point from `engine` to `model` to `domain`; `engine` also imports
-`domain` directly. The facade imports all three packages. None of the three
-subpackages imports the facade or a higher layer.
-
-The facade re-exports the entry point that analyzes one parser `Impl` at a time:
-
-- `analyze_function_like(node, spec)`
-
-Only function-like top-level nodes are executable:
-
-- `Impl_Function` with a `body` child
-- `Impl_ImplMethod` whose nested `method` declaration has a `body` child
-
-Declarations without bodies, top-level expressions, tests, type definitions,
-traits, and other `Impl` forms raise
-`TaintAnalysisError::UnsupportedFunctionLike`. The rule application layer
-intentionally catches and ignores that error during file scans. It does not
-catch `FixpointDidNotConverge`; that error follows the scanner's fatal-error
-path.
-
-## Main Flow
-
-Analysis inside `internal/taint/engine` starts in `analyze_single_function_like`:
-
-1. `function_like_from_impl` extracts the function or method's parameter roots
-   and body expression.
-2. `EntryPath` sources whose root is a real parameter are written into the
-   initial `TaintState`.
-3. The body is interpreted by `eval_expr`.
-4. Sink findings accumulated during evaluation are returned in `AnalysisResult`.
-
-`AnalysisResult` contains only `findings`. Each `SinkFinding` contains `sink_id`
-and `sink_loc`. Origins remain in propagated taint trees, where transfer logic
-uses them to decide whether a selected sink value is tainted.
-
-The engine is not interprocedural. It models calls through `TaintSpec` and
-`CallInfo`. It never looks up or analyzes a callee body.
-
-## State and Values
-
-There are two related taint representations:
-
-- `TaintState` stores taint facts for named storage paths.
-- `TaintTree` stores taint facts relative to one evaluated expression value.
-
-`TaintState` keeps private `StateEntry` values in an array so iteration order
-stays deterministic:
-
-```text
-StoragePath(root, absolute segments) -> origins
-```
-
-It also maintains two private indexes. A hash map from cached structured path
-keys to entry indexes makes exact merges and state equivalence checks direct.
-A root-to-entry-index map limits path reads to facts under the requested root.
-State builders update the ordered entries and both indexes together.
-
-`TaintTree` is public and represented as `Array[RelativeTaint]`:
-
-```text
-relative segments below current value -> origins
-```
-
-For example, if `payload.secret` is tainted in storage, the state contains a
-path rooted at `payload` with segment `Field("secret")`. Evaluating `payload`
-returns a tree with relative path `Field("secret")`; evaluating
-`payload.secret` projects that tree to an empty relative path, meaning the
-value itself is tainted.
-
-Origins are de-duplicated by structural equality. Merge operations preserve all
-unique origins for the same path. `taint_tree_origins(tree)` flattens origins
-across all relative entries in first-occurrence order and de-duplicates them
-using the full `TaintOrigin` value.
-
-## Storage Paths
-
-`StoragePath` roots are names for local variables or parameters. Segments model
-simple projected storage:
-
-- `Field(name)` for record fields and labels
-- `TupleIndex(index)` for tuple projections
-- `ConstIndex(value)` for array reads with literal integer indices
-- `AnyIndex` for unknown array indices and array-wide summaries
-
-`storage_path_from_expr` recognizes only storage-shaped expressions:
-
-- identifiers
-- fields
-- array gets
-- groups and constraints around those forms
-
-Expressions such as calls, infix expressions, constructors, and arbitrary
-computations have no storage path. They can carry a `TaintTree` as a temporary
-value. Sanitizers and kill effects can remove later storage taint when the
-selected value has a `StoragePath`.
-
-Reads and writes deliberately use different prefix semantics:
-
-- reads use `path_prefix_match_for_read`, where `AnyIndex` and `ConstIndex`
-  may match each other so dynamic array reads can observe summarized or
-  concrete element taint
-- writes and kills use `path_prefix_match_for_write`, which requires exact
-  segment equality and removes only the written subtree
-
-Writing `x.a` kills existing facts below `x.a` and then writes the new value's
-relative tree below `x.a`. Sibling facts such as `x.b` are preserved.
-
-## Expression Evaluation
-
-`eval_expr` interprets supported expression forms in source evaluation order.
-It returns a private, partitioned `EvalResult`. The summary has an optional
-normal path, separate return and raise paths, and break and continue paths
-grouped by target label. Every path keeps its own storage state and expression
-value taint.
-
-Common value construction shifts child taint into relative subpaths:
-
-- tuple item `i` becomes `TupleIndex(i)`
-- array item `i` becomes both `ConstIndex(i)` and `AnyIndex`
-- record field `f` becomes `Field(f)`
-
-Path-like expressions prefer storage reads. An expression with a concrete
-storage path gets its value from `state_read_path(state, path)`. Field and array
-projections without a concrete storage path evaluate the base value and use
-`tree_project`.
-
-`let` and `let mut` evaluate the right-hand side, bind the pattern with
-`bind_pattern`, and continue into the body. Assignment and mutation update
-storage through `state_write_path` when the left side can be represented as a
-storage path.
-
-Unsupported or less-specific expression forms go through `eval_unknown_expr`.
-That function is conservative in the local sense: it evaluates known child
-expressions so nested calls can report sinks. It returns the union of child
-value taint where a value result is useful. Completely unsupported leaf
-forms return no taint.
-
-## Pattern Binding
-
-`bind_pattern` projects the bound value into pattern variables:
-
-- variable and alias patterns write the whole value to the binder
-- tuple patterns project by `TupleIndex`
-- record patterns project by `Field`
-- array patterns project by constant indices or `AnyIndex`
-- constructor and special-constructor arguments project by positional tuple
-  index or labelled field
-- `or` patterns bind both sides and merge the resulting states
-
-Pattern binding is structural and type-agnostic. It does not inspect MoonBit
-type declarations, constructor definitions, field definitions, or collection
-lengths.
-
-When a whole value is tainted at the empty relative path, destructuring also
-copies that whole-value taint into each destructured binder. This lets
-`input is Some(item)` treat `item` as derived from a tainted `input` without
-resolving constructor payloads through type information.
-
-Lexical binders are restored after their scope. The evaluator records the root
-names introduced by `let`, case patterns, catch and try-else patterns,
-lex/regex patterns, loop binders, and local function names. After the scoped
-body is evaluated, entries for those roots are restored from the pre-scope base
-state. Mutations to non-shadowed roots are preserved.
-
-Condition patterns create a separate true-branch state. `is`, `lexmatch?`,
-regex matches, grouped conditions, and `&&` expose their binders only to the
-true branch or loop body/continue path. Else branches, loop else blocks, and
-post-scope expressions use the base state without those condition binders.
-
-## Calls
-
-All call syntaxes are normalized to `CallInfo` before transfer logic runs:
-
-- `Apply`
-- `DotApply`
-- `Pipe`
-- `RevPipe`
-
-`CallInfo` carries:
-
-- the original call CST and location
-- a normalized `callee_name` when one can be extracted
-- receiver path/site/taint for method-style calls
-- evaluated arguments as `CallArgument`
-
-Argument indices are semantic after pipe desugaring:
-
-- ordinary call arguments start at index `0`
-- `lhs |> f(arg)` makes `lhs` argument `0` and explicit arguments start at `1`
-- `f <| rhs` makes `rhs` argument `0`
-- receivers stay separate from arguments
-
-`CallInfo::argument_at(index)` looks up this semantic index directly; the
-semantic index does not have to equal the argument's position in the array.
-
-If an argument evaluates to a non-normal flow such as `return`, the call
-transfer is not executed. This prevents a sink call from reporting after one of
-its arguments has already exited control flow.
-
-## Transfer Ordering
-
-`apply_call_transfer` gives `spec.custom_transfer_call` first chance for every
-call. If it returns `Some(transfer)`:
-
-1. `transfer.killed_paths` are removed from storage.
-2. `transfer.findings` are appended as-is.
-3. `transfer.return_taint` becomes the call value.
-4. declared sources, declared call models, and unknown-call policy are skipped.
-
-If the custom transfer returns `None`, `apply_declared_call_transfer` runs:
-
-1. matching `SourceModel::CallReturn` entries add fresh return taint
-2. all matching `CallModel`s are applied in array order
-3. if nothing matched, `unknown_call_policy` decides the return taint
-
-Declarative model matching is not first-match-wins. Every matching call model
-contributes effects.
-
-Sink effects collect origins from the selected value and report only when at
-least one origin is present. Custom transfers are responsible for preserving
-that invariant themselves; their findings are not filtered by the engine. The
-engine treats `SinkId` as opaque: generic models use `Named`, while ordered
-rule integrations can use `PatternIndex`.
-
-Origin tests wrap the existing `custom_transfer_call`, inspect origins on sink
-arguments, then call the original callback once and return its result. This
-preserves both declared-model fallback and custom transfer behavior.
-
-Kill effects only affect later storage reads. They do not rewrite the
-receiver/argument taint already evaluated for other effects on the same call.
-
-## Control Flow
-
-Sequential evaluation runs the next expression only on the normal partition.
-Return, raise, break, and continue partitions bypass it and remain in the
-summary. This is why a sink after an unconditional `return` is not reported,
-while a normal branch can still reach later code when another branch exits.
-
-Branches are path-insensitive:
-
-- `if` evaluates the condition once, evaluates the true branch from the
-  condition true-state, evaluates the false branch from the base post-condition
-  state, restores condition binders on every path, and joins every partition
-- `match`, `lexmatch`, `lexscan`, and catch bind each case independently and
-  use the same partition-wise join, so case order does not choose an exit kind
-- labelled blocks and loops consume only matching break or continue labels;
-  return, raise, and exits for enclosing labels remain separate
-- `try` sends only the raise partition to catch cases, sends the normal
-  partition to `noraise` cases when present, and preserves all other exits
-
-`while`, `for`, and `foreach` share one fixpoint driver controlled by
-`spec.max_fixpoint_iterations`. Each iteration reports the loop-head back edge,
-the natural `nobreak` exit, matching breaks, and exits for enclosing constructs
-separately. Only the back edge is joined into the next loop-head state.
-Condition-controlled `while` and `for` loops keep the false-condition path
-after a normal condition evaluation, and `foreach` keeps the empty or exhausted
-collection path. A conditionless `for ;;` has no natural exit. Matching breaks
-reach the code after the loop but skip its `nobreak` block.
-
-The driver succeeds only when `state_equiv` confirms that the loop-head state
-is stable. If the safety budget is exhausted first, analysis raises
-`TaintAnalysisError::FixpointDidNotConverge` with the rule ID, loop kind,
-location, and budget. It does not return a partial `AnalysisResult`.
-
-`foreach` binds loop variables to the collection's `AnyIndex` projection before
-the body fixpoint starts.
-
-## YAML Rule Integration
-
-YAML taint rules are compiled outside this package:
-
-1. `internal/rule/compile` validates taint clauses and records `TaintTarget`.
-2. `matching` matches compiled source, sink, and sanitizer call patterns.
-3. `internal/rule/taint_lowering` builds a `TaintSpec` with `custom_transfer_call`.
-4. `internal/rule/apply` runs `@taint.analyze_function_like` and maps sink findings to
-   scanner `RuleFinding`s.
-
-The lowering layer implements YAML taint semantics as a custom transfer:
-
-- matching source calls add fresh return taint
-- matching sanitizer calls kill the selected target path if it has one
-- matching sink calls report when the selected target value is tainted
-
-Each lowered YAML sink carries `SinkId::PatternIndex(index)` using its
-zero-based position in the compiled sink array. `internal/rule/apply` accepts only a
-non-negative pattern index below the planned sink count; a named, negative, or
-out-of-range ID raises an internal apply error instead of producing a finding
-or falling back to pattern `0`.
-
-The `internal/rule/compile` layer guarantees that `__SOURCE__` appears exactly once in a
-sink or sanitizer and is the whole receiver or whole argument. Because of that,
-`internal/rule/taint_lowering` can select the target directly from `CallInfo` without
-walking arbitrary subexpressions.
-
-Lowered YAML taint specs use:
-
-- no entry-path sources
-- no declarative call models
-- `unknown_call_policy = NoEffect`
-- `max_fixpoint_iterations = 64`
-
-This is intentionally narrower than the generic `taint` API. Direct users of
-`TaintSpec` can model entry sources, propagating unknown calls, and declarative
-call effects that YAML rules do not expose today.
-
-## Important Limits
-
-The analyzer is path-sensitive for simple storage paths. Other cases are
-path-insensitive and type-agnostic.
-
-It does not:
-
-- analyze across function boundaries
-- resolve imports, overloads, methods, fields, constructors, or types
-- prove branch feasibility
-- model aliases; explicit storage writes and value copies provide the available
-  alias behavior
-- represent arbitrary subexpressions as killable storage
-- guarantee full semantics for unsupported CST forms
-
-These limits are deliberate for the current scanner. If a change needs stronger
-semantics, add focused tests at the package boundary and at the YAML rule
-integration boundary.
-
-## Maintenance Checklist
-
-When adding a new storage-shaped expression:
-
-1. update `storage_path_from_expr`
-2. update read/projection behavior in `eval_expr` if needed
-3. add `internal/taint/engine/state_wbtest.mbt` tests for read, write, kill, and merge
-   behavior
-4. add taint tests showing sink behavior through the new path form
-
-When adding a new value-producing expression:
-
-1. evaluate children in source order
-2. evaluate the next child only from the normal partition and preserve all
-   existing exits
-3. shift child taint into relative paths when the expression constructs a
-   compound value
-4. add tests for both direct sink reporting and storage after `let`
-
-When changing call semantics:
-
-1. update `CallInfo` construction for every call syntax that should share the
-   behavior
-2. preserve pipe argument indexing rules
-3. check `CallMatcher` behavior for `CalleeName`, `MethodName`, and `AnyCall`
-4. add direct `internal/taint/taint_test.mbt` coverage
-5. add `internal/rule/apply` or `internal/rule/taint_lowering` tests if YAML behavior changes
-
-When changing YAML taint behavior:
-
-1. update validation in `internal/rule/compile`
-2. update target extraction or transfer generation in `internal/rule/taint_lowering`
-3. keep `internal/matching/INTERNAL.md` placeholder notes in sync if `__SOURCE__`
-   matching behavior changes
-4. update rule-author docs only for user-visible semantics
-5. add integration tests under `internal/rule/apply` or `internal/rule/taint_lowering`
-
-Use `moon test internal/taint/engine` as the tight loop for private state and evaluator
-work. Use `moon test internal/taint` to check the compatibility facade and its complete
-public surface. Package-boundary changes should run both plus `moon check`.
-Before finishing, run `moon info && moon fmt` and review the facade and all three
-subpackage interfaces. For changes visible through YAML rules, also run the
-relevant `internal/rule/compile`, `internal/rule/taint_lowering`, and `internal/rule/apply` tests.
+# Taint engine
+
+The engine performs intraprocedural analysis through semantic lowering, an
+explicit CFG, and an SCC work queue. It never executes CST nodes during solving.
+
+- `domain` owns binding identities, paths, immutable taint values and findings.
+- `model` owns normalized call facts and deterministic call transfers.
+- `cfg` owns blocks, positional block parameters, instructions, terminators,
+  graph validation, SCC ordering and temporary-value liveness.
+- `lowering` resolves lexical bindings, normalizes parser fields, and builds the
+  rule-independent graph. `supports` in `expressions.mbt` is the executable-node
+  support table. Unlisted executable syntax and missing required fields produce
+  diagnostics, never clean values.
+- `engine` binds models once per original call site and rule, then solves and
+  collects findings after convergence.
+
+`prepare_function_like(node)` returns `NotApplicable`, `Prepared(function)`, or
+`Unsupported(diagnostics)`. Bodyless declarations and non-function items are not
+applicable. A prepared function caches graph validation, SCCs, and liveness and
+can be shared across all rules. Graph validation errors are internal failures.
+The validator checks identities, references, arities, unique definitions, and
+value availability on all reachable incoming paths.
+
+`analyze(prepared, spec, options?)` returns `Complete(findings)` or
+`Incomplete(diagnostics)`. `AnalysisOptions.max_scc_rounds` defaults to 64.
+Components run in topological order. Inside a component, each block runs at most
+once per round, in stable order, and only changed inputs schedule successors.
+Unreachable states are separate from reachable clean states. Dead temporaries
+do not circulate around back edges. There is no widening. Budget exhaustion
+suppresses every finding for that function and rule. Completed findings are
+deduplicated by sink identity and source range and sorted by range and identity.
+Optional `AnalysisMetrics` records cumulative block visits, changed inputs, and
+unique bound call sites for deterministic complexity tests and benchmarks.
+
+## Values and storage
+
+`TaintValue` has default origins and explicit child overrides, including clean
+overrides. Storage reads, expression projection, destructuring and model subpath
+propagation use `project`. Known fields, tuple slots and constant array indexes
+use strong updates and retain siblings. An array has a default element summary
+and constant overrides. Dynamic reads join possible elements. Dynamic writes
+weakly update the summary and existing constant overrides; dynamic sanitizers
+cannot clear an element without proving uniqueness. `join` merges effective
+values, not override markers. Origins are stable by rule, source identity and
+original source location. Equality compares origin sets independently of order.
+
+Storage roots are `BindingId`s. Parameter sources use `ParameterPath` names,
+resolved to parameter identities at analysis entry. Shadowed variables have
+separate identities. Lexical scopes and binding identities are reused when the
+same cleanup syntax is lowered into several exit chains; call-model binding
+can therefore be shared across those copies too.
+
+## Control flow
+
+Short-circuit operands have execute and skip edges. Successful condition
+patterns expose their binders only on success. Case and guard failure edges
+carry their side effects into subsequent cases. There is no general feasibility
+analysis or implicit control-flow taint.
+
+Receivers, indexes and right-hand expressions execute once, in source order.
+Augmented assignment snapshots the old target value before the right-hand side.
+Record updates begin with the base value and replace only specified fields.
+Loop initializers execute in the outer environment before introducing binders.
+Updates evaluate every right-hand side before committing positional loop
+parameters. Normal body completion enters the update block; explicit continue
+jumps straight to the next header. Break and outer jumps bypass `nobreak`;
+only natural exits enter it.
+
+Defer declarations capture lexical identities. Cleanup expressions execute on
+exit, in reverse declaration order, reading exit-time storage. Pending values
+and jump parameters become block parameters before cleanup. Errdefer runs only
+on exceptional exits. Cleanup errors replace pending results and continue
+exceptional propagation through remaining cleanups. Cleanup chains are cached
+by scope stack, exit kind and target. Try-bang exceptions terminate in `Abort`
+and do not reach outer catches.
+
+These contracts are pinned by `compiler_semantics_test.mbt` against the installed
+compiler and the [MoonBit language reference](https://docs.moonbitlang.com/en/latest/language/fundamentals.html#defer-and-errdefer-expressions).
+Async cancellation is outside this analysis.
+
+## Calls and rule integration
+
+`TaintSpec.bind_call` receives static call metadata with clean taint values,
+once per original source call site and rule. It returns a pure transfer over
+`CallInfo` snapshots. That transfer can run repeatedly during solving and once
+more during final finding collection. It must not mutate input values, perform
+external side effects or introduce iteration-dependent origins. A custom `Some`
+transfer overrides declarative models and unknown-call behavior. `None` falls
+back to them. Normal and exceptional `CallOutcome`s have separate values and
+storage writes. `None` marks an impossible completion. Only explicit raises
+and model-declared exceptional outcomes activate exception edges. Unknown calls
+never implicitly raise.
+
+YAML format and `RuleFinding` fields are unchanged. Rule lowering caches source,
+sanitizer and sink pattern matches before solving. Unmatched YAML calls retain
+`NoEffect`. The apply layer prepares each function before iterating rules and
+returns findings plus diagnostics. Structural-only plans return without preparing
+a CFG. Unsupported functions are skipped for all affected rules; nonconvergence
+skips only the affected function/rule pair. The CLI renders `taint_incomplete`
+warnings and continues scanning. `--strict-taint` returns status 8 after scanning,
+including parse failures that prevented taint analysis.
+
+The analysis does not resolve callees across functions, infer heap aliases,
+inspect type declarations, or model async cancellation. Add supported syntax in
+lowering with parser-field and behavior tests before enabling its support-table
+entry. See [MIGRATION.md](MIGRATION.md) for API changes and [BENCHMARKS.md](BENCHMARKS.md)
+for performance measurements.
+
+Resolved local/parameter callees also carry `callee_binding`; generic models can
+select that identity with `CalleeBinding`. Name-based and YAML call matching keep
+their existing syntax semantics. Diagnostics with the same file, range and reason
+are coalesced while preserving all affected rule IDs.

@@ -1,5 +1,24 @@
 # Recursive scan benchmark comparison
 
+## CFG taint refactor follow-up
+
+The 2026-10-23 comparison against `a2182b6`, using `moon 0.1.20261023` and
+three alternating release runs pinned to CPU 0, passes all existing gates.
+Candidate bucket merging now reuses a read-only bucket when its partner is
+empty. Detailed timings, taint phases and process RSS are recorded in
+[the taint performance report](../../taint/BENCHMARKS.md).
+
+| Backend | Case | Baseline | Current | Ratio | Limit |
+| --- | --- | ---: | ---: | ---: | ---: |
+| native | builtin structural | 63.50 µs | 57.18 µs | 0.900× | 1.05× |
+| native | recursive failure | 275.02 µs | 284.92 µs | 1.036× | 1.10× |
+| native | ordinary structural | 26.32 µs | 26.39 µs | 1.003× | 1.15× |
+| native | query captures | 21.48 µs | 21.19 µs | 0.987× | 1.15× |
+| wasm | builtin structural | 181.15 µs | 187.62 µs | 1.036× | 1.05× |
+| wasm | recursive failure | 934.91 µs | 885.12 µs | 0.947× | 1.10× |
+| wasm | ordinary structural | 84.06 µs | 79.88 µs | 0.950× | 1.15× |
+| wasm | query captures | 77.41 µs | 75.29 µs | 0.973× | 1.15× |
+
 ## Unified structural traversal follow-up
 
 Measured on Linux on 2026-10-22 with `moon 0.1.20261016`, comparing pre-fix

@@ -1,0 +1,177 @@
+{
+  "baseline": "a2182b6781a45df2c5775d040a53ee848530394b",
+  "toolchain": "moon 0.1.20261023 (3778465 2026-10-23)",
+  "host": "Linux x86_64",
+  "cpu": 0,
+  "runs_per_case": 3,
+  "summary": [
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "taint prepare",
+      "mean_us_median": 107.53547942351597,
+      "rss_kib_median": 5324
+    },
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "taint solve",
+      "mean_us_median": 269.19671662721896,
+      "rss_kib_median": 5280
+    },
+    {
+      "backend": "native",
+      "revision": "baseline",
+      "case": "taint total",
+      "mean_us_median": 176.64744810160428,
+      "rss_kib_median": 5228
+    },
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "taint total",
+      "mean_us_median": 352.307352261484,
+      "rss_kib_median": 5272
+    },
+    {
+      "backend": "native",
+      "revision": "baseline",
+      "case": "builtin structural",
+      "mean_us_median": 63.498464211726386,
+      "rss_kib_median": 7732
+    },
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "builtin structural",
+      "mean_us_median": 57.17733567824378,
+      "rss_kib_median": 7740
+    },
+    {
+      "backend": "native",
+      "revision": "baseline",
+      "case": "recursive failure",
+      "mean_us_median": 275.01787744744746,
+      "rss_kib_median": 7716
+    },
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "recursive failure",
+      "mean_us_median": 284.9213769065657,
+      "rss_kib_median": 7720
+    },
+    {
+      "backend": "native",
+      "revision": "baseline",
+      "case": "ordinary structural",
+      "mean_us_median": 26.323404598362753,
+      "rss_kib_median": 5688
+    },
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "ordinary structural",
+      "mean_us_median": 26.390726335016335,
+      "rss_kib_median": 5688
+    },
+    {
+      "backend": "native",
+      "revision": "baseline",
+      "case": "query captures",
+      "mean_us_median": 21.47749052911224,
+      "rss_kib_median": 5224
+    },
+    {
+      "backend": "native",
+      "revision": "current",
+      "case": "query captures",
+      "mean_us_median": 21.19205302439024,
+      "rss_kib_median": 5228
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "taint prepare",
+      "mean_us_median": 307.40621356275307,
+      "rss_kib_median": 73480
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "taint solve",
+      "mean_us_median": 848.2198353296702,
+      "rss_kib_median": 72792
+    },
+    {
+      "backend": "wasm",
+      "revision": "baseline",
+      "case": "taint total",
+      "mean_us_median": 501.2420029329609,
+      "rss_kib_median": 72932
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "taint total",
+      "mean_us_median": 1237.5195892763159,
+      "rss_kib_median": 63196
+    },
+    {
+      "backend": "wasm",
+      "revision": "baseline",
+      "case": "builtin structural",
+      "mean_us_median": 181.15127071111112,
+      "rss_kib_median": 78744
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "builtin structural",
+      "mean_us_median": 187.62377369519828,
+      "rss_kib_median": 81384
+    },
+    {
+      "backend": "wasm",
+      "revision": "baseline",
+      "case": "recursive failure",
+      "mean_us_median": 934.909541888889,
+      "rss_kib_median": 53804
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "recursive failure",
+      "mean_us_median": 885.1241797282607,
+      "rss_kib_median": 53848
+    },
+    {
+      "backend": "wasm",
+      "revision": "baseline",
+      "case": "ordinary structural",
+      "mean_us_median": 84.06157980325065,
+      "rss_kib_median": 54032
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "ordinary structural",
+      "mean_us_median": 79.88455873534338,
+      "rss_kib_median": 53724
+    },
+    {
+      "backend": "wasm",
+      "revision": "baseline",
+      "case": "query captures",
+      "mean_us_median": 77.40636749782419,
+      "rss_kib_median": 53340
+    },
+    {
+      "backend": "wasm",
+      "revision": "current",
+      "case": "query captures",
+      "mean_us_median": 75.29050038269551,
+      "rss_kib_median": 87540
+    }
+  ]
+}
