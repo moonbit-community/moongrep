@@ -191,6 +191,14 @@ fn merge_indexed_patterns(
   left : Array[IndexedCompiledRulePattern],
   right : Array[IndexedCompiledRulePattern],
 ) -> Array[IndexedCompiledRulePattern] {
+  // Planned buckets are read-only during matching. Reuse an unopposed bucket
+  // instead of allocating and copying it for every candidate.
+  if left.is_empty() {
+    return right
+  }
+  if right.is_empty() {
+    return left
+  }
   let result : Array[IndexedCompiledRulePattern] = []
   let mut left_index = 0
   let mut right_index = 0
