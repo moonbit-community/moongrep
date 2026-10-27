@@ -94,7 +94,14 @@ test "source call identities stay stable around a cycle and findings are dedupli
 ///|
 test "all copies of a cleanup source call bind the model once" {
   let prepared = prepared_fixture(
-    "fn sample(flag, input) { defer { let x = input; sink(x) }\nif flag { return input } else { return input } }",
+    "fn sample(flag, input) { defer { let x = input; sink(x) }\nif flag { return input } else { raise input } }",
+  )
+  inspect(
+    prepared.graph().calls
+    .filter(call => call.callee_name == Some("sink"))
+    .length() >
+    1,
+    content="true",
   )
   let mut sink_bindings = 0
   let spec = {

@@ -63,17 +63,51 @@ test "support table rejects unimplemented executable syntax" {
 }
 
 ///|
-test "cloned cleanup chains retain lexical binding and source identities" {
+test "return exits share a cleanup entry and pass separate arguments" {
   let graph = prepared(
-    "fn sample(flag, input) { defer { let x = input; sink(x) }\nif flag { return input } else { return input } }",
+    "fn sample(flag, input) { defer sink(input)\nif flag { return input } else { return () } }",
   ).graph()
+  guard graph.blocks[graph.entry.0].terminator is Branch(_, yes, no) else {
+    fail("expected return branches")
+  }
+  guard graph.blocks[yes.target.0].terminator is Jump(yes_exit) &&
+    graph.blocks[no.target.0].terminator is Jump(no_exit) else {
+    fail("expected cleanup exits")
+  }
+  inspect(yes_exit.target == no_exit.target, content="true")
+  inspect(yes_exit.arguments != no_exit.arguments, content="true")
+  inspect(graph.blocks[yes_exit.target.0].parameters.length(), content="1")
+  guard graph.blocks[yes_exit.target.0].terminator is Invoke(call, _, _) else {
+    fail("expected cleanup invocation")
+  }
+  inspect(graph.calls[call].callee_name == Some("sink"), content="true")
+}
+
+///|
+test "cloned cleanup chains retain lexical binding and source identities" {
+  let source = "fn sample(flag, input) { defer { let x = input; sink(x) }\nif flag { return input } else { raise input } }"
+  let graph = prepared(source).graph()
+  guard graph.blocks[graph.entry.0].terminator is Branch(_, yes, no) else {
+    fail("expected return and raise branches")
+  }
+  guard graph.blocks[yes.target.0].terminator is Jump(yes_exit) &&
+    graph.blocks[no.target.0].terminator is Jump(no_exit) else {
+    fail("expected cleanup exits")
+  }
+  inspect(yes_exit.target != no_exit.target, content="true")
   let xs = graph.bindings.filter(binding => binding.name == "x")
   assert_eq(xs.length(), 1)
   let sinks = graph.calls.filter(call => call.callee_name == Some("sink"))
-  assert_true(sinks.length() >= 1 && sinks.length() <= 2)
+  inspect(sinks.length() > 1, content="true")
   for sink in sinks {
     assert_eq(sink.arguments[0].path.unwrap().root, xs[0].id)
     assert_eq(sink.arguments[0].loc.start.lnum, 1)
+    assert_eq(sink.loc, sinks[0].loc)
+    assert_eq(sink.cst.source_span, sinks[0].cst.source_span)
+    assert_eq(
+      source[sink.loc.start.cnum:sink.loc.end.cnum].to_owned(),
+      "sink(x)",
+    )
   }
 }
 

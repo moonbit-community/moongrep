@@ -29,14 +29,14 @@ priv enum ExitKind {
   Exceptional
   Breaking
   Continuing
-} derive(Eq, Debug)
+} derive(Eq, Hash)
 
 ///|
 priv struct Target {
   block : BlockId
   depth : Int32
   kind : ExitKind
-} derive(Debug)
+} derive(Eq, Hash)
 
 ///|
 priv struct Control {
@@ -64,14 +64,35 @@ priv struct Cleanup {
 }
 
 ///|
+priv struct CleanupKey {
+  cleanups : ReadOnlyArray[Int32]
+  target : Target
+  arity : Int32
+} derive(Eq, Hash)
+
+///|
+priv struct ScopeKey {
+  parent : ScopeId
+  source_span : (Int32, Int32)
+} derive(Eq, Hash)
+
+///|
+priv struct BindingKey {
+  scope : ScopeId
+  start_cnum : Int32
+  end_cnum : Int32
+  name : String
+} derive(Eq, Hash)
+
+///|
 priv struct Builder {
   blocks : Array[@cfg.Block]
   bindings : Array[@cfg.Binding]
   calls : Array[@cfg.CallSite]
   cleanups : Array[Cleanup]
-  cleanup_cache : Map[String, BlockId]
-  scope_cache : Map[String, ScopeId]
-  binding_cache : Map[String, BindingId]
+  cleanup_cache : Map[CleanupKey, BlockId]
+  scope_cache : Map[ScopeKey, ScopeId]
+  binding_cache : Map[BindingKey, BindingId]
   mut current : BlockId?
   mut value_count : Int32
   mut scope_count : Int32
@@ -148,8 +169,11 @@ fn Builder::bind(
   parameter~ : Bool = false,
   site? : @basic.Location,
 ) -> (Context, BindingId) {
-  let key = site.map(loc => {
-    "\{ctx.scope.0}:\{loc.start.cnum}:\{loc.end.cnum}:\{name}"
+  let key : BindingKey? = site.map(loc => {
+    scope: ctx.scope,
+    start_cnum: loc.start.cnum,
+    end_cnum: loc.end.cnum,
+    name,
   })
   let id = if key is Some(key) && self.binding_cache.get(key) is Some(id) {
     id
@@ -307,7 +331,11 @@ fn Builder::cleanup_chain(
   if ctx.cleanups.length() <= target.depth {
     return target.block
   }
-  let key = "\{Repr(ctx.cleanups)}:\{Repr(target)}:\{arity}"
+  let key : CleanupKey = {
+    cleanups: ReadOnlyArray::from_array(ctx.cleanups),
+    target,
+    arity,
+  }
   if self.cleanup_cache.get(key) is Some(block) {
     return block
   }
@@ -421,7 +449,7 @@ fn Builder::scope_for(
   node : @untyped_cst.CstNode,
   parent : ScopeId,
 ) -> ScopeId {
-  let key = "\{parent.0}:\{node.source_span.0}:\{node.source_span.1}"
+  let key : ScopeKey = { parent, source_span: node.source_span, }
   if self.scope_cache.get(key) is Some(scope) {
     return scope
   }
