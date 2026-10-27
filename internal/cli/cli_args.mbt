@@ -124,6 +124,43 @@ pub fn output_json_requested(argv : Array[String]) -> Bool {
 let default_rules_root : String = "./.moongrep/rules"
 
 ///|
+priv struct ScanValueOption {
+  name : String
+  short : Char?
+  about : String
+}
+
+///|
+let scan_value_options : Array[ScanValueOption] = [
+  {
+    name: "rules",
+    short: Some('r'),
+    about: "Directory containing YAML rules.",
+  },
+  { name: "rule", short: None, about: "Single YAML rule file.", },
+  {
+    name: "pattern",
+    short: None,
+    about: "Anonymous structural pattern to match.",
+  },
+  {
+    name: "guard",
+    short: None,
+    about: "YAML guard map for the preceding anonymous pattern.",
+  },
+  {
+    name: "exclude",
+    short: None,
+    about: "File or directory name or path to skip while recursively scanning. May be repeated.",
+  },
+  {
+    name: "disable",
+    short: None,
+    about: "Rule id to disable after loading rules. May be repeated.",
+  },
+]
+
+///|
 fn scan_like_command(
   name : StringView,
   about : StringView,
@@ -156,40 +193,25 @@ fn scan_like_command(
     about~,
     arg_required_else_help~,
     flags~,
-    options=[
+    options=scan_value_options.map(option => {
       OptionArg(
-        "rules",
-        short='r',
+        option.name,
+        short?=option.short,
         action=Append,
-        default_values=if default_rules_root_enabled {
-          [default_rules_root]
+        default_values?=if option.name == "rules" {
+          Some(
+            if default_rules_root_enabled {
+              [default_rules_root]
+            } else {
+              []
+            },
+          )
         } else {
-          []
+          None
         },
-        about="Directory containing YAML rules.",
-      ),
-      OptionArg("rule", action=Append, about="Single YAML rule file."),
-      OptionArg(
-        "pattern",
-        action=Append,
-        about="Anonymous structural pattern to match.",
-      ),
-      OptionArg(
-        "guard",
-        action=Append,
-        about="YAML guard map for the preceding anonymous pattern.",
-      ),
-      OptionArg(
-        "exclude",
-        action=Append,
-        about="File or directory name or path to skip while recursively scanning. May be repeated.",
-      ),
-      OptionArg(
-        "disable",
-        action=Append,
-        about="Rule id to disable after loading rules. May be repeated.",
-      ),
-    ],
+        about=option.about,
+      )
+    }),
     positionals=[
       PositionArg("scan-root", about="Directory or .mbt file to scan."),
     ],
@@ -348,7 +370,7 @@ fn scan_cli_options(
   let no_color = no_color_enabled(env)
   let parsed_rules_root = last_cli_value(scan_matches.values, "rules")
   let rule_file = last_cli_value(scan_matches.values, "rule")
-  let patterns = parse_scan_pattern_specs(argv)
+  let patterns = parse_scan_pattern_specs(argv, scan_matches.values)
   let rules_root = if scan_matches.sources.get("rules") is Some(Default) &&
     (rule_file is Some(_) || !patterns.is_empty()) {
     None
@@ -380,72 +402,107 @@ fn scan_cli_options(
 }
 
 ///|
-fn parse_scan_pattern_specs(
+priv enum ScanPatternOption {
+  Pattern
+  Guard
+}
+
+///|
+priv struct PendingScanPattern {
+  shape : String
+  mut guards : Map[String, String]?
+}
+
+///|
+fn ScanValueOption::token_width(
+  self : ScanValueOption,
+  token : String,
+) -> Int32? {
+  let long = "--\{self.name}"
+  if token == long {
+    return Some(2)
+  }
+  if token.has_prefix("\{long}=") {
+    return Some(1)
+  }
+  if self.short is Some(short) {
+    let short = "-\{short}"
+    if token == short {
+      return Some(2)
+    }
+    if token.has_prefix(short) {
+      return Some(1)
+    }
+  }
+  None
+}
+
+///|
+// Called only after argparse succeeds. Recover cross-option order without
+// interpreting values, including those belonging to other scan options.
+fn ordered_scan_pattern_options(
   argv : Array[String],
-) -> Array[@rule_model.RulePatternSpec] raise {
-  let patterns : Array[@rule_model.RulePatternSpec] = []
-  let has_guard : Array[Bool] = []
-  let mut index = 1
-  while index < argv.length() {
+) -> Array[ScanPatternOption] {
+  let order : Array[ScanPatternOption] = []
+  for index = 1; index < argv.length(); {
     let arg = argv[index]
     if arg == "--" {
       break
-    } else if arg == "--pattern" {
-      if index + 1 >= argv.length() {
-        raise new_usage_error("missing value for --pattern")
+    }
+    let mut width = 1
+    for option in scan_value_options {
+      if option.token_width(arg) is Some(option_width) {
+        match option.name {
+          "pattern" => order.push(Pattern)
+          "guard" => order.push(Guard)
+          _ => ()
+        }
+        width = option_width
+        break
       }
-      patterns.push({
-        shape: argv[index + 1],
-        guards: Map([]),
-        match_mode: Default,
-      })
-      has_guard.push(false)
-      index += 2
-    } else if arg.has_prefix("--pattern=") {
-      patterns.push({
-        shape: arg["--pattern=".length():].to_owned(),
-        guards: Map([]),
-        match_mode: Default,
-      })
-      has_guard.push(false)
-      index += 1
-    } else if arg == "--guard" {
-      if index + 1 >= argv.length() {
-        raise new_usage_error("missing value for --guard")
+    }
+    continue index + width
+  }
+  order
+}
+
+///|
+fn parse_scan_pattern_specs(
+  argv : Array[String],
+  values : Map[String, Array[String]],
+) -> Array[@rule_model.RulePatternSpec] raise {
+  let patterns : Array[PendingScanPattern] = []
+  let shapes = all_cli_values(values, "pattern")
+  let guards = all_cli_values(values, "guard")
+  for
+    option in ordered_scan_pattern_options(argv)
+    pattern_index = 0, guard_index = 0 {
+    match option {
+      Pattern => {
+        patterns.push({ shape: shapes[pattern_index], guards: None, })
+        continue pattern_index + 1, guard_index
       }
-      attach_scan_guard(
-        patterns,
-        has_guard,
-        parse_cli_guard_map(argv[index + 1]),
-      )
-      index += 2
-    } else if arg.has_prefix("--guard=") {
-      attach_scan_guard(
-        patterns,
-        has_guard,
-        parse_cli_guard_map(arg["--guard=".length():].to_owned()),
-      )
-      index += 1
-    } else {
-      index += 1
+      Guard => {
+        attach_scan_guard(patterns, parse_cli_guard_map(guards[guard_index]))
+        continue pattern_index, guard_index + 1
+      }
     }
   }
-  patterns
+  patterns.map(pattern => {
+    shape: pattern.shape,
+    guards: pattern.guards.unwrap_or({}),
+    match_mode: Default,
+  })
 }
 
 ///|
 fn attach_scan_guard(
-  patterns : Array[@rule_model.RulePatternSpec],
-  has_guard : Array[Bool],
+  patterns : Array[PendingScanPattern],
   guards : Map[String, String],
 ) -> Unit raise {
-  let mut index = patterns.length()
-  while index > 0 {
-    index -= 1
-    if !has_guard[index] {
-      let shape = patterns[index].shape
-      patterns[index] = { shape, guards, match_mode: Default, }
-      has_guard[index] = true
+  for index = patterns.length() - 1; index >= 0; index = index - 1 {
+    if patterns[index].guards is None {
+      patterns[index].guards = Some(guards)
       return
     }
   }

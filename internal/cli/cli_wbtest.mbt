@@ -10,6 +10,19 @@ fn expect_cli_usage(argv : Array[String], exit_code : Int32) -> Unit raise {
 }
 
 ///|
+fn cli_usage_diagnostic(argv : Array[String]) -> CliDiagnostic raise {
+  try parse_cli_command(argv) catch {
+    CliError::Usage(diagnostic~) as err => {
+      inspect(err.exit_code(), content="2")
+      diagnostic
+    }
+    err => fail("unexpected error \{err}")
+  } noraise {
+    _ => fail("expected CLI usage error")
+  }
+}
+
+///|
 test "cli error categories have fixed exit codes" {
   let diagnostic = new_cli_diagnostic("message", None, None, None)
   let errors : Array[CliError] = [
@@ -539,6 +552,275 @@ test "cli args parse multiple anonymous pattern guard pairs in order" {
       inspect(options.scan_root, content="src")
     }
     _ => fail("unexpected command")
+  }
+}
+
+///|
+test "cli args mix pattern and guard value forms without reinterpreting values" {
+  for command in ["scan", "lint"] {
+    match
+      parse_cli_command([
+        command, "--pattern", "left = right", "--guard={$left: \"^a=b$\"}", "--pattern=--guard={$fake: \"ignored=value\"}",
+        "--guard", "{$value: \"--pattern=target()\"}", "--pattern=", "--guard={}",
+        "src",
+      ]) {
+      Scan(options) | Lint(options) => {
+        assert_true(options.rules_root is None)
+        inspect(options.patterns.length(), content="3")
+        expect_pattern_shape(options, 0, "left = right")
+        expect_pattern_shape(options, 1, "--guard={$fake: \"ignored=value\"}")
+        expect_pattern_shape(options, 2, "")
+        expect_pattern_guard(options, 0, "$left", "^a=b$")
+        expect_pattern_guard(options, 1, "$value", "--pattern=target()")
+        inspect(options.patterns[2].guards.length(), content="0")
+        inspect(options.scan_root, content="src")
+      }
+      _ => fail("unexpected command")
+    }
+  }
+}
+
+///|
+test "cli args preserve pattern guard order around every rules option form" {
+  for command in ["scan", "lint"] {
+    for
+      rules_args in [
+        ["--rules", "dir=rules"],
+        ["--rules=dir=rules"],
+        ["-r", "dir=rules"],
+        ["-rdir=rules"],
+        ["-r=dir=rules"],
+      ] {
+      match
+        parse_cli_command(
+          [command, "--pattern=first()"] +
+          rules_args +
+          [
+            "--pattern", "second()", "--guard={}", "--guard", "{$first: \"^a=b$\"}",
+          ],
+        ) {
+        Scan(options) | Lint(options) => {
+          expect_rules_root(options, "dir=rules")
+          inspect(options.patterns.length(), content="2")
+          expect_pattern_shape(options, 0, "first()")
+          expect_pattern_shape(options, 1, "second()")
+          expect_pattern_guard(options, 0, "$first", "^a=b$")
+          inspect(options.patterns[1].guards.length(), content="0")
+          inspect(options.scan_root, content=".")
+        }
+        _ => fail("unexpected command")
+      }
+    }
+  }
+}
+
+///|
+test "cli args attach guards backwards across other scan options and positionals" {
+  for command in ["scan", "lint"] {
+    match
+      parse_cli_command([
+        command, "--pattern", "first()", "--rule", "first=rule.yaml", "--exclude",
+        "dir=one", "--pattern=second()", "--rule=--pattern=ignored()", "--exclude=--guard={}",
+        "--disable", "rule=one", "--disable=--pattern=ignored()", "--verbose", "--guard={$second: \"second=value\"}",
+        "src", "--json", "--strict-taint", "--guard", "{$first: \"--guard={}\"}",
+        "--pattern=third()",
+      ]) {
+      Scan(options) | Lint(options) => {
+        assert_true(options.rules_root is None)
+        expect_rule_file(options, "--pattern=ignored()")
+        inspect(options.patterns.length(), content="3")
+        expect_pattern_shape(options, 0, "first()")
+        expect_pattern_shape(options, 1, "second()")
+        expect_pattern_shape(options, 2, "third()")
+        expect_pattern_guard(options, 0, "$first", "--guard={}")
+        expect_pattern_guard(options, 1, "$second", "second=value")
+        inspect(options.patterns[2].guards.length(), content="0")
+        assert_eq(options.excludes, ["dir=one", "--guard={}"])
+        assert_eq(options.disabled_rules, ["rule=one", "--pattern=ignored()"])
+        inspect(options.scan_root, content="src")
+        assert_true(options.verbose)
+        assert_true(options.output_json)
+        assert_true(options.strict_taint)
+      }
+      _ => fail("unexpected command")
+    }
+  }
+}
+
+///|
+test "cli args keep pattern and guard paths after terminator for scan and lint" {
+  for command in ["scan", "lint"] {
+    for path in ["--pattern", "--guard", "--pattern=after()", "--guard={}"] {
+      match parse_cli_command([command, "--", path]) {
+        Scan(options) | Lint(options) => {
+          expect_no_patterns(options)
+          inspect(options.scan_root, content=path)
+          if command == "scan" {
+            expect_rules_root(options, "./.moongrep/rules")
+          } else {
+            assert_true(options.rules_root is None)
+          }
+        }
+        _ => fail("unexpected command")
+      }
+      match parse_cli_command([command, "--pattern=before()", "--", path]) {
+        Scan(options) | Lint(options) => {
+          assert_true(options.rules_root is None)
+          inspect(options.patterns.length(), content="1")
+          expect_pattern_shape(options, 0, "before()")
+          inspect(options.patterns[0].guards.length(), content="0")
+          inspect(options.scan_root, content=path)
+        }
+        _ => fail("unexpected command")
+      }
+    }
+  }
+}
+
+///|
+test "cli args preserve guard placement diagnostics including empty guards" {
+  for command in ["scan", "lint"] {
+    inspect(
+      render_cli_diagnostic(
+        cli_usage_diagnostic([command, "--guard={}", "--pattern=later()"]),
+      ),
+      content=(
+        #|error: invalid --guard placement
+        #|  source: --guard
+        #|  reason: --guard requires a preceding --pattern
+        #|  help: place one --guard after the anonymous --pattern it applies to
+      ),
+    )
+    inspect(
+      render_cli_diagnostic(
+        cli_usage_diagnostic([
+          command, "--pattern=first()", "--pattern=second()", "--guard={}", "--guard={}",
+          "--guard={$extra: \"value\"}",
+        ]),
+      ),
+      content=(
+        #|error: invalid --guard placement
+        #|  source: --guard
+        #|  reason: duplicate --guard for anonymous --pattern
+        #|  help: place one --guard after the anonymous --pattern it applies to
+      ),
+    )
+  }
+}
+
+///|
+test "cli args parse guard YAML before checking placement" {
+  for command in ["scan", "lint"] {
+    for prefix in [[], ["--pattern=target()", "--guard={}"]] {
+      inspect(
+        render_cli_diagnostic(
+          cli_usage_diagnostic([command] + prefix + ["--guard", "{"]),
+        ),
+        content=(
+          #|error: invalid --guard
+          #|  source: --guard
+          #|  reason: line 2, column 1: while parsing a node, did not find expected node content
+          #|  help: pass one YAML mapping from $-prefixed capture names to regex strings
+        ),
+      )
+      for
+        (source, expected) in [
+          ("[]", "must be a YAML mapping"),
+          ("{}\n---\n{}", "must contain exactly one YAML document"),
+          (
+            "{capture: \"value\"}", "key capture must be a $-prefixed capture name",
+          ),
+          ("{$: \"value\"}", "key $ must be a $-prefixed capture name"),
+          ("{$capture: 1}", "value for $capture must be a string"),
+        ] {
+        match cli_usage_diagnostic([command] + prefix + ["--guard=\{source}"]) {
+          Fields(summary~, source~, reason=Some(reason), help~, pattern~) => {
+            inspect(summary, content="invalid --guard")
+            assert_eq(source, Some("--guard"))
+            assert_eq(reason, expected)
+            assert_eq(
+              help,
+              Some(
+                "pass one YAML mapping from $-prefixed capture names to regex strings",
+              ),
+            )
+            assert_true(pattern is None)
+          }
+          _ => fail("expected guard content diagnostic")
+        }
+      }
+    }
+  }
+}
+
+///|
+test "cli args report missing values before guard errors" {
+  for command in ["scan", "lint"] {
+    for
+      option in [
+        "--rules", "-r", "--rule", "--pattern", "--guard", "--exclude", "--disable",
+      ] {
+      for
+        prefix in [
+          [],
+          ["--guard={"],
+          ["--pattern=target()", "--guard={}", "--guard={}"],
+        ] {
+        match cli_usage_diagnostic([command] + prefix + [option]) {
+          ParserMessage(message~) => {
+            assert_true(
+              message.has_prefix(
+                "error: a value is required for '\{option}' but none was supplied",
+              ),
+            )
+            assert_true(message.contains("Usage: moongrep \{command}"))
+          }
+          _ => fail("expected argparse missing-value diagnostic")
+        }
+      }
+    }
+  }
+}
+
+///|
+test "cli args preserve priority of syntax and earlier guard errors" {
+  for command in ["scan", "lint"] {
+    for
+      (args, expected) in [
+        (
+          ["--guard={", "--unknown"],
+          "error: unexpected argument '--unknown' found",
+        ),
+        (
+          ["--guard={}", "first", "second"],
+          "error: unexpected value 'second' for '<scan-root>' found; no more were expected",
+        ),
+        (
+          ["--pattern=target()", "--guard={}", "--guard={}", "--unknown"],
+          "error: unexpected argument '--unknown' found",
+        ),
+      ] {
+      match cli_usage_diagnostic([command] + args) {
+        ParserMessage(message~) => {
+          assert_true(message.has_prefix(expected))
+          assert_true(message.contains("Usage: moongrep \{command}"))
+        }
+        _ => fail("expected argparse syntax diagnostic")
+      }
+    }
+    match cli_usage_diagnostic([command, "--guard={}", "--guard={"]) {
+      Fields(reason=Some(reason), ..) =>
+        inspect(reason, content="--guard requires a preceding --pattern")
+      _ => fail("expected first guard's placement diagnostic")
+    }
+    match
+      cli_usage_diagnostic([
+        command, "--pattern=target()", "--guard={}", "--guard={}", "--guard={",
+      ]) {
+      Fields(reason=Some(reason), ..) =>
+        inspect(reason, content="duplicate --guard for anonymous --pattern")
+      _ => fail("expected first duplicate guard's diagnostic")
+    }
   }
 }
 
