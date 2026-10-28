@@ -1,10 +1,11 @@
-///|
+---
 import {
-  "moonbitlang/async@0.22.4",
-  "moonbitlang/async@0.22.4/fs",
-  "moonbitlang/async@0.22.4/stdio",
+  "moonbitlang/core/async",
+  "moonbitlang/core/async/fs",
+  "moonbitlang/core/async/stdio",
   "moonbitlang/core/env",
 }
+---
 
 ///|
 /// Save stdin to a file in E2E_TEMP without writing to stdout.
@@ -13,7 +14,7 @@ async fn main {
   guard @env.get_env_var("E2E_TEMP") is Some(directory) && !directory.is_empty() else {
     fail("E2E_TEMP must name an existing temporary directory")
   }
-  @fs.write_file(
+  @fs.write_binary(
     "\{directory}/\{name}",
     @stdio.stdin.read_all(),
     create_mode=CreateOrTruncate,
