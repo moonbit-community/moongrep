@@ -1,12 +1,13 @@
-///|
+---
 import {
-  "moonbitlang/async@0.22.4",
-  "moonbitlang/async@0.22.4/fs",
-  "moonbitlang/async@0.22.4/stdio",
+  "moonbitlang/core/async",
+  "moonbitlang/core/async/fs",
+  "moonbitlang/core/async/stdio",
   "moonbitlang/core/diff",
   "moonbitlang/core/encoding/utf8",
   "moonbitlang/core/env",
 }
+---
 
 ///|
 /// Keep the final newline significant without adding an extra empty line.
@@ -31,14 +32,14 @@ async fn main {
   }
   let left_path = "\{directory}/\{left}"
   let right_path = "\{directory}/\{right}"
-  let left_bytes = @fs.read_file(left_path).binary()
-  let right_bytes = @fs.read_file(right_path).binary()
+  let left_bytes = @fs.read_binary(left_path)
+  let right_bytes = @fs.read_binary(right_path)
   if left_bytes != right_bytes {
     let old = lines(@utf8.decode(left_bytes, ignore_bom=false))
     let new = lines(@utf8.decode(right_bytes, ignore_bom=false))
-    @stdio.stderr.write("--- \{left_path}\n+++ \{right_path}\n")
+    @stdio.stderr.text.write("--- \{left_path}\n+++ \{right_path}\n")
     for hunk in @diff.Diff(old~, new~).group() {
-      @stdio.stderr.write(hunk.render(show=line => line))
+      @stdio.stderr.text.write(hunk.render(show=line => line))
     }
     fail(
       "files differ: \{left_path} (\{left_bytes.length()} bytes), \{right_path} (\{right_bytes.length()} bytes)",
