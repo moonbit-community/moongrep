@@ -1,6 +1,6 @@
 name = "moonbit-community/moongrep"
 
-version = "0.3.10"
+version = "0.3.11"
 
 preferred_target = "wasm"
 
