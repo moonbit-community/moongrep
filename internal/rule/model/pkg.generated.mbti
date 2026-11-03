@@ -11,11 +11,12 @@ import {
 // Values
 
 // Errors
+#derive(@debug.Debug)
 pub(all) suberror RuleLoadError {
   NoRuleFiles(path~ : String)
   InvalidPattern(path~ : String, shape~ : String, info~ : String)
   InvalidRule(path~ : String, info~ : String)
-} derive(@debug.Debug)
+}
 pub fn RuleLoadError::output(Self, &Logger) -> Unit
 pub fn RuleLoadError::to_repr(Self) -> @debug.Repr
 pub fn RuleLoadError::to_string(Self) -> String

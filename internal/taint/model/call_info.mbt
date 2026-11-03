@@ -1,11 +1,12 @@
 ///|
 /// The parser call form that produced a `CallInfo`.
+#derive(Eq, Debug)
 pub(all) enum CallKind {
   Apply
   DotApply
   Pipe
   RevPipe
-} derive(Eq, Debug)
+}
 
 ///|
 /// One evaluated call argument.

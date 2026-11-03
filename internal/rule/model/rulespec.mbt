@@ -1,5 +1,6 @@
 ///|
 /// Errors raised while loading, validating, or compiling a rule set.
+#derive(Debug)
 pub(all) suberror RuleLoadError {
   /// No YAML rule files were found below `path`.
   NoRuleFiles(path~ : String)
@@ -10,7 +11,7 @@ pub(all) suberror RuleLoadError {
   /// or cannot be represented by runtime CST matching. `path` may be the rules
   /// root for directory-level failures. `info` is written for rule authors.
   InvalidRule(path~ : String, info~ : String)
-} derive(Debug)
+}
 
 ///|
 pub impl Show for RuleLoadError with fn output(self, logger) {

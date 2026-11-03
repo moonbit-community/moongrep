@@ -1,9 +1,10 @@
 ///|
 // These tests execute on the installed compiler; they pin the language
 // contracts used by lowering rather than exercising the analyzer itself.
+#derive(Debug)
 priv suberror SemanticError {
   SemanticError(String)
-} derive(Debug)
+}
 
 ///|
 test "compiler loop initializers see outer binders and updates are simultaneous" {

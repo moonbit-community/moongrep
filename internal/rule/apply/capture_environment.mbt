@@ -12,9 +12,10 @@ priv struct CaptureEnvironment {
 }
 
 ///|
+#derive(Eq, Hash)
 priv struct EnvironmentKey {
   values : Array[(Int32, Int32, @matching.IdentifierCaptureSource?)]
-} derive(Eq, Hash)
+}
 
 ///|
 fn CaptureEnvironment::get(self : CaptureEnvironment, id : Int32) -> Capture? {

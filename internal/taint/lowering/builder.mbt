@@ -5,10 +5,11 @@ using @cfg {type BlockId, type ValueId, type ScopeId, type Edge, type Operation}
 using @domain {type BindingId, type StoragePath, type PathSegment}
 
 ///|
+#derive(Eq, Debug)
 pub(all) struct Diagnostic {
   loc : @basic.Location
   reason : String
-} derive(Eq, Debug)
+}
 
 ///|
 pub(all) enum Preparation {
@@ -23,20 +24,22 @@ priv suberror LoweringError {
 }
 
 ///|
+#derive(Eq, Hash)
 priv enum ExitKind {
   Normal
   Returning
   Exceptional
   Breaking
   Continuing
-} derive(Eq, Hash)
+}
 
 ///|
+#derive(Eq, Hash)
 priv struct Target {
   block : BlockId
   depth : Int32
   kind : ExitKind
-} derive(Eq, Hash)
+}
 
 ///|
 priv struct Control {
@@ -64,25 +67,28 @@ priv struct Cleanup {
 }
 
 ///|
+#derive(Eq, Hash)
 priv struct CleanupKey {
   cleanups : ReadOnlyArray[Int32]
   target : Target
   arity : Int32
-} derive(Eq, Hash)
+}
 
 ///|
+#derive(Eq, Hash)
 priv struct ScopeKey {
   parent : ScopeId
   source_span : (Int32, Int32)
-} derive(Eq, Hash)
+}
 
 ///|
+#derive(Eq, Hash)
 priv struct BindingKey {
   scope : ScopeId
   start_cnum : Int32
   end_cnum : Int32
   name : String
-} derive(Eq, Hash)
+}
 
 ///|
 priv struct Builder {

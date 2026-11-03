@@ -37,11 +37,12 @@ priv struct KeyedCompiledRulePatterns {
 }
 
 ///|
+#derive(Eq)
 priv enum ExprRootKey {
   IdentRoot
   ConstantRoot
   OtherRoot(@untyped_cst.NodeKind)
-} derive(Eq)
+}
 
 ///|
 // Wildcard patterns are always eligible. Keyed patterns are only eligible when

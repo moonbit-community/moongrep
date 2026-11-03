@@ -1,15 +1,17 @@
 ///|
 /// Only lexical variable occurrences participate in inherited binding checks.
+#derive(Eq, Hash, Debug)
 pub(all) enum IdentifierBinding {
   Lexical(BindingId?)
   NonLexical
-} derive(Eq, Hash, Debug)
+}
 
 ///|
+#derive(Eq, Hash, Debug)
 pub(all) struct IdentifierSource {
   name : String
   binding : IdentifierBinding
-} derive(Eq, Hash, Debug)
+}
 
 ///|
 priv enum SourceIdentifierRole {

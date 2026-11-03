@@ -2,9 +2,10 @@
 using @rule_model {type RulePrefilter}
 
 ///|
+#derive(Debug)
 priv suberror QueryError {
   ParseError(source_name~ : String, info~ : String)
-} derive(Debug)
+}
 
 ///|
 pub using @model {type BoundValue}
