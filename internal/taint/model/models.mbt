@@ -1,23 +1,26 @@
 ///|
 /// One possible call completion, including its own storage effects.
+#derive(Eq, Debug)
 pub(all) struct CallOutcome {
   value : TaintValue
   writes : Array[StorageWrite]
-} derive(Eq, Debug)
+}
 
 ///|
+#derive(Eq, Debug)
 pub(all) enum StorageWrite {
   Set(StoragePath, TaintValue)
   Sanitize(StoragePath)
-} derive(Eq, Debug)
+}
 
 ///|
 /// None means that completion is impossible. Unknown calls never raise.
+#derive(Eq, Debug)
 pub(all) struct CallTransfer {
   normal : CallOutcome?
   exceptional : CallOutcome?
   findings : Array[SinkFinding]
-} derive(Eq, Debug)
+}
 
 ///|
 pub fn CallTransfer::normal(
@@ -38,10 +41,11 @@ pub fn CallTransfer::normal(
 /// `NoEffect` treats unknown calls as returning untainted values.
 /// `PropagateArgumentsToReturn` returns the union of receiver and argument
 /// taint.
+#derive(Eq, Debug)
 pub(all) enum UnknownCallPolicy {
   NoEffect
   PropagateArgumentsToReturn
-} derive(Eq, Debug)
+}
 
 ///|
 /// A rule-level source of taint.
@@ -51,10 +55,11 @@ pub(all) enum UnknownCallPolicy {
 /// field declarations.
 /// `CallReturn` marks matching call results as fresh sources. Its path is
 /// relative to the call return value; `[]` taints the return value itself.
+#derive(Eq, Debug)
 pub(all) enum SourceModel {
   EntryPath(ParameterPath, String, String?)
   CallReturn(CallMatcher, String, String?, Array[PathSegment])
-} derive(Eq, Debug)
+}
 
 ///|
 /// Selects calls for source and transfer models.
@@ -64,23 +69,25 @@ pub(all) enum SourceModel {
 /// `MethodName` matches method calls and pipe calls whose normalized
 /// `callee_name` matches; it does not match reverse-pipe calls.
 /// `AnyCall` matches every call.
+#derive(Eq, Debug)
 pub(all) enum CallMatcher {
   CalleeName(String)
   /// Select a resolved local or parameter call target, including shadowing.
   CalleeBinding(BindingId)
   MethodName(String)
   AnyCall
-} derive(Eq, Debug)
+}
 
 ///|
 /// A declarative model for calls outside the current function body.
 ///
 /// All matching call models are applied in array order; matching is not
 /// first-match.
+#derive(Eq, Debug)
 pub(all) struct CallModel {
   matcher : CallMatcher
   effects : Array[CallEffect]
-} derive(Eq, Debug)
+}
 
 ///|
 /// Transfer effects applied when a call model matches.
@@ -96,6 +103,7 @@ pub(all) struct CallModel {
 /// Sink identifiers are passed through unchanged. Generic models should use
 /// `SinkId::Named`; `SinkId::PatternIndex` is reserved for ordered rule
 /// patterns.
+#derive(Eq, Debug)
 pub(all) enum CallEffect {
   ReturnFreshSource(String, String?, Array[PathSegment])
   PropagateArgToReturn(Int32)
@@ -109,7 +117,7 @@ pub(all) enum CallEffect {
   RaiseArg(Int32)
   /// Make the normal completion impossible.
   NoReturn
-} derive(Eq, Debug)
+}
 
 ///|
 /// Complete taint-analysis configuration for one rule.

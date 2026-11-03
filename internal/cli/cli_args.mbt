@@ -4,6 +4,7 @@
 /// `ParserMessage` is reserved for argparse output that already contains its
 /// own usage layout. Other failures retain separate diagnostic fields until
 /// they are written at the process boundary.
+#derive(Debug)
 pub(all) enum CliDiagnostic {
   Fields(
     summary~ : String,
@@ -13,10 +14,11 @@ pub(all) enum CliDiagnostic {
     pattern~ : String?
   )
   ParserMessage(message~ : String)
-} derive(Debug)
+}
 
 ///|
 /// Failures reported by the command-line frontend.
+#derive(Debug)
 pub(all) suberror CliError {
   Internal(diagnostic~ : CliDiagnostic)
   Usage(diagnostic~ : CliDiagnostic)
@@ -26,7 +28,7 @@ pub(all) suberror CliError {
   ScanInput(diagnostic~ : CliDiagnostic)
   Output(diagnostic~ : CliDiagnostic)
   TaintIncomplete(diagnostic~ : CliDiagnostic)
-} derive(Debug)
+}
 
 ///|
 /// Returns the fixed process exit code for this failure category.

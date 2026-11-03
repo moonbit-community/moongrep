@@ -1,10 +1,11 @@
 ///|
 /// Identifier provenance is private to indexed rule evaluation. BoundValue
 /// continues to contain the original name or complete ordered-list items.
+#derive(Eq, Hash, Debug)
 pub(all) enum IdentifierCaptureSource {
   SingleIdentifier(@cst.IdentifierSource)
   MultipleIdentifiers(Array[@cst.IdentifierSource])
-} derive(Eq, Hash, Debug)
+}
 
 ///|
 fn identifier_bindings_match(

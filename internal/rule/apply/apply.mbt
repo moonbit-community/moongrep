@@ -11,9 +11,10 @@ using @model {
 using @taint_lowering {lower_compiled_taint_rule}
 
 ///|
+#derive(Debug)
 priv suberror RuleApplyError {
   InvalidTaintSinkId(sink_id~ : @taint.SinkId, sink_count~ : Int32)
-} derive(Debug)
+}
 
 ///|
 pub fn apply_structural_scan_plan_to_node(

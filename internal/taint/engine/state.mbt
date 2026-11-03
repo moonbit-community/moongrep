@@ -1,8 +1,9 @@
 ///|
+#derive(Eq)
 priv struct State {
   storage : Array[TaintValue]
   values : Array[TaintValue]
-} derive(Eq)
+}
 
 ///|
 fn State::empty(graph : @cfg.Graph) -> State {

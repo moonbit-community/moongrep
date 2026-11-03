@@ -6,11 +6,12 @@ priv enum GroupCandidateResult {
 }
 
 ///|
+#derive(Eq, Hash)
 priv struct EvaluationKey {
   group : Int32
   source : Int32
   env : Int32
-} derive(Eq, Hash)
+}
 
 ///|
 priv struct RegionResult {

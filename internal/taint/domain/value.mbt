@@ -1,10 +1,11 @@
 ///|
 /// Immutable value: default taint inherited by descendants, with explicit
 /// overrides (including clean overrides). All projections use this domain.
+#derive(Debug)
 pub struct TaintValue {
   priv defaults : Array[TaintOrigin]
   priv children : Array[(PathSegment, TaintValue)]
-} derive(Debug)
+}
 
 ///|
 pub fn TaintValue::clean() -> TaintValue {

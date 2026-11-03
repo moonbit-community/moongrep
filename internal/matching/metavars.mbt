@@ -1,5 +1,6 @@
 ///|
 /// The constraint applied to each item captured by an ellipsis metavar.
+#derive(Eq)
 pub(all) enum EllipsisMetavarKind {
   AnyItem
   ExpItem
@@ -8,10 +9,11 @@ pub(all) enum EllipsisMetavarKind {
   ArgItem
   PatItem
   TypeItem
-} derive(Eq)
+}
 
 ///|
 /// The semantic kind of one compiled metavar.
+#derive(Eq)
 pub(all) enum MetavarKind {
   Expr
   Identifier
@@ -20,7 +22,7 @@ pub(all) enum MetavarKind {
   Type
   Pattern
   Ellipsis(EllipsisMetavarKind)
-} derive(Eq)
+}
 
 ///|
 /// One named metavar in source order.
@@ -31,14 +33,16 @@ pub(all) struct MetavarEntry {
 
 ///|
 /// The result of registering one named metavar.
+#derive(Eq)
 pub(all) enum MetavarRegistration {
   Registered
   AlreadyRegistered
   RegistrationConflict(MetavarKind)
-} derive(Eq)
+}
 
 ///|
 /// Parsed syntax shared by pattern compilation and runtime lookup.
+#derive(Eq)
 pub(all) enum MetavarSyntax {
   NotMetavar
   InvalidMetavar
@@ -49,7 +53,7 @@ pub(all) enum MetavarSyntax {
   Typed(String, MetavarKind)
   EllipsisSyntax(String, EllipsisMetavarKind?)
   Wildcard
-} derive(Eq)
+}
 
 ///|
 /// A placeholder resolved against a compiled registry.

@@ -3,22 +3,24 @@
 ///
 /// `AnyIndex` represents an unknown array index and also summarizes all
 /// elements when array contents are merged.
+#derive(Eq, Debug)
 pub(all) enum PathSegment {
   Field(String)
   TupleIndex(Int32)
   ConstIndex(String)
   AnyIndex
-} derive(Eq, Debug)
+}
 
 ///|
 /// A resolved binding plus optional field, tuple, or index segments.
 ///
 /// The root is a unique local variable or parameter identity. Segments describe a
 /// subvalue such as `payload.body` or `pair.0`.
+#derive(Eq, Debug)
 pub(all) struct StoragePath {
   root : BindingId
   segments : Array[PathSegment]
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend PathSegment with Eq::{not_equal, equal}
@@ -34,14 +36,16 @@ pub extend StoragePath with Debug::{to_repr}
 
 ///|
 /// Identity allocated by the lowering pass, independent of the source name.
-pub(all) struct BindingId(Int32) derive(Eq, Compare, Hash, Debug)
+#derive(Eq, Compare, Hash, Debug)
+pub(all) struct BindingId(Int32)
 
 ///|
 /// A parameter source configured by name, resolved when analysis starts.
+#derive(Eq, Debug)
 pub(all) struct ParameterPath {
   root : String
   segments : Array[PathSegment]
-} derive(Eq, Debug)
+}
 
 ///|
 pub extend BindingId with Eq::{equal, not_equal}
