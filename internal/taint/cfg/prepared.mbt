@@ -7,9 +7,10 @@ pub struct PreparedFunction {
 }
 
 ///|
+#derive(Debug)
 pub suberror InvalidGraph {
   InvalidGraph(Array[String])
-} derive(Debug)
+}
 
 ///|
 pub fn PreparedFunction::new(

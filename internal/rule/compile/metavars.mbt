@@ -5,12 +5,13 @@ priv struct MetavarShape {
 }
 
 ///|
+#derive(Eq)
 priv enum MetavarPosition {
   ExpressionPosition
   IdentifierPosition
   PatternPosition
   TypePosition
-} derive(Eq)
+}
 
 ///|
 priv struct MetavarOccurrenceContext {

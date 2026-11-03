@@ -22,6 +22,7 @@ pub async fn run_scan_command(CliOptions) -> Unit
 pub fn runtime_cli_args(Array[String]) -> Array[String]
 
 // Errors
+#derive(@debug.Debug)
 pub(all) suberror CliError {
   Internal(diagnostic~ : CliDiagnostic)
   Usage(diagnostic~ : CliDiagnostic)
@@ -31,7 +32,7 @@ pub(all) suberror CliError {
   ScanInput(diagnostic~ : CliDiagnostic)
   Output(diagnostic~ : CliDiagnostic)
   TaintIncomplete(diagnostic~ : CliDiagnostic)
-} derive(@debug.Debug)
+}
 pub fn CliError::exit_code(Self) -> Int32
 pub fn CliError::internal(String) -> Self
 pub fn CliError::output(Self, &Logger) -> Unit
@@ -51,10 +52,11 @@ pub(all) enum CliCommand {
   DumpExpr(source~ : String, strict_check~ : Bool, exit_code~ : Bool, output_json~ : Bool)
 }
 
+#derive(@debug.Debug)
 pub(all) enum CliDiagnostic {
   Fields(summary~ : String, source~ : String?, reason~ : String?, help~ : String?, pattern~ : String?)
   ParserMessage(message~ : String)
-} derive(@debug.Debug)
+}
 pub fn CliDiagnostic::to_repr(Self) -> @debug.Repr
 
 pub(all) struct CliOptions {

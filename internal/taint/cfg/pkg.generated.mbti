@@ -12,9 +12,10 @@ import {
 // Values
 
 // Errors
+#derive(@debug.Debug)
 pub suberror InvalidGraph {
   InvalidGraph(Array[String])
-} derive(@debug.Debug)
+}
 pub fn InvalidGraph::to_repr(Self) -> @debug.Repr
 
 // Types and methods
@@ -41,7 +42,8 @@ pub(all) struct Block {
   loc : @basic.Location
 }
 
-pub(all) struct BlockId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+#derive(Compare, Eq, Hash, @debug.Debug)
+pub(all) struct BlockId(Int32)
 pub fn BlockId::compare(Self, Self) -> Int32
 pub fn BlockId::equal(Self, Self) -> Bool
 pub fn BlockId::hash(Self) -> Int32
@@ -108,7 +110,8 @@ pub fn PreparedFunction::graph(Self) -> Graph
 pub fn PreparedFunction::live_values(Self) -> Array[Array[Bool]]
 pub fn PreparedFunction::new(Graph) -> Self raise InvalidGraph
 
-pub(all) struct ScopeId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+#derive(Compare, Eq, Hash, @debug.Debug)
+pub(all) struct ScopeId(Int32)
 pub fn ScopeId::compare(Self, Self) -> Int32
 pub fn ScopeId::equal(Self, Self) -> Bool
 pub fn ScopeId::hash(Self) -> Int32
@@ -130,7 +133,8 @@ pub(all) enum Terminator {
 }
 pub fn Terminator::edges(Self) -> Array[Edge]
 
-pub(all) struct ValueId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+#derive(Compare, Eq, Hash, @debug.Debug)
+pub(all) struct ValueId(Int32)
 pub fn ValueId::compare(Self, Self) -> Int32
 pub fn ValueId::equal(Self, Self) -> Bool
 pub fn ValueId::hash(Self) -> Int32

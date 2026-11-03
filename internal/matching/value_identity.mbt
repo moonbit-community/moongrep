@@ -1,9 +1,10 @@
 ///|
+#derive(Eq)
 priv enum SemanticValue {
   Identity(String)
   Leaf(@untyped_cst.NodePayload)
   Node(@untyped_cst.NodeKind, Array[(String?, Int32)])
-} derive(Eq)
+}
 
 ///|
 impl Hash for SemanticValue with fn hash_combine(self, hasher) {
@@ -30,10 +31,11 @@ impl Hash for SemanticValue with fn hash_combine(self, hasher) {
 }
 
 ///|
+#derive(Eq, Hash)
 priv enum BoundIdentity {
   SingleIdentity(Int32)
   MultipleIdentity(Array[Int32])
-} derive(Eq, Hash)
+}
 
 ///|
 /// Intern the matcher's location-insensitive equality, retaining value variants.

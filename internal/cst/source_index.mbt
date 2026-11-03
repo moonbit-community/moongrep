@@ -15,17 +15,19 @@ pub type CursorId = Int32
 
 ///|
 /// A forest cursor. Shared suffixes are evaluated independently of their callers.
+#derive(Eq, Hash)
 pub(all) enum SourceStep {
   End
   Visit(RegionId, CursorId)
   Concat(CursorId, CursorId)
-} derive(Eq, Hash)
+}
 
 ///|
+#derive(Eq, Hash)
 priv enum RegionKey {
   Node(NodeId)
   Slice(Int32, Int32, Int32)
-} derive(Eq, Hash)
+}
 
 ///|
 priv struct IndexedNode {

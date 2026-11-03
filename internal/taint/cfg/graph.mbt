@@ -1,11 +1,14 @@
 ///|
-pub(all) struct ValueId(Int32) derive(Eq, Compare, Hash, Debug)
+#derive(Eq, Compare, Hash, Debug)
+pub(all) struct ValueId(Int32)
 
 ///|
-pub(all) struct BlockId(Int32) derive(Eq, Compare, Hash, Debug)
+#derive(Eq, Compare, Hash, Debug)
+pub(all) struct BlockId(Int32)
 
 ///|
-pub(all) struct ScopeId(Int32) derive(Eq, Compare, Hash, Debug)
+#derive(Eq, Compare, Hash, Debug)
+pub(all) struct ScopeId(Int32)
 
 ///|
 pub(all) struct Binding {

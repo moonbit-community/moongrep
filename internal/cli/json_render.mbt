@@ -1,21 +1,24 @@
 ///|
+#derive(ToJson)
 priv struct JsonScanPosition {
   line : Int32
   column : Int32
-} derive(ToJson)
+}
 
 ///|
+#derive(ToJson)
 priv struct JsonScanRange {
   start : JsonScanPosition
   end : JsonScanPosition
-} derive(ToJson)
+}
 
 ///|
+#derive(ToJson)
 priv struct JsonSourceContextLine {
   line : Int32
   text : String
   is_match : Bool
-} derive(ToJson)
+}
 
 ///|
 priv struct JsonScanFinding {

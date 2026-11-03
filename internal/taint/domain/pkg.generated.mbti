@@ -11,7 +11,8 @@ import {
 // Errors
 
 // Types and methods
-pub(all) struct BindingId(Int32) derive(Compare, Eq, Hash, @debug.Debug)
+#derive(Compare, Eq, Hash, @debug.Debug)
+pub(all) struct BindingId(Int32)
 pub fn BindingId::compare(Self, Self) -> Int32
 pub fn BindingId::equal(Self, Self) -> Bool
 pub fn BindingId::hash(Self) -> Int32
@@ -23,61 +24,68 @@ pub fn BindingId::op_le(Self, Self) -> Bool
 pub fn BindingId::op_lt(Self, Self) -> Bool
 pub fn BindingId::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct ParameterPath {
   root : String
   segments : Array[PathSegment]
-} derive(Eq, @debug.Debug)
+}
 pub fn ParameterPath::equal(Self, Self) -> Bool
 pub fn ParameterPath::not_equal(Self, Self) -> Bool
 pub fn ParameterPath::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum PathSegment {
   Field(String)
   TupleIndex(Int32)
   ConstIndex(String)
   AnyIndex
-} derive(Eq, @debug.Debug)
+}
 pub fn PathSegment::equal(Self, Self) -> Bool
 pub fn PathSegment::not_equal(Self, Self) -> Bool
 pub fn PathSegment::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct SinkFinding {
   sink_id : SinkId
   sink_loc : @basic.Location
-} derive(Eq, @debug.Debug)
+}
 pub fn SinkFinding::equal(Self, Self) -> Bool
 pub fn SinkFinding::not_equal(Self, Self) -> Bool
 pub fn SinkFinding::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) enum SinkId {
   Named(String)
   PatternIndex(Int32)
-} derive(Eq, @debug.Debug)
+}
 pub fn SinkId::equal(Self, Self) -> Bool
 pub fn SinkId::not_equal(Self, Self) -> Bool
 pub fn SinkId::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct StoragePath {
   root : BindingId
   segments : Array[PathSegment]
-} derive(Eq, @debug.Debug)
+}
 pub fn StoragePath::equal(Self, Self) -> Bool
 pub fn StoragePath::not_equal(Self, Self) -> Bool
 pub fn StoragePath::to_repr(Self) -> @debug.Repr
 
+#derive(Eq, @debug.Debug)
 pub(all) struct TaintOrigin {
   rule_id : String
   origin_id : String
   site : ValueSite
   note : String?
-} derive(Eq, @debug.Debug)
+}
 pub fn TaintOrigin::equal(Self, Self) -> Bool
 pub fn TaintOrigin::not_equal(Self, Self) -> Bool
 pub fn TaintOrigin::to_repr(Self) -> @debug.Repr
 
+#derive(@debug.Debug)
 pub struct TaintValue {
   // private fields
-} derive(@debug.Debug)
+}
 pub fn TaintValue::clean() -> Self
 pub fn TaintValue::collapse(Self) -> Self
 pub fn TaintValue::equal(Self, Self) -> Bool
@@ -92,12 +100,13 @@ pub fn TaintValue::to_repr(Self) -> @debug.Repr
 pub fn TaintValue::write(Self, Array[PathSegment], Self) -> Self
 pub impl Eq for TaintValue
 
+#derive(Eq, @debug.Debug)
 pub(all) enum ValueSite {
   Path(StoragePath)
   CallResult(String?, @basic.Location)
   Expr(@basic.Location, String?)
   Synthetic(String)
-} derive(Eq, @debug.Debug)
+}
 pub fn ValueSite::equal(Self, Self) -> Bool
 pub fn ValueSite::not_equal(Self, Self) -> Bool
 pub fn ValueSite::to_repr(Self) -> @debug.Repr
