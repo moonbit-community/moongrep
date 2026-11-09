@@ -1,12 +1,4 @@
 ///|
-#cfg(target="wasm")
-fn runtime_exit(code : Int32) -> Unit = "moonbitlang/async" "runtime/exit"
-
-///|
-#cfg(target="native")
-extern "c" fn runtime_exit(code : Int32) -> Unit = "exit"
-
-///|
 async fn write_raw_cli_stdout(output : String) -> Unit {
   if output != "" {
     if output.strip_suffix("\n") is Some(_) {
@@ -51,10 +43,10 @@ async fn exit_with_cli_error(error : @cli.CliError, output_json : Bool) -> Unit 
   let exit_code = error.exit_code()
   let rendered = if output_json { error.render_json() } else { "\{error}" }
   write_raw_cli_stderr(rendered) catch {
-    @os_error.OSError(_) => runtime_exit(7)
+    @os_error.OSError(_) => @env.exit(7)
     err => raise err
   }
-  runtime_exit(exit_code)
+  @env.exit(exit_code)
 }
 
 ///|
