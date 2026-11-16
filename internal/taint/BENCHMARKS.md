@@ -5,7 +5,8 @@ builds, pinned to CPU 0. The baseline is `a2182b6`, using the recursive engine.
 The same fixture was added to the baseline checkout. Each revision ran three
 times per case, with baseline/current order alternating; values below are the
 median benchmark mean. Each benchmark mean contains ten adaptive batches.
-Compilation ran before measurement. Results describe this host, not a CI timer.
+Compilation ran before measurement. These results describe this host; CI does
+not use elapsed-time thresholds.
 
 ## Taint phases
 

@@ -4,17 +4,17 @@
 let _embed_clispec_md : String =
   #|# Command-Line Interface Specification
   #|
-  #|This document specifies the current moongrep command-line interface. It covers
-  #|command selection, rule-source selection, scanning, output, diagnostics, and
-  #|process exit behavior.
+  #|The moongrep CLI lets you select commands and rule sources, scan MoonBit files,
+  #|and read findings and diagnostics. Its exit status reports success or the
+  #|category of failure.
   #|
   #|[RuleSpec.md](RuleSpec.md) specifies the YAML rule format, rule validation, and
   #|matcher semantics. Paths and rule ids are compared as case-sensitive strings
   #|unless a section says otherwise.
   #|
-  #|## Invocation and Command Selection
+  #|## Invocation and command selection
   #|
-  #|### Invocation Forms
+  #|### Invocation forms
   #|
   #|Run an installed executable directly:
   #|
@@ -38,7 +38,7 @@ let _embed_clispec_md : String =
   #|arguments. Arguments after the separator follow the direct executable's
   #|behavior.
   #|
-  #|### Top-Level Commands
+  #|### Top-level commands
   #|
   #|moongrep provides four commands:
   #|
@@ -57,7 +57,7 @@ let _embed_clispec_md : String =
   #|`moongrep --version` and `moongrep -V` print the module version from `moon.mod`
   #|to standard output and exit with status 0. No subcommand is required.
   #|
-  #|### Help and No-Argument Behavior
+  #|### Help and no-argument behavior
   #|
   #|`-h` and `--help` print help for the selected command. The `help` command
   #|prints top-level help, and `help <command>` prints help for that command. Each
@@ -107,15 +107,15 @@ let _embed_clispec_md : String =
   #|`--option=value`. Among these options, `--rules` also has a short form. The
   #|`NO_COLOR` environment variable controls color as described below.
   #|
-  #|### Scan Root
+  #|### Scan root
   #|
   #|`scan-root` may name a directory or one regular file. Directory targets are
   #|traversed recursively. A regular target is scanned when its path ends in
   #|lowercase `.mbt`.
   #|Directory symlinks are followed. Each resolved directory is entered at most
   #|once, so symlink cycles and later aliases of an already visited directory are
-  #|skipped. Findings and events keep the traversal path rather than the resolved
-  #|identity path.
+  #|skipped. Findings and events use the traversal path. Resolving a directory's
+  #|identity does not change its displayed path.
   #|
   #|On Linux and macOS, the scanner retains the supplied scan-root spelling and
   #|constructs child paths with `/`, as described by the traversal rules below.
@@ -129,7 +129,7 @@ let _embed_clispec_md : String =
   #|relative scan root into an absolute path. Directory identity checks resolve
   #|symlinks separately without changing the rendered traversal path.
   #|
-  #|### Rule Sources and Ordering
+  #|### Rule sources and ordering
   #|
   #|`scan` and `lint` may combine rule sources. Sources are loaded in this fixed
   #|category order, independent of where their options appeared:
@@ -162,9 +162,9 @@ let _embed_clispec_md : String =
   #|rule directory, and matcher compilation are specified by
   #|[RuleSpec.md](RuleSpec.md).
   #|
-  #|### Repeated Options
+  #|### Repeated options
   #|
-  #|Repeated options have these effective values:
+  #|When an option appears more than once:
   #|
   #|- The last `--rules` or `-r` value wins.
   #|- The last `--rule` value wins.
@@ -175,7 +175,7 @@ let _embed_clispec_md : String =
   #|Usage errors include multiple scan-root positionals, missing option values,
   #|unknown options, and unknown commands.
   #|
-  #|### Anonymous Patterns and Guards
+  #|### Anonymous patterns and guards
   #|
   #|Each `--pattern` becomes a structural rule with one positive pattern. Its rule
   #|id is the pattern source itself and its description is `Anonymous CLI
@@ -190,11 +190,10 @@ let _embed_clispec_md : String =
   #|whose values are strings. Malformed YAML, another top-level YAML kind,
   #|multiple documents, an invalid key, or a non-string value is a usage error.
   #|
-  #|Whether a key names a compatible capture, whether a regular expression is
-  #|valid, and how a guard matches are rule-compilation concerns specified by
-  #|[RuleSpec.md](RuleSpec.md).
+  #|Rule compilation checks capture compatibility and regular-expression validity.
+  #|See [RuleSpec.md](RuleSpec.md) for these checks and guard matching behavior.
   #|
-  #|### Rule Disabling
+  #|### Rule disabling
   #|
   #|All selected sources are loaded before `--disable` is applied. Disabled ids are
   #|compared exactly and case-sensitively against the combined loaded rule ids on
@@ -205,9 +204,9 @@ let _embed_clispec_md : String =
   #|planning. Repeated disabled ids are treated as one. Verbose loaded-rule events
   #|describe the rules that remain enabled.
   #|
-  #|## File Traversal
+  #|## File traversal
   #|
-  #|### File and Directory Targets
+  #|### File and directory targets
   #|
   #|For a directory target, moongrep examines child entries recursively. It parses
   #|regular files whose path ends in lowercase `.mbt` and ignores other entries.
@@ -216,7 +215,7 @@ let _embed_clispec_md : String =
   #|A missing or unreadable target is a runtime failure. An existing regular file
   #|whose path has another suffix completes successfully with no findings.
   #|
-  #|### Traversal Order and Symbolic Links
+  #|### Traversal order and symbolic links
   #|
   #|Directory entries are sorted, then visited with depth-first traversal. The
   #|scanner completely traverses one entry before visiting the next sibling.
@@ -229,7 +228,7 @@ let _embed_clispec_md : String =
   #|per scan. Symbolic-link cycles and later aliases of an already visited
   #|directory are skipped.
   #|
-  #|### Default Directory Exclusions
+  #|### Default directory exclusions
   #|
   #|When considering a child entry, moongrep applies these default exclusions at
   #|every depth:
@@ -279,7 +278,7 @@ let _embed_clispec_md : String =
   #|Exclusions apply only to children discovered during directory traversal; an
   #|explicitly selected scan root is still inspected.
   #|
-  #|## Source Processing
+  #|## Source processing
   #|
   #|### Prefiltering
   #|
@@ -291,7 +290,7 @@ let _embed_clispec_md : String =
   #|Only source retained by the file and block prefilters can produce parse or
   #|attribute warnings.
   #|
-  #|### Source Blocks and Parse Warnings
+  #|### Source blocks and parse warnings
   #|
   #|A source line beginning with `///|` in column 1 starts a source block. The
   #|delimiter line belongs to the following block. Indented `///|` text stays in
@@ -321,9 +320,9 @@ let _embed_clispec_md : String =
   #|Attribute inspection runs after prefiltering and successful parsing. Warnings
   #|therefore come from parsed blocks retained by the prefilters.
   #|
-  #|## Output Streams and Ordering
+  #|## Output streams and ordering
   #|
-  #|### Standard Output
+  #|### Standard output
   #|
   #|During `scan` and `lint`, findings are written to standard output as they are
   #|found. Human mode writes `no match hits` for a scan with zero findings. JSON
@@ -333,7 +332,7 @@ let _embed_clispec_md : String =
   #|written to standard output. A successful `dump --exit-code` check, including
   #|any requested strict pattern validation, leaves both output streams empty.
   #|
-  #|### Standard Error and Verbose Events
+  #|### Standard error and verbose events
   #|
   #|Every failure diagnostic that terminates the command with a nonzero status is
   #|written to standard error. This includes command-line usage, unknown-document,
@@ -353,7 +352,7 @@ let _embed_clispec_md : String =
   #|mode, standard error contains `trace`, `warning`, and `error` JSON Lines records
   #|instead. Standard output contains only `finding` records.
   #|
-  #|### Streaming Order
+  #|### Streaming order
   #|
   #|One complete finding is written before traversal resumes. In human mode, a
   #|blank line separates consecutive findings. In JSON mode, every finding is one
@@ -365,9 +364,9 @@ let _embed_clispec_md : String =
   #|error therefore exposes traversal order, subject to the shell or caller's
   #|normal handling of two streams.
   #|
-  #|## Human-Readable Output
+  #|## Human-readable output
   #|
-  #|### Finding Layout
+  #|### Finding layout
   #|
   #|Each finding has this structure:
   #|
@@ -390,7 +389,7 @@ let _embed_clispec_md : String =
   #|separate columns rather than being grouped into grapheme clusters. The start is
   #|inclusive and the end is exclusive.
   #|
-  #|### Source Context and Long Matches
+  #|### Source context and long matches
   #|
   #|Source context contains up to two lines before the first matched line, every
   #|displayed matched line, and up to two lines after the last matched line. Line
@@ -415,7 +414,7 @@ let _embed_clispec_md : String =
   #|
   #|## JSON Lines Output
   #|
-  #|### Protocol and Mode Detection
+  #|### Protocol and mode detection
   #|
   #|For `scan`, `lint`, and `dump`, `--json` selects structured output. The
   #|option must be a standalone argument before an option terminator. For example,
@@ -432,7 +431,7 @@ let _embed_clispec_md : String =
   #|missing option value, or another parsing failure is therefore rendered as an
   #|`error` record when a qualifying `--json` was present.
   #|
-  #|### Finding Records
+  #|### Finding records
   #|
   #|Each finding is written to standard output with this structure:
   #|
@@ -456,7 +455,7 @@ let _embed_clispec_md : String =
   #|The finding record contains exactly the fields shown above. Trailing newline
   #|characters are removed from `description`.
   #|
-  #|### Warning Records
+  #|### Warning records
   #|
   #|Warnings are written to standard error. A source parse warning has category
   #|`parse` and fields `type`, `category`, `message`, `file`, and `reason`; it also
@@ -472,7 +471,7 @@ let _embed_clispec_md : String =
   #|  "file": string, "range": range }
   #|```
   #|
-  #|### Trace Records
+  #|### Trace records
   #|
   #|With `--verbose`, trace records are written to standard error before or during
   #|traversal:
@@ -484,7 +483,7 @@ let _embed_clispec_md : String =
   #|{ "type": "trace", "event": "file_started", "path": string }
   #|```
   #|
-  #|### Dump Records
+  #|### Dump records
   #|
   #|A successful `dump --json` command writes exactly one record to standard
   #|output:
@@ -503,7 +502,7 @@ let _embed_clispec_md : String =
   #|Invalid input, strict pattern validation, and usage failures use the error
   #|record below.
   #|
-  #|### Error Records
+  #|### Error records
   #|
   #|A fatal failure is written to standard error as:
   #|
@@ -520,7 +519,7 @@ let _embed_clispec_md : String =
   #|are omitted. Pattern line endings are normalized to LF and one trailing line
   #|ending is removed, as in human mode.
   #|
-  #|### Coordinates and Source Text
+  #|### Coordinates and source text
   #|
   #|JSON range coordinates use the same 1-based Unicode code point columns as human
   #|output, including the non-BMP and combining-mark rules above. `range.start` is
@@ -531,7 +530,7 @@ let _embed_clispec_md : String =
   #|used by human output. `is_match` is true for every physical line intersected
   #|by the range, even when only part of the first or last line is matched.
   #|
-  #|### No-Match Behavior
+  #|### No-match behavior
   #|
   #|Every JSON record ends with one newline. A scan with zero findings writes zero
   #|bytes to standard output. Warning, trace, or error records may still be written
@@ -575,10 +574,9 @@ let _embed_clispec_md : String =
   #|MoonBit expression. Both forms require a parse without diagnostics or recovery
   #|nodes.
   #|
-  #|Without `--strict-check`, these parse checks are the complete validation and
-  #|the command behaves as before. With `--strict-check`, `dump` performs the parse
-  #|checks first and then applies the additional pattern validation used by
-  #|`scan`. For `--expr`, the input is compiled as an ordinary structural
+  #|Without `--strict-check`, validation ends after these parse checks.
+  #|With `--strict-check`, `dump` parses the input and then applies the pattern
+  #|validation used by `scan`. For `--expr`, the input is compiled as an ordinary structural
   #|expression pattern. For `--impl`, it is compiled with the default
   #|`inside-toplevel` semantics: the shape must contain exactly one `__TARGET__`
   #|in a supported expression position, and function shapes use the default
@@ -589,8 +587,8 @@ let _embed_clispec_md : String =
   #|renders the CST node produced by the first parse, so enabling `--strict-check`
   #|does not change text or JSON dump content.
   #|
-  #|On success, text mode writes the MoonBit `Repr` debug rendering of the resulting
-  #|untyped CST node to standard output in CST debug text format. With
+  #|On success, text mode writes the resulting untyped CST node's MoonBit `Repr`
+  #|debug text to standard output. With
   #|`--json`, the same rendering is the `content` of one compact `dump`
   #|record whose `kind` is `impl` or `expr`.
   #|
@@ -613,9 +611,8 @@ let _embed_clispec_md : String =
   #|
   #|## Diagnostics and Exit Status
   #|
-  #|moongrep uses one fixed status for each actionable failure category:
-  #|
-  #|In human mode, fatal diagnostics for statuses 1 through 8 use this layout:
+  #|moongrep assigns a fixed exit status to each failure category. In human mode,
+  #|fatal diagnostics for statuses 1 through 8 use this layout:
   #|
   #|```text
   #|error: <summary>
@@ -662,7 +659,7 @@ let _embed_clispec_md : String =
   #|| 7 | Output failure |
   #|| 8 | Incomplete taint analysis with `--strict-taint` |
   #|
-  #|### Exit Status 0
+  #|### Exit status 0
   #|
   #|Status 0 means the requested command completed successfully. It includes:
   #|
@@ -676,13 +673,13 @@ let _embed_clispec_md : String =
   #|
   #|`lint` returns status 0 for findings and source warnings.
   #|
-  #|### Exit Status 1
+  #|### Exit status 1
   #|
   #|Status 1 is reserved for internal failures. It includes a damaged embedded
   #|builtin rule, an unreachable command state, and any unexpected error that has
   #|not been assigned to another category.
   #|
-  #|### Exit Status 2
+  #|### Exit status 2
   #|
   #|Status 2 means command-line selection or validation failed. It includes:
   #|
@@ -694,20 +691,20 @@ let _embed_clispec_md : String =
   #|- an unknown embedded document; and
   #|- an unknown rule id requested by `--disable`.
   #|
-  #|### Exit Status 3
+  #|### Exit status 3
   #|
   #|Status 3 means `dump` received invalid MoonBit input. Lexical or syntax
   #|diagnostics, recovery nodes, and an `--impl` result containing anything other
   #|than one top-level item use this status. These checks run before strict pattern
   #|validation.
   #|
-  #|### Exit Status 4
+  #|### Exit status 4
   #|
   #|Status 4 means a requested rule source could not be used. It covers a missing,
   #|unreadable, or incorrectly typed rule path, directory traversal or rule-file
   #|reading failures, and a rule directory containing no YAML files.
   #|
-  #|### Exit Status 5
+  #|### Exit status 5
   #|
   #|Status 5 means rule content is invalid. It covers YAML parsing, schema and
   #|duplicate-id validation, an unsupported single-file `--rule` suffix, and pattern
@@ -715,14 +712,14 @@ let _embed_clispec_md : String =
   #|anonymous command-line patterns and to `dump --strict-check` pattern failures.
   #|A failure in the embedded builtin rules instead uses status 1.
   #|
-  #|### Exit Status 6
+  #|### Exit status 6
   #|
   #|Status 6 means scan input could not be read. It covers a missing scan root,
   #|directory traversal failures, and MoonBit source-file reading failures. A
   #|MoonBit source parse failure encountered during scanning remains a warning and
   #|returns status 0.
   #|
-  #|### Exit Status 7
+  #|### Exit status 7
   #|
   #|Status 7 means writing standard output or standard error failed, including a
   #|broken pipe. If writing an original failure diagnostic to standard error also

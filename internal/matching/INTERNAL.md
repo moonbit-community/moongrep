@@ -1,10 +1,10 @@
-# matching Internal Notes
+# Matcher internals
 
-This document records implementation details that are easy to miss when
-changing the `internal/matching` package. It is for maintainers of the matcher and its
-callers, not for rule authors.
+The `internal/matching` package compares CST patterns and manages captures.
+These notes cover details that maintainers of the matcher and its callers need
+when changing that behavior.
 
-## Match State
+## Match state
 
 `match_expr_pattern` converts its raw node to an expression candidate and
 delegates to `match_expr_pattern_candidate`. The candidate entry point starts
@@ -20,8 +20,8 @@ The caller's map remains unchanged.
 Sequence locations merge the first and last statement and therefore exclude
 container braces.
 
-Ordinary nodes bind as they walk left to right. Ordered child lists use a small
-backtracking matcher when they contain ellipses: each candidate length runs
+The matcher binds ordinary nodes from left to right. Ordered child lists use
+backtracking when they contain ellipses: each candidate length runs
 against a copied binding map, and only the first complete successful branch is
 committed. Indexed matching uses the same atomic implementation and copies a
 `MatchContext` containing both captures and an optional `TargetRef`.
@@ -41,7 +41,7 @@ normalized identity nodes and the distinction between `Single` and `Multiple`.
 Its hash table compares complete keys on collisions. Rule environments use
 these identities for sharing; queries continue to return original values.
 
-## Placeholder Dispatch
+## Placeholder dispatch
 
 Expression matching first calls placeholder matchers such as
 `match_expr_placeholder` and `match_type_placeholder`. If one returns
@@ -82,7 +82,7 @@ parsed `expr` subtree, and the matcher handles it through normal recursive CST
 matching. The same binding map flows through every segment, so repeated
 captures across interpolation segments retain their normal equality semantics.
 
-## Binding Kinds
+## Binding kinds
 
 The public `model` package defines `BoundValue` as either `Single(CstNode)` or
 `Multiple(Array[CstNode])`.
@@ -119,7 +119,7 @@ metavars bind whole pattern nodes. Type metavars bind whole type nodes.
 Repeated constant, pattern, and type captures use the same semantic-CST equality
 as all other bindings.
 
-## Equality Is Location-Insensitive
+## Comparing captures
 
 The matcher ignores source locations when comparing repeated expression,
 argument, pattern, and type captures. Repeated binding comparison is handled by
@@ -132,7 +132,7 @@ require the same kind and recursively compare the semantic child view,
 including constructor arguments. Leaf payloads remain significant. Locations
 never enter this view.
 
-## Semantic CST View
+## Semantic CST view
 
 The matcher does not compare raw `CstNode.children`. `@cst.semantic_children`
 removes `doc` fields and filters `Syntax_Token` nodes for `TK_EOF`,
@@ -186,7 +186,7 @@ matchable.
 Most semantic CST nodes require the same node kind and exact semantic child
 list length. Child labels and ordering are significant.
 
-Notable exactness details:
+Matching follows these rules:
 
 - argument kind must match; labels must also match, and a declared label
   placeholder can capture a varying label
@@ -200,7 +200,7 @@ Notable exactness details:
 Equivalent code with a different semantic CST shape does not match. A
 placeholder can absorb the structural difference.
 
-## Integration Notes
+## Integration notes
 
 When changing placeholder behavior, update all three places that know about
 placeholder names:
@@ -222,6 +222,5 @@ When adding support for a new CST node:
 6. add `internal/rule/apply` or taint integration tests if compiled rule behavior
    changes
 
-For matcher-only changes, `moon test internal/matching/matching_test.mbt` is the tight
-loop. For behavior visible through YAML rules, also test the relevant caller
-package.
+Run `moon test internal/matching/matching_test.mbt` for matcher changes. If a
+change affects YAML rule behavior, also test the relevant caller package.

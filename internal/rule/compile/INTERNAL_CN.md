@@ -1,11 +1,11 @@
 # internal/rule/compile 内部说明
 
-本文记录修改 `internal/rule/compile` 包时容易遗漏的实现细节。它面向规则编译器及其调用方的维护者，
-不面向规则作者。
+`internal/rule/compile` 在匹配前校验并规范化模式。以下说明介绍其实现，以及
+调用方依赖的约定。
 
 ## 包职责
 
-`internal/rule/compile` 是 pattern 源文本与可执行 matcher / 规则之间的校验与规范化边界。
+`internal/rule/compile` 将模式源码校验、规范化为可执行的匹配器模式或规则。
 
 这个包提供三个公开入口：
 
@@ -19,7 +19,7 @@
 `compile_inside_toplevel_pattern` 对一个顶层 shape 执行同样的直接编译，并使用
 默认 `inside-toplevel` match mode 和 target 占位符校验。
 
-编译职责有意保持收窄。这个包会：
+编译器负责：
 
 - 检查重复 rule id
 - 把普通规则 `shape` 解析成 MoonBit 表达式，并把每个
@@ -63,7 +63,7 @@ partial matching。该入口不接受 guard 或显式 match mode。
 `compile_metavar_shape` 编译；`structural_visible_shapes` 校验继承捕获并构造可见环境。
 group 编译器根据条目是否带有 `then` 主体校验 `__TARGET__`，并编译 guard 和 matcher pattern。
 
-## Shape 解析
+## 模式解析
 
 `collect_shape_metavars` 先使用以下 lexer 配置：
 
@@ -86,9 +86,8 @@ metavar，收集器会遍历 parser CST，并使用全局起点、`is_interpolat
 片段的 `expr` 子树时也会透传同一 metavar 模式，包括嵌套插值。因此校验和上下文识别
 可以直接使用原始 CST。
 
-和 CST 迁移前一样，`Type_Name` 必须从大写 identifier token 开始。因此显式
-`type` metavar 和带 `type` kind 的 ellipsis metavar 都必须使用大写名称；小写名称
-和关键字名称仍会被 parser 拒绝。
+`Type_Name` 必须以大写标识符 token 开始。因此，显式 `type` 元变量和带 `type`
+类别的省略号元变量都必须使用大写名称；解析器会拒绝小写名称和关键字名称。
 
 普通 `patterns`、`patterns-not`、每个 `then` 条目和 taint 子句的 shape
 都必须正好是一个 MoonBit 表达式。每个 `inside-toplevel` shape 必须正好是一个
@@ -102,7 +101,7 @@ metavar，收集器会遍历 parser CST，并使用全局起点、`is_interpolat
 
 即使 parser 没有生成诊断，编译器也会拒绝 recovery 节点（`Missing` 和 `Error`）。
 
-## Metavar 上下文
+## 元变量上下文
 
 Metavar 编译会按记录的源码 span 在 CST 中定位每个出现位置，并从节点路径推导
 上下文。上下文记录 expression、identifier、pattern、type、whole-argument、
@@ -110,7 +109,7 @@ binder-only、qualified-name 和 ordered-list 信息。kind 校验只使用这�
 不会修改或重建只读 CST。插值表达式节点及其 metavar span 已使用全局源码偏移，
 因此所有 occurrence 都使用同一个 CST 根节点。
 
-Bare kind 推断有意保守：
+省略类别的元变量按以下规则推断：
 
 - 显式声明为 `pat`、`exp`、`id`、`const`、`arg` 或 `type` 的名称保持该 kind
 - bare identifier 位置推断为 `id`
@@ -123,7 +122,7 @@ Bare kind 推断有意保守：
 并在后续表达式位置复用该 kind。它也会拒绝 `$item => body` 这种普通 match
 pattern，因为该位置在 `id`、`const` 和 `pat` 之间有歧义。
 
-## Metavar Kind
+## 元变量类别
 
 当前只支持以下 inline kind：
 
@@ -155,9 +154,10 @@ Inline 声明不能使用：
 完整且未限定的 `$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural
 inside-context 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
 
-以下划线开头不会自动成为保留名称。`__moongrep_value` 等名称不是保留名称。上面列出的精确内置名是保留名称。
+只有上面列出的完整内置名称被保留。`__moongrep_value` 等以下划线开头的名称
+仍可使用。
 
-## Structural Rule
+## 结构规则
 
 StructuralRuleSpec 保存 inside_toplevel 和递归 StructuralPatternGroupSpec。
 正向 StructuralPatternSpec 包含原子 RulePatternSpec 与可选 then_body；负向
@@ -187,7 +187,7 @@ Guard 只能引用 `id` 和 `const` 捕获。它不能引用：
 这是规则编译器层面的限制。`internal/rule/apply` 中的 guard 求值期望从规范化 identifier
 或 constant 中得到类似字符串的值。它不接受任意 expression、pattern、argument 或 type CST。
 
-## Taint Rule
+## 污点规则
 
 每个 taint source、sink 和 sanitizer shape 都必须编译成顶层 call CST：
 
@@ -212,7 +212,7 @@ call argument，并用 label 确认选中的是同一个 labelled slot。
 
 ## 集成边界
 
-有几个包会有意共享同一套占位符语义：
+以下包共享同一套占位符语义：
 
 - `internal/rule/compile` 解析和校验 inline 语法、`__TARGET__`、`__SOURCE__`
 - `matching` 实现实际的占位符匹配和绑定行为
@@ -258,6 +258,6 @@ call argument，并用 label 确认选中的是同一个 labelled slot。
    `internal/matching/INTERNAL.md` 的说明同步
 4. 添加编译期校验测试和规则应用测试
 
-对于 package-local 的校验工作，`moon test internal/rule/compile` 是最短反馈循环。
-对于通过已加载 YAML 规则可见的行为，还要测试 `internal/rule/apply`、`internal/rule/taint_lowering`
-以及相关 e2e snapshot。
+修改校验逻辑后，运行 `moon test internal/rule/compile`。如果改动影响已加载的
+YAML 规则行为，还需测试 `internal/rule/apply`、`internal/rule/taint_lowering`
+及相关端到端快照。

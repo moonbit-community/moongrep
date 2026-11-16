@@ -1,48 +1,40 @@
-# Project Agents.md Guide
+# Project guide
 
 This is a [MoonBit](https://docs.moonbitlang.com) project.
 
-## Project Structure
+## Project structure
 
-- MoonBit packages are organized per directory, for each directory, there is a
-  `moon.pkg` file listing its dependencies. Each package has its files and
-  blackbox test files (common, ending in `_test.mbt`) and whitebox test files
-  (ending in `_wbtest.mbt`).
+- Each MoonBit package has its own directory and a `moon.pkg` file listing its
+  dependencies. Blackbox tests use the `_test.mbt` suffix; whitebox tests use
+  `_wbtest.mbt`.
 
-- In the toplevel directory, there is a `moon.mod` file containing module
-  metadata.
+- The root `moon.mod` file contains the module metadata.
 
 ## Coding convention
 
-- MoonBit code is organized in block style, each block is separated by `///|`,
-  the order of each block is irrelevant. In some refactorings, you can process
-  block by block independently.
+- Separate top-level MoonBit blocks with `///|`. Block order does not affect
+  behavior, so some refactorings can handle each block independently.
 
-- Try to keep deprecated blocks in file called `deprecated.mbt` in each
-  directory.
+- Keep deprecated blocks in each package's `deprecated.mbt` file when practical.
 
 ## Documentation style
 
-- When writing documentation, keep the prose as plain and straightforward as
-  possible.
+- Use plain, straightforward prose.
 
 ## Tooling
 
-- `moon fmt` is used to format your code properly.
+- Use `moon fmt` to format code.
 
-- `moon info` is used to update the generated interface of the package, each
-  package has a generated interface file `.mbti`, it is a brief formal
-  description of the package. If nothing in `.mbti` changes, this means your
-  change does not bring the visible changes to the external package users, it is
-  typically a safe refactoring.
+- Use `moon info` to update each package's generated `.mbti` interface file.
+  An unchanged `.mbti` means the package's public interface has not changed,
+  which is usually expected for a safe refactoring.
 
 - In the last step, run `moon info && moon fmt` to update the interface and
   format the code. Check the diffs of `.mbti` file to see if the changes are
   expected.
 
-- Run `moon test` to check the test is passed. MoonBit supports snapshot
-  testing, so when your changes indeed change the behavior of the code, you
-  should run `moon test --update` to update the snapshot.
+- Run `moon test` to check the tests. If a deliberate behavior change affects
+  snapshots, run `moon test --update` to update them.
 
 - Run the e2e tests from the project root (Bash):
 
@@ -61,10 +53,8 @@ This is a [MoonBit](https://docs.moonbitlang.com) project.
   directory with `#cwd(path)` at the start of a block. Environment variables
   are inherited but are not expanded in command arguments.
 
-- You can run `moon check` to check the code is linted correctly.
+- Run `moon check` to check for compiler diagnostics.
 
-- When writing tests, you are encouraged to use `inspect` and run
-  `moon test --update` to update the snapshots, only use assertions like
-  `assert_eq` when you are in some loops where each snapshot may vary. You can
-  use `moon coverage analyze > uncovered.log` to see which parts of your code
-  are not covered by tests.
+- Prefer `inspect` in tests, then run `moon test --update` to update snapshots.
+  Use assertions such as `assert_eq` in loops where snapshots may vary. Run
+  `moon coverage analyze > uncovered.log` to find code without test coverage.

@@ -15,21 +15,22 @@ description: 使用 moongrep 对 MoonBit 源码进行结构化搜索和污点分
 moongrep lint
 ```
 
-`lint` 是加载内置规则的命令。它默认扫描当前目录，并接受 `scan` 的其他选项，
+`lint` 加载内置规则，默认扫描当前目录。它也接受 `scan` 的其他选项，
 用于添加自定义规则、过滤结果或调整输出格式。
 
 要进行结构化搜索，可以在 MoonBit 项目根目录运行 `scan` 命令。默认情况下，
 它会递归扫描，并跳过 Git 和 MoonBit 工具链生成的目录。使用 `--pattern`
-选项指定一个*表达式模式*进行匹配。例如，下面这条命令匹配典型的对 Option
-类型的值进行 `match` 的表达式。
+选项指定表达式模式。例如，下面的命令查找对 Option 类型的值进行 `match`
+的表达式：
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
-注:当前文档的示例均使用最直接的命令形式`moongrep`, 如果需要使用wasm cli, 请把`moongrep`替换为`moonx moonbit-community/moongrep --`.
+示例使用已安装的 `moongrep` 可执行文件。如需使用 WebAssembly CLI，
+请将 `moongrep` 替换为 `moonx moonbit-community/moongrep --`。
 
-moongrep的工作模式是一边扫描一边直接输出扫描结果, 对于人类用户, 如果想获得较好的终端阅读体验, 请结合less等终端pager使用。
+moongrep 边扫描边输出结果。可以将输出传给 less 等分页工具，方便在终端中阅读。
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }' | less -R
@@ -37,7 +38,9 @@ moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:ex
 
 ## 表达式模式和元变量
 
-`moongrep`会将表达式模式和待扫描的 MoonBit 代码解析成抽象语法树（CST），然后比较两棵语法树的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
+`moongrep` 将表达式模式和待扫描的 MoonBit 代码解析成无类型的具体语法树（CST），
+然后比较它们的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配
+和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
 
 元变量使用以下格式：
 
@@ -45,7 +48,8 @@ moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:ex
 $(name:kind)
 ```
 
-`name`是元变量的名称。匹配成功后，当前位置上的代码会记录在这个名称下。`kind`指定允许匹配的语法节点类别。
+`name` 是元变量名称，匹配成功后用来记录该位置的代码。`kind` 指定允许匹配的
+语法节点类别。
 
 常用的 `kind` 包括：
 
@@ -118,14 +122,14 @@ user.name == other.name
 
 ## 结构化输出
 
-默认情况下，moongrep输出为人类用户准备的报告。如果希望让Coding Agent读取moongrep的输出, 请加上`--json`选项.
+moongrep 默认输出供人阅读的报告。使用 `--json` 可以让编程智能体读取输出：
 
 ```bash
 moongrep scan --pattern 'inspect($_, content="true")' --json
 moongrep dump --json --expr 'x + 1'
 ```
 
-JSON 模式下，每个非空应用输出行都是一个紧凑 JSON object。对于 `scan` 和
+JSON 模式下，每个非空的程序输出行都是一个紧凑的 JSON 对象。对于 `scan` 和
 `lint`，标准输出只包含 `finding` 记录；对于 `dump`，成功且未启用 exit-code
 模式时会在标准输出写出一条 `dump` 记录。标准错误只包含 `trace`、`warning` 和
 `error` 记录。没有命中时标准输出为空。记录按遍历顺序流式写出，后续失败不会
@@ -143,9 +147,9 @@ error:   { "type":"error", "category", "exit_code", "message",
            ...可选诊断字段 }
 ```
 
-warning category 是 `parse` 和 `invalid_skip_payload`。trace event 是
-`rule_loaded`、`directory_entered`、`path_skipped` 和 `file_started`。error
-category 是 `internal`、`usage`、`dump_input`、`rule_source`、
+警告类别为 `parse` 和 `invalid_skip_payload`。跟踪事件为
+`rule_loaded`、`directory_entered`、`path_skipped` 和 `file_started`。错误
+类别为 `internal`、`usage`、`dump_input`、`rule_source`、
 `rule_content`、`scan_input` 和 `output`。
 
 CLI 会在完整解析前识别首个命令为 `scan`、`lint` 或 `dump` 时的独立
@@ -154,7 +158,7 @@ CLI 会在完整解析前识别首个命令为 `scan`、`lint` 或 `dump` 时的
 
 ## 模式附加条件
 
-`--guard`选项可以为表达式模式添加额外的筛选条件，筛选条件的对象是表达式模式里面的元变量捕获的内容。
+`--guard` 用于筛选表达式模式中元变量捕获的值。
 
 下面的例子使用 `--guard` 查找预期值为数字的 `inspect` 调用。
 
@@ -162,28 +166,37 @@ CLI 会在完整解析前识别首个命令为 `scan`、`lint` 或 `dump` 时的
 moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
 ```
 
-`--guard`的参数是一个YAML Map，通常紧跟在需要筛选的`--pattern`之后：
+`--guard` 的参数是 YAML 映射，通常紧跟在需要筛选的 `--pattern` 之后：
 
 ```text
 --pattern '...$(name:id)...$(value:const)...' \
 --guard '{$name: "正则表达式", $value: "正则表达式"}'
 ```
 
-映射的键必须是模式中已经声明的具名元变量，并保留`$`前缀；映射的值必须是正则表达式字符串。建议用单引号包住整个YAML Map，避免shell展开`$name`，再用双引号包住其中的正则字符串。双引号YAML字符串中的反斜杠需要转义，例如正则中的`\.`要写成`\\.`。
+映射的键必须是模式中已声明的具名元变量，并保留 `$` 前缀；值必须是正则表达式
+字符串。用单引号包住整个 YAML 映射，避免 shell 展开 `$name`，再用双引号包住
+正则字符串。YAML 双引号字符串中的反斜杠需要转义，例如正则中的 `\.` 要写成
+`\\.`。
 
-目前guard只能筛选`id`和`const`捕获，不能筛选`exp`、`arg`、`pat`、`type`、ellipsis捕获或`$_`。对于`id`捕获，正则匹配的是归一化后的标识符，例如`name`或`@pkg.name`；对于`const`捕获，正则匹配的是parser得到的常量值，例如字符串字面量`"raw"`对应`raw`，数字`42`对应`42`，布尔值`true`对应`true`。
+目前 guard 只能筛选 `id` 和 `const` 捕获，不能筛选 `exp`、`arg`、`pat`、`type`、
+省略号捕获或 `$_`。对于 `id` 捕获，正则匹配规范化后的标识符，例如 `name` 或
+`@pkg.name`。对于 `const` 捕获，正则匹配解析器得到的常量值：字符串字面量
+`"raw"` 对应 `raw`，数字 `42` 对应 `42`，布尔值 `true` 对应 `true`。
 
-正则默认使用包含匹配语义。例如`"raw"`也会匹配`"draw"`；需要匹配整个捕获值时，应使用`^`和`$`，写成`"^raw$"`。同一个映射中的多个条件必须全部满足，因此可以同时限定函数名和参数：
+正则默认匹配子串。例如 `"raw"` 也会匹配 `"draw"`。要匹配整个捕获值，使用
+`^` 和 `$`，写成 `"^raw$"`。同一映射中的条件必须全部满足，因此可以同时限定
+函数名和参数：
 
 ```bash
 moongrep scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@html\\.render$", $value: "^(danger|raw)$"}'
 ```
 
-每个`--pattern`最多接受一个`--guard`。如果需要扫描多个带筛选条件的模式，应按`--pattern`、`--guard`成对书写；一个模式需要多个条件时，应把它们放在同一个YAML Map中。
+每个 `--pattern` 最多接受一个 `--guard`。扫描多个带筛选条件的模式时，按
+`--pattern`、`--guard` 成对书写；同一模式的多个条件放在同一个 YAML 映射中。
 
 ## 打印 CST
 
-MoonBit `untyped_cst` 调试 dump 可通过 `dump` 子命令使用：
+使用 `dump` 子命令打印 MoonBit `untyped_cst` 调试输出：
 
 ```bash
 moongrep dump --impl 'fn answer { 42 }'

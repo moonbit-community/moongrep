@@ -59,13 +59,14 @@ and candidate/region caches. Public CST queries use the same direct traversal.
 Direct traversal and ordinary indexed traversal share one private semantic
 kernel; the indexed adapter maps its candidates back to cached source regions.
 
-Release timing is a publication check, not a CI gate. Compare alternating builds
-on the same host and MoonBit toolchain, run each build three times, and use the
+Use release timings to check performance before publication. CI uses deterministic
+checks. Compare alternating builds on the same host and MoonBit toolchain,
+run each build three times, and use the
 median benchmark mean. Ordinary structural and query cases must remain within
 1.15 times the pre-index baseline. Recursive failure must remain within 1.10
 times the indexed baseline, and the builtin mixed case within 1.05 times that
 baseline. CI checks findings, order, candidate traversal compatibility, and cache
-expansion counts instead of elapsed time.
+expansion counts.
 
 Measured on Windows on 2026-09-14 with `moon 0.1.20260907`. Runs alternated
 between extracted baseline trees and the working tree. The ordinary and query
@@ -108,12 +109,12 @@ deviation; they are observations, not CI thresholds.
 
 The recursive failure case improved by about 800× on native and 850× on wasm.
 The small ordinary and query cases take about twice as long, and the builtin
-fixture about three times as long. They pay the index and cache setup cost with
-little repeated work to eliminate. The state-count guarantee addresses repeated
+fixture about three times as long. These cases incur index and cache setup costs
+while eliminating little repeated work. The state-count guarantee addresses repeated
 semantic evaluations; it does not promise lower latency for every short scan.
 
 RSS was measured with `/usr/bin/time -f %M` around the already-built native
-test executable or `moonrun`, not around compilation. It includes rule parsing,
+test executable or `moonrun`. The measurements exclude compilation and include rule parsing,
 runtime startup, benchmark warmup, and allocator/GC high-water marks. Faster cases
 use larger batches; these are process measurements, not live bytes per scan.
 Wasm process RSS also includes the runtime and can rise despite shorter scans.
