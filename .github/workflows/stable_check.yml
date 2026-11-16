@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [linux, windows]
-    runs-on: [self-hosted, "${{ matrix.os }}"]
+        os: [ubuntu-latest, windows-latest]
+    runs-on: "${{ matrix.os }}"
     continue-on-error: false
     env:
       NO_COLOR: "1"
