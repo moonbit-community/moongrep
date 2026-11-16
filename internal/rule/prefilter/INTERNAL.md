@@ -1,9 +1,9 @@
-# internal/rule/prefilter Internal Notes
+# Rule prefilter internals
 
-This document records implementation details that are easy to miss when
-changing the `internal/rule/prefilter` package.
+The `internal/rule/prefilter` package skips rules whose required literals are
+absent from the source. Its filters must preserve every possible match.
 
-## Package Role
+## Package role
 
 `internal/rule/prefilter` builds and evaluates conservative source-text filters for
 compiled rules and standalone compiled expression patterns.
@@ -19,16 +19,15 @@ negatives. It does not parse source, compare CST structure, evaluate guards, or
 analyze taint flow.
 
 `internal/rule/compile` calls `compile_rule_prefilter` only after a
-`CompiledRuleDefinition` has been built. This ordering is important because the
-compiled patterns contain the normalized CST, metavar sets, reserved
-target/source placeholders, and ignored matcher fields needed for safe literal
-extraction.
+`CompiledRuleDefinition` has been built. The compiled patterns contain the
+normalized CST, metavar sets, reserved target/source placeholders, and ignored
+matcher fields needed for safe literal extraction.
 
 Callers that already have one `CompiledExprPattern` use
 `compile_expr_pattern_prefilter`. It applies the same literal extraction but
 creates only one alternative and does not require a synthetic rule.
 
-## Representation and Evaluation
+## Representation and evaluation
 
 `RulePrefilter.alternatives` is a disjunction of conjunctions:
 
@@ -65,7 +64,7 @@ search. `internal/rule/apply` uses it with `StringView::contains` and a per-filt
 literal cache, so a literal shared by several rules is searched only once
 during that call.
 
-## Standalone Expression Pattern Compilation
+## Standalone expression pattern compilation
 
 `compile_expr_pattern_prefilter` extracts the required literals from one
 `CompiledExprPattern` and stores them as one alternative:
@@ -78,7 +77,7 @@ A pattern made only of metavars produces an empty inner alternative and stays
 relevant for every source. This is the same conservative behavior as an
 unfilterable pattern inside a compiled structural rule.
 
-## Structural Rule Compilation
+## Structural rule compilation
 
 Each positive root-to-leaf path contributes one alternative. Literal
 requirements from shapes along that path are combined with AND; paths are
@@ -93,7 +92,7 @@ success prunes a positive subtree. Existence scans without negative constraints
 stop at the first success; groups with negatives scan all uncovered regions
 before succeeding. Findings use the root entry index and location.
 
-## Taint Rule Compilation
+## Taint rule compilation
 
 `compile_taint_prefilter` creates the Cartesian product of taint sources and
 sinks:
@@ -108,15 +107,14 @@ that selected pair are safe coarse prerequisites. This check says nothing
 about evaluation order, scope, data flow, or whether the sink receives the
 source value.
 
-Sanitizers are intentionally excluded. A sanitizer is not required for a taint
-finding, and demanding its text would discard exactly the unsanitized cases the
-rule is meant to report.
+Sanitizer literals are excluded because a taint finding does not require a
+sanitizer. Requiring its text would discard unsanitized cases.
 
 If a source or sink pattern yields no literals, the resulting empty or partial
 alternative preserves conservative behavior. The compiled `__SOURCE__`
 placeholder is excluded during literal collection.
 
-## Required Literal Extraction
+## Required literal extraction
 
 `required_literals_from_compiled_pattern` walks the compiled
 `@untyped_cst.CstNode`, not the original YAML shape. This keeps literal extraction
@@ -154,13 +152,12 @@ contain metavars, are reached through normal recursion over the parser-provided
 `expr` subtree. Fixed literals around a metavar therefore remain usable without
 any separate parse.
 
-## Placeholders and Ignored Fields
+## Placeholders and ignored fields
 
 A name must not be collected when the matcher can replace it with arbitrary
-source. `is_filter_placeholder` excludes:
-
-- every single, ellipsis, wildcard, or special expression placeholder resolved
-  by the compiled pattern's `MetavarRegistry`
+source. `is_filter_placeholder` excludes every single, ellipsis, wildcard, or
+special expression placeholder resolved by the compiled pattern's
+`MetavarRegistry`.
 
 Only exact `$_` has spelling-based underscore semantics. An ordinary
 all-underscore identifier such as `__` remains a required literal.
@@ -181,7 +178,7 @@ that is a conservative false positive and the final CST matcher rejects it.
 When placeholder or ignored-field behavior changes in `matching` or
 `internal/rule/compile`, the prefilter must change in the same patch.
 
-## Runtime Consumers
+## Runtime consumers
 
 The main consumers use the same compiled Boolean expression at different
 granularities:
@@ -199,7 +196,7 @@ granularities:
 Filtering a previously filtered `ScanPlan` is safe: it can only remove more
 entries for the narrower source slice and does not mutate the original plan.
 
-## Soundness Invariant
+## Soundness invariant
 
 Returning `false` can prevent parsing and all later rule evaluation. Every
 collected literal must therefore satisfy this condition:
@@ -219,7 +216,7 @@ Removing an anchor or making an alternative empty is conservative: it may cost
 performance but cannot hide a finding. Adding an anchor or strengthening a
 conjunction needs focused tests for every syntax form it covers.
 
-## Maintenance Checklist
+## Maintenance checklist
 
 When adding a matcher placeholder or metavar kind:
 
@@ -245,6 +242,6 @@ When changing structural or taint rule composition:
 4. test both direct `prefilter_matches_source(rule.prefilter, source)` behavior and
    `ScanPlan::filter_source` integration
 
-For package-local work, `moon test internal/rule/prefilter` is the tight loop. Changes
-to compilation or scan behavior should also run the relevant `internal/rule/compile`,
+Run `moon test internal/rule/prefilter` for prefilter changes. If a change affects
+compilation or scanning, also run the relevant `internal/rule/compile`,
 `internal/rule/apply`, `query`, and end-to-end tests.

@@ -1,7 +1,8 @@
 # Taint engine
 
-The engine performs intraprocedural analysis through semantic lowering, an
-explicit CFG, and an SCC work queue. It never executes CST nodes during solving.
+The engine analyzes each function independently. It lowers the function into an
+explicit control-flow graph (CFG), then solves it with a work queue of strongly
+connected components (SCCs). The solver does not execute CST nodes.
 
 - `domain` owns binding identities, paths, immutable taint values and findings.
 - `model` owns normalized call facts and deterministic call transfers.
@@ -11,8 +12,10 @@ explicit CFG, and an SCC work queue. It never executes CST nodes during solving.
   rule-independent graph. `supports` in `expressions.mbt` is the executable-node
   support table. Unlisted executable syntax and missing required fields produce
   diagnostics, never clean values.
-- `engine` binds models once per original call site and rule, then solves and
-  collects findings after convergence.
+- `engine` binds models once per original call site and rule, solves the graph,
+  and collects findings after convergence.
+
+## Preparation and analysis
 
 `prepare_function_like(node)` returns `NotApplicable`, `Prepared(function)`, or
 `Unsupported(diagnostics)`. Bodyless declarations and non-function items are not
@@ -91,7 +94,7 @@ storage writes. `None` marks an impossible completion. Only explicit raises
 and model-declared exceptional outcomes activate exception edges. Unknown calls
 never implicitly raise.
 
-YAML format and `RuleFinding` fields are unchanged. Rule lowering caches source,
+YAML rules retain their format and `RuleFinding` fields. Rule lowering caches source,
 sanitizer and sink pattern matches before solving. Unmatched YAML calls retain
 `NoEffect`. The apply layer prepares each function before iterating rules and
 returns findings plus diagnostics. Structural-only plans return without preparing
@@ -100,13 +103,15 @@ skips only the affected function/rule pair. The CLI renders `taint_incomplete`
 warnings and continues scanning. `--strict-taint` returns status 8 after scanning,
 including parse failures that prevented taint analysis.
 
+Resolved local/parameter callees also carry `callee_binding`; generic models can
+select that identity with `CalleeBinding`. Name-based and YAML call matching keep
+their existing syntax semantics. Diagnostics with the same file, range and reason
+are coalesced while preserving all affected rule IDs.
+
+## Extending the analyzer
+
 The analysis does not resolve callees across functions, infer heap aliases,
 inspect type declarations, or model async cancellation. Add supported syntax in
 lowering with parser-field and behavior tests before enabling its support-table
 entry. See [MIGRATION.md](MIGRATION.md) for API changes and [BENCHMARKS.md](BENCHMARKS.md)
 for performance measurements.
-
-Resolved local/parameter callees also carry `callee_binding`; generic models can
-select that identity with `CalleeBinding`. Name-based and YAML call matching keep
-their existing syntax semantics. Diagnostics with the same file, range and reason
-are coalesced while preserving all affected rule IDs.

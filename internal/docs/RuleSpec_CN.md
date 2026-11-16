@@ -1,11 +1,16 @@
 # 规则规范
 
-本文档规定 moongrep 当前接受的 YAML 规则格式、校验规则和匹配语义。
+moongrep 规则使用 YAML，以 MoonBit 代码片段作为匹配模式。
 
 命令行规则选择、扫描、输出、诊断和退出行为请参阅
 [CLISpec_CN.md](CLISpec_CN.md)。
 
-规则使用 YAML 格式。每个 `shape` 值都是 MoonBit 表面语法。扫描器匹配解析后的 MoonBit 表达式结构，不匹配原始文本。空白排版和注释（包括文档注释）不参与匹配，但字面量的源码拼写是例外：常量按 parser CST 中的常量种类和保留的源码拼写比较，而不是按归一化后的语义值比较。因此，`1000` 和 `1_000` 不一定匹配。表达式形式、操作符、标签、被调用名称和参数结构也参与匹配。通配符和已声明元变量按下文规则修改这些匹配要求。
+每个 `shape` 值都是 MoonBit 表面语法，扫描器匹配解析后的表达式结构。空白排版
+和注释（包括文档注释）不参与匹配。常量按解析器 CST 中的种类和保留的源码拼写
+比较，不按规范化后的语义值比较，因此 `1000` 和 `1_000` 不一定匹配。
+
+表达式形式、操作符、标签、被调用名称和参数结构也参与匹配。通配符和已声明
+元变量按下文规则修改这些匹配要求。
 
 ## 规则文件
 
@@ -38,7 +43,8 @@
 目录的规则路径会被拒绝。相对目录中的原生 `\` 分隔符会先转换成 `/`，再连接 YAML
 `id`。
 
-对于直接位于规则根目录下的规则文件，最终规则 id 就是 `id`。规则文件名不参与规则 id。YAML `id` 不能为空，且不能包含 `/`；目录归属只由文件位置编码。
+规则文件直接位于规则根目录下时，最终规则 id 就是 `id`。文件名不参与规则 id
+的生成。YAML `id` 不能为空，也不能包含 `/`；目录归属只由文件位置决定。
 
 当 `--rule` 选择单个文件时，其路径也必须以精确小写后缀 `.yaml` 或 `.yml` 结尾。
 与目录发现不同，不支持的后缀会被拒绝，而不是被忽略。该文件所在目录就是它的规则
@@ -57,23 +63,33 @@ rules/security/nested/raw.yml with id: unsafe-html -> security/nested/unsafe-htm
 
 ## YAML Schema
 
-根字段仅接受 id、description、patterns、patterns-not、inside-toplevel、taint。
-id 为不含斜杠的非空字符串，description 为字符串。结构规则要求正向 patterns，
-除非同时有 inside-toplevel 和 patterns-not。所有出现的结构模式数组必须非空。
-taint 与结构字段互斥。
+根字段只接受 `id`、`description`、`patterns`、`patterns-not`、`inside-toplevel`
+和 `taint`。`id` 必须是不含斜杠的非空字符串，`description` 必须是字符串。
+结构规则必须有正向 `patterns`，除非同时包含 `inside-toplevel` 和 `patterns-not`。
+所有出现的结构模式数组都必须非空。`taint` 与结构字段互斥。
 
-正向条目接受 shape、guard、then。负向条目接受 shape、guard。
-inside-toplevel 条目接受 shape、guard、match-mode（exact 或 partial）。
-taint 子句仅接受 shape。then 不是根字段，也不接受 match-mode。
-shape 必须是字符串；guard 是带 $ 前缀的捕获名到正则字符串的映射。
-未知字段和错误类型均被拒绝。
+各类模式条目接受的字段如下：
 
-## Shapes
+- 正向条目：`shape`、`guard`、`then`。
+- 负向条目：`shape`、`guard`。
+- `inside-toplevel` 条目：`shape`、`guard`、`match-mode`，匹配模式为 `exact` 或 `partial`。
+- `taint` 子句：仅接受 `shape`。
+
+`then` 不能出现在根层级，也不接受 `match-mode`。`shape` 必须是字符串，
+`guard` 是从带 `$` 前缀的捕获名到正则字符串的映射。未知字段和错误类型都会被拒绝。
+
+## 匹配模式
 
 普通 `shape` 必须是一个单独的 MoonBit 表达式片段。每个
 `inside-toplevel` 条目的 `shape` 必须且只能是一个 MoonBit 顶层项。
 
-有效的表达式 shape 包括调用、方法调用、字段访问、操作符、块、条件表达式、循环、match、lambda、集合字面量、记录表达式，以及其他表达式大小的 MoonBit 语法。普通 `patterns`、`patterns-not` 和 `then` shape 不表示整个文件、顶层声明、包片段或 import 列表。每个 `inside-toplevel` shape 可以是一个函数、顶层 `let`、顶层 `const`、`test`、方法 `impl` 或 view。它只能表示一个顶层项，不能表示整个文件或 import 列表。
+表达式模式可以是调用、方法调用、字段访问、操作符、块、条件表达式、循环、
+match、lambda、集合字面量、记录表达式等 MoonBit 表达式。普通 `patterns`、
+`patterns-not` 和 `then` 的模式只接受表达式，不接受整个文件、顶层声明、
+包片段或 import 列表。
+
+每个 `inside-toplevel` 模式可以是函数、顶层 `let`、顶层 `const`、`test`、
+方法 `impl` 或 view。它只能表示一个顶层项，不能表示整个文件或 import 列表。
 
 shape 是结构性的：
 
@@ -87,10 +103,10 @@ shape 是结构性的：
 
 扫描器不会对 shape 做类型检查，也不会按语义解析名称。例如，两个指向同一定义的导入名称只在解析后的源码拼写一致或被元变量捕获时视为相同。
 
-### 函数体与显式 block
+### 函数体与显式块
 
-函数、方法、测试、lambda 和局部函数 body 外层的花括号只是匹配容器，不是显式
-block 表达式候选。body 内的语句组成 sequence 候选，其中的每个表达式仍可独立搜索。
+函数、方法、测试、lambda 和局部函数体外层的花括号用作匹配容器。候选是函数体内
+的语句序列，其中的每个表达式仍可独立搜索；外层花括号本身不作为显式块表达式候选。
 
 因此，`$_` 和 `$(root:exp)` 会搜索函数体内部的表达式，而不会捕获函数体花括号。
 完整的多语句 shape 可以匹配 body sequence；finding range 从第一条命中语句开始，
@@ -245,11 +261,23 @@ patterns:
   - shape: $value + $value
 ```
 
-moongrep会为同名的所有出现位置推导出单一 kind。只出现在表达式占位位置的裸名称会推导为 `exp`；出现在 binder、标签、构造器、类型名或限定标识符位置的裸名称会推导为 `id`；出现在完整类型节点位置的裸名称会推导为 `type`。例如 `for $counter = 0; $counter < $limit; ...` 中，`$counter` 会从 binder 位置推导为 `id`，`$limit` 会推导为 `exp`；在 `let values : Array[$T] = input` 中，`$T` 会推导为 `type`。
+moongrep 为同一名称的所有出现位置推导出一个 kind。只出现在表达式占位位置的
+裸名称推导为 `exp`；出现在绑定位置、标签、构造器、类型名或限定标识符位置的
+裸名称推导为 `id`；占据完整类型节点的裸名称推导为 `type`。
+
+例如，`for $counter = 0; $counter < $limit; ...` 中的 `$counter` 从绑定位置
+推导为 `id`，`$limit` 推导为 `exp`。在 `let values : Array[$T] = input` 中，
+`$T` 推导为 `type`。
 
 只支持 `exp`、`id`、`const`、`arg`、`pat` 和 `type`。同一个 payload 可以在同一种 kind 中重复使用；同一个 shape 中不能跨 `$(name:exp)`、`$(name:id)`、`$(name:const)`、`$(name:arg)`、`$(name:pat)` 和 `$(name:type)` 等多个 kind 使用同一个 payload。
 
-裸 `$name` 的推导是保守的。它不会默认推导为 `const`、`arg` 或 `pat`。像 `match input { $item => body }` 这样的简单 pattern variable 在 `id`、`const` 和 `pat` 之间有歧义；请写成 `$(item:id)`、`$(item:const)` 或 `$(item:pat)` 来明确选择。裸 `$name` 不会推导为 `arg`；完整调用参数请显式写 `$(name:arg)`。类型标注中的裸 `$name` 可以推导为 `type`；当类型位置不明显时可显式写 `$(name:type)`。同名的显式出现也可以在位置兼容时为后续裸出现确定 kind。
+裸 `$name` 不会默认推导为 `const`、`arg` 或 `pat`。例如，
+`match input { $item => body }` 中的简单模式变量在 `id`、`const` 和 `pat` 之间
+有歧义，需要写成 `$(item:id)`、`$(item:const)` 或 `$(item:pat)`。裸 `$name`
+不会推导为 `arg`；要捕获完整调用参数，须显式写出 `$(name:arg)`。
+
+类型标注中的裸 `$name` 可以推导为 `type`，类型位置不明显时可显式写
+`$(name:type)`。同名的显式声明也可以在位置兼容时确定后续裸名称的 kind。
 
 旧的 YAML `metavars` 键不再支持。包含该键的 pattern object 会因使用不支持的键被拒绝。
 
@@ -415,9 +443,11 @@ x == y
 make(value) == make(other)
 ```
 
-当同一个源码层面的名称出现在不同语法角色中时，例如一次作为 binder，之后作为标识符表达式出现，`exp` 通常不是合适选择。此时应使用 `id`。
+同一个源码名称跨语法角色出现时，例如先声明变量、再引用变量，应使用 `id`。
+`exp` 捕获比较表达式结构。
 
-重复 `exp` 相等性由 untyped CST 节点比较保证：比较节点 kind 和子值，并忽略源码位置。它不再限定为一组固定表达式形状。CST 结构不同的语义等价代码不会匹配。占位符可以吸收结构差异。
+重复的 `exp` 捕获按无类型 CST 节点的种类和子值比较，忽略源码位置，适用于
+任意表达式形状。语义等价但 CST 结构不同的代码不会匹配；占位符可以吸收结构差异。
 
 ### `id`
 
@@ -489,7 +519,8 @@ body 通过重复完整的 `$(lit:const)` 元变量语法复用 pattern 捕获�
 
 ### `arg`
 
-`arg` 元变量捕获完整调用参数节点。当规则需要在一个参数槽中接受任意参数写法，同时又希望重复出现时比较整个参数槽，使用它很合适。
+`arg` 元变量捕获完整的调用参数节点，可以接受一个参数槽中的任意参数写法。
+同名捕获重复出现时，比较整个参数槽。
 
 示例：
 
@@ -630,7 +661,12 @@ patterns-not:
   - shape: blocked($(value:exp))
 ```
 
-对于带 `patterns` 的普通结构规则，每个候选表达式根都会先运行有序的正向 pattern。只要正向 pattern 匹配，就报告命中，并且不会再为该候选检查 `patterns-not`。只有所有正向 pattern 都失败后，才会检查 `patterns-not`。负向匹配没有初始绑定。只在 `patterns-not` 中声明的内联元变量独立绑定，不复用 `patterns` 中的捕获。
+对于带 `patterns` 的普通结构规则，每个候选表达式根先按顺序尝试正向模式。
+正向模式匹配成功就报告命中，并跳过该候选的 `patterns-not` 检查。只有所有
+正向模式都失败后，才检查 `patterns-not`。
+
+负向匹配没有初始绑定。仅在 `patterns-not` 中声明的元变量独立绑定，
+不复用 `patterns` 中的捕获。
 
 如果正向 pattern 全部失败后负向 pattern 匹配，该候选不会产生命中，并且它的子表达式不会再为这条规则搜索。如果正向和负向 pattern 都不匹配，则继续进入该候选的子表达式。
 
@@ -765,7 +801,7 @@ inside-toplevel:
 Docstring 属于注释，永远不会约束匹配。在 default、`exact` 或 `partial`
 模式中增加、删除或修改 docstring 都不影响结果。
 
-Partial 第一版只支持函数定义。函数名、函数体和 `__TARGET__` 始终精确
+Partial 匹配仅支持函数定义。函数名、函数体和 `__TARGET__` 始终精确
 匹配。只有当 shape 将以下函数头字段保持为缺省形态时，才会忽略它们：
 
 - 类型限定、`async`、参数列表、类型参数、返回类型、错误类型、可见性和
@@ -827,7 +863,7 @@ taint:
     - shape: sanitize_html(__SOURCE__)
 ```
 
-### Taint Shape 限制
+### 污点模式的限制
 
 每个 taint `shape` 都必须是直接调用或方法调用。
 
@@ -978,7 +1014,7 @@ patterns:
 
 两个备选项会产生相同的规则 id 和 description。
 
-### Binder 和使用处名称比较
+### 比较声明和使用处的名称
 
 ```yaml
 id: counter-loop
@@ -1024,7 +1060,7 @@ patterns:
 shape 会捕获任意单参数且参数为常量的调用。guard 随后只保留归一化 callee 为
 `@html.render`，且常量值包含 `danger` 或 `raw` 的调用。
 
-### Taint Source、Sink 和 Sanitizer
+### 污点来源、汇点与净化器
 
 ```yaml
 id: raw-html

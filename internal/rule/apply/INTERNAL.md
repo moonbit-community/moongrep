@@ -6,7 +6,7 @@ Capture names have stable integer IDs. Planning uses a work list and computes
 each group's transitive capture dependencies bottom up, including guards and
 negative patterns. Filtering a plan keeps these IDs unchanged.
 
-Root groups with no `then` and no `inside-toplevel` are marked as plain entries.
+Root groups with no `then` and no `inside-toplevel` are plain entries.
 If every retained structural entry is plain, application walks the CST directly
 and does not create a `SourceIndex` or `ScanSession`. Plain groups try positives,
 guards, and negatives in source order with the standalone matcher.
@@ -96,9 +96,8 @@ ellipsis partition. Candidate success, failure, and negative matches are cached.
 
 Region states are keyed by group ID, cursor ID, and projected environment ID.
 They combine cached candidates and successor cursors, recording positive
-existence and rejection. Shared successor states are essential: caching only
-candidates would still repeatedly traverse overlapping subtrees. The explicit
-evaluation stack advances into child groups
+existence and rejection. Caching successor states avoids repeated traversal of
+overlapping subtrees. The explicit evaluation stack advances into child groups
 or source successors, even when a selected target equals its candidate.
 
 Indexed evaluation never appends findings. Nested `then` returns a semantic decision.
@@ -112,9 +111,9 @@ plans make the same decision per entry during their one indexed root traversal.
 
 The regression suite covers direct/indexed traversal compatibility, plain/indexed
 finding equivalence, mixed-plan ordering and cache exclusion, continuation bounds,
-lexical shadowing, deep capture
-dependencies, different values and binding identities at the same region,
-ellipsis rollback, priority, negative coverage, and publication order.
+lexical shadowing, deep capture dependencies, different values and binding
+identities at the same region, ellipsis rollback, priority, negative coverage,
+and publication order.
 A test-only uncached interpreter compares complete findings on 216 generated
 sources to verify caching; explicit candidate examples separately constrain
 the traversal contract. Closure regressions cover depths zero through six,
@@ -127,7 +126,7 @@ for success, failure, and rejection, including adjacent continuations.
 The deterministic gate checks that expansion counts equal cache cardinalities
 and that, for a fixed environment and a single-entry rule chain, candidate plus
 region expansions are at most twice the group count times the index state count.
-Truly distinct capture environments still require distinct states; there is no
+Distinct capture environments still require distinct states; there is no
 depth limit, resource budget, or claim of linear cost for arbitrary rules.
 The private publication counter additionally checks that one rule in one
 context visits no more candidates than the complete direct traversal. This

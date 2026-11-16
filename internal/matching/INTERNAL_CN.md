@@ -1,7 +1,7 @@
 # matching 内部说明
 
-本文记录修改 `internal/matching` 包时容易遗漏的实现细节。它面向 matcher
-及其调用方的维护者，不面向规则作者。
+`internal/matching` 负责比较 CST 模式和管理捕获。以下说明供匹配器及其调用方的
+维护者修改这些行为时参考。
 
 ## 匹配状态
 
@@ -16,8 +16,8 @@
 `Sequence(ArrayView[CstNode])` 候选使用相同的状态规则。`ExprMatch` 只保存捕获
 `bindings` 和候选的精确 `loc`；sequence location 合并首尾语句，因此不包含容器花括号。
 
-普通节点从左到右完成绑定。包含 ellipsis 的有序 child 列表使用局部回溯：
-每个候选长度都在 bindings 副本上运行，只有首个完整成功分支会被提交。
+匹配器从左到右绑定普通节点。包含省略号的有序子节点列表使用局部回溯：每个候选
+长度都在绑定表副本上尝试，只有首个完整成功的分支会被提交。
 
 索引匹配与单节点匹配共用原子实现。`MatchContext` 同时保存捕获和可选的
 `TargetRef`。`TargetRef` 只保存选中的 region，需要词法作用域时通过 `SourceIndex`
@@ -150,7 +150,7 @@ suffix，而不会暴露 header-only direct 候选。`proof_let` 不是 continua
 大多数语义 CST 节点都要求 kind 相同、语义子节点列表长度相同。child label 和顺序
 都有意义。
 
-值得注意的精确性细节：
+匹配遵循以下规则：
 
 - argument kind 必须匹配；label 也必须匹配，已声明的 label 占位符可以捕获变化的 label
 - 常量保留 parser kind 和源码拼写
@@ -179,5 +179,5 @@ suffix，而不会暴露 header-only direct 候选。`proof_let` 不是 continua
 5. 在 `internal/matching/matching_test.mbt` 添加聚焦测试
 6. 如果 compiled rule 行为发生变化，添加 `internal/rule/apply` 或 taint 集成测试
 
-对于只影响 matcher 的修改，`moon test internal/matching/matching_test.mbt` 是最短反馈循环。
-对于通过 YAML 规则可见的行为，也要测试相关调用方包。
+修改匹配器后，运行 `moon test internal/matching/matching_test.mbt`。
+如果改动影响 YAML 规则行为，还需测试相关调用方包。

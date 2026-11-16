@@ -1,7 +1,7 @@
 # CFG API migration
 
 YAML rules and finding records keep their existing format and location meaning.
-The generic internal taint API changes as follows:
+Update callers of the generic internal taint API as follows:
 
 | Previous API | CFG API |
 | --- | --- |

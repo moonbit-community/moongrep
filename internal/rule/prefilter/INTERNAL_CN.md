@@ -1,23 +1,23 @@
 # internal/rule/prefilter 内部说明
 
-本文记录修改 `internal/rule/prefilter` 包时容易遗漏的实现细节。
+`internal/rule/prefilter` 根据源码中是否存在必需字面量来排除规则，同时保留
+所有可能的匹配。
 
 ## 包职责
 
-`internal/rule/prefilter` 为编译后的规则和独立编译的表达式 pattern 构造并执行保守的源码
+`internal/rule/prefilter` 为编译后的规则和独立表达式模式构造并执行保守的源码
 文本筛选。
 
 筛选发生在解析和 CST 匹配之前。它只判断源码文本是否包含某个规则分支每次成功匹配时
-都必需出现的字面量。返回 false 时，调用方可以跳过该规则；返回 true 只表示该规则仍是
-候选项。
+都必须包含的字面量。返回 false 时，调用方可以跳过该规则；返回 true 时，该规则
+仍需继续匹配。
 
 因此，这个包可以接受假阳性，例如字面量只出现在注释、字符串或无关表达式中；但它不能
 引入假阴性。它不解析源码、不比较 CST 结构、不执行 guard，也不分析 taint 数据流。
 
 `internal/rule/compile` 只会在构造好 `CompiledRuleDefinition` 后调用
-`compile_rule_prefilter`。这个顺序很重要：只有编译后的 pattern 才包含安全提取
-字面量所需的规范化 CST、metavar 集合、保留的 target/source 占位符和 matcher
-忽略字段。
+`compile_rule_prefilter`。编译后的模式包含安全提取字面量所需的规范化 CST、
+元变量集合、保留的目标及来源占位符，以及匹配器忽略的字段。
 
 已经持有单个 `CompiledExprPattern` 的调用方使用
 `compile_expr_pattern_prefilter`。它复用同一套字面量提取逻辑，只构造一个备选项，
@@ -25,7 +25,8 @@
 
 ## 表示与求值
 
-`RulePrefilter.alternatives` 表示“析取的合取”：
+`RulePrefilter.alternatives` 中，每个备选项要求一组字面量全部出现，只要满足
+任意一个备选项即可通过：
 
 ```text
 [
@@ -36,7 +37,7 @@
 ]
 ```
 
-只要任意一个内层数组里的所有字面量都出现在待搜索源码中，这个例子就仍然相关。
+只要任意一个内层数组中的字面量全部出现在源码中，就保留该规则。
 字面量顺序及其在源码中的位置没有影响。
 
 `prefilter_matches_with_literal_matcher` 实现这套逻辑，并在找到首个成功备选项或
@@ -59,7 +60,7 @@
 `StringView::contains` 及一次筛选调用内的字面量缓存来调用它，因此多个规则共享的
 同一字面量在该次调用中只搜索一次。
 
-## 独立表达式 Pattern 编译
+## 独立表达式模式的编译
 
 `compile_expr_pattern_prefilter` 从一个 `CompiledExprPattern` 提取必需字面量，并把
 它们保存为唯一备选项：
@@ -71,17 +72,18 @@ alternative(pattern) = required_literals(pattern)
 只含 metavar 的 pattern 会生成空内层备选项，因此对任何源码都保持相关。这与编译后
 structural rule 中不可筛选 pattern 的保守行为相同。
 
-## Structural Rule 编译
+## 结构规则的编译
 
-每条正向根到叶路径贡献一个备选。同一路径各 shape 的必要字面量取 AND，
-不同路径取 OR。纯负向 then 不增加子层要求；负向和 guard 不贡献必要字面量。
-inside-toplevel 各备选与这些正向路径取笛卡尔积；路径内去重保持顺序。
+每条从根到叶的正向路径生成一个备选项。同一路径各模式的必需字面量取 AND，
+不同路径取 OR。只有负向模式的 then 不增加子层要求；负向模式和 guard 不贡献
+必需字面量。inside-toplevel 的备选项与这些正向路径取笛卡尔积，路径内去重时
+保留字面量顺序。
 
 ScanPlan 为每个 group 递归建立正负 CST 分桶，合并保持 YAML 原下标。
 只有 shape / guard / then 完整成功才剪枝。无负向约束的存在性扫描首个成功
 即可停止；含负向约束时检查所有未覆盖区域后才成功。报告使用根条目下标和位置。
 
-## Taint Rule 编译
+## 污点规则的编译
 
 `compile_taint_prefilter` 会构造 taint source 和 sink 的笛卡尔积：
 
@@ -94,8 +96,8 @@ alternative(source, sink) =
 字面量可以作为安全的粗粒度前置条件。这个检查不会判断求值顺序、作用域、数据流，也不会
 判断 sink 是否真的接收了 source 的值。
 
-Sanitizer 会被有意排除。Taint finding 不要求 sanitizer 出现；若强制要求其文本，
-反而会丢弃规则本来需要报告的未净化路径。
+净化器的字面量不参与筛选，因为污点命中不要求净化器出现。要求源码包含净化器
+文本会漏掉未净化的路径。
 
 如果 source 或 sink pattern 没有产生字面量，对应的空备选项或部分备选项会保持保守
 行为。编译后的 `__SOURCE__` 占位符会在收集字面量时排除。
@@ -135,10 +137,8 @@ CST 名称在匹配源码中可能写成 `@pkg .name`。分别要求源码包含
 ## 占位符与忽略字段
 
 当 matcher 可以用任意源码替换某个名称时，就不能收集这个名称。
-`is_filter_placeholder` 会排除：
-
-- 编译后 pattern 的 `MetavarRegistry` 能解析出的所有单节点、ellipsis、wildcard
-  和特殊表达式占位符
+`is_filter_placeholder` 会排除编译后模式的 `MetavarRegistry` 能解析出的所有
+单节点、省略号、通配符和特殊表达式占位符。
 
 只有精确的 `$_` 具有由拼写决定的下划线占位语义。`__` 这类普通全下划线标识符仍是
 必需字面量。
@@ -213,5 +213,6 @@ default、exact 或 partial 模式中都不会成为必需字面量。候选源�
 4. 同时测试直接的 `prefilter_matches_source(rule.prefilter, source)` 行为和
    `ScanPlan::filter_source` 集成
 
-对于 package-local 修改，`moon test internal/rule/prefilter` 是最短反馈循环。若修改影响规则
-编译或扫描行为，还应运行相关的 `internal/rule/compile`、`internal/rule/apply`、`query` 和端到端测试。
+修改预过滤器后，运行 `moon test internal/rule/prefilter`。若改动影响规则编译或
+扫描，还需运行相关的 `internal/rule/compile`、`internal/rule/apply`、`query`
+及端到端测试。
