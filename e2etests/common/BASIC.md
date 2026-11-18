@@ -29,10 +29,10 @@ The version options print the module version without requiring a subcommand.
 
 ```mooncram moonbit-community/moongrep
 $ moonx moonbit-community/moongrep --version
-0.3.11
+0.3.12
 
 $ moonx moonbit-community/moongrep -V
-0.3.11
+0.3.12
 ```
 
 ## moongrep docs
