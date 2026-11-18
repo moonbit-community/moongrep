@@ -11,7 +11,7 @@ pub(all) enum CliDiagnostic {
     source~ : String?,
     reason~ : String?,
     help~ : String?,
-    pattern~ : String?
+    pattern~ : String?,
   )
   ParserMessage(message~ : String)
 }
@@ -82,13 +82,13 @@ pub(all) enum CliCommand {
     source~ : String,
     strict_check~ : Bool,
     exit_code~ : Bool,
-    output_json~ : Bool
+    output_json~ : Bool,
   )
   DumpExpr(
     source~ : String,
     strict_check~ : Bool,
     exit_code~ : Bool,
-    output_json~ : Bool
+    output_json~ : Bool,
   )
 }
 

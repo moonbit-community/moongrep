@@ -78,7 +78,7 @@ priv enum EvaluationFrame {
     Int32,
     Int32,
     @basic.Location,
-    EvaluationKey
+    EvaluationKey,
   )
   Region(EvaluationKey)
   AfterCandidate(EvaluationKey, EvaluationKey, @cst.CursorId)
