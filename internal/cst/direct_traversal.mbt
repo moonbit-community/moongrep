@@ -61,7 +61,7 @@ fn is_indexable_cst_child(
     TK_INTERP
     | TK_BYTES_INTERP
     | TK_MULTILINE_INTERP
-    | TK_REGEX_INTERP
+    | TK_REGEX_INTERP,
   )
 }
 

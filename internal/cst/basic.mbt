@@ -48,7 +48,7 @@ fn is_pure_punctuation_kind(kind : @untyped_cst.NodeKind) -> Bool {
       | TK_SEMI
       | TK_NEWLINE
       | TK_EOF
-      | TK_COMMENT
+      | TK_COMMENT,
     )
     | TrailingMark_Comma
     | TrailingMark_Semi
@@ -98,7 +98,7 @@ fn append_syntax_semantics(
       TK_INTERP
       | TK_BYTES_INTERP
       | TK_MULTILINE_INTERP
-      | TK_REGEX_INTERP
+      | TK_REGEX_INTERP,
     ) =>
       for entry in syntax.children {
         match entry.1.kind {
@@ -114,7 +114,7 @@ fn append_syntax_semantics(
       | TK_POST_LABEL
       | TK_POST_LABEL_TRANSPARENT
       | TK_EXTEND
-      | TK_UNDERSCORE
+      | TK_UNDERSCORE,
     ) =>
       if raw_child(parent, "semantic_name") is None {
         if raw_child(syntax, "name_value") is Some(name) {
@@ -157,7 +157,7 @@ fn append_syntax_semantics(
       | TK_RANGE_LT_INCLUSIVE
       | TK_RANGE_INCLUSIVE_REV
       | TK_RANGE_EXCLUSIVE_REV
-      | TK_READONLY
+      | TK_READONLY,
     ) => {
       let duplicate = raw_child(parent, "operator")
         .map(node => !is_syntax_kind(node.kind))
@@ -178,7 +178,7 @@ fn append_syntax_semantics(
       | TK_STRING
       | TK_REGEX_LITERAL
       | TK_TRUE
-      | TK_FALSE
+      | TK_FALSE,
     ) =>
       if raw_child(parent, "semantic_constant") is None {
         if raw_child(syntax, "constant") is Some(constant) {
@@ -369,7 +369,7 @@ pub fn normalized_name(node : @untyped_cst.CstNode) -> String? {
       | TK_DOT_LIDENT
       | TK_DOT_UIDENT
       | TK_DOT_INT
-      | TK_DOT_LPAREN
+      | TK_DOT_LPAREN,
     ) =>
       if string_payload(node) is Some(value) {
         Some(value)
