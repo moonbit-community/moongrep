@@ -4,7 +4,9 @@
 let _embed_cstyle_backward_array_iteration_yaml : String =
   #|id: cstyle_backward_array_iteration
   #|description: |
-  #|  C-style backward array iteration that can be rewritten as simple for-in loops.
+  #|  Consider using a for-in loop over rev_iter() for this backward array traversal.
+  #|  Before rewriting, check for array reassignment or mutation, including
+  #|  mutations through aliases or function calls.
   #|
   #|patterns:
   #|  - shape: |
@@ -19,6 +21,8 @@ let _embed_cstyle_backward_array_iteration_yaml : String =
   #|
   #|      patterns-not:
   #|        - shape: $(counter:id)
+  #|        - shape: $(arr:id)
+  #|        - shape: continue $_
   #|
 
 ///|

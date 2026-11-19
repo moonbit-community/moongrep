@@ -1,12 +1,16 @@
 id: cstyle_backward_simple_forloop
 description: |
-  C-style backward for loops that can be rewritten as simple for-in loops.
+  Consider using a descending for-in range for this loop with a fixed bound.
+  Preserve the starting value and the exclusive lower bound.
 
 patterns:
   - shape: |
-      for $(counter:id) = $(start:exp); $(counter:id) > $(limit:exp); $(counter:id) = $(counter:id) - 1 {
+      for $(counter:id) = $(start:exp); $(counter:id) > $(limit:const); $(counter:id) = $(counter:id) - 1 {
         __TARGET__
       }
+    guard:
+      $limit: '^-?(0[xX][0-9A-Fa-f_]+|0[oO][0-7_]+|0[bB][01_]+|[0-9][0-9_]*)(U|L|UL)?$'
     then:
       patterns-not:
         - shape: $(counter:id)
+        - shape: continue $_
