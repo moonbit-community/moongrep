@@ -78,3 +78,15 @@ effects. The fixture produces no findings for this rule.
 $ moonx moonbit-community/moongrep lint --json ../testdata/builtin-simplifiable-assignment-variants/negative.mbt | moonx cli/jq@0.2.1 -s '[.[] | select(.rule_id == "moonbitlang/simplifiable_assignment")] | length'
 0
 ```
+
+## Forward iteration over a growing queue
+
+The loop appends children to the queue and checks its length on every
+iteration. The current array iteration rule reports the outer loop.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep lint --json ../testdata/builtin-forward-array-iteration-variants/growing_queue.mbt | moonx cli/jq@0.2.1 -r '"\(.rule_id) \(.range.start.line):\(.range.start.column)-\(.range["end"].line):\(.range["end"].column)"'
+@STDOUT
+moonbitlang/cstyle_forward_array_iteration 10:3-25:4
+@STDERR (empty)
+```
