@@ -4,7 +4,9 @@
 let _embed_cstyle_forward_array_iteration_yaml : String =
   #|id: cstyle_forward_array_iteration
   #|description: |
-  #|  C-style forward array iteration that can be rewritten as simple for-in loops.
+  #|  Consider using a for-in loop for this forward array traversal.
+  #|  Before rewriting, check for array reassignment or mutation, including
+  #|  mutations through aliases or function calls.
   #|
   #|patterns:
   #|  - shape: |
@@ -19,6 +21,8 @@ let _embed_cstyle_forward_array_iteration_yaml : String =
   #|
   #|      patterns-not:
   #|        - shape: $(counter:id)
+  #|        - shape: $(arr:id)
+  #|        - shape: continue $_
   #|
 
 ///|

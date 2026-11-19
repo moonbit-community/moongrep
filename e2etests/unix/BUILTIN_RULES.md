@@ -145,11 +145,12 @@ source:
 ../testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt:3:3-5:4
 rule: moonbitlang/cstyle_forward_simple_forloop
 description:
-  C-style forward for loops that can be rewritten as simple for-in loops.
+  Consider using an ascending for-in range for this loop with a fixed bound.
+  Preserve the starting value and the exclusive upper bound.
 source:
 1 | ///|
-2 | fn forward_simple_loop(limit : Int) -> Unit {
-3 >   for i = 0; i < limit; i = i + 1 {
+2 | fn forward_simple_loop() -> Unit {
+3 >   for i = 0; i < 10; i = i + 1 {
 4 >     tick()
 5 >   }
 6 | }
@@ -157,7 +158,8 @@ source:
 ../testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt:3:3-5:4
 rule: moonbitlang/cstyle_backward_simple_forloop
 description:
-  C-style backward for loops that can be rewritten as simple for-in loops.
+  Consider using a descending for-in range for this loop with a fixed bound.
+  Preserve the starting value and the exclusive lower bound.
 source:
 1 | ///|
 2 | fn backward_simple_loop(limit : Int) -> Unit {
@@ -169,7 +171,9 @@ source:
 ../testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt:3:3-5:4
 rule: moonbitlang/cstyle_forward_array_iteration
 description:
-  C-style forward array iteration that can be rewritten as simple for-in loops.
+  Consider using a for-in loop for this forward array traversal.
+  Before rewriting, check for array reassignment or mutation, including
+  mutations through aliases or function calls.
 source:
 1 | ///|
 2 | fn forward_array_loop(items : Array[Int]) -> Unit {
@@ -181,7 +185,9 @@ source:
 ../testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt:3:3-5:4
 rule: moonbitlang/cstyle_backward_array_iteration
 description:
-  C-style backward array iteration that can be rewritten as simple for-in loops.
+  Consider using a for-in loop over rev_iter() for this backward array traversal.
+  Before rewriting, check for array reassignment or mutation, including
+  mutations through aliases or function calls.
 source:
 1 | ///|
 2 | fn backward_array_loop(items : Array[Int]) -> Unit {
@@ -209,10 +215,10 @@ $ moonx moonbit-community/moongrep lint --json ../testdata/builtin-rules-all
 {"type":"finding","file":"../testdata/builtin-rules-all/match_single_case.mbt","rule_id":"moonbitlang/match_single_case","description":"Match handles one constructor and otherwise does nothing.\nPrefer if + is, keeping the complete constructor pattern and branch body.","range":{"start":{"line":3,"column":3},"end":{"line":6,"column":4}},"matched_source":"match value {\n    Some(inner) => consume(inner)\n    _ => ()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn single_case_match(value : Int?) -> Unit {","is_match":false},{"line":3,"text":"  match value {","is_match":true},{"line":4,"text":"    Some(inner) => consume(inner)","is_match":true},{"line":5,"text":"    _ => ()","is_match":true},{"line":6,"text":"  }","is_match":true},{"line":7,"text":"}","is_match":false}]}
 {"type":"finding","file":"../testdata/builtin-rules-all/match_option_early_exit.mbt","rule_id":"moonbitlang/match_option_early_exit","description":"A let binding unwraps a value with a match whose fallback exits.\nPrefer guard value is Some(binding) else { ... }, preserving the exiting branch.","range":{"start":{"line":3,"column":3},"end":{"line":7,"column":8}},"matched_source":"let inner = match value {\n    Some(inner) => inner\n    _ => return 0\n  }\n  inner","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn match_option_early_exit(value : Int?) -> Int {","is_match":false},{"line":3,"text":"  let inner = match value {","is_match":true},{"line":4,"text":"    Some(inner) => inner","is_match":true},{"line":5,"text":"    _ => return 0","is_match":true},{"line":6,"text":"  }","is_match":true},{"line":7,"text":"  inner","is_match":true},{"line":8,"text":"}","is_match":false}]}
 {"type":"finding","file":"../testdata/builtin-rules-all/simplifiable_assignment.mbt","rule_id":"moonbitlang/simplifiable_assignment","description":"Assignment repeats its target as the left operand of a binary expression.\nPrefer the corresponding augmented assignment, such as foo += 1, foo.bar += 1, foo[i] +=1.\nNote: Apply this rewrite only when the target expression and any index expression\nare free of side effects. Augmented assignment may evaluate them a different\nnumber of times.","range":{"start":{"line":4,"column":3},"end":{"line":4,"column":19}},"matched_source":"foo = foo + step","source_context":[{"line":2,"text":"fn simplifiable_assignment(step : Int) -> Int {","is_match":false},{"line":3,"text":"  let mut foo = 0","is_match":false},{"line":4,"text":"  foo = foo + step","is_match":true},{"line":5,"text":"  foo","is_match":false},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_forward_simple_forloop","description":"C-style forward for loops that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < limit; i = i + 1 {\n    tick()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < limit; i = i + 1 {","is_match":true},{"line":4,"text":"    tick()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_backward_simple_forloop","description":"C-style backward for loops that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = limit; i > 0; i = i - 1 {\n    tick_back()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = limit; i > 0; i = i - 1 {","is_match":true},{"line":4,"text":"    tick_back()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_forward_array_iteration","description":"C-style forward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < items.length(); i = i + 1 {\n    consume(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < items.length(); i = i + 1 {","is_match":true},{"line":4,"text":"    consume(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
-{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_backward_array_iteration","description":"C-style backward array iteration that can be rewritten as simple for-in loops.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = items.length() - 1; i >= 0; i = i - 1 {\n    consume_reverse(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = items.length() - 1; i >= 0; i = i - 1 {","is_match":true},{"line":4,"text":"    consume_reverse(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_forward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_forward_simple_forloop","description":"Consider using an ascending for-in range for this loop with a fixed bound.\nPreserve the starting value and the exclusive upper bound.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < 10; i = i + 1 {\n    tick()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_simple_loop() -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < 10; i = i + 1 {","is_match":true},{"line":4,"text":"    tick()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_backward_simple_forloop.mbt","rule_id":"moonbitlang/cstyle_backward_simple_forloop","description":"Consider using a descending for-in range for this loop with a fixed bound.\nPreserve the starting value and the exclusive lower bound.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = limit; i > 0; i = i - 1 {\n    tick_back()\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_simple_loop(limit : Int) -> Unit {","is_match":false},{"line":3,"text":"  for i = limit; i > 0; i = i - 1 {","is_match":true},{"line":4,"text":"    tick_back()","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_forward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_forward_array_iteration","description":"Consider using a for-in loop for this forward array traversal.\nBefore rewriting, check for array reassignment or mutation, including\nmutations through aliases or function calls.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = 0; i < items.length(); i = i + 1 {\n    consume(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn forward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = 0; i < items.length(); i = i + 1 {","is_match":true},{"line":4,"text":"    consume(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
+{"type":"finding","file":"../testdata/builtin-rules-all/cstyle_backward_array_iteration.mbt","rule_id":"moonbitlang/cstyle_backward_array_iteration","description":"Consider using a for-in loop over rev_iter() for this backward array traversal.\nBefore rewriting, check for array reassignment or mutation, including\nmutations through aliases or function calls.","range":{"start":{"line":3,"column":3},"end":{"line":5,"column":4}},"matched_source":"for i = items.length() - 1; i >= 0; i = i - 1 {\n    consume_reverse(items[i])\n  }","source_context":[{"line":1,"text":"///|","is_match":false},{"line":2,"text":"fn backward_array_loop(items : Array[Int]) -> Unit {","is_match":false},{"line":3,"text":"  for i = items.length() - 1; i >= 0; i = i - 1 {","is_match":true},{"line":4,"text":"    consume_reverse(items[i])","is_match":true},{"line":5,"text":"  }","is_match":true},{"line":6,"text":"}","is_match":false}]}
 ```
 
 ## moongrep lint builtin rules
