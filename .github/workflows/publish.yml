@@ -5,6 +5,9 @@ on:
 
 permissions: {}
 
+env:
+  MOON_SEPARATE_COMPILATION: "1"
+
 jobs:
   publish:
     runs-on: ubuntu-latest
