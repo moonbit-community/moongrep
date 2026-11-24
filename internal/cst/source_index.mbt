@@ -159,11 +159,7 @@ fn SourceIndex::add_node(
     sequence: None,
     statement: None,
   })
-  if self.node_buckets.get(node.source_span) is Some(bucket) {
-    bucket.push(id)
-  } else {
-    self.node_buckets[node.source_span] = [id]
-  }
+  self.node_buckets.get_or_init(node.source_span, () => []).push(id)
   id
 }
 

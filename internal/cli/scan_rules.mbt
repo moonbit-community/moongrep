@@ -114,13 +114,7 @@ fn disable_scan_rules(
   if disabled.is_empty() {
     return raw_rules
   }
-  let enabled : Array[@rule_model.RawRuleSpec] = []
-  for raw in raw_rules {
-    if !disabled.contains(raw.rule_id) {
-      enabled.push(raw)
-    }
-  }
-  enabled
+  raw_rules.filter(raw => !disabled.contains(raw.rule_id))
 }
 
 ///|

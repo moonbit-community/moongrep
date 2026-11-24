@@ -496,7 +496,7 @@ test "prefilter skips compiled ignored fields by parent and child name" {
   assert_false(prefilter_ignores_field(compiled, compiled.cst.kind, "doc"))
   assert_true(prefilter_ignores_field(compiled, compiled.cst.kind, "attrs"))
   let literals = required_literals_from_compiled_pattern(pattern)
-  assert_true(contains_string(literals, "safe_entry"))
+  assert_true(literals.contains("safe_entry"))
   debug_inspect(literals, content="[\"safe_entry\"]")
 }
 
@@ -520,8 +520,8 @@ test "prefilter never requires docstring text" {
   let literals = required_literals_from_compiled_pattern(
     structural.inside_toplevel[0],
   )
-  assert_false(contains_string(literals, "PrefilterDocstringSentinel"))
-  assert_true(contains_string(literals, "safe_entry"))
+  assert_false(literals.contains("PrefilterDocstringSentinel"))
+  assert_true(literals.contains("safe_entry"))
   assert_true(
     prefilter_matches_source(rule.prefilter, "fn safe_entry { target() }\n"),
   )

@@ -41,7 +41,7 @@ pub fn Graph::components(self : Graph) -> Array[Array[BlockId]] {
       visit(block)
     }
   }
-  Array::makei(components.length(), i => components[components.length() - 1 - i])
+  components.rev()
 }
 
 ///|

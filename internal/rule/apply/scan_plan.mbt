@@ -73,12 +73,7 @@ pub fn ScanPlan::is_empty(self : ScanPlan) -> Bool {
 
 ///|
 fn ScanPlan::has_only_plain_structural_entries(self : ScanPlan) -> Bool {
-  for entry in self.structural_entries {
-    if !entry.plain_root {
-      return false
-    }
-  }
-  true
+  self.structural_entries.all(entry => entry.plain_root)
 }
 
 ///|

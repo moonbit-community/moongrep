@@ -284,13 +284,7 @@ fn match_split_pattern_constructor_identity(
 fn constructor_children_without_name(
   node : @untyped_cst.CstNode,
 ) -> Array[(String?, @untyped_cst.CstNode)] {
-  let result : Array[(String?, @untyped_cst.CstNode)] = []
-  for entry in @cst.semantic_children(node) {
-    if entry.0 != Some("name") {
-      result.push(entry)
-    }
-  }
-  result
+  @cst.semantic_children(node).filter(entry => entry.0 != Some("name"))
 }
 
 ///|
@@ -736,12 +730,9 @@ fn compiled_ignores_field(
   parent_kind : @untyped_cst.NodeKind,
   child_name : String,
 ) -> Bool {
-  for field in compiled.ignored_fields {
-    if field.parent_kind == parent_kind && field.child_name == child_name {
-      return true
-    }
-  }
-  false
+  compiled.ignored_fields.any(field => {
+    field.parent_kind == parent_kind && field.child_name == child_name
+  })
 }
 
 ///|
@@ -957,13 +948,8 @@ fn resolved_named_metavar(
 
 ///|
 fn metavariable_qualified_prefix(raw : String) -> String? {
-  for index = raw.length() - 1; index >= 0; index = index - 1 {
-    if raw[index] == '$' {
-      if index > 0 {
-        return Some(raw[:index].to_owned())
-      }
-      return None
-    }
+  match raw.rev_find("$") {
+    Some(index) if index > 0 => Some(raw[:index].to_owned())
+    _ => None
   }
-  None
 }

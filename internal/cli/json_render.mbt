@@ -40,15 +40,11 @@ fn json_scan_range(loc : @basic.Location) -> JsonScanRange {
 
 ///|
 fn json_source_context(context : SourceContext) -> Array[JsonSourceContextLine] {
-  let lines : Array[JsonSourceContextLine] = []
-  for line in context.lines {
-    lines.push({
-      line: line.line_number,
-      text: line.text,
-      is_match: line.is_match,
-    })
-  }
-  lines
+  context.lines.map(line => {
+    line: line.line_number,
+    text: line.text,
+    is_match: line.is_match,
+  })
 }
 
 ///|

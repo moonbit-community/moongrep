@@ -113,9 +113,8 @@ async fn scan_source_file(
 
 ///|
 fn compact_scan_reports(reports : Array[@basic.Report]) -> String {
-  let messages : Array[String] = []
-  for report in reports {
-    messages.push(report.msg.replace_all(old="\n", new=" "))
-  }
-  messages.join(" ")
+  reports
+  .iter()
+  .map(report => report.msg.replace_all(old="\n", new=" "))
+  .join(" ")
 }

@@ -401,7 +401,7 @@ fn ensure_allowed_keys(
   allowed : Array[String],
 ) -> Unit raise {
   for key, _value in map {
-    if !array_contains(allowed, key) {
+    if !allowed.contains(key) {
       raise invalid_rule(
         path~,
         info="\{context} contains unsupported key \{key}",
@@ -521,14 +521,4 @@ fn windows_rule_id_from_path(
     Some((directory, _file_stem)) =>
       "\{directory.to_owned().replace_all(old="\\", new="/")}/\{id}"
   }
-}
-
-///|
-fn array_contains(items : Array[String], needle : String) -> Bool {
-  for item in items {
-    if item == needle {
-      return true
-    }
-  }
-  false
 }

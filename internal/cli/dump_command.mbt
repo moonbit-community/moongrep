@@ -132,9 +132,8 @@ fn parse_dump_expr(source : String) -> @untyped_cst.CstNode raise {
 
 ///|
 fn compact_reports(reports : Array[@basic.Report]) -> String {
-  let messages : Array[String] = []
-  for report in reports {
-    messages.push(report.msg.replace_all(old="\n", new=" "))
-  }
-  messages.join(" ")
+  reports
+  .iter()
+  .map(report => report.msg.replace_all(old="\n", new=" "))
+  .join(" ")
 }

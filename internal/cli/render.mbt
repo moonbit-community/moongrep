@@ -120,10 +120,7 @@ fn render_source_context_line(
 
 ///|
 fn leading_whitespace(text : String) -> String {
-  let mut end = 0
-  while end < text.length() && (text[end] == ' ' || text[end] == '\t') {
-    end += 1
-  }
+  let end = text.find_by(ch => ch != ' ' && ch != '\t').unwrap_or(text.length())
   text[:end].to_owned()
 }
 
@@ -197,9 +194,5 @@ fn format_location(file : String, loc : @basic.Location) -> String {
 
 ///|
 fn trim_trailing_newlines(input : String) -> String {
-  let mut end = input.length()
-  while end > 0 && input[end - 1:end].to_owned() == "\n" {
-    end -= 1
-  }
-  input[:end].to_owned()
+  input.trim_end(chars="\n").to_owned()
 }
