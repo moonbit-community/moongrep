@@ -7,30 +7,47 @@ description: 使用 moongrep 对 MoonBit 源码进行结构化搜索和污点分
 
 `moongrep` 是一个实验性的 MoonBit 结构化搜索和污点分析工具。
 
+## 命令一览
+
+| 命令 | 用途 |
+| --- | --- |
+| `moongrep lint` | 使用内置规则检查项目。 |
+| `moongrep scan` | 使用结构模式或 YAML 规则扫描 MoonBit 文件。 |
+| `moongrep dump` | 查看 MoonBit 表达式或顶层项的无类型 CST。 |
+| `moongrep docs` | 列出或打印内置英文规范文档。 |
+
+下文示例假设已安装 `moongrep` 可执行文件。如需使用 WebAssembly CLI，请将
+`moongrep` 替换为：
+
+```bash
+moonx moonbit-community/moongrep --
+```
+
 ## 快速入门
 
-要使用内置规则检查当前 MoonBit 项目，运行：
+### 使用内置规则检查项目
+
+在当前目录运行内置规则：
 
 ```bash
 moongrep lint
 ```
 
-`lint` 加载内置规则，默认扫描当前目录。它也接受 `scan` 的其他选项，
-用于添加自定义规则、过滤结果或调整输出格式。
+`lint` 默认扫描当前目录，并支持 `scan` 的所有选项，可以追加自定义规则、过滤结果
+或切换为 JSON 输出。
 
-要进行结构化搜索，可以在 MoonBit 项目根目录运行 `scan` 命令。默认情况下，
-它会递归扫描，并跳过 Git 和 MoonBit 工具链生成的目录。使用 `--pattern`
-选项指定表达式模式。例如，下面的命令查找对 Option 类型的值进行 `match`
-的表达式：
+### 执行结构化搜索
+
+在 MoonBit 项目根目录运行 `scan`，并通过 `--pattern` 指定表达式模式。默认情况下，
+`scan` 会递归遍历目录，并跳过 Git 和 MoonBit 工具链生成的目录。
+
+例如，查找对 `Option` 值执行 `match` 的表达式：
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }'
 ```
 
-示例使用已安装的 `moongrep` 可执行文件。如需使用 WebAssembly CLI，
-请将 `moongrep` 替换为 `moonx moonbit-community/moongrep --`。
-
-moongrep 边扫描边输出结果。可以将输出传给 less 等分页工具，方便在终端中阅读。
+`moongrep` 边扫描边输出结果，输出较多时可以通过管道传给分页器（如 `less -R`）：
 
 ```bash
 moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:exp); None => $(none_body:exp) }' | less -R
@@ -38,29 +55,36 @@ moongrep scan --pattern 'match $(value:exp) { Some($(some:id)) => $(some_body:ex
 
 ## 表达式模式和元变量
 
-`moongrep` 将表达式模式和待扫描的 MoonBit 代码解析成无类型的具体语法树（CST），
-然后比较它们的结构。模式中的普通 MoonBit 语法表示固定结构，元变量表示需要匹配
-和捕获的语法节点。换行、缩进等排版差异通常不会影响匹配结果。
+`moongrep` 会将模式和目标 MoonBit 源码都解析成无类型具体语法树（CST），再按结构
+比较：
 
-元变量使用以下格式：
+- 模式中的普通 MoonBit 语法代表固定结构。
+- 元变量用于匹配并捕获对应位置的语法节点。
+- 换行、缩进等排版差异通常不影响匹配结果。
+
+### 元变量语法与类别
+
+带类别的元变量写作：
 
 ```text
 $(name:kind)
 ```
 
-`name` 是元变量名称，匹配成功后用来记录该位置的代码。`kind` 指定允许匹配的
-语法节点类别。
+`name` 是捕获名，用于在匹配成功后记录该位置的代码；`kind` 限定允许匹配的语法节点
+类别：
 
-常用的 `kind` 包括：
+| 类别 | 匹配范围 |
+| --- | --- |
+| `exp` | 完整表达式（变量、函数调用、字段访问、`if` 表达式等）。 |
+| `id` | 标识符（变量名、参数名、pattern 绑定名等）。 |
+| `const` | 字面常量（整数、字符串、布尔值等）。 |
+| `arg` | 完整的函数调用参数（位置参数、标签参数、可选参数等）。 |
+| `pat` | 完整的 pattern。 |
+| `type` | 完整的类型。 |
 
-- `exp`：匹配一个完整表达式，例如变量、函数调用、字段访问或 `if` 表达式；
-- `id`：匹配一个标识符，例如变量名、参数名或 pattern 中绑定的名称；
-- `const`：匹配一个字面常量，例如整数、字符串或布尔值；
-- `arg`：匹配一个完整的函数调用参数；
-- `pat`：匹配一个完整的 pattern；
-- `type`：匹配一个完整的类型。
+### 示例拆解
 
-下面的模式匹配一个包含 `Some` 和 `None` 两个分支的 `match` 表达式：
+下面的模式匹配包含 `Some` 和 `None` 两个分支的 `match` 表达式：
 
 ```moonbit
 match $(value:exp) {
@@ -69,14 +93,14 @@ match $(value:exp) {
 }
 ```
 
-其中：
+其中各占位符的含义为：
 
-- `$(value:exp)` 捕获 `match` 检查的表达式；
-- `$(some:id)` 捕获 `Some` pattern 中绑定的标识符；
-- `$(some_body:exp)` 捕获 `Some` 分支的表达式；
+- `$(value:exp)` 捕获 `match` 检查的表达式。
+- `$(some:id)` 捕获 `Some(...)` 中绑定的标识符。
+- `$(some_body:exp)` 捕获 `Some` 分支的表达式。
 - `$(none_body:exp)` 捕获 `None` 分支的表达式。
 
-这个模式可以匹配：
+针对以下代码：
 
 ```moonbit
 match load_user() {
@@ -85,7 +109,7 @@ match load_user() {
 }
 ```
 
-这次匹配会产生以下捕获：
+匹配成功并产生如下捕获：
 
 ```text
 value     = load_user()
@@ -94,48 +118,100 @@ some_body = display(user)
 none_body = show_error()
 ```
 
-模式中的 `match`、`Some`、`None` 和两个分支的位置属于固定结构。使用 `Ok` 和 `Err` 分支的表达式不满足这个模式。`Some(1)` 也不满足 `Some($(some:id))`，因为 `1` 的语法类别是常量，`$(some:id)` 要求该位置是标识符。
+模式中的固定结构必须一致：
 
-同一个具名元变量可以在一条模式中出现多次。重复捕获必须按 kind 保持一致：`id`
-比较规范化后的名称，`const` 比较解析后的常量，`exp`、`arg`、`pat`、`type`
-等 CST 类型的捕获按忽略源码位置的语法树结构比较。例如：
+- 使用 `Ok` 和 `Err` 分支的 `match` 不会命中，因为 `Some` 和 `None` 是固定结构。
+- `Some(1)` 不会命中 `Some($(some:id))`，因为 `1` 是常量而不是标识符。
+
+### 重复元变量与 `$_`
+
+同一个具名元变量在模式中出现多次时，所有出现位置必须按类别一致：
+
+- `id` 比较规范化后的名称。
+- `const` 比较解析后的常量。
+- CST 类捕获（`exp`、`arg`、`pat`、`type`）比较语法树结构，忽略源码位置。
+
+例如：
 
 ```moonbit
 $(value:exp) == $(value:exp)
 ```
 
-这个模式可以匹配：
+它可以匹配 `user.name == user.name`，但不会匹配 `user.name == other.name`。
 
-```moonbit
-user.name == user.name
+如果只想匹配任意节点而不记录捕获，可使用忽略占位符 `$_`。同一模式中的多个 `$_`
+相互独立。
+
+## 模式附加条件（`--guard`）
+
+使用 `--guard` 可以筛选 `--pattern` 中元变量捕获到的值。例如，查找预期字符串为
+数字的 `inspect` 调用：
+
+```bash
+moongrep scan \
+  --pattern 'inspect($_, content=$(str:const))' \
+  --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
 ```
 
-下面的表达式不满足该模式：
+### 语法与引号规则
 
-```moonbit
-user.name == other.name
+`--guard` 接受一个 YAML 映射，通常紧跟在对应的 `--pattern` 之后：
+
+```text
+--pattern '...$(name:id)...$(value:const)...' \
+--guard '{$name: "正则表达式", $value: "正则表达式"}'
 ```
 
-这里的 `value` 是 `exp` 捕获，因此两次捕获的语法树必须结构相等，源码位置不参与比较。
+- 键必须是模式中已声明的具名元变量，并保留 `$` 前缀。
+- 值必须是正则表达式字符串。
+- 用单引号包住整个 YAML 映射，避免 shell 展开 `$name`；用双引号包住正则字符串。
+- YAML 双引号字符串中的反斜杠需要转义（例如将正则中的 `\.` 写成 `\\.`）。
 
-`$_` 表示忽略占位符。它可以匹配当前位置上的任意内容，不记录捕获结果。同一模式中的多个 `$_` 相互独立。
+### 筛选规则
 
-## 结构化输出
+- **支持的类别**：仅支持 `id` 和 `const` 捕获；不支持 `exp`、`arg`、`pat`、
+  `type`、省略号捕获或 `$_`。
+- **匹配文本**：
+  - `id` 捕获匹配规范化后的标识符（如 `name` 或 `@pkg.name`）。
+  - `const` 捕获匹配解析器得到的常量值（例如 `"raw"` 对应 `raw`，`42` 对应
+    `42`，`true` 对应 `true`）。
+- **正则语义**：默认按子串匹配（例如 `"raw"` 也会匹配 `"draw"`）。需要整串匹配时
+  请加上 `^` 和 `$`（如 `"^raw$"`）。
+- **多条件组合**：同一映射中的所有条件必须同时满足（逻辑 AND）。每个 `--pattern`
+  最多接受一个 `--guard`；扫描多个带条件模式时请成对提供 `--pattern` 和
+  `--guard`。
 
-moongrep 默认输出供人阅读的报告。使用 `--json` 可以让编程智能体读取输出：
+同时限定函数名和常量参数的示例：
+
+```bash
+moongrep scan \
+  --pattern '$(callee:id)($(value:const))' \
+  --guard '{$callee: "^@html\\.render$", $value: "^(danger|raw)$"}'
+```
+
+## 结构化输出（`--json`）
+
+`moongrep` 默认输出便于人阅读的文本报告。使用 `--json` 可输出紧凑的 JSON Lines，
+方便编程智能体和脚本消费：
 
 ```bash
 moongrep scan --pattern 'inspect($_, content="true")' --json
 moongrep dump --json --expr 'x + 1'
 ```
 
-JSON 模式下，每个非空的程序输出行都是一个紧凑的 JSON 对象。对于 `scan` 和
-`lint`，标准输出只包含 `finding` 记录；对于 `dump`，成功且未启用 exit-code
-模式时会在标准输出写出一条 `dump` 记录。标准错误只包含 `trace`、`warning` 和
-`error` 记录。没有命中时标准输出为空。记录按遍历顺序流式写出，后续失败不会
-撤回已经写出的记录。
+### 流约定
 
-稳定记录结构如下：
+- 每条非空程序输出行都是一个紧凑的 JSON 对象。
+- **标准输出**：
+  - `scan` 和 `lint`：仅输出 `finding` 记录（无命中时为空）。
+  - `dump`：成功且未启用 `--exit-code` 时输出一条 `dump` 记录。
+- **标准错误**：仅输出 `trace`、`warning` 和 `error` 记录。
+- 记录按遍历顺序流式写出；后续失败不会撤回已经写出的记录。
+- 当首个命令为 `scan`、`lint` 或 `dump` 时，CLI 会在完整参数解析前识别独立的
+  `--json`，因此用法错误也会以 JSON 输出。选项终止符 `--` 之后的 `--json` 不会被
+  当作选项。成功的帮助信息仍为普通文本。
+
+### 记录结构
 
 ```text
 finding: { "type":"finding", "file", "rule_id", "description", "range",
@@ -147,56 +223,21 @@ error:   { "type":"error", "category", "exit_code", "message",
            ...可选诊断字段 }
 ```
 
-警告类别为 `parse` 和 `invalid_skip_payload`。跟踪事件为
-`rule_loaded`、`directory_entered`、`path_skipped` 和 `file_started`。错误
-类别为 `internal`、`usage`、`dump_input`、`rule_source`、
-`rule_content`、`scan_input` 和 `output`。
+- **警告类别（`warning`）**：`parse`、`invalid_skip_payload`、`taint_incomplete`
+- **跟踪事件（`trace`，需 `--verbose`）**：`rule_loaded`、`directory_entered`、
+  `path_skipped`、`file_started`
+- **错误类别（`error`）**：`internal`、`usage`、`dump_input`、`rule_source`、
+  `rule_content`、`scan_input`、`output`、`taint_incomplete`
 
-CLI 会在完整解析前识别首个命令为 `scan`、`lint` 或 `dump` 时的独立
-`--json`，因此未知选项、缺少参数值等用法错误也输出 JSON。选项终止符
-`--` 之后的 `--json` 不会被当作选项。成功的帮助输出仍是普通文本。
+## 查看 CST（`dump`）
 
-## 模式附加条件
-
-`--guard` 用于筛选表达式模式中元变量捕获的值。
-
-下面的例子使用 `--guard` 查找预期值为数字的 `inspect` 调用。
-
-```bash
-moongrep scan --pattern 'inspect($_, content=$(str:const))' --guard '{$str: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"}'
-```
-
-`--guard` 的参数是 YAML 映射，通常紧跟在需要筛选的 `--pattern` 之后：
+使用 `dump` 打印 MoonBit `untyped_cst` 调试输出或校验模式语法：
 
 ```text
---pattern '...$(name:id)...$(value:const)...' \
---guard '{$name: "正则表达式", $value: "正则表达式"}'
+moongrep dump [--exit-code] [--strict-check] [--json] (--impl <impl> | --expr <expr>)
 ```
 
-映射的键必须是模式中已声明的具名元变量，并保留 `$` 前缀；值必须是正则表达式
-字符串。用单引号包住整个 YAML 映射，避免 shell 展开 `$name`，再用双引号包住
-正则字符串。YAML 双引号字符串中的反斜杠需要转义，例如正则中的 `\.` 要写成
-`\\.`。
-
-目前 guard 只能筛选 `id` 和 `const` 捕获，不能筛选 `exp`、`arg`、`pat`、`type`、
-省略号捕获或 `$_`。对于 `id` 捕获，正则匹配规范化后的标识符，例如 `name` 或
-`@pkg.name`。对于 `const` 捕获，正则匹配解析器得到的常量值：字符串字面量
-`"raw"` 对应 `raw`，数字 `42` 对应 `42`，布尔值 `true` 对应 `true`。
-
-正则默认匹配子串。例如 `"raw"` 也会匹配 `"draw"`。要匹配整个捕获值，使用
-`^` 和 `$`，写成 `"^raw$"`。同一映射中的条件必须全部满足，因此可以同时限定
-函数名和参数：
-
-```bash
-moongrep scan --pattern '$(callee:id)($(value:const))' --guard '{$callee: "^@html\\.render$", $value: "^(danger|raw)$"}'
-```
-
-每个 `--pattern` 最多接受一个 `--guard`。扫描多个带筛选条件的模式时，按
-`--pattern`、`--guard` 成对书写；同一模式的多个条件放在同一个 YAML 映射中。
-
-## 打印 CST
-
-使用 `dump` 子命令打印 MoonBit `untyped_cst` 调试输出：
+示例：
 
 ```bash
 moongrep dump --impl 'fn answer { 42 }'
@@ -206,61 +247,53 @@ moongrep dump --exit-code --expr 'x + 1'
 moongrep dump --strict-check --impl 'fn wrapper { __TARGET__ }'
 ```
 
-命令行参数概要：
+### 选项说明
 
-```text
-moongrep dump [--exit-code] [--strict-check] [--json] (--impl <impl> | --expr <expr>)
-```
+- `--impl <impl>`：解析一个 MoonBit 顶层实现项并打印其 `untyped_cst` 调试输出。
+  与 `--expr` 互斥。
+- `--expr <expr>`：解析一个 MoonBit 表达式并打印其 `untyped_cst` 调试输出。与
+  `--impl` 互斥。
+- `--strict-check`：在基础解析成功后继续执行 `scan` 使用的附加模式校验。
+  `--expr` 按普通结构模式校验；`--impl` 按默认 `inside-toplevel` 语义校验，且必须
+  在可绑定表达式位置恰好包含一个 `__TARGET__`。不影响成功时的文本或 JSON 输出。
+- `--json`：输出单行 JSON `dump` 记录（包含 `type`、`kind` 和 JSON 转义后的
+  `content`）。
+- `--exit-code`：执行相同校验但不打印 CST。校验通过时两个输出流均为空并以 `0`
+  退出（即使同时传入 `--json` 或 `--strict-check`）。基础语法错误仍返回 `3`；仅在
+  `--strict-check` 失败时返回 `5`（`invalid dump pattern`）。传入 `--json` 时，两类
+  失败均按标准 JSON `error` 结构输出。
 
-使用 `--impl <impl>` 可以解析一个 MoonBit 顶层实现项，并打印它的 `untyped_cst`
-调试输出。使用 `--expr <expr>` 可以解析一个 MoonBit 表达式，并打印它的
-`untyped_cst` 调试输出。要生成 dump，必须且只能提供这两个互斥选项中的一个。
-
-使用 `--strict-check` 会在普通 dump 解析成功后执行 `scan` 使用的附加 pattern
-校验。`--expr` 输入按普通 structural pattern 校验；`--impl` 输入按默认
-`inside-toplevel` 语义校验，并且必须在可绑定表达式位置恰好包含一个
-`__TARGET__`。严格检查不会改变成功输出的 CST 文本或 JSON 内容。
-
-使用 `--json` 会写出一条紧凑记录，其中 `type` 为 `"dump"`，`kind` 为
-`"impl"` 或 `"expr"`，`content` 包含相同的 CST `Repr` 文本。JSON 转义保证整条
-记录只占一个物理输出行。
-
-使用 `--exit-code` 可以执行相同的解析校验而不打印 CST。检查成功时不输出 CST，
-即使同时提供 `--json` 或 `--strict-check`，两个输出流也都为空，并以退出码 0
-退出。无效 dump 语法仍以退出码 3 退出；仅被 `--strict-check` 拒绝的 pattern
-以退出码 5 退出，并输出 `invalid dump pattern` 诊断。存在 `--json` 时，两类失败
-都使用现有 JSON `error` 记录 schema。
-
-不带参数调用 `moongrep dump` 会打印 `dump` 帮助，并以退出码 0 成功退出。用法
-错误，例如组合使用 `--impl` 和 `--expr`，会打印消息并以退出码 2 退出。解析或
-词法失败会打印消息并以退出码 3 退出。`dump --json` 未提供输入时报告 JSON
-usage error；`dump --json --help` 仍打印普通帮助。
+不带参数运行 `moongrep dump` 会打印 `dump` 帮助并返回 `0`。用法错误（如同时提供
+`--impl` 和 `--expr`，或仅传 `dump --json` 而不给输入）返回 `2`；
+`dump --json --help` 仍打印普通帮助并返回 `0`。
 
 ## 退出状态
 
-帮助、成功 dump、有命中、无命中和可恢复扫描 warning 都返回 0。失败使用以下
-固定类别：
+帮助、成功 `dump`、有命中扫描、无命中扫描和可恢复扫描警告都返回 `0`。无命中扫描
+不采用 grep 风格的状态码 `1`。
 
 | 状态码 | 含义 |
-|---:|---|
-| 1 | 内部或未分类错误，包括损坏的 builtin 规则 |
-| 2 | 命令行用法错误 |
-| 3 | 无效 `dump` 输入 |
-| 4 | 规则来源不存在、不可读或类型错误，或规则目录不包含 `.yaml` 或 `.yml` 文件 |
-| 5 | YAML 为空白或无效、单文件 `--rule` 后缀不受支持、规则 schema、pattern、guard、编译后的规则内容无效，或严格 dump pattern 无效 |
-| 6 | 扫描输入不存在或不可读 |
-| 7 | 标准输出或标准错误写入失败 |
+| ---: | --- |
+| `0` | 成功（包括无命中扫描和可恢复警告）。 |
+| `1` | 内部或未分类错误，包括损坏的内置规则。 |
+| `2` | 命令行用法错误。 |
+| `3` | 无效 `dump` 输入（词法或解析失败）。 |
+| `4` | 规则来源不存在、不可读或类型错误，或规则目录中不含 `.yaml` / `.yml` 文件。 |
+| `5` | 规则内容无效（空白或无效 YAML、单文件 `--rule` 后缀不受支持、schema/pattern/guard/编译结果无效）或 `--strict-check` 模式校验失败。 |
+| `6` | 扫描输入不存在或不可读。 |
+| `7` | 标准输出或标准错误写入失败。 |
+| `8` | 启用 `--strict-taint` 时存在不完整的污点分析。 |
 
-无命中扫描不采用 grep 风格的状态码 1，源码解析 warning 也仍返回 0。
+## 详细文档
 
-## 文档
+仓库内的中文完整规范：
 
-仓库内提供以下中文详细文档：
+- [规则规范](internal/docs/RuleSpec_CN.md) — YAML 规则 schema、校验规则、元变量、
+  结构规则和污点语义。
+- [CLI 规范](internal/docs/CLISpec_CN.md) — 命令行解析、遍历、过滤、输出格式、诊断
+  和退出码。
 
-- [规则规范](internal/docs/RuleSpec_CN.md) 规定 YAML 规则、校验和匹配器语义。
-- [CLI 规范](internal/docs/CLISpec_CN.md) 规定命令行解析、扫描、输出、诊断和退出行为。
-
-英文版本也可以通过 `docs` 子命令查看：
+英文规范也可以通过 `docs` 子命令直接查看：
 
 ```bash
 moongrep docs --list

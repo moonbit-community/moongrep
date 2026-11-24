@@ -544,28 +544,21 @@ fn parse_cli_guard_map(source : String) -> Map[String, String] raise {
 }
 
 ///|
-/// Parses command-line arguments after the executable name has been removed.
+/// Parses CLI arguments (with the executable name already stripped).
 ///
-/// `--version` or `-V` prints the module version and exits successfully.
-/// Otherwise, a supported subcommand is required. Within `scan`,
-/// `--rules <rules-root>`, `--rules=<rules-root>`, and `-r <rules-root>` select
-/// a rules directory. When no rule source is given, the rules directory
-/// defaults to `./.moongrep/rules`. An explicit `--rule <rule-file>`, at least
-/// one `--pattern <pattern>` suppresses that default. `--verbose` and
-/// `--json` are optional.
-/// `lint` accepts the other scan options, enables builtin rules automatically,
-/// and defaults to scanning the current directory when no arguments are given.
-/// Each `--exclude <name-or-path>` skips one matching child file or directory
-/// name or path during recursive source scanning. Each `--disable <rule-id>`
-/// disables one loaded rule by exact rule id before matching. Both options may
-/// be repeated.
-/// One optional scan-root positional may appear in the argument list. If the
-/// rules option or single rule option appears multiple times, the last value
-/// wins. Repeated patterns, exclusions, and disabled rules are appended in
-/// order.
-/// Invoking `docs` or `dump` without any arguments prints that subcommand's
-/// help and exits successfully. Missing subcommands, other missing required
-/// arguments, unknown options, or more than one scan root raise
+/// Behavior by subcommand:
+/// - `--version` / `-V`: prints the module version and exits with status 0.
+/// - `scan`: defaults to `./.moongrep/rules` unless `--rules`/`-r`, `--rule`,
+///   or `--pattern` is provided. Accepts `--guard`, `--exclude`, `--disable`,
+///   `--strict-taint`, `--verbose`, `--json`, and one optional `scan-root`.
+/// - `lint`: enables embedded builtin rules, defaults to scanning `.`, and
+///   accepts the other `scan` options.
+/// - `docs` / `dump`: prints subcommand help and exits 0 when invoked with no
+///   arguments.
+///
+/// Repeated options: the last `--rules` or `--rule` wins, whereas `--pattern`,
+/// `--exclude`, and `--disable` accumulate in command-line order. Missing
+/// subcommands, missing values, unknown options, or multiple scan roots raise
 /// `CliError::Usage`.
 pub fn parse_cli_command(
   argv : Array[String],

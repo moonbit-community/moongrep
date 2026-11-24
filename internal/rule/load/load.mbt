@@ -21,7 +21,8 @@ pub async fn load_rules(rules_root : String) -> Array[RawRuleSpec] {
 }
 
 ///|
-/// Loads exactly one YAML rule file.
+/// Loads a single YAML rule file, using its containing directory as the rules
+/// root so the final rule ID equals the file's top-level YAML `id`.
 pub async fn load_rule(rule_file : String) -> RawRuleSpec {
   let rule_file = normalize_rule_path(rule_file)
   let source = read_text_file(rule_file)

@@ -54,9 +54,9 @@ pub fn compile_inside_toplevel_pattern(
 ///|
 /// Validates and compiles raw YAML rule specs into executable rules.
 ///
-/// This step parses each `shape`, discovers metavars, rejects reserved
-/// names, and records taint `__SOURCE__` targets. It raises `RuleLoadError`
-/// when a rule cannot be represented by the runtime CST matcher.
+/// Checks duplicate rule IDs, parses each `shape`, resolves metavariables and
+/// guards, validates `__TARGET__` / `__SOURCE__` placement, and builds each
+/// rule's source-text prefilter. Raises `RuleLoadError` on invalid rules.
 pub fn compile_rules(
   raw_rules : Array[RawRuleSpec],
 ) -> Array[CompiledRule] raise {

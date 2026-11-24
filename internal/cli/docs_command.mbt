@@ -23,6 +23,10 @@ fn render_doc_body(name : String) -> String raise {
 }
 
 ///|
+/// Renders the output for a `docs --list` or `docs <name>` command.
+///
+/// Raises `CliError::Usage` for unknown document names and `CliError::Internal`
+/// if invoked with a non-`docs` command variant.
 pub fn render_docs_command(command : CliCommand) -> String raise {
   match command {
     DocsList => render_docs_list()

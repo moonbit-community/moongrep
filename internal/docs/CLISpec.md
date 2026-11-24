@@ -1,73 +1,47 @@
 # Command-Line Interface Specification
 
-The moongrep CLI lets you select commands and rule sources, scan MoonBit files,
-and read findings and diagnostics. Its exit status reports success or the
-category of failure.
+This document specifies how the `moongrep` CLI selects commands and rule
+sources, traverses and scans MoonBit files, formats output and diagnostics, and
+assigns exit codes.
 
-[RuleSpec.md](RuleSpec.md) specifies the YAML rule format, rule validation, and
-matcher semantics. Paths and rule ids are compared as case-sensitive strings
-unless a section says otherwise.
+For YAML rule syntax, validation, and matcher semantics, see
+[RuleSpec.md](RuleSpec.md). Paths and rule IDs are compared as case-sensitive
+strings unless a section explicitly states otherwise.
 
 ## Invocation and command selection
 
 ### Invocation forms
 
-Run an installed executable directly:
+| Distribution | Command form |
+| --- | --- |
+| Installed binary | `moongrep <command> [arguments]` |
+| Published Wasm CLI | `moonx moonbit-community/moongrep -- <command> [arguments]` |
+| Local Wasm artifact | `moonrun path/to/moongrep.wasm -- <command> [arguments]` |
 
-```text
-moongrep <command> [arguments]
-```
-
-Run the published WebAssembly executable through Moon:
-
-```text
-moonx moonbit-community/moongrep -- <command> [arguments]
-```
-
-Run a local WebAssembly artifact with `moonrun`:
-
-```text
-moonrun path/to/moongrep.wasm -- <command> [arguments]
-```
-
-In the WebAssembly forms, `--` separates runner arguments from moongrep
-arguments. Arguments after the separator follow the direct executable's
-behavior.
+In the WebAssembly forms, `--` separates runner arguments from `moongrep`
+arguments. Everything after `--` behaves identically to invoking the installed
+executable directly.
 
 ### Top-level commands
 
-moongrep provides four commands:
+| Command | Summary | Behavior with no extra arguments |
+| --- | --- | --- |
+| `scan` | Scan MoonBit source with explicit or default rules. | Scans `.` using `./.moongrep/rules`. |
+| `lint` | Scan MoonBit source with embedded builtin rules enabled. | Scans `.` using builtin rules. |
+| `docs` | List or print embedded documentation. | Prints `docs` help and exits `0`. |
+| `dump` | Parse one top-level item or expression for CST debug output or validation. | Prints `dump` help and exits `0`. |
 
-- `scan` scans MoonBit source with explicitly selected or default rules.
-- `lint` scans MoonBit source with embedded builtin rules enabled by default.
-- `docs` lists or prints embedded documentation.
-- `dump` parses one MoonBit implementation item or expression and either
-  prints CST debug output, writes a structured dump record, or reports
-  validation success through its exit status.
+Running `moongrep` with no command prints a missing-subcommand diagnostic and
+top-level help, then exits with status `2`.
 
-Running moongrep without a command prints a missing-subcommand diagnostic and
-top-level help, then exits with status 2.
+### Version and help
 
-### Version
-
-`moongrep --version` and `moongrep -V` print the module version from `moon.mod`
-to standard output and exit with status 0. No subcommand is required.
-
-### Help and no-argument behavior
-
-`-h` and `--help` print help for the selected command. The `help` command
-prints top-level help, and `help <command>` prints help for that command. Each
-form exits with status 0.
-
-With no additional arguments, each command behaves as follows:
-
-- `scan` starts a normal scan with scan root `.` and default rules directory
-  `./.moongrep/rules`.
-- `lint` starts a normal scan with scan root `.` and builtin rules enabled.
-- `docs` prints `docs` help and exits with status 0.
-- `dump` prints `dump` help and exits with status 0.
-
-Help text is written to standard output.
+- **Version**: `moongrep --version` and `moongrep -V` print the module version
+  from `moon.mod` to standard output and exit `0` without requiring a
+  subcommand.
+- **Help**: `-h` and `--help` print help for the active command. `moongrep help`
+  prints top-level help, and `moongrep help <command>` prints help for that
+  command. All help forms write to standard output and exit `0`.
 
 ## `scan` and `lint`
 
@@ -79,292 +53,256 @@ moongrep lint [options] [scan-root]
 ```
 
 At most one `scan-root` positional argument is accepted. It may appear before,
-between, or after options. When it is absent, the value is `.`.
+between, or after options, and defaults to `.` when omitted.
 
 ### Options
 
-Both commands accept:
+| Option | Value | Purpose | Repeated behavior |
+| --- | --- | --- | --- |
+| `-r`, `--rules` | `<dir>` | Select a directory of YAML rules. | Last value wins. |
+| `--rule` | `<file>` | Select one YAML rule file (lowercase `.yaml` or `.yml`). | Last value wins. |
+| `--pattern` | `<source>` | Add an anonymous structural expression pattern. | All retained in order. |
+| `--guard` | `<yaml>` | Attach a YAML guard map to the most recent unguarded `--pattern`. | At most one per pattern. |
+| `--exclude` | `<name-or-path>` | Skip matching child file or directory entries. | All retained in order. |
+| `--disable` | `<rule-id>` | Disable a loaded rule by exact ID. | All retained in order (duplicates deduplicated). |
+| `--strict-taint` | flag | Exit with status `8` if taint analysis is incomplete (off by default). | Equivalent to one occurrence. |
+| `--verbose` | flag | Write rule-loading and traversal trace events to stderr. | Equivalent to one occurrence. |
+| `--json` | flag | Write findings and diagnostics as JSON Lines. | Equivalent to one occurrence. |
+| `-h`, `--help` | flag | Print command help and exit `0`. | Equivalent to one occurrence. |
 
-- `-r <dir>` or `--rules <dir>`: select a directory containing YAML rules.
-- `--rule <file>`: select one YAML rule file whose path ends in lowercase
-  `.yaml` or `.yml`.
-- `--pattern <source>`: add one anonymous structural pattern.
-- `--guard <yaml>`: attach a YAML guard map to a preceding anonymous pattern.
-- `--exclude <name-or-path>`: skip matching file or directory entries.
-- `--disable <rule-id>`: disable a loaded rule id.
-- `--verbose`: write rule-loading and traversal events to standard error.
-- `--json`: write findings as JSON Lines records.
-- `-h` or `--help`: print command help.
+Additional option rules:
 
-`--enable-builtin-rules` is not accepted by either command. Embedded builtin
-rules can only be selected through `lint`.
+- Long options taking a value accept both `--option value` and
+  `--option=value`. Among them, only `--rules` has a short form (`-r`).
+- `--enable-builtin-rules` is not accepted by either command; embedded builtin
+  rules are enabled only through `lint`.
+- Color output is controlled by the `NO_COLOR` environment variable (see
+  [Color](#color)).
+- Multiple `scan-root` positionals, missing option values, unknown options, and
+  unknown commands are usage errors (status `2`).
 
-Long options that take values accept both `--option value` and
-`--option=value`. Among these options, `--rules` also has a short form. The
-`NO_COLOR` environment variable controls color as described below.
+### Scan root and platform path rules
 
-### Scan root
+`scan-root` may be a directory or a single regular file:
 
-`scan-root` may name a directory or one regular file. Directory targets are
-traversed recursively. A regular target is scanned when its path ends in
-lowercase `.mbt`.
-Directory symlinks are followed. Each resolved directory is entered at most
-once, so symlink cycles and later aliases of an already visited directory are
-skipped. Findings and events use the traversal path. Resolving a directory's
-identity does not change its displayed path.
+- Directories are traversed recursively.
+- A regular file is scanned only when its path ends in exact lowercase `.mbt`.
+- Directory symlinks are followed. Each resolved directory identity (via
+  `realpath`) is entered at most once, so symlink cycles and repeated aliases
+  are skipped. Rendered findings and events keep the traversal (symlink) path.
 
-On Linux and macOS, the scanner retains the supplied scan-root spelling and
-constructs child paths with `/`, as described by the traversal rules below.
+Platform path handling:
 
-On Windows, the scan root is lexically normalized before any filesystem
-operation. Both `/` and `\` are accepted as separators; repeated separators and
-`.` / `..` components are normalized with Windows path rules. Child paths are
-joined with the native separator. The normalized native path is used for
-filesystem access and for finding locations, warnings, verbose events, and
-JSON output, so rendered paths use `\`. Lexical normalization does not turn a
-relative scan root into an absolute path. Directory identity checks resolve
-symlinks separately without changing the rendered traversal path.
+- **Linux and macOS**: Retain the supplied `scan-root` spelling and join child
+  paths with `/`.
+- **Windows**: Lexically normalize `scan-root` before any filesystem call. Both
+  `/` and `\` are accepted as separators, repeated separators are collapsed, and
+  `.` / `..` components are normalized using Windows path rules (without turning
+  a relative root into an absolute path). Child paths are joined with `\`. The
+  same normalized native path is used for filesystem access, findings, warnings,
+  verbose events, and JSON output. Directory identity checks resolve symlinks
+  separately without altering the rendered path.
 
-### Rule sources and ordering
+### Rule sources and loading order
 
-`scan` and `lint` may combine rule sources. Sources are loaded in this fixed
-category order, independent of where their options appeared:
+`scan` and `lint` can combine multiple rule sources. Regardless of flag order on
+the command line, sources are always loaded in this fixed category order:
 
-1. embedded builtin rules, for `lint`;
-2. the effective `--rules` directory, when present;
-3. the effective `--rule` file, when present;
-4. anonymous `--pattern` rules, in command-line order.
+1. Embedded builtin rules (`lint` only).
+2. The effective `--rules` directory, if present.
+3. The effective `--rule` file, if present.
+4. Anonymous `--pattern` rules, in command-line order.
 
-For `scan`, `./.moongrep/rules` is the default rules directory when the command
-does not include `--rules`, `--rule`, or `--pattern`. Specifying any of these
-sources replaces the default directory. An explicit `--rules` directory
-combines with the other selected sources.
+Default-source behavior:
 
-For `lint`, builtin rules are always the first source. Explicit `--rules`,
-`--rule`, and `--pattern` values add more sources after the builtin rules.
+- For `scan`, `./.moongrep/rules` is used when none of `--rules`, `--rule`, or
+  `--pattern` is provided. Passing any of those options replaces the default
+  directory; an explicit `--rules` directory combines with `--rule` and
+  `--pattern`.
+- For `lint`, builtin rules are always loaded first, and explicit `--rules`,
+  `--rule`, and `--pattern` options append additional sources after them.
 
-The suffix check for a single `--rule` file is case-sensitive on every
-platform. A readable file with any other suffix is rejected as invalid rule
-content and uses exit status 5.
+Single-file and path rules for rule sources:
 
-On Windows, effective `--rules` and `--rule` paths are lexically normalized
-before filesystem access. Recursive rule discovery uses native path joins, and
-the containing directory of a single `--rule` file is computed with Windows
-path rules. Linux and macOS retain the existing `/`-based path construction.
-Directory symlinks are followed, and each resolved rule directory is visited
-at most once.
-
-Rule-directory discovery, rule ids, YAML validation, source ordering within a
-rule directory, and matcher compilation are specified by
-[RuleSpec.md](RuleSpec.md).
-
-### Repeated options
-
-When an option appears more than once:
-
-- The last `--rules` or `-r` value wins.
-- The last `--rule` value wins.
-- Every `--pattern` is retained in order.
-- Every `--exclude` and `--disable` is retained in order.
-- Repeated Boolean flags are equivalent to one occurrence.
-
-Usage errors include multiple scan-root positionals, missing option values,
-unknown options, and unknown commands.
+- The suffix check for `--rule` is case-sensitive on all platforms (lowercase
+  `.yaml` or `.yml`). A readable file with any other suffix is rejected as
+  invalid rule content (status `5`).
+- On Windows, effective `--rules` and `--rule` paths are lexically normalized
+  before filesystem access; recursive rule discovery joins paths with `\` and
+  the containing directory of `--rule` follows Windows path rules. Linux and
+  macOS keep `/`-based path construction.
+- Directory symlinks are followed during rule discovery, and each resolved rule
+  directory is visited at most once.
+- Rule-directory discovery, rule IDs, YAML validation, intra-directory ordering,
+  and compilation are defined in [RuleSpec.md](RuleSpec.md).
 
 ### Anonymous patterns and guards
 
-Each `--pattern` becomes a structural rule with one positive pattern. Its rule
-id is the pattern source itself and its description is `Anonymous CLI
-pattern.`. Anonymous rules use the default match mode.
+- Each `--pattern` creates a structural rule with one positive pattern, rule ID
+  equal to the pattern source text, description `Anonymous CLI pattern.`, and
+  default match mode.
+- Each `--guard` attaches to the most recent preceding `--pattern` that does not
+  already have a guard. Providing `--guard` with no eligible preceding pattern
+  is a usage error (status `2`).
+- The `--guard` argument must be a single YAML document containing a mapping
+  whose keys are nonempty `$`-prefixed names and whose values are strings.
+  Malformed YAML, multiple documents, non-mapping documents, invalid keys, or
+  non-string values are usage errors (status `2`).
+- Capture compatibility and regular-expression compilation are validated during
+  rule compilation (status `5`); see [RuleSpec.md](RuleSpec.md).
 
-A `--guard` attaches to the most recent preceding pattern without a guard.
-Each pattern accepts at most one guard. Providing a guard without an eligible
-preceding pattern is a usage error.
+### Rule disabling (`--disable`)
 
-The command-line guard value must contain exactly one YAML document. That
-document must be a mapping whose keys are nonempty `$`-prefixed names and
-whose values are strings. Malformed YAML, another top-level YAML kind,
-multiple documents, an invalid key, or a non-string value is a usage error.
-
-Rule compilation checks capture compatibility and regular-expression validity.
-See [RuleSpec.md](RuleSpec.md) for these checks and guard matching behavior.
-
-### Rule disabling
-
-All selected sources are loaded before `--disable` is applied. Disabled ids are
-compared exactly and case-sensitively against the combined loaded rule ids on
-every platform. Every requested id must exist; the first unknown id is a usage
-error with status 2.
-
-All rules with a disabled id are removed before rule compilation and scan
-planning. Repeated disabled ids are treated as one. Verbose loaded-rule events
-describe the rules that remain enabled.
+- All selected rule sources are loaded before `--disable` is applied.
+- Disabled IDs are matched exactly and case-sensitively against the combined
+  loaded rule IDs on every platform.
+- Every requested ID must match a loaded rule; the first unknown ID causes a
+  usage error (status `2`).
+- Disabled rules are removed before rule compilation and scan planning. Repeated
+  IDs are treated as one. Verbose `rule_loaded` events report only rules that
+  remain enabled.
 
 ## File traversal
 
-### File and directory targets
+### Eligible files and traversal order
 
-For a directory target, moongrep examines child entries recursively. It parses
-regular files whose path ends in lowercase `.mbt` and ignores other entries.
-The suffix test is case-sensitive on every platform.
-
-A missing or unreadable target is a runtime failure. An existing regular file
-whose path has another suffix completes successfully with no findings.
-
-### Traversal order and symbolic links
-
-Directory entries are sorted, then visited with depth-first traversal. The
-scanner completely traverses one entry before visiting the next sibling.
-Findings, warnings, and verbose events use this traversal order as their final
-streaming order.
-
-Filesystem kind checks follow symbolic links, both at the scan root and below
-it. Rendered paths retain the symbolic-link path. Directory identities are
-resolved with `realpath`, and each resolved directory is entered at most once
-per scan. Symbolic-link cycles and later aliases of an already visited
-directory are skipped.
+- Under a directory target, `moongrep` visits entries recursively, parsing only
+  regular files whose path ends in exact lowercase `.mbt` (case-sensitive on
+  every platform) and ignoring other entries.
+- A missing or unreadable target fails the scan (status `6`). An existing
+  regular file without a `.mbt` suffix succeeds with zero findings (status `0`).
+- Directory entries are sorted and traversed depth-first, finishing each entry
+  completely before moving to the next sibling. Findings, warnings, and verbose
+  events stream in this exact traversal order.
+- Filesystem kind checks follow symlinks at and below `scan-root`. Resolved
+  directory identities (`realpath`) are visited at most once per scan; symlink
+  cycles and later aliases are skipped.
 
 ### Default directory exclusions
 
-When considering a child entry, moongrep applies these default exclusions at
-every depth:
+At every depth below `scan-root`, child entries matching any of these names are
+skipped:
 
-- every name beginning with `.`
+- Any entry name starting with `.` (case-independent).
 - `_build`
 - `node_modules`
 - `target`
 
-The leading-dot check is case-independent. The complete exact names are
-compared case-sensitively on Linux and macOS. On Windows only, they are compared
-case-insensitively with per-character Unicode lowercase mapping. These
-exclusions apply to children during traversal. An explicitly selected scan root
-is still inspected when its final path component matches one of these rules.
+Exact-name comparison is case-sensitive on Linux and macOS, and case-insensitive
+(via per-character Unicode lowercase mapping) on Windows. Default exclusions
+apply only to discovered children; an explicitly passed `scan-root` whose final
+component matches one of these names is still scanned.
 
-### `--exclude`
+### Explicit exclusions (`--exclude`)
 
-On Linux and macOS, each `--exclude` value is normalized by removing trailing
-`/` characters while preserving a lone `/`, then removing every leading `./`.
-For example, `./vendor/` becomes `vendor` and `./src/generated///` becomes
-`src/generated`. Other components, including `..`, remain literal.
+Normalization before comparison:
 
-On Windows, both `/` and `\` are accepted, repeated separators are collapsed,
-and `.` / `..` components are normalized with Windows path rules. Non-root
-trailing separators are removed, while roots such as `C:\` and
-`\\server\share\` retain their trailing separator. An empty exclusion remains
-empty.
+- **Linux and macOS**: Strip trailing `/` characters (keeping a lone `/`), then
+  strip all leading `./` prefixes. For example, `./vendor/` becomes `vendor` and
+  `./src/generated///` becomes `src/generated`. Other components such as `..`
+  stay literal.
+- **Windows**: Accept both `/` and `\`, collapse repeated separators, and
+  normalize `.` / `..` with Windows path rules. Non-root trailing separators are
+  removed, while roots such as `C:\` and `\\server\share\` keep their trailing
+  separator. An empty exclusion stays empty.
 
-Before visiting a child, each complete normalized exclusion is compared
-against both:
+Matching rules:
 
-- the child's entry name; and
-- the constructed child path after the same normalization.
-
-Matching either complete string skips the file or directory entry. Linux and
-macOS comparisons preserve case and filesystem spelling. Windows comparisons
-are case-insensitive using the same per-character Unicode lowercase mapping as
-Windows path comparison. Glob characters are ordinary characters on every
-platform.
-
-Because entry-name matching is performed at every depth, excluding `vendor`
-skips every matching child name, and excluding `generated.mbt` skips every
-matching child file name. A path such as `src/generated` matches only a child
-whose constructed path equals that path under the platform comparison rules.
-An absolute exclusion matches only an absolute constructed child path; a
-relative scan root is not resolved merely to match an absolute exclusion.
-Exclusions apply only to children discovered during directory traversal; an
-explicitly selected scan root is still inspected.
+- Before visiting a child entry, each normalized exclusion is compared against
+  both the child's entry name and the normalized constructed child path. A full
+  string match on either skips the entry.
+- Comparisons are case-sensitive on Linux and macOS, and case-insensitive
+  (per-character Unicode lowercase) on Windows.
+- Glob characters (`*`, `?`, `[`, etc.) are treated as ordinary literal
+  characters on every platform.
+- Because entry names are checked at every depth, `--exclude vendor` skips every
+  entry named `vendor`, and `--exclude generated.mbt` skips every file named
+  `generated.mbt`.
+- A multi-component path such as `src/generated` matches only a child whose
+  constructed path equals it under platform comparison rules. An absolute
+  exclusion matches only an absolute constructed child path; a relative
+  `scan-root` is not resolved just to match an absolute exclusion.
+- Exclusions apply only to children discovered during directory traversal, not
+  to `scan-root` itself.
 
 ## Source processing
 
 ### Prefiltering
 
-Compiled rules produce a scan plan with source-text prefilters. moongrep first
-filters the complete file and skips splitting and parsing when every enabled
-rule is filtered out. It then filters each source block independently and
-parses the blocks that still have candidate rules.
+Compiled rules produce a scan plan containing conservative source-text
+prefilters:
 
-Only source retained by the file and block prefilters can produce parse or
-attribute warnings.
+1. `moongrep` first filters the entire file text; if every enabled rule is
+   filtered out, block splitting and parsing are skipped completely.
+2. Otherwise, each source block is filtered independently, and only blocks with
+   at least one remaining candidate rule are parsed.
+
+Because irrelevant files and blocks are never parsed, only source retained by
+both prefilters can emit parse or attribute warnings.
 
 ### Source blocks and parse warnings
 
-A source line beginning with `///|` in column 1 starts a source block. The
-delimiter line belongs to the following block. Indented `///|` text stays in
-the current block. A file with no later delimiter is parsed as one block.
-
-Each relevant block is parsed as MoonBit top-level structure. If parsing
-reports a diagnostic or leaves a recovery node, that block is skipped and one
-warning is written to standard error. Other relevant blocks in the same file
-continue to scan.
-
-For a multi-block file, the warning identifies the original line at which the
-skipped block starts. For a single-block file, it identifies only the file.
-Parser messages are compacted onto one warning line. The exit status remains
-0 after parse warnings.
+- Any line starting with `///|` at column 1 begins a new source block, and that
+  delimiter line belongs to the new block. Indented `///|` text remains inside
+  the current block. A file without later delimiters is parsed as one block.
+- Each relevant block is parsed as MoonBit top-level structure. If parsing emits
+  a diagnostic or leaves a recovery node, that block is skipped and one warning
+  is written to stderr; other relevant blocks in the same file continue
+  scanning.
+- In a multi-block file, the warning reports the skipped block's original
+  starting line. In a single-block file, it identifies only the file. Parser
+  messages are compacted onto a single line. Parse warnings keep exit status `0`
+  (unless taint analysis is affected under `--strict-taint`; see
+  [Incomplete taint analysis](#incomplete-taint-analysis)).
 
 ### `#moongrep.skip`
 
-On a parsed top-level item, a bare `#moongrep.skip` suppresses every structural
-rule for that complete item. Taint rules still run on the item.
-
-Payload forms such as `#moongrep.skip()` are invalid. Each invalid attribute
-emits a source-located warning. Structural rules continue to run unless the
-same item also has a bare `#moongrep.skip`; the bare attribute suppresses the
-structural rules while each invalid payload still emits a warning. Only the
-exact bare `#moongrep.skip` form suppresses structural rules.
-
-Attribute inspection runs after prefiltering and successful parsing. Warnings
-therefore come from parsed blocks retained by the prefilters.
+- A bare `#moongrep.skip` attribute on a parsed top-level item suppresses all
+  structural rules for that entire item. Taint rules still run on it.
+- Payload forms such as `#moongrep.skip()` are invalid: each invalid attribute
+  emits a source-located warning (`invalid_skip_payload`) and does not suppress
+  structural rules. If the same item has both a bare `#moongrep.skip` and an
+  invalid payload form, structural rules are suppressed while each invalid
+  payload still emits its warning.
+- Attribute checks run after prefiltering and successful parsing, so warnings
+  only come from blocks retained by prefilters and parsed cleanly.
 
 ## Output streams and ordering
 
-### Standard output
+### Standard output vs. standard error
 
-During `scan` and `lint`, findings are written to standard output as they are
-found. Human mode writes `no match hits` for a scan with zero findings. JSON
-mode leaves standard output empty for the same scan.
+| Stream | Contents |
+| --- | --- |
+| `stdout` | `scan`/`lint` findings (`no match hits` in human mode when zero findings; empty in JSON mode), help text, `docs` output, and `dump` text/JSON output (empty for successful `dump --exit-code`). |
+| `stderr` | All fatal error diagnostics (statuses `1`–`8`), parse warnings, invalid `#moongrep.skip` warnings, `taint_incomplete` warnings, and `--verbose` trace events. |
 
-Help, embedded documentation, text dump output, and JSON dump records are also
-written to standard output. A successful `dump --exit-code` check, including
-any requested strict pattern validation, leaves both output streams empty.
+### Verbose events (`--verbose`)
 
-### Standard error and verbose events
+When `--verbose` is enabled, `moongrep` emits four traversal events to stderr:
 
-Every failure diagnostic that terminates the command with a nonzero status is
-written to standard error. This includes command-line usage, unknown-document,
-dump parsing and strict pattern validation, rule-loading, rule-compilation,
-filesystem, output, and unexpected runtime diagnostics. Scan parse warnings
-and invalid-`#moongrep.skip` warnings are also always written to standard
-error. `--verbose` adds these standard-error events:
+- `moongrep scan: loaded rule <id>` — once per enabled compiled rule, before
+  traversal begins.
+- `moongrep scan: entering <path>` — when entering a directory.
+- `moongrep scan: skipping <path>` — when a path is skipped due to an exclusion
+  or an already-visited directory.
+- `moongrep scan: file <path>` — before processing an eligible `.mbt` file.
 
-- `moongrep scan: loaded rule <id>` for each enabled compiled rule, before
-  traversal starts;
-- `moongrep scan: entering <path>` when a directory is entered;
-- `moongrep scan: skipping <path>` when an exclusion or an already visited
-  directory skips a path;
-- `moongrep scan: file <path>` before an eligible `.mbt` file is processed.
-
-In human mode, these events and warnings retain the text shown above. In JSON
-mode, standard error contains `trace`, `warning`, and `error` JSON Lines records
-instead. Standard output contains only `finding` records.
+In JSON mode, stderr emits `trace`, `warning`, and `error` JSON Lines records
+instead of plain text, while stdout emits only `finding` records.
 
 ### Streaming order
 
-One complete finding is written before traversal resumes. In human mode, a
-blank line separates consecutive findings. In JSON mode, every finding is one
-newline-terminated record without an extra blank line.
-
-Warnings and verbose events remain interleaved on standard error at the point
-where traversal produces them. A later failure appends one error record without
-withdrawing findings already written. Combining standard output and standard
-error therefore exposes traversal order, subject to the shell or caller's
-normal handling of two streams.
+- Each finding is written in full before traversal continues. Human mode
+  separates consecutive findings with a blank line; JSON mode writes one
+  newline-terminated record per finding with no extra blank line.
+- Warnings and verbose events appear on stderr at the point in traversal where
+  they occur.
+- A later fatal failure writes an error diagnostic to stderr without withdrawing
+  findings already written to stdout.
 
 ## Human-readable output
 
-### Finding layout
-
-Each finding has this structure:
+### Finding layout and coordinates
 
 ```text
 <file>:<start-line>:<start-column>-<end-line>:<end-column>
@@ -376,60 +314,56 @@ source:
 <number> <marker> <source line>
 ```
 
-Trailing newline characters are removed from the description, and every
-remaining description line is indented by two spaces. An empty description
-still produces one indented empty line.
-
-Locations use 1-based line and Unicode code point column numbers. A non-BMP
-character such as an emoji counts as one column. Combining marks count as
-separate columns rather than being grouped into grapheme clusters. The start is
-inclusive and the end is exclusive.
+- Trailing newline characters are stripped from `description`, and each
+  remaining line is indented by two spaces. An empty description still emits one
+  indented empty line.
+- Line and column numbers are 1-based; columns count Unicode code points. A
+  non-BMP character (such as an emoji) counts as one column, and combining marks
+  count individually rather than as grapheme clusters. Start is inclusive; end
+  is exclusive.
 
 ### Source context and long matches
 
-Source context contains up to two lines before the first matched line, every
-displayed matched line, and up to two lines after the last matched line. Line
-numbers are padded to the widest number in that finding.
-
-When a match spans at most six lines, all matched lines are displayed. When it
-spans seven or more lines, human output retains the first three and last three
-matched lines and replaces the matched interior with one line that reports the
-omitted line range and count. JSON `matched_source` and `source_context` always
-retain all lines.
+- Context includes up to two lines before the first matched line, the displayed
+  matched lines, and up to two lines after the last matched line. Line numbers
+  are right-aligned to the widest line number in that finding.
+- Matches spanning `<= 6` lines show every matched line. Matches spanning `>= 7`
+  lines show the first three and last three matched lines and replace the middle
+  with one omission line stating the omitted line range and line count.
+- JSON `matched_source` and `source_context` always include all lines without
+  truncation.
 
 ### Color
 
-Color is enabled by default. The exact environment value `NO_COLOR=1` disables
-it. An unset value and every other value, including the empty string and
-`true`, keep color enabled.
-
-With color enabled, the matched source slice is bright yellow and nonmatching
-context and omission rows are bright black; rows use ` | ` as the separator.
-With `NO_COLOR=1`, output is plain text. Matched or omitted rows use ` > `,
-while nonmatching context rows use ` | `.
+- Color is enabled by default. Only the exact environment setting `NO_COLOR=1`
+  disables it; an unset variable or any other value (including `""` or `true`)
+  keeps color enabled.
+- **Color enabled**: matched source slices are bright yellow, nonmatching
+  context and omission rows are bright black, and all rows use ` | ` as the
+  separator.
+- **Color disabled (`NO_COLOR=1`)**: plain text output where matched and omitted
+  rows use ` > ` and nonmatching context rows use ` | `.
 
 ## JSON Lines Output
 
 ### Protocol and mode detection
 
-For `scan`, `lint`, and `dump`, `--json` selects structured output. The
-option must be a standalone argument before an option terminator. For example,
-`scan -- --json` and `dump -- --json` do not enable JSON mode.
-The initial command must be `scan`, `lint`, or `dump`.
+- `--json` enables structured JSON Lines output for `scan`, `lint`, and `dump`.
+- `--json` must appear as a standalone argument before any `--` option
+  terminator (for example, `scan -- --json` and `dump -- --json` do not enable
+  JSON mode), and the initial command must be `scan`, `lint`, or `dump`.
+- For `scan` and `lint`, every nonempty line written to stdout or stderr is one
+  compact JSON object. For `dump`, a successful non-`--exit-code` run writes one
+  compact JSON object to stdout.
+- Successful help and `docs` output are outside this protocol; in particular,
+  `dump --json --help` prints ordinary plain-text help.
+- Mode detection runs before full argument parsing, so usage failures (unknown
+  options, missing option values, etc.) emit a JSON `error` record whenever a
+  qualifying `--json` is present.
 
-For `scan` and `lint`, every nonempty application-output line on both standard
-streams is a compact JSON object. For `dump`, a successful non-exit-code dump
-is one compact JSON object on standard output. Successful help and `docs`
-output are not part of this protocol. In particular,
-`dump --json --help` still prints ordinary help text.
+### Record schemas
 
-Mode detection happens before full argument parsing. An unknown option, a
-missing option value, or another parsing failure is therefore rendered as an
-`error` record when a qualifying `--json` was present.
-
-### Finding records
-
-Each finding is written to standard output with this structure:
+#### `finding` (stdout)
 
 ```text
 {
@@ -448,29 +382,26 @@ Each finding is written to standard output with this structure:
 }
 ```
 
-The finding record contains exactly the fields shown above. Trailing newline
-characters are removed from `description`.
+Contains exactly these fields. Trailing newline characters are stripped from
+`description`.
 
-### Warning records
-
-Warnings are written to standard error. A source parse warning has category
-`parse` and fields `type`, `category`, `message`, `file`, and `reason`; it also
-has `block_start_line` when a multi-block source identifies the skipped block.
-An invalid `#moongrep.skip` payload warning has category
-`invalid_skip_payload` and fields `type`, `category`, `message`, `file`, and
-`range`.
+#### `warning` (stderr)
 
 ```text
 { "type": "warning", "category": "parse", "message": string,
   "file": string, "reason": string, "block_start_line": integer? }
+
 { "type": "warning", "category": "invalid_skip_payload", "message": string,
   "file": string, "range": range }
+
+{ "type": "warning", "category": "taint_incomplete", "message": string,
+  "file": string, "range": range, "rule_ids": [string], "reason": string }
 ```
 
-### Trace records
+`block_start_line` is present on `parse` warnings only for multi-block files
+where the skipped block's starting line is identified.
 
-With `--verbose`, trace records are written to standard error before or during
-traversal:
+#### `trace` (stderr, with `--verbose`)
 
 ```text
 { "type": "trace", "event": "rule_loaded", "rule_id": string }
@@ -479,28 +410,18 @@ traversal:
 { "type": "trace", "event": "file_started", "path": string }
 ```
 
-### Dump records
-
-A successful `dump --json` command writes exactly one record to standard
-output:
+#### `dump` (stdout)
 
 ```text
 { "type": "dump", "kind": "impl" | "expr", "content": string }
 ```
 
-The record contains exactly the fields shown above, in `type`, `kind`,
-`content` order. `kind` reflects the selected input option. `content` is the
-same CST `Repr` text that human mode would print. JSON encoding escapes its
-newlines and other special characters, so the complete record occupies one
-physical output line.
+Written as a single line on successful `dump --json`, with fields in exact order
+`type`, `kind`, `content`. `content` is the same CST `Repr` text printed in
+human mode (JSON-escaped onto one physical line). `dump --exit-code --json`
+stays silent when all requested checks pass.
 
-`dump --exit-code --json` remains silent after all requested checks succeed.
-Invalid input, strict pattern validation, and usage failures use the error
-record below.
-
-### Error records
-
-A fatal failure is written to standard error as:
+#### `error` (stderr)
 
 ```text
 { "type": "error", "category": string, "exit_code": integer,
@@ -509,106 +430,95 @@ A fatal failure is written to standard error as:
 ```
 
 `category` is one of `internal`, `usage`, `dump_input`, `rule_source`,
-`rule_content`, `scan_input`, `output`, or `taint_incomplete`. For a structured diagnostic,
-`message` is its summary. For an argparse diagnostic, `message` contains the
-complete multiline diagnostic as one escaped JSON string. Empty optional fields
-are omitted. Pattern line endings are normalized to LF and one trailing line
-ending is removed, as in human mode.
+`rule_content`, `scan_input`, `output`, or `taint_incomplete`.
 
-### Coordinates and source text
+- For structured diagnostics, `message` is the summary line.
+- For argparse diagnostics, `message` is the full multiline parser message as
+  one escaped JSON string.
+- Empty optional fields are omitted.
+- `pattern` line endings are normalized to LF with one trailing line ending
+  removed, matching human mode.
 
-JSON range coordinates use the same 1-based Unicode code point columns as human
-output, including the non-BMP and combining-mark rules above. `range.start` is
-inclusive and `range.end` is exclusive.
+### Coordinates, context, and no-match behavior
 
-`matched_source` is the exact source slice covered by that range.
-`source_context` contains the same two-line-before and two-line-after window
-used by human output. `is_match` is true for every physical line intersected
-by the range, even when only part of the first or last line is matched.
-
-### No-match behavior
-
-Every JSON record ends with one newline. A scan with zero findings writes zero
-bytes to standard output. Warning, trace, or error records may still be written
-to standard error.
+- `range` uses the same 1-based Unicode code-point columns as human output
+  (start inclusive, end exclusive).
+- `matched_source` is the exact source slice covered by `range`.
+- `source_context` uses the same two-line-before and two-line-after window as
+  human output (without truncating long matches). `is_match` is `true` for every
+  physical line intersected by `range`, even when only part of the first or last
+  line matches.
+- Every JSON record ends with a single newline. A scan with zero findings writes
+  zero bytes to stdout (stderr may still contain `warning`, `trace`, or `error`
+  records).
 
 ## `docs`
-
-The command accepts exactly one of these forms:
 
 ```text
 moongrep docs --list
 moongrep docs <document-name>
 ```
 
-`--list` prints registered names and summaries in registry order, separated by
-one tab:
+- `--list` prints registered document names and summaries in registry order,
+  separated by a single tab:
 
 ```text
 RuleSpec	YAML rule keys, validation, and matcher semantics.
 CLISpec	Command-line parsing, scanning, output, diagnostics, and exit behavior.
 ```
 
-The registry contains `RuleSpec` followed by `CLISpec` and embeds their English
-sources. The repository also contains `_CN.md` translations.
-
-Document lookup is exact and case-sensitive. An unknown name exits with status
-2. Combining `--list` with a name, providing more than one name, or using an
-unknown option is a usage error with status 2. Invoking `docs` without
-arguments prints its help and exits with status 0.
+- The registry embeds the English sources of `RuleSpec` and `CLISpec` in that
+  order (Chinese `_CN.md` translations live in the repository).
+- Lookup is exact and case-sensitive. An unknown name, combining `--list` with a
+  name, passing multiple names, or passing an unknown option exits with status
+  `2`.
+- Invoking `moongrep docs` without arguments prints `docs` help and exits `0`.
 
 ## `dump`
-
-The command accepts exactly one of these forms:
 
 ```text
 moongrep dump [--exit-code] [--strict-check] [--json] --impl <source>
 moongrep dump [--exit-code] [--strict-check] [--json] --expr <source>
 ```
 
-`--impl` accepts one valid MoonBit top-level item. `--expr` accepts one valid
-MoonBit expression. Both forms require a parse without diagnostics or recovery
-nodes.
-
-Without `--strict-check`, validation ends after these parse checks.
-With `--strict-check`, `dump` parses the input and then applies the pattern
-validation used by `scan`. For `--expr`, the input is compiled as an ordinary structural
-expression pattern. For `--impl`, it is compiled with the default
-`inside-toplevel` semantics: the shape must contain exactly one `__TARGET__`
-in a supported expression position, and function shapes use the default
-partial match mode. Strict checking does not accept guards or a match-mode
-option.
-
-Strict validation does not replace the dump parse. A successful command always
-renders the CST node produced by the first parse, so enabling `--strict-check`
-does not change text or JSON dump content.
-
-On success, text mode writes the resulting untyped CST node's MoonBit `Repr`
-debug text to standard output. With
-`--json`, the same rendering is the `content` of one compact `dump`
-record whose `kind` is `impl` or `expr`.
-
-`--exit-code` checks the same selected conditions without rendering or writing
-the CST. It takes precedence over `--json`: a successful check writes nothing
-to either output stream and exits with status 0. A base parse failure still
-writes a `dump_input` diagnostic to standard error and exits with status 3. A
-subsequent strict pattern failure writes an `invalid dump pattern` diagnostic
-with category `rule_content`, the original input in `pattern`, and exits with
-status 5. When `--json` is present, either diagnostic uses the existing
-`error` record schema.
-
-Providing both `--impl` and `--expr`, or using `--exit-code`, `--strict-check`,
-or `--json` without either input option, is a usage error with status 2.
-Invoking bare `dump` without any arguments prints help and exits with status 0.
-Lexical or parse diagnostics, recovery nodes, and an `--impl` result containing
-zero or multiple top-level items exit with status 3 before strict validation
-runs. `dump --json` without an input is a JSON usage error with status 2.
-`dump --json --help` still prints ordinary help and exits with status 0.
+- **Input options** (mutually exclusive, exactly one required):
+  - `--impl <source>`: must parse as exactly one valid MoonBit top-level item
+    with no diagnostics or recovery nodes.
+  - `--expr <source>`: must parse as one valid MoonBit expression with no
+    diagnostics or recovery nodes.
+- **Strict pattern validation (`--strict-check`)**:
+  - Runs only after the base dump parse succeeds.
+  - `--expr` is compiled as an ordinary structural expression pattern.
+  - `--impl` is compiled with default `inside-toplevel` semantics: it must
+    contain exactly one `__TARGET__` in a supported expression position, and
+    function shapes use the default `partial` match mode. Guards and explicit
+    match-mode flags are not accepted.
+  - Does not alter the CST printed on success (output always comes from the
+    initial parse).
+- **Output and `--exit-code`**:
+  - On success without `--exit-code`, text mode prints the untyped CST's MoonBit
+    `Repr` debug string to stdout, and `--json` wraps that same string in one
+    `dump` record.
+  - `--exit-code` suppresses all CST output and takes precedence over `--json`:
+    a passing check writes nothing to stdout or stderr and exits `0`.
+- **Failure statuses**:
+  - Bare `dump` with no arguments prints help and exits `0`.
+  - Providing both `--impl` and `--expr`, or passing `--exit-code`,
+    `--strict-check`, or `--json` without an input option, exits `2` (`dump
+    --json --help` prints ordinary help and exits `0`).
+  - Lexical/parse diagnostics, recovery nodes, or an `--impl` input with zero or
+    multiple top-level items fail before `--strict-check` with a `dump_input`
+    error and exit `3`.
+  - A `--strict-check` failure writes an `invalid dump pattern` diagnostic
+    (`category: "rule_content"`, original input in `pattern`) and exits `5`.
+  - With `--json`, all of these failures use the standard JSON `error` record.
 
 ## Diagnostics and Exit Status
 
-moongrep assigns a fixed exit status to each failure category. In human mode,
-fatal diagnostics for statuses 1 through 8 use this layout:
+### Human diagnostic layout
+
+Fatal diagnostics for statuses `1` through `8` use plain English text without
+color:
 
 ```text
 error: <summary>
@@ -620,121 +530,46 @@ error: <summary>
   help: <actionable suggestion>
 ```
 
-The `source`, `reason`, and `help` lines are omitted when they have no content.
-The `pattern` block is included only when the diagnostic is associated with a
-pattern. Each pattern line is indented by four spaces. Relative indentation and
-internal blank lines are preserved after CRLF and CR line endings are normalized
-to LF. One trailing line ending is ignored. An explicitly empty pattern still
-prints the `pattern:` label.
+- `source`, `reason`, and `help` are omitted when empty.
+- `pattern` is included only when a diagnostic relates to a pattern. Each line
+  is indented by four spaces, preserving relative indentation and internal blank
+  lines after normalizing CRLF/CR to LF and ignoring one trailing line ending.
+  An explicitly empty pattern still prints `pattern:`.
+- For an anonymous `--pattern` rule, `source` is `--pattern` and the pattern
+  text appears only in the `pattern` block.
+- The formatter itself does not append a trailing newline; the output layer adds
+  one when writing.
+- Argparse diagnostics that already include `error:`, `Usage:`, and optional
+  `tip:` keep their full layout. Scan warnings keep their `warning:` format.
+- Human wording and optional detail lines may evolve and are not a
+  machine-readable contract; use `--json` for stable parsing. Fatal diagnostics
+  never appear in finding records and always go to stderr.
 
-For an anonymous `--pattern` rule, `source` is `--pattern`; the input appears
-only in the `pattern` block.
+### Exit status summary
 
-The diagnostic formatter does not include a trailing newline; the output layer
-writes one newline when it emits the diagnostic. Diagnostics are plain English
-text without color.
-
-Argument-parser diagnostics that already contain an `error:` line, a `Usage:`
-section, and an optional `tip:` retain that complete layout. Scan warnings keep
-their existing `warning:` format and do not use the fatal-diagnostic layout.
-
-Human diagnostic wording and optional detail lines are not a machine-readable
-interface and may evolve. JSON mode uses the stable error schema specified
-above. Findings never carry fatal diagnostics; failures remain on standard
-error.
-
-| Status | Category |
-|---:|---|
-| 0 | Success |
-| 1 | Internal or otherwise unclassified failure |
-| 2 | Command-line usage failure |
-| 3 | Invalid `dump` input |
-| 4 | Rule-source failure |
-| 5 | Invalid rule content or strict dump pattern |
-| 6 | Scan-input failure |
-| 7 | Output failure |
-| 8 | Incomplete taint analysis with `--strict-taint` |
-
-### Exit status 0
-
-Status 0 means the requested command completed successfully. It includes:
-
-- help output;
-- successful `docs` listing or lookup;
-- a successful CST dump or `dump --exit-code` check, including requested
-  strict pattern validation;
-- scans with findings;
-- scans with no findings; and
-- scans that emitted source parse or invalid-attribute warnings.
-
-`lint` returns status 0 for findings and source warnings.
-
-### Exit status 1
-
-Status 1 is reserved for internal failures. It includes a damaged embedded
-builtin rule, an unreachable command state, and any unexpected error that has
-not been assigned to another category.
-
-### Exit status 2
-
-Status 2 means command-line selection or validation failed. It includes:
-
-- a missing or unknown top-level command;
-- an unknown option, missing option value, or more than one scan root;
-- a `--guard` that has no eligible preceding pattern, duplicates a guard, or
-  is not a valid YAML string mapping;
-- combining mutually exclusive `docs` or `dump` arguments;
-- an unknown embedded document; and
-- an unknown rule id requested by `--disable`.
-
-### Exit status 3
-
-Status 3 means `dump` received invalid MoonBit input. Lexical or syntax
-diagnostics, recovery nodes, and an `--impl` result containing anything other
-than one top-level item use this status. These checks run before strict pattern
-validation.
-
-### Exit status 4
-
-Status 4 means a requested rule source could not be used. It covers a missing,
-unreadable, or incorrectly typed rule path, directory traversal or rule-file
-reading failures, and a rule directory containing no YAML files.
-
-### Exit status 5
-
-Status 5 means rule content is invalid. It covers YAML parsing, schema and
-duplicate-id validation, an unsupported single-file `--rule` suffix, and pattern
-or guard validation and compilation. This status also applies to invalid
-anonymous command-line patterns and to `dump --strict-check` pattern failures.
-A failure in the embedded builtin rules instead uses status 1.
-
-### Exit status 6
-
-Status 6 means scan input could not be read. It covers a missing scan root,
-directory traversal failures, and MoonBit source-file reading failures. A
-MoonBit source parse failure encountered during scanning remains a warning and
-returns status 0.
-
-### Exit status 7
-
-Status 7 means writing standard output or standard error failed, including a
-broken pipe. If writing an original failure diagnostic to standard error also
-fails, status 7 takes precedence over that failure's normal status and the
-frontend does not retry the diagnostic on standard output. Findings already
-written by a streaming scan are not withdrawn when a later write or scan-input
-failure occurs.
+| Status | Category | Triggering conditions |
+| ---: | --- | --- |
+| `0` | Success | Help, successful `docs`, successful `dump` or `dump --exit-code` (including `--strict-check`), scans/lints with or without findings, and scans with recoverable parse or `#moongrep.skip` warnings. |
+| `1` | `internal` | Damaged embedded builtin rule, unreachable command state, or any other unclassified internal error. |
+| `2` | `usage` | Missing/unknown command, unknown option, missing option value, multiple scan roots, invalid/misplaced/duplicate `--guard`, conflicting `docs`/`dump` flags, unknown embedded doc name, or unknown `--disable` rule ID. |
+| `3` | `dump_input` | Invalid MoonBit input to `dump` (lexical/parse diagnostics, recovery nodes, or `--impl` with zero or multiple top-level items). Checked before `--strict-check`. |
+| `4` | `rule_source` | Missing, unreadable, or wrongly typed rule path; directory traversal or rule-file read failure; or a rule directory containing no `.yaml` / `.yml` files. |
+| `5` | `rule_content` | Invalid YAML, schema/duplicate-ID errors, unsupported single-file `--rule` suffix, invalid pattern/guard compilation (including anonymous `--pattern`), or `dump --strict-check` pattern failures. (Damaged builtin rules use status `1`.) |
+| `6` | `scan_input` | Missing scan root, directory traversal failure, or `.mbt` file read failure. (Source parse failures during scanning remain warnings with status `0`.) |
+| `7` | `output` | Failure writing to stdout or stderr (including broken pipe). If writing an earlier failure diagnostic to stderr fails, status `7` takes precedence and output is not retried on stdout. Streamed findings already written are not withdrawn. |
+| `8` | `taint_incomplete` | Incomplete taint analysis when `--strict-taint` is set (see below). |
 
 ### Incomplete taint analysis
 
-`scan` and `lint` accept `--strict-taint` (off by default). Unsupported executable
-syntax, a nonconvergent taint SCC, or a matching source block that cannot be
-parsed emits a `taint_incomplete` warning on stderr. The warning contains the
-file, source range, affected rule IDs and reason. Scanning continues. Strict
-mode returns status 8 after scanning; default mode still succeeds unless another
-error occurs. Unsupported functions and incomplete function/rule pairs publish
-no partial findings. Structural-only scans do not prepare taint CFGs.
+`scan` and `lint` accept `--strict-taint` (disabled by default):
 
-JSON warning records contain `type: "warning"`, `category: "taint_incomplete"`,
-`message`, `file`, `range`, `rule_ids` (an array), and `reason`. Strict mode also
-ends with an error record whose category is `taint_incomplete` and exit code is
-8. Existing finding fields and coordinates remain unchanged.
+- Unsupported executable syntax, a nonconvergent taint SCC, or a relevant source
+  block that fails to parse emits a `taint_incomplete` warning on stderr with
+  the file, source range, affected rule IDs, and reason, and scanning continues.
+- Unsupported functions and incomplete function/rule pairs emit no partial
+  findings. Structural-only scans never prepare taint CFGs.
+- In default mode, the command still exits `0` unless another error occurs.
+- With `--strict-taint`, scanning finishes and the command exits with status
+  `8`. In JSON mode, it also appends a final `error` record with
+  `category: "taint_incomplete"` and `exit_code: 8`. Existing finding fields and
+  coordinates are unaffected.

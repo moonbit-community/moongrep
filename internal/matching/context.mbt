@@ -25,11 +25,14 @@ pub(all) struct ExprMatch {
 }
 
 ///|
+/// Reference to the indexed source region captured by `__TARGET__`.
 pub(all) struct TargetRef {
   region : @cst.RegionId
 }
 
 ///|
+/// Result of an indexed expression-pattern match, including the optional
+/// `__TARGET__` region and identifier capture provenance.
 pub(all) struct IndexedExprMatch {
   result : ExprMatch
   target : TargetRef?
@@ -92,8 +95,11 @@ fn MatchContext::select_continuation(
 }
 
 ///|
-/// Indexed and standalone matching share the same atomic implementation.
-/// The selected source reference is committed with the capture branch.
+/// Matches `compiled` against an indexed source `region`, enforcing inherited
+/// lexical identifier provenance and recording any `__TARGET__` selection.
+///
+/// Shares the same atomic matcher as standalone matching; backtracking commits
+/// or rolls back captures, provenance, and `target` together.
 pub fn match_indexed_expr_pattern(
   compiled : CompiledExprPattern,
   index : @cst.SourceIndex,

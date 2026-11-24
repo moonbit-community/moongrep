@@ -35,13 +35,14 @@ pub(all) enum SinkId {
 }
 
 ///|
-/// A reported sink.
+/// A reported taint sink hit.
 ///
-/// Declarative sink effects only produce findings with at least one tainted
-/// origin. Findings supplied by a custom call transfer are appended as-is, so
-/// custom transfers decide when to report a sink and supply its location.
-/// Findings retain only the sink identity and location; origins stay in the
-/// propagated taint trees. The engine treats `sink_id` as opaque.
+/// - Declarative sink effects emit a finding only when at least one tainted
+///   origin reaches the sink.
+/// - Custom call transfers decide when to emit findings and supply each
+///   finding's `sink_loc`; the engine keeps `sink_id` opaque.
+/// - Findings store only sink identity and location (taint origins remain in
+///   the propagated `TaintValue` trees).
 #derive(Eq, Debug)
 pub(all) struct SinkFinding {
   sink_id : SinkId

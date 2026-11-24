@@ -1,263 +1,158 @@
 # internal/rule/compile 内部说明
 
-`internal/rule/compile` 在匹配前校验并规范化模式。以下说明介绍其实现，以及
-调用方依赖的约定。
+`internal/rule/compile` 是模式源码文本与可执行匹配器/规则之间的校验与规范化边界。
 
-## 包职责
+## 包职责与公开入口
 
-`internal/rule/compile` 将模式源码校验、规范化为可执行的匹配器模式或规则。
+| 入口 | 输入 | 输出 | 说明 |
+| --- | --- | --- | --- |
+| `compile_rules(raw_rules)` | `Array[RawRuleSpec]` | `Array[CompiledRule]` | 检查重复 ID、编译规则主体并构造规则级 prefilter。 |
+| `compile_expr_pattern(pattern)` | `String` | `matching.CompiledExprPattern` | 直接编译单个普通结构表达式模式，不生成规则元数据、guard 或 prefilter。 |
+| `compile_inside_toplevel_pattern(pattern)` | `String` | `matching.CompiledExprPattern` | 按默认 `inside-toplevel` 模式（函数默认 `partial`）与 `__TARGET__` 校验编译单个顶层模式；不接受 guard 或显式 match mode。 |
 
-这个包提供三个公开入口：
+本包负责：
 
-- `compile_rules(raw_rules)`
-- `compile_expr_pattern(pattern)`
-- `compile_inside_toplevel_pattern(pattern)`
+- 重复 rule ID 检查。
+- 将普通 `shape` 解析为 MoonBit 表达式，将 `inside-toplevel` 的 `shape` 解析为
+  单个顶层项。
+- 记录元变量、校验其在 CST 中的位置，并拒绝保留名与非法 guard。
+- 记录污点 sink 与 sanitizer 的 target 元数据。
+- 基于编译后的规则定义构建源码文本 prefilter。
 
-`compile_rules` 从 `internal/rule/model` 接收 `RawRuleSpec` 并生成 `CompiledRule`。
-`compile_expr_pattern` 则把一个普通 structural expression shape 直接编译成
-`matching.CompiledExprPattern`，不构造规则元数据、guard 或规则级 prefilter。
-`compile_inside_toplevel_pattern` 对一个顶层 shape 执行同样的直接编译，并使用
-默认 `inside-toplevel` match mode 和 target 占位符校验。
+其他职责归属：运行时匹配（`internal/matching`）、guard 求值与扫描
+（`internal/rule/apply`）、污点 lowering（`internal/rule/taint_lowering`）及
+预过滤求值（`internal/rule/prefilter`）。
 
-编译器负责：
+## 主编译流程
 
-- 检查重复 rule id
-- 把普通规则 `shape` 解析成 MoonBit 表达式，并把每个
-  `inside-toplevel` 条目的 shape 解析成一个顶层项
-- 记录 metavar，并校验它在 CST 中的位置
-- 拒绝不支持的占位符位置和格式错误的 guard
-- 记录 taint sink 和 sanitizer 的 target 元数据
-- 为编译后的定义构造源码文本 prefilter
-
-它不匹配源码、不执行 guard、不 lower taint 规则，也不扫描文件。这些职责分别属于
-`matching`、`internal/rule/apply`、`internal/rule/taint_lowering` 和 `internal/rule/prefilter`。
-
-## 主流程
-
-`compile_rules` 先调用 `ensure_unique_rule_ids`，再用 `compile_rule`
-编译每条 raw rule。
-
-`compile_rule` 会先编译规则主体，再构造 prefilter：
-
-1. structural rule 走 `compile_structural_rule`
-2. taint rule 走 `compile_taint_rule`
-3. `compile_rule_prefilter(definition)` 从编译后的 CST 推导必需源码字面量
-
-prefilter 必须基于编译后的 definition。此时 metavar 已经完成分类，可以从字面量
-收集中排除。原始 YAML 不具备这个条件。
-
-`compile_expr_pattern` 会创建与单个匿名 `patterns[0]` 条目相同的上下文，并调用
-`compile_structural_expr_pattern`。这个 helper 仅供单表达式入口使用，负责解析表达式、
-分类 metavar、拒绝 `__TARGET__`，并构造 matcher pattern。调用方可再通过
-`internal/rule/prefilter` 单独构造单模式 prefilter。
-
-`compile_inside_toplevel_pattern` 会创建与单个 `inside-toplevel[0]` 条目相同的
-上下文，并调用共享的顶层上下文编译流程。它要求恰好一个位于可绑定表达式
-位置的 `__TARGET__`，向 matcher 注册该占位符，并把函数的默认 match mode 解析为
-partial matching。该入口不接受 guard 或显式 match mode。
-
-`compile_structural_rule` 通过 `compile_inside_toplevel_patterns` 编译
-`inside-toplevel` 备选项：解析顶层 shape，按 match mode 确定忽略字段，并使用
-`inside-toplevel[index]` 诊断路径。随后把外层 shape 传给 `compile_structural_group`，
-递归编译 `patterns`、`patterns-not` 和嵌套 `then` group。每个表达式 shape 通过
-`compile_metavar_shape` 编译；`structural_visible_shapes` 校验继承捕获并构造可见环境。
-group 编译器根据条目是否带有 `then` 主体校验 `__TARGET__`，并编译 guard 和 matcher pattern。
+1. `compile_rules` 先调用 `ensure_unique_rule_ids`，再对每条原始规则执行
+   `compile_rule`：
+   - 结构规则走 `compile_structural_rule`。
+   - 污点规则走 `compile_taint_rule`。
+   - `compile_rule_prefilter(definition)` 从编译后的 CST 提取必需字面量（必须
+     基于编译结果而非原始 YAML，因为元变量此时已完成分类并可被排除）。
+2. `compile_expr_pattern` 构造匿名 `patterns[0]` 上下文并调用
+   `compile_structural_expr_pattern`（解析、元变量分类、禁止 `__TARGET__`、
+   构造 matcher pattern）。调用方可另行通过 `internal/rule/prefilter` 生成单模式
+   prefilter。
+3. `compile_inside_toplevel_pattern` 构造 `inside-toplevel[0]` 上下文，要求恰好
+   一个可绑定表达式位置的 `__TARGET__`，向 matcher 注册它，并将函数默认模式解析
+   为 `partial`。
+4. `compile_structural_rule` 先经 `compile_inside_toplevel_patterns` 编译顶层
+   备选项（在 `inside-toplevel[index]` 诊断路径下按 match mode 确定忽略字段），
+   再将外层 shape 交给 `compile_structural_group`，结合 `compile_metavar_shape`
+   和 `structural_visible_shapes` 递归编译 `patterns`、`patterns-not` 和嵌套
+   `then` 组。
 
 ## 模式解析
 
-`collect_shape_metavars` 先使用以下 lexer 配置：
+- `collect_shape_metavars` 以 `comment = true` 和 `enable_metavar = true` 运行
+  lexer，记录每个元变量 token 的原始 span 和逻辑语法。
+- `parse_shape` 调用 `@untyped_cst.parse_expression(..., enable_metavar=true)`；
+  `parse_toplevel_shape` 调用
+  `@untyped_cst.parse_structure(..., enable_metavar=true)` 并要求
+  `@cst.toplevel_nodes` 恰好返回一个节点。元变量语法直接保留在 parser 的
+  `CstNode` 中，不再做标识符替换或二次树转换。
+- **插值**：外层 lexer 会把字符串/字节插值作为单个聚合 token 输出；收集器遍历
+  CST，以全局起始偏移、`is_interpolation = true` 和 `enable_metavar = true`
+  对每个 `InterpSegment_Source` 做子词法分析。parser 在构造片段 `expr` 子树
+  （含嵌套插值）时同样透传 metavar 模式。
+- **类型名**：`Type_Name` 必须以大写标识符 token 开头，因此显式 `type` 元变量和
+  带 `type` 类别的省略号均须大写开头；小写名与关键字名会被 parser 拒绝。
+- **诊断顺序**：词法错误优先于解析错误。`InvalidMetavarSyntax` 给出专用提示，
+  引导 `$exp:value` 等旧写法迁移到 `$(value:exp)`。解析失败按子句报告
+  `"not a valid MoonBit expression"` 或 `"not a valid MoonBit top-level item"`。
+  即使 parser 未产生诊断，recovery 节点（`Missing`、`Error`）也会被拒绝。
 
-```text
-comment = true
-enable_metavar = true
-```
+## 元变量上下文、推导与注册表
 
-lexer 会识别 metavar token，并记录每个出现位置的原始 span 和逻辑语法。随后
-`parse_shape` 直接调用
-`@untyped_cst.parse_expression(..., enable_metavar=true)`；
-`parse_toplevel_shape` 调用
-`@untyped_cst.parse_structure(..., enable_metavar=true)`，并要求
-`@cst.toplevel_nodes` 只返回一个节点。metavar 语法会继续保留在 CST 中，
-不再替换成保留标识符。
+元变量编译按记录的源码 span 在只读 CST 中定位每个出现位置，并从节点路径推导
+上下文（expression、identifier、pattern、type、whole-argument、binder-only、
+qualified-name、ordered-list）。
 
-外层 lexer 会把每个 string / bytes 插值保留为一个聚合 token。为记录其中的
-metavar，收集器会遍历 parser CST，并使用全局起点、`is_interpolation=true` 和
-`enable_metavar=true` 对每个 `InterpSegment_Source` 做子词法分析。parser 在构建每个
-片段的 `expr` 子树时也会透传同一 metavar 模式，包括嵌套插值。因此校验和上下文识别
-可以直接使用原始 CST。
+### 保守的裸名称推导规则
 
-`Type_Name` 必须以大写标识符 token 开始。因此，显式 `type` 元变量和带 `type`
-类别的省略号元变量都必须使用大写名称；解析器会拒绝小写名称和关键字名称。
+1. 显式声明为 `pat`、`exp`、`id`、`const`、`arg` 或 `type` 的名称保持该类别。
+2. 裸标识符位置推导为 `id`。
+3. 裸类型位置推导为 `type`。
+4. 裸 pattern 变量位置不能单独完成推导（因在 `id`/`const`/`pat` 间有歧义而报错）。
+5. 裸表达式位置仅在前述规则均未决定该名称时推导为 `exp`。
+6. `const`、`arg` 和 `pat` 绝不从裸 `$name` 自动推导。
 
-普通 `patterns`、`patterns-not`、每个 `then` 条目和 taint 子句的 shape
-都必须正好是一个 MoonBit 表达式。每个 `inside-toplevel` shape 必须正好是一个
-顶层项。编译器直接保留 parser 的 `CstNode`，不再 lower 到 typed syntax，也不再
-转换成本地树类型。
+该顺序使 `$counter` 等重复裸名称能从循环 binder 推导为 `id` 并在后续表达式中
+复用，同时拒绝有歧义的 `$item => body`。
 
-词法错误会先于解析错误报告。`InvalidMetavarSyntax` 有专门诊断，因此
-`$exp:value` 这样的旧语法可以提示迁移到现代的 `$(value:exp)` 形式。
-其他词法错误会报告 lexical errors，解析错误会根据子句报告
-"not a valid MoonBit expression" 或 "not a valid MoonBit top-level item"。
+### 支持的内联类别与保留名
 
-即使 parser 没有生成诊断，编译器也会拒绝 recovery 节点（`Missing` 和 `Error`）。
+- **类别**：`exp`（完整裸标识符表达式）、`id`（标识符、binder、标签、构造器、
+  类型名、限定名后缀）、`const`（完整裸标识符表达式或简单 pattern 变量）、`arg`
+  （完整裸调用参数槽）、`pat`（简单 pattern 变量）、`type`（完整 CST 类型节点）。
+- **注册表顺序**：普通表达式模式按首次出现顺序保存；顶层函数模式保留参数 `id`
+  元变量排在其他 `id` 之前的既有优先级，不要将其当作清理项排序。
+- **保留名**：精确的 `$_`、`__TARGET__` 和 `__SOURCE__` 不能用作内联元变量名，
+  限定通配符位置会在校验阶段被拒绝。仅以下划线开头的普通名（如
+  `__moongrep_value`）不是保留名。
 
-## 元变量上下文
+## 结构规则组与 Guard
 
-Metavar 编译会按记录的源码 span 在 CST 中定位每个出现位置，并从节点路径推导
-上下文。上下文记录 expression、identifier、pattern、type、whole-argument、
-binder-only、qualified-name 和 ordered-list 信息。kind 校验只使用这些上下文，
-不会修改或重建只读 CST。插值表达式节点及其 metavar span 已使用全局源码偏移，
-因此所有 occurrence 都使用同一个 CST 根节点。
-
-省略类别的元变量按以下规则推断：
-
-- 显式声明为 `pat`、`exp`、`id`、`const`、`arg` 或 `type` 的名称保持该 kind
-- bare identifier 位置推断为 `id`
-- bare type 位置推断为 `type`
-- bare pattern-variable 位置不能单独完成推断
-- bare expression 位置仅在没有更早规则解析该名称时推断为 `exp`
-- `const`、`arg` 和 `pat` 永远不会从 bare `$name` 推断出来
-
-这个顺序让 `$counter` 这类重复 bare 名称可以从 binder 位置推断为 `id`，
-并在后续表达式位置复用该 kind。它也会拒绝 `$item => body` 这种普通 match
-pattern，因为该位置在 `id`、`const` 和 `pat` 之间有歧义。
-
-## 元变量类别
-
-当前只支持以下 inline kind：
-
-- `exp`：完整的 bare identifier 表达式，捕获候选表达式
-- `id`：源码层面的名称，例如 identifier、binder、label、constructor、
-  type name，以及 qualified name 的后缀
-- `const`：完整的 bare identifier 表达式或简单 pattern-variable 位置，
-  并且必须匹配解析后的常量
-- `arg`：完整的裸调用参数槽
-- `pat`：简单 pattern-variable 位置，捕获完整候选 pattern CST
-- `type`：完整的 CST type 节点
-
-matcher 会通过编译后的 `MetavarRegistry` 解析 `$name`、`$(name:kind)`、
-`$$$name` 和 wildcard 拼写。只有完整且未限定的 `$_` 是单节点忽略占位符；
-限定 wildcard 会在 occurrence 校验阶段被拒绝。
-
-普通 expression shape 的 registry entry 按首次出现顺序保存。Top-level function
-shape 保留既有的 identifier 优先级：参数中的 identifier metavar 排在其他
-identifier entry 之前。不要把 registry entry 排序当作清理。
-
-## 保留名称
-
-Inline 声明不能使用：
-
-- `$_`
-- `__TARGET__`
-- `__SOURCE__`
-
-完整且未限定的 `$_` 是 matcher 的忽略占位符。`__TARGET__` 保留给 structural
-inside-context 遍历，`__SOURCE__` 保留给 taint sink 和 sanitizer target 选择。
-
-只有上面列出的完整内置名称被保留。`__moongrep_value` 等以下划线开头的名称
-仍可使用。
-
-## 结构规则
-
-StructuralRuleSpec 保存 inside_toplevel 和递归 StructuralPatternGroupSpec。
-正向 StructuralPatternSpec 包含原子 RulePatternSpec 与可选 then_body；负向
-仍为原子条目。编译后采用对应递归类型。
-
-编译按 group 下降，兄弟环境独立。带 then 的 shape 要求一个可绑定 TARGET，
-叶子和负向禁止它。当前 shape 注册表与祖先可见环境分离，后代复用元变量时
-类型必须一致，包括省略号类型。guard 可直接读祖先 id / const，无需本地声明。
-inside-toplevel 保存每个备选的环境，所有深层 shape 和 guard 引用的继承变量
-都必须在每个备选中存在且类型一致。错误包含完整 YAML 路径。
-
-负向模式按 group 推导：根负向剪枝，嵌套与 inside-toplevel 拒绝未覆盖负向。
-guard 使用可见环境编译，matcher 仅使用当前 shape 的注册表。
-
-## Guard
-
-`compile_guards` 只接受 key 为 `$` 前缀捕获名、value 能编译成 regex 的 map 项。
-
-Guard 只能引用 `id` 和 `const` 捕获。它不能引用：
-
-- 未知名称
-- `exp` 捕获
-- `arg` 捕获
-- `pat` 捕获
-- `type` 捕获
-
-这是规则编译器层面的限制。`internal/rule/apply` 中的 guard 求值期望从规范化 identifier
-或 constant 中得到类似字符串的值。它不接受任意 expression、pattern、argument 或 type CST。
+- `StructuralRuleSpec` 包含可选有序 `inside_toplevel` 与递归
+  `StructuralPatternGroupSpec`。每个正向 `StructuralPatternSpec` 持有原子
+  `RulePatternSpec` 与可选 `then_body`；负向条目保持原子。编译后采用对应递归
+  类型。
+- 编译按组独立下降：
+  - 带 `then` 的 shape 要求一个可绑定 `__TARGET__`；叶子和负向条目禁止出现它。
+  - 当前 shape 的本地注册表与祖先可见环境分离：后代可按相同类别（含省略号类别）
+    复用祖先名，guard 可直接读取祖先 `id`/`const` 而无需本地声明，新名称局限于
+    自身分支。
+  - 对 `inside-toplevel`，可见环境保留所有备选项，确保深层 shape 或 guard 引用
+    的继承变量在每个备选项中均存在且类别一致。
+  - 负向模式按组推导：根级负向剪枝；嵌套 `then` 与 `inside-toplevel` 拒绝未覆盖
+    负向。
+  - guard 使用可见环境编译；matcher 仅使用当前 shape 的注册表。
+- **Guard（`compile_guards`）**：要求键带 `$` 前缀且值为合法正则，且仅允许引用
+  `id` 和 `const` 捕获（拒绝未知名、`exp`、`arg`、`pat`、`type` 与省略号，因为
+  `internal/rule/apply` 只对规范化字符串求值）。
 
 ## 污点规则
 
-每个 taint source、sink 和 sanitizer shape 都必须编译成顶层 call CST：
+- 所有 `source`、`sink`、`sanitizer` 的 shape 都必须编译为 `Expr_Apply` 或
+  `Expr_DotApply`。
+- `sources` 禁止包含 `__SOURCE__`。
+- `sinks` 和 `sanitizers` 必须恰好包含一个 `__SOURCE__`，且必须占据整个 receiver
+  或单个参数的完整值（嵌套写法如 `sink(wrap(__SOURCE__))` 会被拒绝，因为
+  lowering 需要直接从 `CallInfo` 选取已求值的结果）。
+- `require_source_target` 将目标记录为 `Receiver`、`PositionalArg(index)` 或
+  `LabelledArg(label, index)`（同时保存标签与下标，以便 lowering 确认精确的标签
+  参数槽）。
 
-- `Expr_Apply`
-- `Expr_DotApply`
+## 集成边界与维护清单
 
-Source 不能包含 `__SOURCE__`。匹配到 source call 后，后续
-`internal/rule/taint_lowering` 会添加新的 return taint。
+共享占位符语义的包：
 
-Sink 和 sanitizer 必须包含恰好一个 `__SOURCE__`，且它必须是完整 receiver 或某个参数的完整
-value。`sink(wrap(__SOURCE__))` 这类嵌套形式会被拒绝，因为 lowering 需要从
-`CallInfo` 里直接选择一个已经求值好的 call value。
+- `internal/rule/compile` — 解析并校验内联语法、`__TARGET__` 与 `__SOURCE__`。
+- `internal/matching` — 实现运行时占位符匹配与绑定。
+- `internal/rule/prefilter` — 从必需字面量中排除匹配器占位符。
+- `internal/rule/taint_lowering` — 消费编译后的 `TaintTarget` 元数据。
+- `internal/rule/apply` — 在结构匹配成功后执行编译后的 guard。
 
-`require_source_target` 会把被选择的值记录为：
+用户可见规则语义变动时，须同步更新 `internal/docs/RuleSpec.md` 与
+`internal/docs/RuleSpec_CN.md`。
 
-- `Receiver`
-- `PositionalArg(index)`
-- `LabelledArg(label, index)`
+### 维护核对清单
 
-对于 labelled argument，会同时存 label 和 index。lowering 层用 index 找到已求值的
-call argument，并用 label 确认选中的是同一个 labelled slot。
+- **新增 parser CST 形式**：更新出现位置上下文分类；直接保留 parser `CstNode`；
+  添加编译校验测试；确认 `matching` 可正确匹配；若携带字面名称或常量则同步更新
+  `prefilter`。
+- **修改元变量类别或位置**：同步更新收集、解析与校验；按需更新 matcher 分派与
+  guard 校验；覆盖显式语法、裸推导、重复捕获与冲突诊断测试。
+- **修改 inside-context 行为**：保持 `__TARGET__` 编译检查与 matcher 一致；为
+  `patterns` 和 `patterns-not` 保留继承类别检查；维持有序首项选择语义（guard
+  失败可继续，外层一旦选中不回退）；覆盖正向、负向及纯负向组；核对 `apply` 分桶
+  与 `prefilter` 的外层×内层组合。
+- **修改污点 target 行为**：同步 `ensure_taint_call_shape` /
+  `require_source_target` 与 `taint_lowering.target_value`；保持
+  `internal/taint/INTERNAL.md` 与 `internal/matching/INTERNAL.md` 同步；添加编译
+  与规则应用测试。
 
-## 集成边界
-
-以下包共享同一套占位符语义：
-
-- `internal/rule/compile` 解析和校验 inline 语法、`__TARGET__`、`__SOURCE__`
-- `matching` 实现实际的占位符匹配和绑定行为
-- `internal/rule/prefilter` 从必需字面量收集中排除 matcher 占位符
-- `internal/rule/taint_lowering` 消费编译后的 `TaintTarget` 元数据
-- `internal/rule/apply` 在 structural match 之后执行编译后的 guard
-
-修改用户可见的规则语义时，要更新所有受影响的边界，以及规则作者文档
-`internal/docs/RuleSpec.md` 和 `internal/docs/RuleSpec_CN.md`。
-
-## 维护清单
-
-新增 parser CST 形式支持时：
-
-1. 为新的路径或包装节点更新 CST occurrence-context 分类
-2. 直接保留 parser 节点，不要增加第二套树表示
-3. 添加 `internal/rule/compile` 校验测试，展示新位置可用
-4. 检查 `matching` 是否真的能匹配生成的 untyped CST
-5. 如果新 CST 携带字面名称或常量，更新 `internal/rule/prefilter`
-
-修改 metavar kind 或位置时：
-
-1. 同时更新收集、解析和重写校验
-2. 如果运行时匹配行为变化，更新 matcher 占位符分派
-3. 如果新 kind 可以被 guard，更新 guard 校验
-4. 为显式语法、bare 推断、重复捕获和冲突诊断添加测试
-5. 只有规则作者可见语义变化时才更新公开规则规格
-
-修改 inside-context 行为时：
-
-1. 保持 `__TARGET__` 编译期检查与 matcher 支持一致
-2. 对 `patterns` 和 `patterns-not` 都保留继承 metavar 的 kind 检查
-3. 保持有序首项选择语义：guard 失败可以继续，但外层条目一旦选中就不回退
-4. 测试含 positive pattern、negative pattern 和 negative-only
-   `then` / `inside-toplevel` 的规则
-5. 检查 `internal/rule/apply` root buckets，以及 `internal/rule/prefilter` 的外层×内层备选项
-
-修改 taint target 行为时：
-
-1. 更新 `ensure_taint_call_shape` 或 `require_source_target`
-2. 更新 `internal/rule/taint_lowering.target_value`
-3. 如果 `__SOURCE__` 匹配行为变化，保持 `internal/taint/INTERNAL.md` 和
-   `internal/matching/INTERNAL.md` 的说明同步
-4. 添加编译期校验测试和规则应用测试
-
-修改校验逻辑后，运行 `moon test internal/rule/compile`。如果改动影响已加载的
-YAML 规则行为，还需测试 `internal/rule/apply`、`internal/rule/taint_lowering`
-及相关端到端快照。
+修改校验逻辑后运行 `moon test internal/rule/compile`；影响 YAML 规则行为时一并运行
+`internal/rule/apply`、`internal/rule/taint_lowering` 及相关端到端快照测试。

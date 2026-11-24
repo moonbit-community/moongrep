@@ -1,351 +1,264 @@
-# Rule specification
+# Rule Specification
 
-moongrep rules use YAML, with MoonBit snippets as matching patterns.
+`moongrep` rules are written in YAML and use MoonBit surface syntax snippets as
+matching patterns. For command-line rule selection, scanning, output formats,
+and exit codes, see [CLISpec.md](CLISpec.md).
 
-For command-line rule selection, scanning, output, diagnostics, and exit
-behavior, see [CLISpec.md](CLISpec.md).
+## Matching model overview
 
-Every `shape` value is MoonBit surface syntax. The scanner matches parsed
-MoonBit expression structure.
-Whitespace formatting and comments, including documentation comments, are not
-significant. Literal source spelling is an exception: constants are compared by
-their parser CST kind and preserved source spelling, not by normalized semantic
-value. Equivalent values such as `1000` and `1_000` therefore do not necessarily
-match. Expression form, operators, labels, callee names, and argument structure
-are also significant.
-Wildcards and declared metavariables modify these matching requirements as
-documented below.
+Every `shape` value is MoonBit surface syntax parsed into an untyped concrete
+syntax tree (CST). Matching compares parsed structure rather than raw text:
 
-## Rule files
+- **Ignored**: whitespace formatting, source locations, and comments (including
+  docstrings).
+- **Significant**: expression forms, operators, labels, callee names, argument
+  structure (kind, label, order, arity), and type annotations / type names where
+  present.
+- **Constants**: compared by parser CST kind and preserved source spelling, not
+  normalized semantic value. Equivalent values such as `1000` and `1_000`
+  therefore do not necessarily match.
+- **No type checking or name resolution**: two imported names referring to the
+  same definition match only if their parsed spellings match or a metavariable
+  captures them.
 
-A rules root is a directory containing YAML rule files.
+Wildcards and metavariables relax these exact structural rules as described
+below.
 
-- Files ending in the exact lowercase suffix `.yaml` or `.yml` are discovered
-  recursively below the rules root. Suffix checks are case-sensitive.
-- Other files are ignored during directory discovery.
-- Discovered rule files are processed in sorted order.
+## Rule files and rule IDs
+
+### Discovery and file format
+
+A rules root is a directory containing YAML rule files:
+
+- Discovery searches recursively for files ending in exact lowercase `.yaml` or
+  `.yml` (case-sensitive on every platform) and ignores other files.
+- Discovered files are processed in sorted order.
 - Symlinked rule directories are followed.
-- A rules root with no discovered rule files is invalid.
-- Each rule file must contain exactly one YAML document.
-- The top-level YAML document must be a mapping.
-- Each rule file defines exactly one rule.
+- A rules root containing no discovered rule files is invalid.
+- Each rule file must contain exactly one YAML document whose top level is a
+  mapping, defining exactly one rule.
+- When `--rule` selects a single file, its path must also end in exact lowercase
+  `.yaml` or `.yml`; unlike directory discovery, an unsupported suffix is
+  rejected rather than ignored.
 
-On Linux and macOS, rule discovery retains the supplied rules-root spelling and
-uses the existing `/` string construction. On Windows, the rules root and a
-single rule-file path are lexically normalized before filesystem access, and
-recursive discovery joins entries with the native `\` separator. This is
-lexical normalization and does not resolve symbolic links.
+Platform path handling:
 
-Rule ids are derived from the rule file directory and the YAML `id`:
+- **Linux and macOS**: keep the supplied rules-root spelling and `/`-based path
+  construction; relative directory derivation uses case-sensitive string-prefix
+  matching, keeping `..` literal.
+- **Windows**: lexically normalize the rules root and single-file paths before
+  filesystem access (without resolving symlinks) and join recursive entries with
+  `\`. Relative directories use Windows path semantics (case-insensitive
+  rules-root prefix comparison; paths on another drive, under another UNC
+  server/share, or escaping via `..` are rejected) and convert `\` to `/` before
+  appending the YAML `id`.
 
-- take the rule file directory relative to the rules root
-- read the top-level `id` string from the YAML document
-- join the relative directory and `id` with `/`
+### Rule ID derivation
 
-On Linux and macOS, the relative directory uses the existing case-sensitive
-string-prefix algorithm; path components such as `..` remain literal. On
-Windows, the relative directory is computed with Windows path semantics.
-Rules-root spelling is compared case-insensitively, but a rule path on another
-drive, under another UNC server/share root, or outside the rules root through
-`..` is rejected. Native `\` separators in the relative directory are converted
-to `/` before the YAML `id` is appended.
+A rule's final ID is `<relative-dir>/<id>`, or simply `<id>` when the file sits
+directly under the rules root (including a single `--rule` file, whose
+containing directory acts as its rules root):
 
-For rule files directly under the rules root, the final rule id is just `id`.
-The rule filename does not contribute to the rule id. The YAML `id` must not be
-empty and must not contain `/`; directory ownership is encoded only by file
-location.
-
-When `--rule` selects one file, its path must also end in the exact lowercase
-suffix `.yaml` or `.yml`. Unlike directory discovery, an unsupported suffix is
-rejected rather than ignored. The file's containing directory is its rules root,
-so its final rule id is the YAML `id`. Rule ids and YAML `id` values remain
-case-sensitive on every platform, including Windows.
-
-Example:
+- The filename does not contribute to the rule ID.
+- The YAML `id` must be nonempty and must not contain `/`.
+- Rule IDs and YAML `id` values are case-sensitive on every platform, including
+  Windows, and must be unique across the loaded rule set.
 
 ```text
-rules/example.yaml with id: target-call               -> target-call
-rules/security/raw.yaml with id: unsafe-html          -> security/unsafe-html
-rules/security/nested/raw.yml with id: unsafe-html    -> security/nested/unsafe-html
+rules/example.yaml                  (id: target-call) -> target-call
+rules/security/raw.yaml             (id: unsafe-html) -> security/unsafe-html
+rules/security/nested/raw.yml       (id: unsafe-html) -> security/nested/unsafe-html
 ```
-
-Rule ids must be unique.
 
 ## YAML schema
 
 ### Top-level keys
 
-Allowed root keys are `id`, `description`, `patterns`, `patterns-not`,
-`inside-toplevel`, and `taint`. A structural rule requires positive `patterns`,
-unless it has `inside-toplevel` and `patterns-not`. Present pattern arrays must
-be non-empty. `taint` is mutually exclusive with structural fields.
-`inside-toplevel` is an ordered array of shape/guard objects with optional
-`match-mode`. `then` belongs to positive pattern objects, never the rule root.
+| Key | Required | Rule mode | Description |
+| --- | --- | --- | --- |
+| `id` | Yes | All | Local rule name (nonempty string without `/`). |
+| `description` | Yes | All | Human-readable string; preserved verbatim from YAML, including trailing newlines from block scalars. |
+| `patterns` | Conditional | Structural | Nonempty array of positive pattern objects. Required on structural rules unless both `inside-toplevel` and `patterns-not` are present. |
+| `patterns-not` | No | Structural | Nonempty array of negative pattern objects. |
+| `inside-toplevel` | No | Structural | Nonempty ordered array of top-level context objects (with optional `match-mode`). |
+| `taint` | Conditional | Taint | Mapping with `sources`, `sinks`, and optional `sanitizers`. Mutually exclusive with all structural keys. |
 
-`id` is the local rule name within its file directory. `description` is also
-required and must be a string. Its content is preserved as supplied by YAML,
-including trailing newlines produced by block scalars.
+- `then` belongs only inside positive pattern objects, never at the rule root.
+- Any unknown key at the root, inside `taint`, or inside a pattern object is
+  rejected.
 
-### Pattern objects
+### Pattern object keys
 
-Structural entries in `patterns` and `patterns-not` use this
-object schema. `inside-toplevel` adds the `match-mode` key described below.
+| Clause type | Allowed keys |
+| --- | --- |
+| Positive `patterns` (and nested `then.patterns`) | `shape` (required), `guard` (optional), `then` (optional) |
+| Negative `patterns-not` (and nested `then.patterns-not`) | `shape` (required), `guard` (optional) |
+| `inside-toplevel` | `shape` (required), `guard` (optional), `match-mode` (optional: `exact` or `partial`) |
+| Taint `sources` / `sinks` / `sanitizers` | `shape` (required) only (`guard` is rejected) |
 
-Only these keys are accepted:
-
-- `shape` (required): YAML string containing one MoonBit expression snippet,
-  or one top-level item for `inside-toplevel`
-- `guard` (optional): YAML mapping from `$`-prefixed capture name to regex string
-- `then` (optional, positive `patterns` only): recursive child group
-- `match-mode` (optional, `inside-toplevel` only): `exact` or `partial`
-
-Unknown keys inside a pattern object are rejected.
-`match-mode` is rejected in `patterns`, `patterns-not`, `then`, and
-taint clauses.
-
-Taint `sources`, `sinks`, and `sanitizers` use the same `shape` key. A `guard`
-is invalid in these entries.
+The legacy `metavars` key is no longer supported and is rejected in every
+pattern object.
 
 ## Shapes
 
-An ordinary `shape` must be a single MoonBit expression snippet. Each
-`inside-toplevel` entry's `shape` must be exactly one MoonBit top-level item.
+- Ordinary `patterns`, `patterns-not`, `then`, and taint clauses take a `shape`
+  that parses as **one MoonBit expression** (calls, method calls, field
+  accesses, operators, blocks, conditionals, loops, matches, lambdas,
+  collection literals, record expressions, etc. — never a whole file, top-level
+  declaration, package fragment, or import list).
+- Each `inside-toplevel` `shape` must parse as **exactly one MoonBit top-level
+  item** (function, top-level `let`/`const`, `test`, method `impl`, or view —
+  never a whole file or import list).
 
-Valid expression shapes include calls, method calls, field accesses,
-operators, blocks, conditionals, loops, matches, lambdas, collection literals,
-record expressions, and other expression-sized MoonBit syntax. Ordinary
-`patterns` and `patterns-not` shapes are not a whole file,
-top-level declaration, package fragment, or import list.
+### Function bodies vs. explicit blocks
 
-Each `inside-toplevel` shape is parsed as one top-level item, such as a
-function, top-level `let`, top-level `const`, `test`, method `impl`, or view. It
-is one item and cannot represent a whole file or import list.
+The braces around a function, method, test, lambda, or local-function body act
+as a matching container rather than an explicit block expression candidate:
 
-Shapes are structural:
+- Statements inside the body form a sequence candidate, and each inner
+  expression remains independently searchable.
+- `$_` and `$(root:exp)` match expressions inside the body rather than capturing
+  the body's outer braces.
+- A multi-statement shape can match the body sequence; its finding range spans
+  from the first matched statement to the last matched statement, excluding the
+  body braces.
+- A nested block written explicitly as an expression remains a matchable block
+  candidate whose range includes its braces. For example, `{ a; b }` does not
+  match `fn sample { a; b }`, but does match the inner block in
+  `fn sample { { a; b } }`.
 
-- undeclared identifiers and labels match literally
-- constants match by parser CST kind and preserved source spelling; equivalent
-  values such as `1000` and `1_000` do not necessarily match
-- operators match literally
-- call and method-call argument kinds, labels, order, and arity must match
-- type annotations and type names in matched syntax must match where present
-- source locations, comments (including docstrings), and whitespace formatting
-  do not participate in matching in any mode
+Ordinary scans, `then` targets, `inside-toplevel` targets, and `ExprQuery` all
+use these same candidate boundaries and ranges, including inside nested
+closures. Selecting a function body preserves its sequence-container role and
+does not expose its braces as an explicit block; empty sequences and partial
+continuations keep their exact statement boundaries.
 
-The scanner does not type-check shapes and does not resolve names semantically.
-For example, two imported names that refer to the same definition compare as
-equal only when their parsed source spelling matches or a metavariable captures
-them.
+### Omitted-body shortcuts (`let` and `guard`)
 
-### Function bodies and explicit blocks
-
-The braces around a function, method, test, lambda, or local-function body are
-matching containers. They are not themselves an explicit block expression
-candidate. The statements inside the body form a sequence candidate, and each
-contained expression remains independently searchable.
-
-Consequently, `$_` and `$(root:exp)` search the expressions inside a function
-body instead of capturing the body's braces. A complete multi-statement shape
-can match the body sequence. Its finding range starts at the first matched
-statement and ends at the last matched statement, without the body braces.
-
-A block written as an expression inside another body remains an explicit block
-candidate. For example, `{ a; b }` does not match the container around
-`fn sample { a; b }`, but it does match the nested block in
-`fn sample { { a; b } }`. The finding range for that explicit block includes
-its braces.
-
-Ordinary scans, `then` targets, `inside-toplevel` targets, and expression
-queries use the same candidate boundaries and ranges, including inside nested
-closures. A selected function body remains a sequence container; selecting it
-does not expose its braces as an explicit block candidate. An empty sequence
-or a selected part of a continuation retains its exact statement boundaries.
-
-### Let shapes with omitted bodies
-
-An ordinary `let` shape without an explicit body is a let-header pattern. For
-example, this shape matches the binding pattern and right-hand side. It places
-no constraint on the candidate body:
+An ordinary single-statement `let` shape or `guard` shape without an explicit
+continuation body acts as a **header pattern**: it matches the header and places
+no constraint on whatever continuation follows in the candidate sequence suffix.
 
 ```yaml
 patterns:
   - shape: let $(name:id) = $(value:exp)
-```
-
-It can match candidates such as:
-
-```moonbit
-let item = load()
-```
-
-```moonbit
-let item = load(); consume(item)
-```
-
-```moonbit
-let item = load(); { trace(item); item }
-```
-
-The scanner recognizes this single-statement `let` shape as a let-header
-pattern. When the candidate has following statements, the candidate is the
-sequence suffix beginning at that `let`; the matcher compares the header and
-does not constrain the rest of the suffix.
-
-Write an explicit body when the body matters:
-
-```yaml
-patterns:
-  - shape: let $(name:id) = $(value:exp); consume($(name:id))
-```
-
-To capture whichever body the candidate has, write a body metavar explicitly:
-
-```yaml
-patterns:
-  - shape: let $(name:id) = $(value:exp); $(body:exp)
-```
-
-To require a unit body, write an explicit `()` body:
-
-```yaml
-patterns:
-  - shape: let $(name:id) = $(value:exp); ()
-```
-
-This matches an explicit unit body. It is not the same as the omitted-body
-shape above, which intentionally ignores the candidate body. Omitted-body-only
-matching is not currently expressible as a structural shape.
-
-This shortcut applies only to ordinary `let` expressions. `let mut`, local
-function definitions, `letrec`, `defer`, and `errdefer` shapes use normal
-structural matching. A header-only shape for one of those forms does not match
-a candidate with a continuation; write the complete statement sequence when the
-continuation matters. `proof_let` is an independent expression candidate, so a
-header match covers only the `proof_let` while later expressions remain
-searchable.
-
-### Guard shapes with omitted bodies
-
-A `guard` shape without an explicit body is a guard-header pattern. It matches
-the condition and `else` expression but places no constraint on the candidate
-continuation:
-
-```yaml
-patterns:
   - shape: guard ready() else { fallback() }
 ```
 
-It can match candidates such as:
+Each header pattern matches both a standalone statement and a statement followed
+by any continuation:
 
 ```moonbit
+let item = load()
+let item = load(); consume(item)
+let item = load(); { trace(item); item }
+
 guard ready() else { fallback() }
-```
-
-```moonbit
 guard ready() else { fallback() }; continue_work()
-```
-
-```moonbit
 guard ready() else { fallback() }; { prepare(); finish() }
 ```
 
-The scanner recognizes this single-statement shape as a guard-header pattern.
-When the candidate has following statements, it compares the header with the
-sequence suffix beginning at the `guard` and ignores the rest of that suffix.
-The condition and `else` expression still use normal recursive structural
-matching.
+To constrain or capture the continuation explicitly:
 
-Write an explicit body when the continuation matters:
+- **Match a specific continuation**: `let $(name:id) = $(value:exp); consume($(name:id))`
+  or `guard ready() else { fallback() }; continue_work()`
+- **Capture any continuation**: `let $(name:id) = $(value:exp); $(body:exp)`
+  or `guard ready() else { fallback() }; $(body:exp)`
+- **Require an explicit unit body**: `let $(name:id) = $(value:exp); ()`
+  or `guard ready() else { fallback() }; ()` (matched structurally, not as a
+  wildcard)
 
-```yaml
-patterns:
-  - shape: guard ready() else { fallback() }; continue_work()
-```
+Matching *only* a syntactically omitted body is not currently expressible as a
+structural shape.
 
-To capture whichever body the candidate has, write a body metavar explicitly:
+Scope of the shortcut:
 
-```yaml
-patterns:
-  - shape: guard ready() else { fallback() }; $(body:exp)
-```
-
-To require a unit body, write an explicit `()` body:
-
-```yaml
-patterns:
-  - shape: guard ready() else { fallback() }; ()
-```
-
-The explicit unit is matched structurally and is not a wildcard. As with an
-omitted `let` body, matching only syntactically omitted guard bodies is not
-currently expressible as a structural shape.
+- Applies **only** to ordinary `let` and `guard`.
+- `let mut`, local functions, `letrec`, `defer`, and `errdefer` use normal
+  structural matching: a header-only shape does not match a candidate with a
+  continuation.
+- `proof_let` is an independent expression candidate; matching its header covers
+  only the `proof_let` while later expressions remain searchable.
 
 ## Metavariables
 
-Identifiers and labels in a shape are literal by default. Metavar syntax inside
-`shape` turns a name into a metavariable. The built-in wildcard forms described
-below retain their documented behavior.
+Identifiers and labels in a shape match literally unless written with inline
+metavariable syntax or the built-in `$_` ignore placeholder.
 
-### Syntax
+### Syntax and bare-name inference
 
-Use `$(name:exp)` for an expression structural capture:
+Write an explicit typed metavariable as `$(name:kind)`, or omit the kind with
+bare `$name`:
 
 ```yaml
 patterns:
   - shape: $(left:exp) == $(left:exp)
-```
-
-Use `$(name:id)` for a normalized identifier capture:
-
-```yaml
-patterns:
+  - shape: $value + $value
   - shape: |
       for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
         $(body:exp)
       }
 ```
 
-For common cases, the kind may be omitted with bare `$name` syntax:
+How `moongrep` resolves a name across all its occurrences in one shape:
 
-```yaml
-patterns:
-  - shape: $value + $value
-```
+- One name must have a single kind everywhere in a shape (mixing e.g.
+  `$(name:exp)` and `$(name:id)` is invalid).
+- An explicit `$(name:kind)` fixes the kind for any bare `$name` occurrences of
+  the same name when the positions are compatible.
+- Otherwise, bare `$name` inference is intentionally conservative:
+  - Binder, label, constructor, type-name, or qualified-identifier positions
+    infer `id`.
+  - Whole type-node positions (such as `Array[$T]`) infer `type`.
+  - Pure expression placeholder positions infer `exp` only if no earlier rule
+    already inferred `id` or `type`.
+  - `const`, `arg`, and `pat` are **never** inferred from a bare `$name`. For
+    example, `match input { $item => body }` is rejected as ambiguous between
+    `id`, `const`, and `pat`; write `$(item:id)`, `$(item:const)`, or
+    `$(item:pat)`. Likewise, use `$(name:arg)` for whole call arguments.
 
-moongrep infers a single kind for all occurrences of the same name. Bare
-names used only as expression placeholders infer `exp`; bare names used in
-binder, label, constructor, type-name, or qualified-identifier positions infer
-`id`; bare names used as whole type nodes infer `type`. For example, in
-`for $counter = 0; $counter < $limit; ...`, `$counter` infers `id` from the
-binder position and `$limit` infers `exp`; in `let values : Array[$T] = input`,
-`$T` infers `type`.
+### Supported kinds
 
-Only `exp`, `id`, `const`, `arg`, `pat`, and `type` are supported. A name may be
-repeated within one kind. Using the same payload across multiple kinds such as
-`$(name:exp)`, `$(name:id)`, `$(name:const)`, `$(name:arg)`,
-`$(name:pat)`, and `$(name:type)` in one shape is invalid.
+| Kind | Valid positions | Captured node | Repeated-capture comparison | Guardable? |
+| --- | --- | --- | --- | --- |
+| `exp` | Whole bare identifier expression | Candidate expression CST | Structural CST equality (ignoring locations) | No |
+| `id` | Variable target, binder, bare identifier expr, qualified fn name, constructor identity, simple pattern var, or label (method/field/labelled arg/record field) | Candidate semantic name CST | Normalized name string (e.g., `name`, `@pkg.name`, `Type::Ctor`, `@pkg.Type::@other.Ctor`) | Yes |
+| `const` | Whole bare identifier expr (`Expr_Constant`) or simple pattern var (`Pattern_Constant`) | Candidate constant CST | Parser CST constant kind and preserved source spelling (e.g., `1000` != `1_000`) | Yes |
+| `arg` | Whole bare positional argument slot in a call (explicit-only) | Whole `Argument` CST (kind, label, value) | Structural CST equality (ignoring locations) | No |
+| `pat` | Simple pattern variable position (explicit-only) | Whole `Pattern` CST | Structural CST equality (ignoring locations) | No |
+| `type` | Whole type node (annotation, type arg, option, tuple member, function type); name must start with an uppercase letter | Whole `Type` CST | Structural CST equality (ignoring locations) | No |
 
-Bare `$name` inference is intentionally conservative. It does not default to
-`const`, `arg`, or `pat`. A simple pattern variable such as
-`match input { $item => body }` is ambiguous between `id`, `const`, and `pat`;
-write `$(item:id)`, `$(item:const)`, or `$(item:pat)` to choose. Bare `$name`
-does not infer `arg`; use explicit `$(name:arg)` for whole call arguments.
-Bare `$name` in a type annotation can infer `type`; use explicit
-`$(name:type)` when the type position is not obvious. An explicit same-name
-occurrence also fixes later bare occurrences when the positions are compatible.
+Key details and examples per kind:
 
-The old YAML `metavars` key is not supported. Pattern objects that contain it
-are rejected as using an unsupported key.
+- **`exp`**: Use `exp` to compare arbitrary expression structure (e.g.,
+  `$(expr:exp) == $(expr:exp)` matches `x == x`, `record.field == record.field`,
+  and `make(value) == make(value)`, but not `x == y`). Use `id` instead when the
+  same name appears across different syntactic roles such as a binder and a
+  reference. `$(item:exp)` is invalid in a pattern-binder position.
+- **`id`**: Compares normalized source-level names across roles (such as a `for`
+  loop binder, condition, and update). Qualified function names normalize as
+  `@pkg.name`; qualified constructors retain extra info such as `@pkg.Ctor`,
+  `Type::Ctor`, `@pkg.Type::Ctor`, or `@pkg.Type::@other.Ctor`.
+- **`const`**: Matches only parsed constants (`1 + 1`, `"same" + "same"`, or
+  `match input { $(lit:const) => $(lit:const) }`). Every repeated use must repeat
+  metavariable syntax; plain `lit` is a literal identifier.
+- **`arg`**: Matches positional (`sink(value)`), labelled (`sink(label=value)`),
+  pun (`sink(label~)`), optional labelled (`sink(label?=value)`), and optional
+  pun (`sink(label?)`) slots. Must occupy the whole argument slot;
+  `sink(label=$(arg:arg))`, `sink($(arg:arg) + 1)`, and root `$(arg:arg)` are
+  invalid.
+- **`type`**: Matches simple (`Int`, `T`) and composite (`Array[Int]`, `T?`,
+  tuples, function types) types. Does not match type-name identity positions
+  like method qualifiers or constructor extra-info (use `id` there). Invalid in
+  expression/callee positions such as `sink($(T:type))` or `$(T:type)(value)`.
+- **`pat`**: Matches any whole pattern CST in a simple pattern-variable slot
+  (e.g., `match input { $(item:pat) => body }`).
 
-### Ellipsis metavariables
+### Ellipsis metavariables (`$$$`)
 
 `$$$name` captures zero or more consecutive siblings in an ordered untyped-CST
-list. `$$$(name:kind)` applies one of `exp`, `id`, `const`, `arg`, `pat`, or
-`type` to every captured item. A bare named ellipsis has kind `AnyItem`; if the
-same name also has a typed occurrence, that occurrence determines the kind for
-all bare occurrences. A `type` metavar name must start with an uppercase letter,
-for example `$(T:type)` or `$$$(Types:type)`; lowercase and anonymous names are
-rejected in type positions.
+list, and `$$$(name:kind)` constrains every captured item with `exp`, `id`,
+`const`, `arg`, `pat`, or `type`:
 
 ```yaml
 patterns:
@@ -353,362 +266,85 @@ patterns:
   - shape: pair([$$$(items:exp)], [$$$items])
 ```
 
-The marker must occupy a complete child whose field name is absent in the
-untyped CST. Valid examples include argument, expression, parameter, pattern,
-and type lists. It cannot occupy the root, a normal named field, a label, or
-part of another node. A block's final value has no following
-`Syntax_Token(TK_SEMI)`, so it is not a replaceable statement sequence.
-
-Matching processes pattern items from left to right. At an ellipsis it tries
-the shortest possible capture first, starting with the empty sequence, and
-backtracks with bindings restored until the remaining pattern succeeds. This
-defines the result when one list contains multiple ellipses. Empty captures
-satisfy every kind constraint.
-
-In expression lists, `exp`, `id`, and `const` accept the same candidate forms as
-their single-node counterparts. In call argument lists, `arg` accepts
-positional, labelled, pun, optional-labelled, and optional-pun arguments;
-`exp`, `id`, and `const` accept only positional arguments whose values satisfy
-that kind. `pat` applies to pattern-list items, `type` to type-list items, and
-`id` can capture parameter items that have binders. The captured array always
-contains the original complete sibling nodes, such as `Argument`, `Parameter`,
-or expression nodes.
-
-Repeating a named ellipsis requires the captured arrays to have equal lengths
-and structurally equal nodes after source locations are ignored. A name cannot
-be shared by a normal metavar and an ellipsis, and conflicting explicit kinds
-are rejected. `$$$_` and `$$$(_:kind)` do not bind and each occurrence is an
-independent wildcard outside type positions. Neither `$$$_` nor `$$$(_:type)`
-is valid in a type list; use a named uppercase form such as `$$$(Types:type)`.
-Guards cannot reference ellipsis captures. Inside-context bindings inherit
-`Multiple` values just like other bindings; a repeated inner ellipsis must use
-the same kind. Inherited `id` ellipses additionally check each identifier's
-original lexical binding in order, as described under `then` below. Empty lists
-satisfy this check. Taint sink and sanitizer shapes may place ellipses around their
-single whole-argument or receiver `__SOURCE__` target.
-
-The public model package owns `BoundValue`, and the query API re-exports it.
-Ordinary node captures are `Single(Node)`. Ellipsis captures are
-`Multiple(Array[Node])`. A terminal named expression metavar or special target
-that captures a flattened continuation is `Single` for one statement and
-`Multiple` for an empty or multi-statement suffix. `ExprQuery::captures` and
-`ExprQuery::captures_from_cst` all use this representation. A terminal `$_`
-continuation wildcard is non-binding and therefore produces no `BoundValue`.
-
-### Reserved names
-
-These names must not be used as metavar names:
-
-- `$_`
-- `__TARGET__`
-- `__SOURCE__`
-
-`$_` is the ignore placeholder described below. `__TARGET__` and `__SOURCE__`
-keep their existing built-in meanings. `__TARGET__` is only valid in
-`then` and `inside-toplevel`; `__SOURCE__` is only valid in taint sink
-and sanitizer shapes.
-
-### Where metavars can bind
-
-`$(name:exp)` is valid only as a whole bare identifier expression. It captures the
-candidate expression at that position. This is valid:
-
-```yaml
-patterns:
-  - shape: sink($(value:exp))
-```
-
-This is invalid because a pattern binder is not an expression position:
-
-```yaml
-patterns:
-  - shape: match input { $(item:exp) => item }
-```
-
-Use `$(name:id)` for source-level names. It can bind simple variable targets,
-binders, bare identifier expressions, qualified function names, constructor
-identities, simple variable patterns, and labels such as method names, field
-names, labelled argument names, and record field labels.
-
-Use `$(name:const)` for literal constants. It is valid only as a whole bare
-identifier expression or as a simple pattern variable position, and it matches
-only parsed MoonBit constants. 
-
-Use `$(name:arg)` for a whole function-call argument slot. It is valid only as
-an entire bare positional argument in a call pattern:
-
-```yaml
-patterns:
-  - shape: sink($(arg:arg))
-```
-
-The placeholder can match a candidate positional argument, labelled argument,
-labelled pun, optional labelled argument, or optional labelled pun. The captured
-value is the whole `Argument` CST node, including argument kind, label, and
-value.
-
-Use `$(name:type)` for a whole MoonBit type CST node. It is valid only when it
-occupies a complete type node, such as an annotation, a type argument, an option
-type, a tuple member, or a function type component:
-
-```yaml
-patterns:
-  - shape: |
-      let value : $(T:type) = input
-  - shape: |
-      let values : Array[$T] = input
-```
-
-The captured value is the whole `Type` CST node. Repeating the same `type` name
-requires the captured type nodes to be structurally equal, ignoring source
-locations. `type` does not capture type-name identity positions such as method
-type qualifiers or constructor extra-info; use `id` for those names.
-
-Use `$(name:pat)` for a whole pattern CST capture. It is valid only as a simple
-pattern variable position:
-
-```yaml
-patterns:
-  - shape: match input { $(item:pat) => item }
-```
-
-### Built-in wildcards
-
-The exact spelling `$_` is an ignore placeholder when it appears in a
-binding-capable position:
-
-```yaml
-patterns:
-  - shape: foo($_)
-```
-
-Outside the terminal continuation form below, an ignore placeholder matches
-anything at exactly one position. It does not bind a value, and repeated ignore
-placeholders are independent:
-
-```yaml
-patterns:
-  - shape: pair($_, $_)
-```
-
-The example above can match `pair(left, right)`.
-
-When an expression sequence consists exactly of a continuation owner followed
-by terminal `$_`, the placeholder matches the complete remaining suffix: zero,
-one, or more expressions. The continuation owners are ordinary `let`,
-`let mut`, local function definitions, `letrec`, `guard`, `defer`, and `errdefer`.
-The placeholder remains non-binding, so neither `$_` nor `_` is added to the
-bindings. This rule also applies inside a nested block. It does not apply to a
-non-terminal `$_`, an owner with any other sibling pattern, or `proof_let`.
-Those uses still match exactly one expression.
-
-Only exact `$_` has this built-in behavior. Names such as `__`, `___`, and
-`__x` are literal by default. Inline syntax such as `$__` or `$(__x:exp)` marks
-them as metavars.
-
-### `exp`
-
-An `exp` metavar captures the parsed expression at its position. Repeating the
-same `exp` name requires later captures to have equal parsed expression
-structure, ignoring source locations.
-
-Example:
-
-```yaml
-patterns:
-  - shape: $(expr:exp) == $(expr:exp)
-```
-
-This can match examples such as:
-
-```moonbit
-x == x
-record.field == record.field
-make(value) == make(value)
-```
-
-It does not match:
-
-```moonbit
-x == y
-make(value) == make(other)
-```
-
-Use `id` when the same source-level name appears in different syntactic roles,
-such as a binder and a later identifier expression. An `exp` capture compares
-expression structure.
-
-Repeated `exp` captures compare untyped CST node kinds and child values,
-ignoring source locations. This works for any expression shape. Semantic
-equivalents with different CST structures do not match. A placeholder can
-absorb the structural difference.
-
-### `id`
-
-An `id` metavar captures a normalized source-level name. Repeating the same
-`id` name requires every occurrence to normalize to the same string.
-
-This is useful when a rule compares a binder with later uses:
-
-```yaml
-patterns:
-  - shape: |
-      for $(counter:id) = $(start:exp); $(counter:id) < $(limit:exp); $(counter:id) = $(counter:id) + 1 {
-        $(body:exp)
-      }
-```
-
-This can match:
-
-```moonbit
-for i = 0; i < n; i = i + 1 {
-  println(i)
-}
-```
-
-It does not match when the repeated source-level names differ:
-
-```moonbit
-for i = 0; j < n; i = i + 1 {
-  println(i)
-}
-```
-
-Normalization currently succeeds for simple and qualified variable names,
-binders, bare identifier expressions, constructor identities, simple variable
-patterns, and labels. Qualified function names normalize as `@pkg.name`.
-Qualified constructor identities include their extra info, such as `@pkg.Ctor`,
-`Type::Ctor`, `@pkg.Type::Ctor`, or `@pkg.Type::@other.Ctor`.
-
-### `const`
-
-A `const` metavar captures a parsed MoonBit constant. In expression position,
-it matches `Expr_Constant`; in pattern position, it matches `Pattern_Constant`.
-It compares the parser CST constant kind and preserved source spelling; it does
-not type-check or normalize equivalent values. For example, `1000` and `1_000`
-do not necessarily compare as the same constant.
-
-Example:
-
-```yaml
-patterns:
-  - shape: $(value:const) + $(value:const)
-```
-
-This can match:
-
-```moonbit
-1 + 1
-"same" + "same"
-```
-
-It does not match:
-
-```moonbit
-1 + 2
-x + x
-```
-
-Pattern constants are also supported:
-
-```yaml
-patterns:
-  - shape: match input { $(lit:const) => $(lit:const) }
-```
-
-The body repeats the complete `$(lit:const)` metavar syntax to reuse the
-pattern capture. Every repeated capture must repeat its metavar syntax; a plain
-`lit` is a literal identifier.
-
-### `arg`
-
-An `arg` metavar captures a complete call argument node. It lets a rule accept
-any argument spelling in one slot and compare the entire slot on repeated
-occurrences.
-
-Example:
-
-```yaml
-patterns:
-  - shape: sink($(arg:arg))
-```
-
-This can match all of these one-argument calls:
-
-```moonbit
-sink(value)
-sink(label=value)
-sink(label~)
-sink(label?=value)
-sink(label?)
-```
-
-Repeating the same `arg` name requires the full argument nodes to be
-structurally equal, ignoring source locations. Argument kind, label, and value
-must all match. The pattern `sink($(arg:arg), $(arg:arg))` can match
-`sink(value, value)` and `sink(label=value, label=value)`. It does not match
-`sink(value, other)` or `sink(label=value, other=value)`.
-
-`arg` is explicit-only. Bare `$arg` in `sink($arg)` follows normal bare
-metavar inference. An explicit declaration of the same name elsewhere
-determines its kind. With no such declaration, it is an `exp` capture.
-`$(arg:arg)` must occupy the whole argument slot; `sink(label=$(arg:arg))`,
-`sink($(arg:arg) + 1)`, and a root shape `$(arg:arg)` are invalid.
-
-### `type`
-
-A `type` metavar captures a whole MoonBit `Type` CST node. It can match simple
-type names and type variables such as `Int` or `T`, and composite types such as
-`Array[Int]`, `T?`, tuples, and function types.
-
-Example:
-
-```yaml
-patterns:
-  - shape: |
-      let left : $(T:type) = input; let right : $(T:type) = input
-```
-
-This can match:
-
-```moonbit
-let left : Int = input; let right : Int = input
-let left : Array[String] = input; let right : Array[String] = input
-```
-
-It does not match:
-
-```moonbit
-let left : Int = input; let right : String = input
-```
-
-`type` captures must occupy a whole type node. These are invalid:
-
-```yaml
-patterns:
-  - shape: sink($(T:type))
-  - shape: $(T:type)(value)
-```
-
-### `pat`
-
-A `pat` metavar captures the whole candidate `Pattern` CST. It is valid only in
-a simple pattern variable position.
-
-Example:
-
-```yaml
-patterns:
-  - shape: match input { $(item:pat) => body }
-```
-
-Repeating the same `pat` name requires the captured patterns to be structurally
-equal.
+Placement and kind rules:
+
+- Must occupy a complete child whose field name is absent in the untyped CST
+  (argument, expression, parameter, pattern, and type lists). Cannot occupy the
+  root, a named field, a label, part of another node, or a block's final value
+  (which has no following `Syntax_Token(TK_SEMI)`).
+- A bare named ellipsis has kind `AnyItem`; if the same name also has a typed
+  occurrence, that typed kind governs all bare occurrences.
+- `type` metavariable names (single or ellipsis) must start with an uppercase
+  letter (e.g., `$(T:type)`, `$$$(Types:type)`); lowercase and anonymous names
+  (`$$$_`, `$$$(_:type)`) are rejected in type lists.
+- A name cannot be shared between a normal metavariable and an ellipsis, and
+  conflicting explicit kinds are rejected.
+- `$$$_` and `$$$(_:kind)` are non-binding independent wildcards outside type
+  positions.
+- Guards cannot reference ellipsis captures.
+
+Item constraints by list kind:
+
+| List kind | Supported item kinds |
+| --- | --- |
+| Expression list | `exp`, `id`, `const` (same candidate forms as single-node counterparts) |
+| Call argument list | `arg` accepts all argument forms (positional, labelled, pun, optional-labelled, optional-pun); `exp`, `id`, `const` accept only positional arguments whose value matches that kind |
+| Pattern list | `pat` |
+| Type list | `type` (named uppercase only) |
+| Parameter list | `id` (parameters that have binders) |
+
+Matching and binding semantics:
+
+- Matching runs left to right. At an ellipsis, the matcher tries the shortest
+  slice first (starting at empty) and backtracks with bindings restored until
+  the rest of the list succeeds. Empty captures satisfy every kind constraint.
+- Captured arrays always store the original complete sibling CST nodes
+  (`Argument`, `Parameter`, expression nodes, etc.).
+- Repeated named ellipses require equal array lengths and location-insensitive
+  structural equality for each element.
+- Inside-context bindings inherit `Multiple` values like other bindings (a
+  repeated inner ellipsis must use the same kind). Inherited `id` ellipses also
+  check each identifier's original lexical binding in order (empty lists pass).
+- Taint sink and sanitizer shapes may place ellipses around their single
+  whole-argument or receiver `__SOURCE__` target.
+
+`BoundValue` representation in the public API (`model`, re-exported by `query`):
+
+- Ordinary captures produce `Single(CstNode)`; ellipsis captures produce
+  `Multiple(Array[CstNode])`.
+- A terminal named expression metavariable or special target capturing a
+  flattened continuation produces `Single` for a one-statement suffix and
+  `Multiple` for an empty or multi-statement suffix.
+- A terminal `$_` continuation wildcard does not bind and produces no
+  `BoundValue`.
+
+### Built-in wildcards and reserved names
+
+Reserved names cannot be used as inline metavariable names:
+
+- `$_` — built-in ignore placeholder.
+- `__TARGET__` — valid only in `then` and `inside-toplevel`.
+- `__SOURCE__` — valid only in taint sink and sanitizer shapes.
+
+Behavior of `$_`:
+
+- In any bindable position (outside the continuation rule below), exact
+  unqualified `$_` matches any single node without binding; multiple `$_` are
+  independent (for example, `pair($_, $_)` matches `pair(left, right)`).
+- When an expression sequence consists of **exactly** one continuation owner
+  (`let`, `let mut`, local function, `letrec`, `guard`, `defer`, or `errdefer`)
+  followed by a terminal `$_`, that `$_` matches the entire remaining suffix
+  (zero, one, or more expressions) without binding `$_` or `_`. This also works
+  inside nested blocks, but does not apply to non-terminal `$_`, owners with
+  other siblings, or `proof_let`.
+- Only exact `$_` has this built-in behavior. Names such as `__`, `___`, and
+  `__x` are literal unless written with `$` syntax (e.g., `$__`, `$(__x:exp)`).
 
 ## Guards
 
-Structural pattern objects may include an optional `guard` map. A guard key is a
-`$`-prefixed capture name, and the value is a regex string:
+Any structural pattern object (`patterns`, `patterns-not`, `then`, or
+`inside-toplevel`) may include an optional `guard` mapping from `$`-prefixed
+capture names to regex strings:
 
 ```yaml
 patterns:
@@ -718,25 +354,21 @@ patterns:
       $value: "danger|raw"
 ```
 
-Only `id` and `const` captures can be guarded. A guard key that refers to an
-`exp` capture, an `arg` capture, a `pat` capture, a `type` capture, or an unknown name is
-rejected during rule compilation. Inner `patterns` may guard `id` and `const`
-captures established by `then` or `inside-toplevel`.
-
-Guards are checked after the structural CST match succeeds. All guards in a
-single pattern object must match (AND). Regexes match substrings by default.
-Use anchors such as `^...$` when the whole capture value
-must match.
-
-For `id` captures, the regex sees the normalized identifier string, such as
-`name` or `@pkg.name`. For `const` captures, the regex sees the parser constant
-value: string constants without quotes, numeric constants as their source text,
-and booleans as `true` or `false`.
+- **Eligible captures**: only `id` and `const` captures (including inherited
+  `id` / `const` captures from `then` or `inside-toplevel`). Referencing `exp`,
+  `arg`, `pat`, `type`, ellipsis captures, or unknown names is a compile error.
+- **Evaluation**: checked after structural CST matching succeeds. All entries in
+  one `guard` map must match (logical AND). Regexes use substring matching by
+  default; anchor with `^...$` for full-value matching.
+- **Input text to regex**:
+  - `id`: normalized identifier string (e.g., `name`, `@pkg.name`).
+  - `const`: parser constant value — strings without quotes, numbers as source
+    text, Booleans as `true` or `false`.
 
 ## Structural rules
 
-A structural rule has a non-empty `patterns` array, or has
-`inside-toplevel` with non-empty `patterns`, non-empty `patterns-not`, or both.
+A structural rule defines a nonempty `patterns` array, or combines
+`inside-toplevel` with nonempty `patterns`, nonempty `patterns-not`, or both.
 
 ```yaml
 id: repeated-equality
@@ -746,34 +378,33 @@ patterns:
   - shape: $(expr:exp) == $(expr:exp)
 ```
 
-Structural rules are applied to expression subtrees collected from source
-files. Currently, structural matching searches expression bodies from top-level
-functions, methods, top-level `let` and `const` definitions, tests, and views.
+### Evaluation order and deduplication
 
-Each visited expression is checked against each structural rule. For one
-visited expression and one rule:
+Structural rules search expression bodies of top-level functions, methods,
+top-level `let` and `const` definitions, tests, and views.
 
-- `patterns` entries are ordered alternatives
-- the first matching positive pattern emits one hit and prunes that candidate
-  expression subtree for that rule
-- if no positive pattern matches, `patterns-not` entries are checked against the
-  candidate expression root
-- if a negative pattern then matches, that candidate expression subtree is
-  pruned for that rule without emitting a hit
-- sibling expression subtrees and other rules continue scanning
+At each visited candidate expression, for a given rule:
 
-All patterns in one rule share the same rule id and `description`.
+1. Try `patterns` in YAML order. The first positive entry whose `shape`,
+   `guard`, and optional `then` all succeed emits one finding and prunes that
+   candidate subtree for this rule.
+2. Only if **every** positive entry fails, check `patterns-not` against the
+   candidate root.
+3. If a negative pattern matches, prune that candidate subtree for this rule
+   without emitting a finding.
+4. Otherwise, continue visiting the candidate's child expressions. Sibling
+   subtrees and other rules continue independently.
 
-Within one parsed source block, structural findings are unique by file, rule
-id, and complete start/end source range. The first successful finding keeps
-its `pattern_index`, description, and publication order. Different rules or
-ranges remain separate findings, and independently parsed blocks keep their
-own results. Text and JSON output use these same findings.
+All patterns in a rule share its rule ID and `description`. Within one parsed
+source block, structural findings are deduplicated by `(file, rule_id, full
+start/end range)`, keeping the first finding's `pattern_index`, description, and
+publication order. Different rules, different ranges, and separately parsed
+source blocks keep independent findings.
 
 ### `patterns-not`
 
-`patterns-not` is a structural negative constraint. Its entries use the same
-`shape` and optional `guard` schema as `patterns`.
+`patterns-not` specifies negative structural constraints using the same `shape`
+and optional `guard` schema as `patterns`:
 
 ```yaml
 id: unblocked-target
@@ -785,43 +416,24 @@ patterns-not:
   - shape: blocked($(value:exp))
 ```
 
-For ordinary structural rules with `patterns`, every candidate expression root
-tries the ordered positive patterns first. If a positive pattern matches, the
-hit is reported and `patterns-not` is not checked for that candidate. Only when
-all positive patterns fail are `patterns-not` entries checked. Negative matching
-starts with no bindings. Metavars declared only in `patterns-not` bind
-independently from metavars declared in `patterns`.
+- At root level (without `then` / `inside-toplevel`), negative matching starts
+  with empty bindings (independent of `patterns`) and checks only the current
+  candidate root after all positive patterns fail. In the example above,
+  `blocked(target())` fails `target()`, matches `blocked(...)`, and prunes its
+  children so the nested `target()` is not reported. If a node matches a
+  positive pattern directly, `patterns-not` is skipped; narrow the positive
+  pattern to exclude same-root shapes.
+- Inside `then` or `inside-toplevel`, negative matching inherits outer bindings.
+  When both `patterns` and `patterns-not` are present in a context, positive
+  matches cover their whole matched subtrees, and any negative match outside
+  those covered subtrees rejects the enclosing context match.
 
-If a negative pattern matches after the positive patterns fail, that candidate
-produces no hit and its descendants are not searched for that rule. If neither a
-positive nor a negative pattern matches, traversal continues into the
-candidate's children.
+### Nested constraints (`then`)
 
-Negative patterns match only the current candidate root. In the example
-above, `target()` inside `blocked(...)` is not searched because the `blocked`
-root fails all positive patterns, then matches `patterns-not`, pruning that
-branch. A `blocked(...)` node that also matched a positive pattern would be
-reported and would not be checked against `patterns-not`; use a narrower
-positive pattern when same-root shapes must be excluded.
-
-With `then` or `inside-toplevel`, negative matching starts with the
-bindings established by the outer match. If the rule also has `patterns`, each
-expression in the captured `__TARGET__` subtree uses the same positive-first
-ordering: positive patterns run first, and `patterns-not` is checked only when
-all positive patterns fail for that expression. When an outer context,
-`patterns`, and `patterns-not` are all present, positive matches cover their
-whole matched subtrees, and any negative match found outside those covered
-positive subtrees rejects the whole outer match. `patterns-not` is also valid
-inside `then`, or with `inside-toplevel` and no root `patterns`; that form is
-described below.
-
-### `then`
-
-Each positive `patterns` entry may have a `then` object. Its only keys are
-`patterns` and `patterns-not`. At least one array must be present, and every
-present array must be non-empty. Nested positive entries may themselves have
-`then`, with any finite depth. Unknown keys and invalid types are rejected with
-the complete YAML path, for example `patterns[0].then.patterns[1].then`.
+Any positive `patterns` entry may attach a `then` object containing `patterns`,
+`patterns-not`, or both (at least one key required; each present array must be
+nonempty). Nested positive entries may nest `then` to any finite depth. Errors
+report the full YAML path (e.g., `patterns[0].then.patterns[1].then`).
 
 ```yaml
 id: nested-target
@@ -840,95 +452,77 @@ patterns:
               - shape: danger()
 ```
 
-A shape with `then` must contain exactly one `__TARGET__` in a bindable whole
-expression position. Leaves and negative patterns prohibit that placeholder.
-`then` is forbidden on negative patterns, taint clauses, and the
-`inside-toplevel` entries themselves. The positive patterns inside an
-`inside-toplevel` rule may use it.
+Placement and evaluation rules:
 
-At each candidate, positive entries are tried in YAML order. Shape, guard, and
-`then` must all succeed. Failure tries the next sibling; success prunes the
-whole matched subtree. If every positive entry fails, negative patterns are
-checked before scanning children. A failed nested group only fails its owning
-pattern, so other alternatives and descendant candidates remain eligible.
+- A `shape` with `then` must contain **exactly one** `__TARGET__` in a bindable
+  whole-expression position. Leaf positive entries and negative entries forbid
+  `__TARGET__`. `then` is not allowed on `patterns-not`, taint clauses, or
+  `inside-toplevel` entries themselves (positive patterns inside an
+  `inside-toplevel` rule may use `then`).
+- For a positive entry to succeed, its `shape`, `guard`, and `then` must all
+  succeed; if `then` fails, the matcher tries the next sibling positive entry
+  (it does **not** retry another ellipsis partition of the failed shape).
+- A failed nested group fails only its owning positive entry; sibling
+  alternatives and descendant candidates remain eligible.
 
-| Nested group | Success condition |
+| Nested group composition | Success condition |
 | --- | --- |
-| Only `patterns` | At least one complete positive entry matches |
-| Only `patterns-not` | No negative matches; an empty target succeeds |
-| Both | At least one positive match and no uncovered negative matches |
+| Only `patterns` | At least one complete positive entry matches. |
+| Only `patterns-not` | No negative entry matches (an empty target succeeds). |
+| Both `patterns` and `patterns-not` | At least one positive entry matches and no uncovered negative entry matches. |
 
-A successful positive entry covers its entire matched subtree, even when it
-has its own `then`. Negative rejection is local to its group. Root negatives
-without `inside-toplevel` only prune branches; `inside-toplevel` retains whole
-context rejection. Findings are committed only after all applicable negative
-checks succeed.
+- A successful positive entry covers its entire matched subtree (even when it
+  has its own `then`). Findings are committed only after all applicable negative
+  checks succeed.
+- Each finding uses the **root** `patterns` entry's location; multiple inner
+  matches produce at most one outer finding.
+- A `__TARGET__` after a continuation owner (`let`, `let mut`, `guard`) selects
+  the entire remaining expression sequence (which may be empty). Function bodies
+  stay sequence candidates; explicit blocks stay block candidates. A target may
+  equal the current candidate (recursion descends the finite rule tree).
 
-Captures remain visible to all descendants, including through intermediate
-shapes that do not reference them. Reusing a name requires the same kind and
-bound value, including named ellipsis kinds. Guards may read ancestor `id` or
-`const` captures without repeating them in the current shape. New captures do
-not escape to parents or siblings. Identifier captures keep the source of
-their first capture through every level, including
-`inside-toplevel`. A variable binder records its declaration's binding; a
-variable reference records the binding visible at that occurrence. A free
-variable remains unbound, so a later same-named local declaration shadows it.
-Selecting a target never resolves the captured name again to replace its source.
+Inherited captures and lexical binding checks:
 
-Each inherited `id` occurrence compares bindings only when both its source and
-the new occurrence are lexical variables (references or binders). If either is
-a field, label, constructor, type name, or another nonlexical name, the normal
-normalized-name comparison applies. This also permits reuse between a variable
-and a field with the same name. Every occurrence in a shape is checked at its
-own source position, including after declarations within a multi-statement
-candidate. A declaration after an occurrence does not invalidate that earlier
-use. For `$$$(names:id)`, these binding checks apply to each identifier in order,
-in addition to the usual list length and structural equality checks; captured
-values remain the original complete list items.
+- Captures stay visible to all descendants, even across intermediate shapes that
+  do not reference them. New captures do not escape to parents or siblings.
+- Reusing an inherited name requires the same kind (including ellipsis kind) and
+  equal value. Guards may read ancestor `id` / `const` captures without
+  repeating them in the current shape.
+- Identifier captures remember their **first-capture provenance** across every
+  level (including `inside-toplevel`): a variable binder records its
+  declaration's binding, a reference records the binding visible at its
+  position, and a free variable stays unbound (so a later local declaration of
+  the same name shadows it). Selecting a target never re-resolves captured names.
+- An inherited `id` compares lexical bindings **only** when both its original
+  source and the new occurrence are lexical variables (references or binders).
+  If either side is a nonlexical name (field, label, constructor, type name,
+  etc.), normal normalized-name equality applies, allowing reuse between a
+  variable and a same-named field.
+- Each occurrence is checked at its actual source position (a later declaration
+  does not invalidate an earlier use). For `$$$(names:id)`, lexical binding
+  checks run element by element in order alongside length and structural
+  equality, while captured values remain full list items.
+- Repeated new captures within one shape keep standard name/structural equality
+  and retain the first capture's source.
+- Guards reading an inherited lexical `id` require that original binding to be
+  visible at candidate entry (nonlexical names have no visibility constraint).
+- An inherited binding mismatch is an atomic match failure, so ellipsis
+  backtracking can try another split with captures and provenance rolled back
+  together.
 
-Repeated new captures within one shape keep their existing name or structural
-equality rules and retain the first capture's source. Guards reading inherited
-lexical `id` captures require that original binding to be visible at the
-candidate's entry; guards on nonlexical names have no visibility constraint.
-An inherited binding mismatch is an atomic match failure, so ellipsis matching
-can try another partition with captures and their sources rolled back together.
+Migration from removed `inside-expr`:
 
-A target after a continuation owner (`let`, `let mut`, or `guard`) selects the
-remaining expression sequence, which may be empty. Function bodies retain
-sequence matching; explicit blocks retain block matching. A target may select
-the whole current candidate: recursion descends the finite rule tree and need
-not shrink the source range. A failed `then` does not retry another ellipsis
-partition of the same shape.
+- The old `inside-expr` key is removed and emits a migration error. Move each
+  outer alternative into root `patterns` and put the old inner `patterns` /
+  `patterns-not` into that entry's `then`, keeping order and guards. Note that
+  this changes alternative fallback and successful-subtree pruning; it is not a
+  behavior-preserving rename.
 
-Each finding uses the root `patterns` entry's location. Multiple internal
-matches produce only one outer finding. For example:
+### Top-level contexts (`inside-toplevel`)
 
-```yaml
-id: alternatives
-description: Accept either a clean wrapper or a container with a target.
-patterns:
-  - shape: wrapper(__TARGET__)
-    then:
-      patterns-not:
-        - shape: danger()
-  - shape: container(__TARGET__)
-    then:
-      patterns:
-        - shape: target()
-```
-
-The removed `inside-expr` key produces a migration error. Move each old outer
-alternative into root `patterns` and place the former child `patterns` and
-`patterns-not` in that entry's `then`. Preserve alternative order and guards.
-This changes fallback and successful-subtree pruning; it is not a
-behavior-preserving field rename.
-
-### `inside-toplevel`
-
-`inside-toplevel` restricts a structural rule to matches inside selected
-MoonBit top-level items. It is a non-empty ordered array using the same object
-shape/guard schema. The root group scans the selected target. Each entry's `shape`
-must parse as exactly one top-level item.
+`inside-toplevel` restricts a structural rule to selected MoonBit top-level
+items. It is a nonempty ordered array of `{ shape, guard?, match-mode? }`
+entries whose `shape` parses as exactly one top-level item:
 
 ```yaml
 id: safe-function-target
@@ -943,83 +537,57 @@ patterns:
   - shape: call($(param:id))
 ```
 
-`match-mode` is resolved independently for every ordered alternative:
+`match-mode` resolution (independent per alternative):
 
-| `match-mode` | Shape item | Effective matching |
+| `match-mode` | Shape top-level item | Effective mode |
 | --- | --- | --- |
-| omitted | function definition | `partial` |
-| omitted | any other top-level item | `exact` |
-| `exact` | any top-level item | `exact` |
-| `partial` | function definition | `partial` |
-| `partial` | any other top-level item | compile error |
+| Omitted | Function definition | `partial` |
+| Omitted | Any other top-level item | `exact` |
+| `exact` | Any top-level item | `exact` |
+| `partial` | Function definition | `partial` |
+| `partial` | Any other top-level item | Compile error |
 
-Exact matching compares every field in the parsed top-level semantic CST:
+- **`exact`**: compares every field in the parsed top-level semantic CST
+  (docstrings are comments and never constrain matching in any mode).
+- **`partial`** (function definitions only): always matches function name, body,
+  and `__TARGET__` exactly. Function-header fields left in their default form
+  are ignored: type qualifier, `async`, parameter list, type parameters, return
+  type, error type, visibility, attributes, and the top-level `where` clause.
+  Writing any of these fields explicitly (e.g., `fn f()`, `pub fn`, `async fn`,
+  return type, `noraise`, type parameters, attributes, or `where`) matches it
+  exactly.
+- **Migration note**: older rules relying on omitted function-header fields
+  being absent must add `match-mode: exact`.
 
-```yaml
-inside-toplevel:
-  - shape: |
-      fn $(name:id) { __TARGET__ }
-    match-mode: exact
-```
+Context selection and reporting:
 
-Docstrings are comments and never constrain a match. Adding, removing, or
-changing a docstring has no effect in default, `exact`, or `partial` mode.
-
-Partial matching is limited to function definitions. It always matches the
-function name, body, and `__TARGET__` exactly. The following function-header
-fields are ignored only when the shape leaves them in their default form:
-
-- type qualifier, `async`, parameter list, type parameters, return type, error
-  type, visibility, and attributes
-- the top-level `where` clause
-
-Writing any such field keeps it exact. For example, `fn f()` requires an
-explicit empty parameter list, `pub fn` requires public visibility, and
-`async fn`, a return type, `noraise`, type parameters, attributes, or a `where`
-clause constrain the candidate exactly.
-
-Migration note: an older rule that depended on an omitted function-header
-field being absent must add `match-mode: exact`. Broad function-context rules
-can remain unmarked and use the new partial default.
-
-Additional rules:
-
-- Every `inside-toplevel` entry must contain exactly one `__TARGET__`
-  occurrence in a binding-capable expression position within the top-level
-  item.
-- The top-level item itself may declare `id` and `const` captures, and its
-  optional `guard` may filter those captures.
-- Captures declared by the selected `inside-toplevel` entry remain visible to
-  inner `patterns` and `patterns-not`, using the same all-alternatives
-  declaration and kind-consistency rules across all top-level alternatives.
-  These checks include references in nested groups and guards.
+- Every `inside-toplevel` entry must contain exactly one bindable `__TARGET__`
+  in an expression position and may declare `id` / `const` captures filtered by
+  its optional `guard`.
+- Any inherited capture referenced by descendant shapes or guards must be
+  declared with a compatible kind in **every** `inside-toplevel` alternative.
+- Entries are tried in YAML order; the first entry whose `shape` and `guard`
+  match selects the target and bindings (later alternatives are not tried after
+  selection).
+- The `__TARGET__` subtree uses the same inherited-binding and negative-coverage
+  semantics as `then`.
+- **Reporting**: with `patterns`, each inner positive hit emits a finding at the
+  inner match location; with only `patterns-not` (and no negative hits), one
+  finding is emitted at the matched top-level item's location.
 - `inside-toplevel` is not supported on taint rules.
-
-The candidate top-level item tries eligible `inside-toplevel` entries in YAML
-order. The first entry whose shape and guard both match selects the target and
-bindings; later alternatives are not tried after selection. The expression
-subtree captured by `__TARGET__` is searched with the same inherited-binding
-and negative-coverage behavior as `then`.
-Reporting differs: with `patterns`, every inner positive hit produces a
-finding whose `loc` is the inner match location. With only `patterns-not`, one
-finding is produced at the matched top-level item location.
 
 ## Taint rules
 
-A taint rule has a top-level `taint` mapping.
+A taint rule defines a top-level `taint` mapping (mutually exclusive with all
+structural keys):
 
-Only these keys are accepted inside `taint`:
+| Key | Required | Description |
+| --- | --- | --- |
+| `sources` | Yes | Nonempty array of `{ shape }` entries introducing taint. |
+| `sinks` | Yes | Nonempty array of `{ shape }` entries checking taint at `__SOURCE__`. |
+| `sanitizers` | No | Array of `{ shape }` entries clearing taint at `__SOURCE__` (defaults to empty). |
 
-- `sources` (required): non-empty array
-- `sinks` (required): non-empty array
-- `sanitizers` (optional): array, defaults to empty
-
-Unknown keys inside `taint` are rejected.
-
-Each array entry is a pattern object with `shape`; `guard` is rejected in taint
-clauses.
-
-Example:
+`guard` and unknown keys are rejected inside `taint` and its clauses.
 
 ```yaml
 id: raw-html
@@ -1036,168 +604,134 @@ taint:
 
 ### Taint shape restrictions
 
-Every taint `shape` must be a direct call or method call.
-
-Valid forms include:
-
-```moonbit
-source()
-receiver.method(arg)
-sink(label=arg)
-```
-
-Pipe and reverse-pipe syntax are not valid taint rule shapes today. Source
-programs may contain those calls after parsing.
-
-`__SOURCE__` is reserved in taint clauses:
-
-- source shapes must not contain `__SOURCE__`
-- sink shapes must contain exactly one `__SOURCE__`
-- sanitizer shapes must contain exactly one `__SOURCE__`
-- in sinks and sanitizers, `__SOURCE__` must be the whole receiver or the whole
-  argument value
-
-Valid sink and sanitizer targets:
-
-```yaml
-taint:
-  sources:
-    - shape: source()
-  sinks:
-    - shape: sink(__SOURCE__)
-    - shape: sink(label=__SOURCE__)
-    - shape: __SOURCE__.dangerous()
-```
-
-Invalid target placement:
-
-```yaml
-taint:
-  sources:
-    - shape: source()
-  sinks:
-    - shape: sink(wrap(__SOURCE__))
-```
-
-The invalid example nests `__SOURCE__` inside another expression. A valid shape
-uses it as the whole argument value.
+- Every taint `shape` must be a direct call or method call (`source()`,
+  `receiver.method(arg)`, `sink(label=arg)`). Pipe and reverse-pipe syntax are
+  not valid taint rule shapes today (source programs may still use pipes, which
+  the analyzer normalizes).
+- `__SOURCE__` rules:
+  - `sources` must **not** contain `__SOURCE__`.
+  - `sinks` and `sanitizers` must contain **exactly one** `__SOURCE__`, placed
+    as the whole receiver (`__SOURCE__.dangerous()`) or the whole argument value
+    (`sink(__SOURCE__)`, `sink(label=__SOURCE__)`).
+  - Nesting `__SOURCE__` inside another expression (such as
+    `sink(wrap(__SOURCE__))`) is invalid.
 
 ### Taint semantics
 
-Taint analysis is intraprocedural. It currently analyzes function bodies and
-method bodies. Top-level lets, consts, tests, views, and declarations without
-bodies are not taint-analyzed.
+Taint analysis is **intraprocedural** and runs on function bodies and method
+bodies (top-level `let`/`const`, tests, views, and bodyless declarations are not
+taint-analyzed).
 
-For one taint rule:
+For each taint rule:
 
-- a matching source call marks the call result as tainted
-- a matching sink call reports when the selected `__SOURCE__` receiver or
-  argument is tainted
-- a matching sanitizer call does not produce tainted return data
-- a matching sanitizer clears stored taint for the selected `__SOURCE__` value
-  only when that value is a storage path, such as a variable, field access,
-  tuple field access, or array access
-- unmatched calls have no effect on taint
-
-There is no interprocedural propagation for YAML taint rules today. If tainted
-data is passed through a helper call that does not match a source, sink, or
-sanitizer clause in the same rule, that helper call does not propagate taint to
-its return value.
-
-When one call matches more than one taint clause type, effects are ordered as
-follows:
-
-- if a call matches both a source and a sanitizer, source return taint is
-  produced
-- if a call matches both a sink and a sanitizer, the sink is reported using the
-  taint state before sanitizer effects affect later reads
+- A matching **source** call taints its return value.
+- A matching **sink** call emits a finding when the selected `__SOURCE__`
+  receiver or argument is tainted.
+- A matching **sanitizer** call produces untainted return data and clears stored
+  taint for `__SOURCE__` only when `__SOURCE__` is a storage path (variable,
+  field access, tuple field access, or array access).
+- Unmatched calls do not propagate taint (no interprocedural propagation for
+  YAML rules today).
+- **Overlapping clause precedence** on a single call:
+  - Source + sanitizer: source return taint is still produced.
+  - Sink + sanitizer: the sink is checked using the taint state *before*
+    sanitizer effects apply to later reads.
 
 ### Control flow and incomplete analysis
 
-The analyzer preserves short-circuit paths, simultaneous loop updates and
-continue arguments, and exit-time defer execution. Errdefer runs only on error
-exits. Whole-value taint flows into fields and array elements. Known fields and
-constant indexes support exact overwrites and sanitization without clearing
-siblings. Dynamic index writes are conservative, and dynamic-index sanitizers
-do not clear elements whose identity is unknown. There is no implicit control
-flow taint or general heap alias analysis.
-
-Unsupported executable syntax skips the affected function and emits a
-`taint_incomplete` warning. An SCC that fails to converge within 64 rounds skips
-that function's results for the affected rule. No partial findings are emitted.
-Other functions and rules continue. `scan --strict-taint` finishes the scan and
-returns status 8 when analysis was incomplete, including parse failures that
-prevented taint analysis. Unknown calls do not implicitly raise exceptions;
-YAML rules do not currently declare exceptional call models.
+- The analyzer preserves short-circuit paths, simultaneous loop updates and
+  `continue` arguments, exit-time `defer` execution, and error-only `errdefer`
+  execution.
+- Whole-value taint propagates to fields and array elements. Known fields and
+  constant array indexes support exact overwrites and sanitization without
+  clearing siblings. Dynamic index writes are conservative, and dynamic-index
+  sanitizers do not clear elements whose identity is unknown.
+- There is no implicit control-flow taint or general heap alias analysis.
+  Unknown calls do not implicitly raise exceptions, and YAML rules do not
+  declare exceptional call models.
+- Unsupported executable syntax skips the affected function and emits a
+  `taint_incomplete` warning. An SCC that does not converge within `64` rounds
+  skips all results for that function and rule. No partial findings are emitted,
+  and other functions/rules continue.
+- Running with `--strict-taint` finishes the scan and exits with status `8` if
+  any taint analysis was incomplete (including parse failures that blocked taint
+  analysis).
 
 ## Error conditions
 
-A rule set or rule file is rejected when any of these conditions occurs:
+A rule set or rule file is rejected if any of the following conditions holds:
 
-- the rules root contains no `.yaml` or `.yml` files
-- a file selected directly with `--rule` does not have the exact lowercase
-  `.yaml` or `.yml` suffix
-- a rule file contains zero YAML documents or more than one YAML document
-- the top-level YAML document is not a mapping
-- an unsupported key appears at the top level, inside `taint`, or inside a
-  pattern object
-- a required key is missing
-- `id`, `description`, or `shape` is not a YAML string
-- `id` is empty or contains `/`
-- the rule does not choose structural or taint mode
-- `inside-toplevel` appears on a taint rule
-- `match-mode` appears outside an `inside-toplevel` entry
-- `match-mode` is not `exact` or `partial`
-- `match-mode: partial` is used with a non-function top-level shape
-- `inside-toplevel` is present without `patterns` or `patterns-not`
-- `patterns` is not an array or is empty
-- a `patterns` entry is not a mapping
-- `patterns-not` is not an array or is empty
-- `patterns-not` appears on a taint rule
-- an unsupported top-level key appears
-- a `patterns-not` entry is not a mapping
-- `taint` is not a mapping
-- `taint.sources` or `taint.sinks` is missing, not an array, or empty
-- `taint.sanitizers` has a non-array value
-- a taint clause entry is not a mapping
-- a structural `guard` has a non-mapping value, or a guard value is not a string
-- `guard` appears in any taint clause
-- `metavars` appears in any pattern object
-- `shape` is not valid as one MoonBit expression
-- an `inside-toplevel` entry's `shape` is not exactly one valid MoonBit
-  top-level item
-- a shape uses an unsupported metavar kind
-- a shape uses the same metavar name across multiple metavar kinds
-- a bare `$name` cannot be inferred to one compatible kind
-- a bare `$name` appears only as an ambiguous simple pattern variable
-- a metavar uses a reserved name
-- `$(name:exp)` appears outside a bare expression position
-- `$(name:const)` appears outside a constant expression or constant pattern position
-- `$(name:arg)` appears outside a bare argument position
-- `$(name:pat)` appears outside a bare pattern position
-- `$(name:type)` appears outside a whole type position
-- a guard key is not `$`-prefixed, or references an unknown, `exp`, `arg`,
-  `pat`, `type`, or ellipsis capture
-- an ellipsis does not occupy a complete unnamed ordered-list item
-- an ellipsis kind is incompatible with its list position, conflicts with
-  another typed occurrence, or shares a name with a normal metavar
-- a guard regex is invalid
-- an `inside-toplevel` entry does not contain exactly one binding-capable
-  `__TARGET__`
-- a structural leaf or `patterns-not` entry contains binding-capable
-  `__TARGET__`
-- a positive shape with `then` does not have exactly one bindable target
-- a `then` object has unknown keys, invalid arrays, or no child patterns
-- a structural `patterns` or `patterns-not` entry uses an inherited
-  `then` or `inside-toplevel` metavar name with a different kind
-- an inherited capture referenced by any descendant shape or guard is missing
-  from an `inside-toplevel` alternative, or has an incompatible kind
-- a taint source contains binding-capable `__SOURCE__`
-- a taint sink or sanitizer does not contain exactly one binding-capable
-  `__SOURCE__`
-- a taint sink or sanitizer does not place `__SOURCE__` as the whole receiver
-  or whole argument value
-- a taint source, sink, or sanitizer shape is not a direct call or method call
+### Rule discovery and YAML structure
+
+- The rules root contains no `.yaml` or `.yml` files.
+- A single file passed to `--rule` does not end in exact lowercase `.yaml` or
+  `.yml`.
+- A rule file contains zero or multiple YAML documents, or its top-level
+  document is not a mapping.
+- Duplicate rule IDs exist across the loaded rule set.
+
+### Top-level schema and keys
+
+- An unsupported key appears at the top level, inside `taint`, or inside any
+  pattern object (including legacy `metavars` or removed `inside-expr`).
+- A required key is missing, or `id`, `description`, or `shape` is not a string.
+- `id` is empty or contains `/`.
+- The rule selects neither structural nor taint mode, or mixes `taint` with
+  structural keys (`patterns`, `patterns-not`, `inside-toplevel`).
+- `patterns` or `patterns-not` is not a nonempty array, or any entry is not a
+  mapping.
+- `inside-toplevel` appears without `patterns` or `patterns-not`.
+- `match-mode` appears outside `inside-toplevel`, is neither `exact` nor
+  `partial`, or uses `partial` on a non-function top-level shape.
+- `taint` is not a mapping; `taint.sources` or `taint.sinks` is missing, not an
+  array, or empty; `taint.sanitizers` is not an array; or any taint entry is not
+  a mapping.
+
+### Shapes and metavariables
+
+- An ordinary `shape` is not one valid MoonBit expression, or an
+  `inside-toplevel` `shape` is not exactly one valid MoonBit top-level item.
+- A shape uses an unsupported metavariable kind, a reserved name (`$_`,
+  `__TARGET__`, `__SOURCE__`), or the same name across multiple kinds.
+- A bare `$name` cannot be inferred to one compatible kind, or appears only as
+  an ambiguous simple pattern variable.
+- `$(name:exp)` appears outside a bare expression position; `$(name:const)`
+  appears outside a constant expression or constant pattern position;
+  `$(name:arg)` appears outside a bare call-argument slot; `$(name:pat)` appears
+  outside a bare pattern position; or `$(name:type)` appears outside a whole
+  type position.
+- An ellipsis does not occupy a complete unnamed ordered-list item; its kind is
+  incompatible with its list position or conflicts with another typed
+  occurrence; or it shares a name with a normal metavariable.
+
+### Guards
+
+- A structural `guard` is not a mapping, or any guard value is not a string.
+- `guard` appears in any taint clause.
+- A guard key lacks the `$` prefix or references an unknown, `exp`, `arg`,
+  `pat`, `type`, or ellipsis capture.
+- A guard regular expression is invalid.
+
+### Contexts (`then` and `inside-toplevel`)
+
+- An `inside-toplevel` entry or a positive entry with `then` does not contain
+  exactly one bindable `__TARGET__`.
+- A structural leaf or `patterns-not` entry contains a bindable `__TARGET__`.
+- A `then` object has unknown keys, invalid/empty arrays, or neither `patterns`
+  nor `patterns-not`.
+- A descendant `patterns` or `patterns-not` entry reuses an inherited `then` or
+  `inside-toplevel` metavariable name with a different kind.
+- An inherited capture referenced by any descendant shape or guard is missing
+  from an `inside-toplevel` alternative or has an incompatible kind (including
+  ellipsis kind).
+
+### Taint clauses
+
+- Any taint `shape` is not a direct call or method call.
+- A taint `source` contains a bindable `__SOURCE__`.
+- A taint `sink` or `sanitizer` does not contain exactly one bindable
+  `__SOURCE__`, or does not place it as the whole receiver or whole argument
+  value.
 
 ## Examples
 
@@ -1212,7 +746,7 @@ patterns:
   - shape: $(command:exp).stderr_collect($(args:exp))
 ```
 
-Both alternatives emit the same rule id and description.
+Both alternatives report the same rule ID and description.
 
 ### Binder and use name comparison
 
@@ -1227,8 +761,8 @@ patterns:
       }
 ```
 
-`counter` is compared by source-level name across binder, condition, and update
-positions. `start`, `limit`, and `body` are expression captures.
+`counter` matches by normalized name across binder, condition, and update slots;
+`start`, `limit`, and `body` capture expressions.
 
 ### Context-restricted structural match
 
@@ -1243,8 +777,8 @@ patterns:
         - shape: sink($_)
 ```
 
-The rule first finds `wrapper(...)`, then searches only the expression captured
-by `__TARGET__` for `sink(...)`.
+Matches `wrapper(...)` first, then searches only the `__TARGET__` expression for
+`sink(...)`.
 
 ### Negative structural constraint
 
@@ -1258,12 +792,9 @@ patterns-not:
   - shape: blocked($(value:exp))
 ```
 
-The rule tries `patterns` before `patterns-not` at each candidate root, so
-`patterns-not` is useful for pruning branches whose root does not itself match
-the positive patterns. In this example, `blocked(target())` does not report the
-nested `target()` because the `blocked(...)` root fails the positive pattern,
-matches `patterns-not`, and prunes its children. The negative pattern binds its
-own `value`; it does not reuse any positive pattern capture.
+Because `patterns` runs before `patterns-not` at each root, `blocked(target())`
+fails `target()`, matches `blocked(...)`, and prunes its children so the inner
+`target()` is skipped. Negative patterns bind independently from positive ones.
 
 ### Context without a positive inner pattern
 
@@ -1278,9 +809,8 @@ patterns:
         - shape: danger()
 ```
 
-The rule first finds `wrapper(...)`, then scans the `__TARGET__` subtree for
-`danger()`. If no negative pattern matches inside that subtree, the wrapper
-itself is reported.
+Reports `wrapper(...)` whenever its `__TARGET__` subtree contains no `danger()`
+call.
 
 ### Guarded structural match
 
@@ -1295,9 +825,9 @@ patterns:
       $value: "danger|raw"
 ```
 
-The shape captures any one-argument call with a constant argument. The guards
-then keep only calls whose normalized callee is `@html.render` and whose
-constant value contains `danger` or `raw`.
+Captures any single-argument call with a constant argument, then keeps only
+calls whose normalized callee is `@html.render` and whose constant value
+contains `danger` or `raw`.
 
 ### Taint source, sink, and sanitizer
 
@@ -1314,7 +844,6 @@ taint:
     - shape: sanitize_html(__SOURCE__)
 ```
 
-`get_user_input()` taints its result. `render_html(__SOURCE__)` reports when
-its argument is tainted. `sanitize_html(__SOURCE__)` prevents that selected
-value from contributing taint to later reads when the selected value can be
-tracked as storage.
+`get_user_input()` taints its return value, `render_html(__SOURCE__)` reports
+when its argument is tainted, and `sanitize_html(__SOURCE__)` clears stored
+taint when the argument resolves to a storage path.

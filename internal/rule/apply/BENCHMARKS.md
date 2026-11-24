@@ -1,12 +1,18 @@
-# Recursive scan benchmark comparison
+# Structural & Recursive Scan Benchmarks
 
-## CFG taint refactor follow-up
+This log tracks release benchmark comparisons for `internal/rule/apply` and
+`query`. Timings are host-specific diagnostics; CI gates on deterministic state
+and expansion counts (`8`, `16`, `32`, and `64` chain sizes, bounded by
+`2 × group count × index state count` for a fixed environment).
 
-The 2026-10-23 comparison against `a2182b6`, using `moon 0.1.20261023` and
-three alternating release runs pinned to CPU 0, passes all existing gates.
-Candidate bucket merging now reuses a read-only bucket when its partner is
-empty. Detailed timings, taint phases and process RSS are recorded in
-[the taint performance report](../../taint/BENCHMARKS.md).
+## 2026-10-23: CFG taint refactor follow-up
+
+- **Environment**: Linux, `moon 0.1.20261023`, release builds, pinned to CPU 0,
+  three alternating runs against baseline `a2182b6`.
+- **Change**: Candidate bucket merging reuses a read-only bucket when its
+  partner is empty.
+- **Outcome**: All 8 structural gates pass. Full taint phase timings and RSS
+  are in [internal/taint/BENCHMARKS.md](../../taint/BENCHMARKS.md).
 
 | Backend | Case | Baseline | Current | Ratio | Limit |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -19,19 +25,13 @@ empty. Detailed timings, taint phases and process RSS are recorded in
 | wasm | ordinary structural | 84.06 µs | 79.88 µs | 0.950× | 1.15× |
 | wasm | query captures | 77.41 µs | 75.29 µs | 0.973× | 1.15× |
 
-## Unified structural traversal follow-up
+## 2026-10-22: Unified structural traversal follow-up
 
-Measured on Linux on 2026-10-22 with `moon 0.1.20261016`, comparing pre-fix
-commit `60117bc` with the unified candidate traversal and finding collector.
-Both trees used the same dependencies and release fixtures. Each value is the
-median of three benchmark means, alternating baseline and working-tree runs
-for each backend.
-
-Initial default parallel runs varied widely, including the unchanged query
-path. The measurements below pin both builds to CPU 2 and use
-`--no-parallelize` so benchmark cases run sequentially. Parsing and planning
-remain outside the timed callbacks. Timings are diagnostic; deterministic
-candidate expansion and publication counts remain the CI gates.
+- **Environment**: Linux, `moon 0.1.20261016`, pinned to CPU 2 with
+  `--no-parallelize` (sequential runs reduced variance seen under default
+  parallel runs). Median of three alternating benchmark means against pre-fix
+  commit `60117bc`; parsing and planning run outside timed loops.
+- **Outcome**: All 8 ratios pass.
 
 | Backend | Case | Before | After | Ratio | Limit |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -44,34 +44,18 @@ candidate expansion and publication counts remain the CI gates.
 | wasm | recursive failure bytes=84 depth=8 | 1.62 ms | 1.01 ms | 0.62× | 1.10× |
 | wasm | builtin structural scan | 214.03 µs | 202.77 µs | 0.95× | 1.05× |
 
-All eight ratios pass the existing budgets against the pre-fix tree. Repeat
-the commands from `INTERNAL.md` with `--no-parallelize`, using the same CPU
-affinity for both trees, to reproduce this comparison on another host. The
-older measurements below use their original hosts and baselines.
+## 2026-09-14: Lightweight plain-entry execution
 
-## Lightweight execution follow-up
-
-A root structural entry is plain when it has no `inside-toplevel` clause and no
-positive root pattern has `then`. A plan containing only plain structural entries
-uses direct CST traversal and standalone matching. Mixed plans retain one source
-index for recursive entries, while plain entries bypass environment projection
-and candidate/region caches. Public CST queries use the same direct traversal.
-Direct traversal and ordinary indexed traversal share one private semantic
-kernel; the indexed adapter maps its candidates back to cached source regions.
-
-Use release timings to check performance before publication. CI uses deterministic
-checks. Compare alternating builds on the same host and MoonBit toolchain,
-run each build three times, and use the
-median benchmark mean. Ordinary structural and query cases must remain within
-1.15 times the pre-index baseline. Recursive failure must remain within 1.10
-times the indexed baseline, and the builtin mixed case within 1.05 times that
-baseline. CI checks findings, order, candidate traversal compatibility, and cache
-expansion counts.
-
-Measured on Windows on 2026-09-14 with `moon 0.1.20260907`. Runs alternated
-between extracted baseline trees and the working tree. The ordinary and query
-baseline is `8050e53`; the recursive and builtin baseline is indexed commit
-`dd6fb20`. Each value below is the median of three benchmark means.
+- **Change**: Plans with only plain entries (no `inside-toplevel` and no `then`)
+  use direct CST traversal and standalone matching; mixed plans keep one
+  `SourceIndex` for recursive entries while plain entries skip environment
+  projection and caches. Public CST queries share the same direct kernel.
+- **Environment**: Windows, `moon 0.1.20260907`, median of three alternating
+  runs. Ordinary/query baseline is `8050e53` (pre-index); recursive/builtin
+  baseline is `dd6fb20` (indexed).
+- **Acceptance budgets**: ordinary & query `<= 1.15×` pre-index baseline;
+  recursive failure `<= 1.10×` indexed baseline; builtin mixed `<= 1.05×`
+  indexed baseline. All 8 pass.
 
 | Backend | Case | Baseline | Working tree | Ratio | Limit |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -84,17 +68,14 @@ baseline is `8050e53`; the recursive and builtin baseline is indexed commit
 | wasm | recursive failure bytes=84 depth=8 | 857.34 µs | 853.53 µs | 1.00× | 1.10× |
 | wasm | builtin structural scan | 183.10 µs | 138.18 µs | 0.75× | 1.05× |
 
-All eight acceptance ratios pass. These numbers describe this host only; the
-historical Linux measurements below remain useful for the indexed evaluator's
-original before/after comparison.
+## Historical baseline: Indexed evaluator introduction
 
-## Indexed evaluator baseline
-
-Measured on Linux with `moon 0.1.20260907` using release builds. The baseline is
-commit `8050e53` with the same benchmark fixtures added. Each case ran before/after
-in its own process, with parsing and rule planning outside the timed loop.
-The benchmark reports ten batches after warmup. Times below are mean ± standard
-deviation; they are observations, not CI thresholds.
+- **Environment**: Linux, `moon 0.1.20260907`, release builds, ten batches after
+  warmup, comparing commit `8050e53` before and after introducing the indexed
+  evaluator (mean ± standard deviation).
+- **Summary**: Recursive failure improved ~800× (native) and ~850× (wasm);
+  small ordinary/query/builtin cases initially slowed 2–3× due to index setup,
+  which the 2026-09-14 lightweight path subsequently resolved.
 
 | Backend | Case | Before | After | Process peak RSS before / after |
 | --- | --- | ---: | ---: | ---: |
@@ -107,28 +88,16 @@ deviation; they are observations, not CI thresholds.
 | wasm | ordinary structural scan | 89.63 ± 1.09 µs | 187.10 ± 4.92 µs | 82.73 / 84.61 MiB |
 | wasm | query captures from CST | 77.73 ± 0.93 µs | 165.11 ± 2.03 µs | 58.89 / 93.57 MiB |
 
-The recursive failure case improved by about 800× on native and 850× on wasm.
-The small ordinary and query cases take about twice as long, and the builtin
-fixture about three times as long. These cases incur index and cache setup costs
-while eliminating little repeated work. The state-count guarantee addresses repeated
-semantic evaluations; it does not promise lower latency for every short scan.
+## Reproducing timings and RSS
 
-RSS was measured with `/usr/bin/time -f %M` around the already-built native
-test executable or `moonrun`. The measurements exclude compilation and include rule parsing,
-runtime startup, benchmark warmup, and allocator/GC high-water marks. Faster cases
-use larger batches; these are process measurements, not live bytes per scan.
-Wasm process RSS also includes the runtime and can rise despite shorter scans.
-
-To repeat the timings, use the `moon bench` commands in [INTERNAL.md](INTERNAL.md).
-For RSS, first add `--build-only`, then run one benchmark from the generated
-`_build/<target>/release/bench/...` test runner under `/usr/bin/time`. Native
-runners take `filename.mbt:start-end`. For wasm, `moonrun --test-args` takes JSON
-with `package` and `file_and_index` containing the file and start/end range.
-The generated `__whitebox_test_info.json` or `__blackbox_test_info.json` supplies
-the benchmark index. Rebuilding the fixtures before each comparison keeps the
-test runner and metadata consistent.
-
-CI uses deterministic expansion-count tests at chain sizes 8, 16, 32, and 64.
-Every completed candidate and region key is expanded once. Total expansions
-for a fixed environment are bounded by `2 × group count × index state count`.
-Timing and RSS do not gate CI.
+- Run the `moon bench` commands from [INTERNAL.md](INTERNAL.md) with
+  `--no-parallelize` and matching CPU affinity, alternating baseline and current
+  trees three times and taking the median mean.
+- For peak RSS, build first with `--build-only`, then run a single benchmark
+  binary under `/usr/bin/time -f %M`:
+  - **Native**: `_build/<target>/release/bench/...` with `filename.mbt:start-end`.
+  - **Wasm**: `moonrun --test-args` with JSON specifying `package` and
+    `file_and_index` (lookup indices in `__whitebox_test_info.json` or
+    `__blackbox_test_info.json`).
+- Process RSS includes runtime startup, warmup, and allocator/GC high-water
+  marks (not live bytes per scan).

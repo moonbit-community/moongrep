@@ -1,35 +1,31 @@
-# Rule prefilter internals
+# Rule Prefilter Internals
 
-The `internal/rule/prefilter` package skips rules whose required literals are
-absent from the source. Its filters must preserve every possible match.
+`internal/rule/prefilter` builds and evaluates conservative source-text filters
+for compiled rules and standalone expression patterns, letting callers skip
+parsing or matching when required literals are absent from the source.
 
-## Package role
+## Package role and soundness invariant
 
-`internal/rule/prefilter` builds and evaluates conservative source-text filters for
-compiled rules and standalone compiled expression patterns.
+The prefilter runs before parsing or CST matching:
 
-The filter runs before parsing or CST matching. It asks only whether the source
-text contains literals that every possible match of at least one rule branch
-would require. A negative answer lets callers skip the rule. A positive answer
-means only that the rule is still a candidate.
+- **False positives are allowed** (for example, a literal appearing only in a
+  comment, string, or unrelated expression); downstream CST matching discards
+  them.
+- **False negatives are forbidden**:
 
-This package therefore may admit false positives, including literals found in
-comments, strings, or unrelated expressions. It must not introduce false
-negatives. It does not parse source, compare CST structure, evaluate guards, or
-analyze taint flow.
+> If the represented rule branch can produce a finding in the searched source
+> slice, every collected literal in at least one alternative must occur verbatim
+> in that same slice.
 
-`internal/rule/compile` calls `compile_rule_prefilter` only after a
-`CompiledRuleDefinition` has been built. The compiled patterns contain the
-normalized CST, metavar sets, reserved target/source placeholders, and ignored
-matcher fields needed for safe literal extraction.
-
-Callers that already have one `CompiledExprPattern` use
-`compile_expr_pattern_prefilter`. It applies the same literal extraction but
-creates only one alternative and does not require a synthetic rule.
+Because the prefilter needs classified metavars, reserved placeholders, and
+ignored fields, `internal/rule/compile` calls `compile_rule_prefilter` only
+after building `CompiledRuleDefinition`. Callers with a standalone
+`CompiledExprPattern` call `compile_expr_pattern_prefilter` directly without
+creating a synthetic rule.
 
 ## Representation and evaluation
 
-`RulePrefilter.alternatives` is a disjunction of conjunctions:
+`RulePrefilter.alternatives` is a disjunction of conjunctions (DNF):
 
 ```text
 [
@@ -40,208 +36,97 @@ creates only one alternative and does not require a synthetic rule.
 ]
 ```
 
-The example remains relevant when every literal in any one inner array occurs
-in the searched source. Literal order and source position do not matter.
+`prefilter_matches_with_literal_matcher` evaluates this structure with
+short-circuiting:
 
-`prefilter_matches_with_literal_matcher` implements this logic and
-short-circuits on the first successful alternative or failed literal:
+- **Outer array = OR**; **inner array = AND** (order and position in source do
+  not matter).
+- **Empty outer array -> `true`** and **any empty inner array -> `true`**
+  (deliberate conservative fallbacks when no necessary literal can be derived).
+- `prefilter_matches_source` uses literal, case-sensitive, unanchored
+  `String::contains` (regex metacharacters like `+`, `(`, `.` are ordinary
+  characters).
+- Keeping the literal matcher as a callback lets `internal/rule/apply` plug in
+  `StringView::contains` with a per-call `Map[String, Bool]` cache so literals
+  shared across rules are searched only once.
 
-- the outer array is OR
-- each inner array is AND
-- an empty outer array returns `true`
-- any empty inner array also returns `true`
+## How alternatives are compiled
 
-Both empty cases are deliberate conservative fallbacks. They mean that no
-useful necessary text was available, so the rule cannot be rejected safely.
+| Rule / pattern type | Alternative construction | Excluded from literals |
+| --- | --- | --- |
+| Standalone `CompiledExprPattern` | Single alternative: `required_literals(pattern)` (empty if all metavars). | All placeholders |
+| Structural rule | One alternative per positive root-to-leaf path (AND along path, OR across paths), deduplicated in order. If `inside-toplevel` is present, take the Cartesian product of outer alternatives and positive paths. A negative-only `then` adds no child requirements. | `patterns-not`, `guard`, placeholders, ignored fields |
+| Taint rule | Cartesian product of `sources` and `sinks`: `required_literals(source) + required_literals(sink)`. | `sanitizers`, `__SOURCE__`, placeholders |
 
-`prefilter_matches_source` supplies a matcher based on `String::contains`.
-Compiled-rule callers pass `rule.prefilter` directly to that entry.
-Matching is case-sensitive, unanchored, and literal. Regex metacharacters such
-as `+`, `(`, or `.` have no special meaning.
-
-The callback-based entry point keeps the Boolean evaluation separate from text
-search. `internal/rule/apply` uses it with `StringView::contains` and a per-filter-call
-literal cache, so a literal shared by several rules is searched only once
-during that call.
-
-## Standalone expression pattern compilation
-
-`compile_expr_pattern_prefilter` extracts the required literals from one
-`CompiledExprPattern` and stores them as one alternative:
-
-```text
-alternative(pattern) = required_literals(pattern)
-```
-
-A pattern made only of metavars produces an empty inner alternative and stays
-relevant for every source. This is the same conservative behavior as an
-unfilterable pattern inside a compiled structural rule.
-
-## Structural rule compilation
-
-Each positive root-to-leaf path contributes one alternative. Literal
-requirements from shapes along that path are combined with AND; paths are
-combined with OR. A then group containing only negatives contributes no child
-requirements. Negatives and guards never contribute required literals.
-inside-toplevel alternatives are combined with these positive paths using a
-Cartesian product. Deduplication preserves literal order within each path.
-
-ScanPlan recursively builds positive and negative CST buckets for every group.
-Bucket merges preserve original YAML indices. Only complete shape/guard/then
-success prunes a positive subtree. Existence scans without negative constraints
-stop at the first success; groups with negatives scan all uncovered regions
-before succeeding. Findings use the root entry index and location.
-
-## Taint rule compilation
-
-`compile_taint_prefilter` creates the Cartesian product of taint sources and
-sinks:
-
-```text
-alternative(source, sink) =
-  required_literals(source.pattern) + required_literals(sink.pattern)
-```
-
-A taint finding needs some source and some sink, so the literals required by
-that selected pair are safe coarse prerequisites. This check says nothing
-about evaluation order, scope, data flow, or whether the sink receives the
-source value.
-
-Sanitizer literals are excluded because a taint finding does not require a
-sanitizer. Requiring its text would discard unsanitized cases.
-
-If a source or sink pattern yields no literals, the resulting empty or partial
-alternative preserves conservative behavior. The compiled `__SOURCE__`
-placeholder is excluded during literal collection.
+Note on structural execution: `ScanPlan` separately builds recursive positive
+and negative CST buckets per group (preserving original YAML indices); only
+complete `shape`/`guard`/`then` success prunes a positive subtree, existence
+scans without negatives stop at the first hit, and groups with negatives scan
+all uncovered regions before succeeding. Findings use the root entry's index
+and location.
 
 ## Required literal extraction
 
 `required_literals_from_compiled_pattern` walks the compiled
-`@untyped_cst.CstNode`, not the original YAML shape. This keeps literal extraction
-aligned with the CST that `matching` will use.
+`@untyped_cst.CstNode` (not raw YAML) so extraction stays aligned with
+`matching`:
 
-The collector recognizes every node exposed by `@cst.normalized_name`,
-including variables, binders, labels, accessors, constructors, and type names.
-An unqualified name contributes its stored spelling. A qualified name
-contributes its package/type prefix and final identifier as separate literals.
+- **Names** (`@cst.normalized_name` — variables, binders, labels, accessors,
+  constructors, type names):
+  - Unqualified names contribute their stored spelling.
+  - Qualified names contribute their package/type prefix and final identifier
+    as **separate** literals (never synthesized `@pkg.name`, because MoonBit
+    allows whitespace before the dot as in `@pkg .name`). Each component is
+    checked independently against placeholders, so `@pkg.$(callee:id)` still
+    requires `pkg`.
+- **Constants and text**:
+  - `bigint`, `byte`, `bytes`, `char`, `double`, `float`, `int64`, `regex`,
+    `string`, `uint`, and `uint64` payloads (empty strings omitted).
+  - Integer payloads whose stored spelling has length `>= 2` (1-character
+    integers are weak anchors and intentionally skipped).
+  - Boolean constants (`true` or `false`).
+  - Literal interpolation segments and multiline string text segments.
+- **Recursion**: unrecognized non-leaf nodes recurse through children (including
+  parsed interpolation `expr` subtrees, keeping fixed literals around metavars
+  usable). Bare leaf tokens and CST kind names never become literals.
 
-Qualified names deliberately do not contribute a synthesized `@pkg.name`
-literal. MoonBit accepts whitespace before the dot, so a matching source may
-spell the same CST identity as `@pkg .name`. Requiring the stored `pkg` and
-`name` components separately remains conservative across both spellings. Each
-component is checked independently for matcher placeholders, so a pattern such
-as `@pkg.$(callee:id)` requires only the fixed `pkg` component.
+### Placeholders, ignored fields, and docstrings
 
-The collector also recognizes:
-
-- bigint, byte, bytes, char, double, float, int64, regex, string, uint, and
-  uint64 constant payloads
-- integer payloads whose stored spelling has at least two characters
-- Boolean constants as `true` or `false`
-- literal interpolation segments
-- multiline string text segments
-
-One-character integer spellings are intentionally omitted because they are
-weak anchors. This is a length check on the stored spelling, not a numeric
-magnitude check. Empty strings are also omitted.
-
-Unrecognized non-leaf nodes are traversed recursively. Bare leaf nodes do not
-become literals by themselves, so CST kind names and structural punctuation
-are not source requirements. Interpolation expressions, including ones that
-contain metavars, are reached through normal recursion over the parser-provided
-`expr` subtree. Fixed literals around a metavar therefore remain usable without
-any separate parse.
-
-## Placeholders and ignored fields
-
-A name must not be collected when the matcher can replace it with arbitrary
-source. `is_filter_placeholder` excludes every single, ellipsis, wildcard, or
-special expression placeholder resolved by the compiled pattern's
-`MetavarRegistry`.
-
-Only exact `$_` has spelling-based underscore semantics. An ordinary
-all-underscore identifier such as `__` remains a required literal.
-
-`CompiledExprPattern.ignored_fields` is also part of the soundness contract.
-During child traversal, a field is skipped only when both its parent
-`NodeKind` and child name match an ignored-field entry. This mirrors structural
-matching, especially partial `inside-toplevel` function shapes whose omitted
-visibility, attributes, parameters, return type, or other default fields must
-not become prefilter requirements. Explicit semantic fields remain eligible
-literals.
-
-Docstrings are different: `@cst.semantic_children` removes them before literal
-collection, so their text is never required in default, exact, or partial mode.
-Candidate source comments can still satisfy an unrelated required text search;
-that is a conservative false positive and the final CST matcher rejects it.
-
-When placeholder or ignored-field behavior changes in `matching` or
-`internal/rule/compile`, the prefilter must change in the same patch.
+- `is_filter_placeholder` excludes every single, ellipsis, wildcard, or special
+  expression placeholder in `MetavarRegistry`. Only exact `$_` is a
+  spelling-based wildcard; ordinary underscore identifiers like `__` stay
+  required.
+- `CompiledExprPattern.ignored_fields` skips a child only when both parent
+  `NodeKind` and child name match, mirroring `partial` `inside-toplevel`
+  function matching so omitted default header fields never become prefilter
+  requirements.
+- `@cst.semantic_children` removes docstrings before literal extraction, so
+  docstrings are never required in any mode.
 
 ## Runtime consumers
 
-The main consumers use the same compiled Boolean expression at different
-granularities:
-
-- `internal/rule/apply` filters `ScanPlan` entries against a `StringView`. One
-  `Map[String, Bool]` cache is shared by structural and taint entries during
-  each `ScanPlan::filter_source` call.
-- the CLI filters a whole file, then filters each `///|` source block before
-  parsing it. An irrelevant malformed file or block can therefore be skipped
-  before parser diagnostics are produced.
-- `query` compiles and caches a standalone pattern prefilter, then applies it to
-  the whole source and each top-level item's source slice before CST traversal.
-  `captures_from_cst` has no source text and bypasses the prefilter.
-
-Filtering a previously filtered `ScanPlan` is safe: it can only remove more
-entries for the narrower source slice and does not mutate the original plan.
-
-## Soundness invariant
-
-Returning `false` can prevent parsing and all later rule evaluation. Every
-collected literal must therefore satisfy this condition:
-
-> If the represented rule branch can produce a finding in the searched source
-> slice, that literal occurs verbatim in the same slice.
-
-Before adding an anchor, check both sides of that implication. In particular:
-
-- do not require literals from negative patterns, guards, or sanitizers
-- do not require the spelling of any matcher placeholder
-- do not use fields ignored by structural matching
-- do not derive text that may differ from the original source spelling
-- preserve branch structure when combining alternatives
-
-Removing an anchor or making an alternative empty is conservative: it may cost
-performance but cannot hide a finding. Adding an anchor or strengthening a
-conjunction needs focused tests for every syntax form it covers.
+| Consumer | Granularity | Caching / notes |
+| --- | --- | --- |
+| `internal/rule/apply` | `ScanPlan::filter_source` on a `StringView` | Shares one `Map[String, Bool]` across structural and taint entries per call; safe to re-filter a narrowed slice without mutating the original plan. |
+| `internal/cli` | Whole file, then each `///|` source block | Skips irrelevant files/blocks before parsing (so irrelevant malformed blocks emit no parse diagnostics). |
+| `query` | Whole source, then each top-level item slice | Caches standalone pattern prefilter; `captures_from_cst` has no source text and bypasses prefiltering. |
 
 ## Maintenance checklist
 
-When adding a matcher placeholder or metavar kind:
+Remember: removing an anchor or leaving an alternative empty is always safe
+(conservative), whereas adding or strengthening an anchor must satisfy the
+verbatim-text invariant across all syntax spellings.
 
-1. update `is_filter_placeholder`
-2. add a rule-compiler-to-prefilter test showing substituted source remains
-   relevant
-3. check `internal/matching/INTERNAL.md` and `internal/rule/compile/INTERNAL.md` for the same
-   placeholder contract
+- **New placeholder or metavar kind**: update `is_filter_placeholder`; add a
+  compile-to-prefilter test verifying substituted source stays relevant; sync
+  with `internal/matching/INTERNAL.md` and `internal/rule/compile/INTERNAL.md`.
+- **New or changed CST form**: add a dedicated collector branch only when the
+  verbatim-text invariant holds; otherwise rely on child recursion; test both
+  literal and metavar forms.
+- **Rule composition changes**: preserve Cartesian products; keep negative
+  patterns, guards, and sanitizers excluded; cover empty-literal branches and
+  alternative counts; test both `prefilter_matches_source` and
+  `ScanPlan::filter_source`.
 
-When adding or changing an untyped CST form:
-
-1. decide whether it carries a source spelling that is necessary for a match
-2. add a dedicated collector branch only when the verbatim-text invariant
-   holds
-3. otherwise rely on recursive child traversal
-4. test fixed literals and metavar forms separately
-
-When changing structural or taint rule composition:
-
-1. preserve the correct Cartesian-product alternatives
-2. keep negative patterns and sanitizers out of required literals
-3. cover empty-literal branches and alternative counts
-4. test both direct `prefilter_matches_source(rule.prefilter, source)` behavior and
-   `ScanPlan::filter_source` integration
-
-Run `moon test internal/rule/prefilter` for prefilter changes. If a change affects
-compilation or scanning, also run the relevant `internal/rule/compile`,
-`internal/rule/apply`, `query`, and end-to-end tests.
+Run `moon test internal/rule/prefilter` after changes, plus `compile`, `apply`,
+`query`, and e2e tests when compilation or scanning is affected.
