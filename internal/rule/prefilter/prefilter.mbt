@@ -29,40 +29,13 @@ pub fn prefilter_matches_with_literal_matcher(
   prefilter : RulePrefilter,
   literal_matches : (String) -> Bool,
 ) -> Bool {
-  if prefilter.alternatives.is_empty() {
-    return true
-  }
-  for alternative in prefilter.alternatives {
-    if alternative.is_empty() {
-      return true
-    }
-    let mut matched = true
-    for literal in alternative {
-      if !literal_matches(literal) {
-        matched = false
-        break
-      }
-    }
-    if matched {
-      return true
-    }
-  }
-  false
+  prefilter.alternatives.is_empty() ||
+  prefilter.alternatives.any(alternative => alternative.all(literal_matches))
 }
 
 ///|
 fn literal_matches_source(literal : String, source : String) -> Bool {
   source.contains(literal)
-}
-
-///|
-fn contains_string(values : Array[String], value : String) -> Bool {
-  for item in values {
-    if item == value {
-      return true
-    }
-  }
-  false
 }
 
 ///|
@@ -73,25 +46,11 @@ fn push_literal(literals : Array[String], value : String) -> Unit {
 }
 
 ///|
-fn concat_string_arrays(
-  left : Array[String],
-  right : Array[String],
-) -> Array[String] {
-  let result : Array[String] = []
-  for item in left {
-    result.push(item)
-  }
-  for item in right {
-    result.push(item)
-  }
-  result
-}
-
-///|
 fn unique_literals(values : Array[String]) -> Array[String] {
+  let seen : @hashset.HashSet[String] = @hashset.HashSet([])
   let result : Array[String] = []
   for value in values {
-    if !contains_string(result, value) {
+    if seen.insert_and_check(value) {
       result.push(value)
     }
   }
@@ -129,7 +88,7 @@ fn compile_structural_prefilter(rule : CompiledStructuralRule) -> RulePrefilter 
   for inside in rule.inside_toplevel {
     let outer = required_literals_from_compiled_pattern(inside)
     for path in paths {
-      alternatives.push(unique_literals(concat_string_arrays(outer, path)))
+      alternatives.push(unique_literals(outer + path))
     }
   }
   { alternatives, }
@@ -151,7 +110,7 @@ fn structural_group_literals(
       [[]]
     }
     for path in paths {
-      alternatives.push(unique_literals(concat_string_arrays(outer, path)))
+      alternatives.push(unique_literals(outer + path))
     }
   }
   alternatives
@@ -166,9 +125,7 @@ fn compile_taint_prefilter(rule : CompiledTaintRule) -> RulePrefilter {
     )
     for sink in rule.sinks {
       let sink_literals = required_literals_from_compiled_pattern(sink.pattern)
-      alternatives.push(
-        unique_literals(concat_string_arrays(source_literals, sink_literals)),
-      )
+      alternatives.push(unique_literals(source_literals + sink_literals))
     }
   }
   { alternatives, }
@@ -248,12 +205,9 @@ fn prefilter_ignores_field(
   parent_kind : @untyped_cst.NodeKind,
   child_name : String,
 ) -> Bool {
-  for field in compiled.ignored_fields {
-    if field.parent_kind == parent_kind && field.child_name == child_name {
-      return true
-    }
-  }
-  false
+  compiled.ignored_fields.any(field => {
+    field.parent_kind == parent_kind && field.child_name == child_name
+  })
 }
 
 ///|

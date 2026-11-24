@@ -61,11 +61,7 @@ pub fn compile_rules(
   raw_rules : Array[RawRuleSpec],
 ) -> Array[CompiledRule] raise {
   ensure_unique_rule_ids(raw_rules)
-  let compiled : Array[CompiledRule] = []
-  for raw in raw_rules {
-    compiled.push(compile_rule(raw))
-  }
-  compiled
+  raw_rules.map(compile_rule)
 }
 
 ///|

@@ -2,6 +2,7 @@ import {
   "moonbit-community/moongrep/internal/cst",
   "moonbit-community/moongrep/internal/matching",
   "moonbit-community/moongrep/internal/rule/model",
+  "moonbitlang/core/hashset",
   "moonbitlang/parser/untyped_cst",
 }
 

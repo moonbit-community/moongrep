@@ -97,11 +97,7 @@ fn solve(
     }
   }
   for ordered in prepared.components() {
-    let component = if reverse {
-      Array::makei(ordered.length(), i => ordered[ordered.length() - 1 - i])
-    } else {
-      ordered
-    }
+    let component = if reverse { ordered.rev() } else { ordered }
     let cyclic = component.length() > 1 ||
       graph.blocks[component[0].0].terminator
       .edges()
@@ -177,22 +173,14 @@ fn solve(
       }
     }
   }
-  findings.sort_by((a, b) => {
-    let a_key = (
-      a.sink_loc.start.lnum,
-      a.sink_loc.start.column(),
-      a.sink_loc.end.lnum,
-      a.sink_loc.end.column(),
-      sink_key(a),
+  findings.sort_by_key(finding => {
+    (
+      finding.sink_loc.start.lnum,
+      finding.sink_loc.start.column(),
+      finding.sink_loc.end.lnum,
+      finding.sink_loc.end.column(),
+      sink_key(finding),
     )
-    let b_key = (
-      b.sink_loc.start.lnum,
-      b.sink_loc.start.column(),
-      b.sink_loc.end.lnum,
-      b.sink_loc.end.column(),
-      sink_key(b),
-    )
-    a_key.compare(b_key)
   })
   Complete(findings)
 }

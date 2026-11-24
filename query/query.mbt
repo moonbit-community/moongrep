@@ -113,9 +113,8 @@ fn capture_map_from_bindings(
 
 ///|
 fn compact_reports(reports : ArrayView[@basic.Report]) -> String {
-  let messages : Array[String] = []
-  for report in reports {
-    messages.push(report.msg.replace_all(old="\n", new=" "))
-  }
-  messages.join(" ")
+  reports
+  .iter()
+  .map(report => report.msg.replace_all(old="\n", new=" "))
+  .join(" ")
 }

@@ -30,9 +30,7 @@ fn bind_call(info : CallInfo, spec : TaintSpec) -> BoundCall {
   for model in spec.call_models {
     if matches(info, model.matcher) {
       matched = true
-      for effect in model.effects {
-        effects.push(effect)
-      }
+      effects.append(model.effects)
     }
   }
   { custom: (spec.bind_call)(info), effects, matched, }

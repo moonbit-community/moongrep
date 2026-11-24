@@ -94,11 +94,7 @@ pub(all) enum CliCommand {
 
 ///|
 pub fn runtime_cli_args(argv : Array[String]) -> Array[String] {
-  let args : Array[String] = []
-  for index in 1..<argv.length() {
-    args.push(argv[index])
-  }
-  args
+  argv[1:].to_owned()
 }
 
 ///|

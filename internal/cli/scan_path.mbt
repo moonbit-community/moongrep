@@ -27,11 +27,7 @@ fn trim_windows_scan_trailing_separators(path : String) -> String {
     @path.Path::dirname(path).to_string() == path {
     return path
   }
-  let mut end = path.length()
-  while end > 0 && (path[end - 1] == '\\' || path[end - 1] == '/') {
-    end -= 1
-  }
-  path[:end].to_owned()
+  path.trim_end(chars="\\/").to_owned()
 }
 
 ///|
@@ -57,11 +53,7 @@ fn normalize_scan_exclude(path : String) -> String {
 
 ///|
 fn normalize_scan_excludes(paths : Array[String]) -> Array[String] {
-  let normalized : Array[String] = []
-  for path in paths {
-    normalized.push(normalize_scan_exclude(path))
-  }
-  normalized
+  paths.map(normalize_scan_exclude)
 }
 
 ///|

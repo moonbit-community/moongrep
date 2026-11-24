@@ -114,12 +114,9 @@ pub fn MetavarRegistry::register_special_expr_placeholder(
   self : MetavarRegistry,
   name : String,
 ) -> Unit {
-  for existing in self.special_expr_placeholders {
-    if existing == name {
-      return
-    }
+  if !self.special_expr_placeholders.contains(name) {
+    self.special_expr_placeholders.push(name)
   }
-  self.special_expr_placeholders.push(name)
 }
 
 ///|
@@ -209,12 +206,7 @@ fn MetavarRegistry::is_special_expr_placeholder(
   self : MetavarRegistry,
   name : String,
 ) -> Bool {
-  for placeholder in self.special_expr_placeholders {
-    if placeholder == name {
-      return true
-    }
-  }
-  false
+  self.special_expr_placeholders.contains(name)
 }
 
 ///|
@@ -246,21 +238,19 @@ fn parse_typed_metavar_component(component : String) -> MetavarSyntax {
     return InvalidMetavar
   }
   let end = component.length() - 1
-  for index in 2..<end {
-    if component[index] == ':' {
-      let name = component[2:index].trim()
-      let kind_text = component[index + 1:end].trim()
-      if name.is_empty() || kind_text.is_empty() {
-        return InvalidMetavar
-      }
-      return if parse_single_metavar_kind(kind_text) is Some(kind) {
-        Typed(name.to_owned(), kind)
-      } else {
-        UnsupportedMetavarKind(kind_text.to_owned())
-      }
-    }
+  guard component[2:end].split_once(":") is Some((name, kind_text)) else {
+    return InvalidMetavar
   }
-  InvalidMetavar
+  let name = name.trim()
+  let kind_text = kind_text.trim()
+  if name.is_empty() || kind_text.is_empty() {
+    return InvalidMetavar
+  }
+  if parse_single_metavar_kind(kind_text) is Some(kind) {
+    Typed(name.to_owned(), kind)
+  } else {
+    UnsupportedMetavarKind(kind_text.to_owned())
+  }
 }
 
 ///|
@@ -270,21 +260,19 @@ fn parse_ellipsis_metavar_component(component : String) -> MetavarSyntax {
       return InvalidEllipsisMetavar
     }
     let end = component.length() - 1
-    for index in 4..<end {
-      if component[index] == ':' {
-        let name = component[4:index].trim()
-        let kind_text = component[index + 1:end].trim()
-        if name.is_empty() || kind_text.is_empty() {
-          return InvalidEllipsisMetavar
-        }
-        return if parse_ellipsis_metavar_kind(kind_text) is Some(kind) {
-          EllipsisSyntax(name.to_owned(), Some(kind))
-        } else {
-          UnsupportedEllipsisMetavarKind(kind_text.to_owned())
-        }
-      }
+    guard component[4:end].split_once(":") is Some((name, kind_text)) else {
+      return InvalidEllipsisMetavar
     }
-    InvalidEllipsisMetavar
+    let name = name.trim()
+    let kind_text = kind_text.trim()
+    if name.is_empty() || kind_text.is_empty() {
+      return InvalidEllipsisMetavar
+    }
+    if parse_ellipsis_metavar_kind(kind_text) is Some(kind) {
+      EllipsisSyntax(name.to_owned(), Some(kind))
+    } else {
+      UnsupportedEllipsisMetavarKind(kind_text.to_owned())
+    }
   } else if component.length() > 3 {
     EllipsisSyntax(component[3:].to_owned(), None)
   } else {

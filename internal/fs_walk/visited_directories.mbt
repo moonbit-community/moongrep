@@ -17,5 +17,5 @@ pub async fn VisitedDirectories::should_enter(
   self : VisitedDirectories,
   path : String,
 ) -> Bool {
-  self.identities.add_and_check(@fs.realpath(path))
+  self.identities.insert_and_check(@fs.realpath(path))
 }

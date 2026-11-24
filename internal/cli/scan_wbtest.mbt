@@ -400,16 +400,6 @@ fn scan_hit_line_summary(hit : ScanHit) -> String {
 }
 
 ///|
-fn string_array_contains(items : Array[String], expected : String) -> Bool {
-  for item in items {
-    if item == expected {
-      return true
-    }
-  }
-  false
-}
-
-///|
 async test "scan enforces moongrep skip structural and taint contract" {
   let result = capture_scan_events(Scan, skip_scan_options())
   let summaries : Array[String] = []
@@ -500,24 +490,21 @@ async test "scan excludes configured file and directory entries" {
     native_scan_test_path("e2etests/testdata/exclude-dirs/hit.mbt"),
   ])
   assert_true(
-    string_array_contains(
-      result.traces,
+    result.traces.contains(
       native_scan_test_path(
         "moongrep scan: skipping e2etests/testdata/exclude-dirs/ignored",
       ),
     ),
   )
   assert_true(
-    string_array_contains(
-      result.traces,
+    result.traces.contains(
       native_scan_test_path(
         "moongrep scan: skipping e2etests/testdata/exclude-dirs/generated",
       ),
     ),
   )
   assert_true(
-    string_array_contains(
-      result.traces,
+    result.traces.contains(
       native_scan_test_path(
         "moongrep scan: skipping e2etests/testdata/exclude-dirs/excluded.mbt",
       ),
@@ -556,12 +543,7 @@ async test "scan skips a symlink cycle" {
   let result = capture_scan_events(Scan, options)
   guard result.hits is [hit] else { fail("expected exactly one scan hit") }
   assert_eq(hit.finding.file, source_path)
-  assert_true(
-    string_array_contains(
-      result.traces,
-      "moongrep scan: skipping \{cycle_path}",
-    ),
-  )
+  assert_true(result.traces.contains("moongrep scan: skipping \{cycle_path}"))
   assert_true(result.warnings.is_empty())
 }
 
