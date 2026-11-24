@@ -1,6 +1,9 @@
 ///|
-/// Immutable value: default taint inherited by descendants, with explicit
-/// overrides (including clean overrides). All projections use this domain.
+/// Immutable abstract taint value with default inherited origins and explicit
+/// subpath overrides (including clean overrides).
+///
+/// All storage reads, projections, destructuring, and subpath transfers operate
+/// on this domain.
 #derive(Debug)
 pub struct TaintValue {
   priv defaults : Array[TaintOrigin]

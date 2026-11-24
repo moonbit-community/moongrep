@@ -1,144 +1,140 @@
-# Structural scan sessions
+# Structural Scan Sessions
 
-`ScanPlan` contains rule metadata only. Groups use stable array indices; an
-entry is identified by its group, positive/negative side, and pattern index.
-Capture names have stable integer IDs. Planning uses a work list and computes
-each group's transitive capture dependencies bottom up, including guards and
-negative patterns. Filtering a plan keeps these IDs unchanged.
+This document describes how `internal/rule/apply` plans, caches, evaluates, and
+publishes structural rules.
 
-Root groups with no `then` and no `inside-toplevel` are plain entries.
-If every retained structural entry is plain, application walks the CST directly
-and does not create a `SourceIndex` or `ScanSession`. Plain groups try positives,
-guards, and negatives in source order with the standalone matcher.
+## Plans, sessions, and execution modes
 
-All other plans use one `ScanSession`. Related recursive and top-level-context
-rules share its source index, capture interner, environment interner, and
-evaluation caches. In a mixed plan, plain entries consume the indexed traversal's
-borrowed candidate but still use standalone matching; they never create a
-candidate key, environment projection, or evaluation frame. No source node,
-binding environment, or evaluation cache survives in `ScanPlan`.
+`ScanPlan` stores rule metadata only (never source nodes, environments, or
+evaluation caches):
 
-Each structural application creates a private `StructuralFindingCollector`.
-Plain, indexed, mixed, and top-level-context publication all use it. Its key is
-`(file, rule_id, loc.start.cnum, loc.end.cnum)`. It retains the first complete
-finding, including its pattern index and occurrence order. The collector is
-local to the parsed block application; independent parses never share it. CLI
-text and JSON render the collected findings directly.
+- Rule groups use stable array indices; each pattern entry is identified by
+  `(group, positive/negative side, pattern index)`.
+- Capture names map to stable integer IDs.
+- A work-list pass computes each group's transitive capture dependencies bottom
+  up (including guards and negative patterns). Filtering a plan preserves these
+  IDs.
 
-## Source regions and scopes
+Execution mode is chosen per application:
 
-`internal/cst/SourceIndex` assigns IDs to semantic source nodes. A sequence region
-is an owning statement list plus start/end offsets, including empty ranges.
-Candidates borrow statement views. Shared suffix cursors avoid reconstructing
-or rescanning all later statements for each continuation.
+| Plan shape | Execution path | Shared state / caches |
+| --- | --- | --- |
+| Only **plain** entries (no `inside-toplevel`, no `then` on any positive root pattern) | Direct CST traversal + standalone matcher | None (`SourceIndex` and `ScanSession` are not created). |
+| Any recursive (`then`) or `inside-toplevel` entry | Single `ScanSession` | One `SourceIndex`, capture interner, environment interner, and evaluation caches shared across related rules. In a mixed plan, plain entries read borrowed candidates from the indexed walk with standalone matching and never allocate candidate keys, environment projections, or frames. |
 
-`internal/cst/direct_traversal.mbt` defines the candidate boundaries and control
-actions for every structural entry point. Its direct adapter creates no node
-IDs, span buckets, sequence index, scopes, or cursor cache. Sequence and
-continuation candidates use `ArrayView`, so descending through a continuation
-does not copy its suffix. Plain plans and `ExprQuery::captures_from_cst` use
-this traversal.
+### Finding deduplication
 
-The index uses that same kernel for roots and immediate children. Ordinary
-scans, nested `then`, and selected top-level targets use the same candidate
-relation. Function bodies remain sequence containers, including inside nested
-closures; blocks written as expressions remain matchable candidates. Empty and
-partial continuation targets retain their exact bounds. Original CST references
-flow through the atomic matcher. Spans choose a reference-lookup bucket only;
-reference identity determines the node. Binding `__TARGET__` records a
-`TargetRef` containing the selected region. The index retains sequence bounds
-and resolves the region's entry scope when needed. It never searches for a
-matching span after the match.
+Each structural application owns a private `StructuralFindingCollector` (scoped
+to one parsed source block; never shared across independent parses). Plain,
+indexed, mixed, and top-level-context runs all publish through it:
 
-Lexical scopes are immutable parent chains. Each binder has a distinct binding
-ID, and name resolution is cached by scope and name. Scopes are initialized on
-first use. Parameters, patterns, condition bindings, loops, local functions,
-recursive groups, and statement continuations use the same scope implementation
-for traversal and selected targets.
+- Key: `(file, rule_id, loc.start.cnum, loc.end.cnum)`.
+- Retains the first complete finding (including `pattern_index` and occurrence
+  order).
+- CLI text and JSON renderers consume the collected findings directly.
 
-Source cursors contain only `End`, `Visit`, and `Concat`. `scan(region)` enters
-the region through `visit(region)`. `Continue` descends, `Prune` skips only the
-current candidate's descendants and continues with siblings, and `Return`
-stops the whole walk. There are no visitor recovery edges or recovery caches.
-Compatibility tests compare complete order, immediate child boundaries,
-pruning, and early return. Candidate regions are never merged by source range.
+## Source regions, traversal, and lexical scopes
 
-## Capture environments
+### Direct vs. indexed traversal
 
-An environment is an immutable ordered collection of captures. Each capture
-stores its original value, a normalized value ID, and identifier provenance from
-the successful atomic match. Single identifiers and typed identifier lists
-record each name's lexical role and original binding ID (or unbound state).
-Binders refer to their declarations; references resolve at their source
-positions. Inherited provenance is retained through every child group.
-Selecting a target never reconstructs bindings from names. Siblings cannot
-mutate one another's environments.
+- `internal/cst/direct_traversal.mbt` defines the single semantic kernel for
+  candidate boundaries and control actions (`Continue` descends, `Prune` skips
+  only current descendants, `Return` stops the walk).
+- Its direct adapter creates no node IDs, span buckets, sequence index, scopes,
+  or cursor caches, and uses `ArrayView` for sequences and continuations so
+  descending does not copy suffixes. Plain plans and
+  `ExprQuery::captures_from_cst` run on this direct path.
+- `internal/cst/SourceIndex` reuses the exact same kernel for roots and
+  immediate children, assigning stable IDs to semantic nodes and representing
+  sequence regions as `(owning statement list, start, end)` (including empty
+  ranges) with shared suffix cursors (`End`, `Visit`, `Concat`).
+- Function bodies stay sequence containers (including inside nested closures),
+  while explicit expression blocks remain matchable candidates. Candidate
+  regions are never merged by source range.
+- Original CST references flow through the atomic matcher (spans choose only a
+  lookup bucket; reference identity identifies the node). Binding `__TARGET__`
+  records a `TargetRef` with its exact region bounds and resolves entry scope
+  from `SourceIndex` on demand without span-based rescanning.
 
-The indexed matcher checks every inherited identifier occurrence, comparing
-bindings only when both source and use are lexical variables. Other name roles
-keep normalized-name equality. Captures and provenance are copied and rolled
-back together during atomic backtracking. Repeated new captures keep their
-existing equality rules and first source. Guard reads of inherited lexical
-identifiers additionally require visibility at candidate entry.
+### Lexical scopes
 
-Environment keys include only captures the group or its descendants read,
-including every identifier's binding identity and lexical role.
-Normalization follows the atomic matcher's equality, including constructor/name
-normalization, semantic child labels, and Single/Multiple distinctions. Hash
-collisions are checked by equality, never by source location or hash alone.
+- Scopes are immutable parent chains initialized on first use, with a distinct
+  binding ID per binder and per-`(scope, name)` resolution caching.
+- Parameters, patterns, condition bindings, loops, local functions, recursive
+  groups, and statement continuations share one scope implementation across
+  traversal and selected targets.
 
-## Evaluation and publication
+## Capture environments and provenance
 
-Candidate states are keyed by group ID, region ID, and projected environment ID.
-They try positive entries in order, including guards and `then`, then negatives.
-A failed child permits the next positive entry, but does not retry an atomic
-ellipsis partition. Candidate success, failure, and negative matches are cached.
+An environment is an immutable ordered capture set storing, per capture:
 
-Region states are keyed by group ID, cursor ID, and projected environment ID.
-They combine cached candidates and successor cursors, recording positive
-existence and rejection. Caching successor states avoids repeated traversal of
-overlapping subtrees. The explicit evaluation stack advances into child groups
-or source successors, even when a selected target equals its candidate.
+1. Original `BoundValue`
+2. Interned normalized value ID (`ValueInterner` — matching atomic matcher
+   equality for names, constructors, semantic child labels, and
+   `Single`/`Multiple`, checking full equality on hash collisions)
+3. Identifier provenance (lexical role and original binding ID or unbound state)
+   for single `id` captures and typed `id` ellipses
 
-Indexed evaluation never appends findings. Nested `then` returns a semantic decision.
-Top-level contexts first check their complete region for uncovered negatives,
-then publish root findings using cached candidates and the original traversal
-order. Plain rules keep their cross-rule publication and pruning order by carrying
-only the entries that missed into each directly visited child subtree. Mixed
-plans make the same decision per entry during their one indexed root traversal.
+Key invariants:
 
-## Verification
+- Binders record their declarations; references resolve at their source
+  positions. Provenance propagates unchanged through every child group without
+  re-resolving names when a target is selected, and siblings never mutate one
+  another's environments.
+- Inherited `id` checks compare lexical bindings only when both source and use
+  are lexical variables; other name roles keep normalized-name equality. Guards
+  reading an inherited lexical `id` also require visibility at candidate entry.
+- Captures and provenance copy and roll back together during atomic ellipsis
+  backtracking.
+- Environment projection keys include only the captures read by a group or its
+  descendants (including each identifier's binding identity and lexical role).
 
-The regression suite covers direct/indexed traversal compatibility, plain/indexed
-finding equivalence, mixed-plan ordering and cache exclusion, continuation bounds,
-lexical shadowing, deep capture dependencies, different values and binding
-identities at the same region, ellipsis rollback, priority, negative coverage,
-and publication order.
-A test-only uncached interpreter compares complete findings on 216 generated
-sources to verify caching; explicit candidate examples separately constrain
-the traversal contract. Closure regressions cover depths zero through six,
-single-pattern rules and builtin `catch_all`, nested conditionals and let
-initializers, and multiple independent matches. Collector tests distinguish
-rules, complete ranges, files, first pattern indices, and independent parses.
-Complexity tests vary source and rule chain sizes over 8, 16, 32, and 64
-for success, failure, and rejection, including adjacent continuations.
+## Cached evaluation and publication
 
-The deterministic gate checks that expansion counts equal cache cardinalities
-and that, for a fixed environment and a single-entry rule chain, candidate plus
-region expansions are at most twice the group count times the index state count.
-Distinct capture environments still require distinct states; there is no
-depth limit, resource budget, or claim of linear cost for arbitrary rules.
-The private publication counter additionally checks that one rule in one
-context visits no more candidates than the complete direct traversal. This
-guards publication work independently of diagnostic uniqueness.
+- **Candidate states**: keyed by `(group_id, region_id, projected_env_id)`.
+  Evaluates positive entries (shape, guard, `then`) in order, then negatives. A
+  failed child permits trying the next positive entry without retrying an
+  atomic ellipsis partition. Success, failure, and negative outcomes are cached.
+- **Region states**: keyed by `(group_id, cursor_id, projected_env_id)`.
+  Combines cached candidates with successor cursors to record positive
+  existence and negative rejection while avoiding repeated walks of overlapping
+  subtrees. An explicit evaluation stack advances into child groups or source
+  successors even when a selected target equals its candidate.
+- **Publication**: indexed evaluation never appends findings directly; nested
+  `then` returns a semantic decision. Top-level contexts first verify the whole
+  region has no uncovered negatives, then publish root findings in original
+  traversal order from cached candidates. Plain rules preserve cross-rule
+  publication and pruning order by passing only missed entries into child
+  subtrees; mixed plans make the same per-entry decision during the single
+  indexed root walk.
 
-Benchmarks retain an 84-byte recursive failure fixture and ordinary, builtin,
-and public-query cases. Build and run them with:
+## Verification and benchmarks
+
+### Regression and complexity coverage
+
+- Functional regressions cover direct/indexed traversal compatibility,
+  plain/indexed equivalence, mixed-plan ordering and cache exclusion,
+  continuation bounds, lexical shadowing, deep capture dependencies, differing
+  values/bindings at the same region, ellipsis rollback, priority, negative
+  coverage, closure depths `0`–`6`, `catch_all`, nested conditionals/`let`
+  initializers, and collector deduplication.
+- A test-only uncached reference interpreter cross-checks complete findings
+  across `216` generated sources.
+- Deterministic CI gates (at chain sizes `8`, `16`, `32`, and `64`) assert:
+  - Expansion counts equal cache cardinalities.
+  - For a fixed environment and single-entry rule chain, `candidate + region`
+    expansions are at most `2 * group_count * index_state_count` (distinct
+    capture environments still require distinct states).
+  - A rule in one context visits no more candidates during publication than a
+    complete direct traversal.
+
+### Running benchmarks
 
 ```sh
 moon bench internal/rule/apply/recursive_bench_wbtest.mbt query/query_bench_test.mbt --target native --release
 moon bench internal/rule/apply/recursive_bench_wbtest.mbt query/query_bench_test.mbt --target wasm --release
 ```
 
-Timing is diagnostic; CI relies on state counts. See [BENCHMARKS.md](BENCHMARKS.md)
-for the measured comparison and memory methodology.
+Elapsed timings are diagnostic only; CI gates on deterministic state counts.
+See [BENCHMARKS.md](BENCHMARKS.md) for historical measurements and RSS
+methodology.

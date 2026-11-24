@@ -1,28 +1,19 @@
 ///|
-// CST structural matching used to try every pattern at every collected
-// expression. These buckets keep the same observable behavior while skipping
-// patterns whose root CST node kind cannot match the candidate expression.
+// Root-node bucketing for structural expression patterns.
 //
-// The optimization is deliberately conservative:
+// Instead of testing every compiled pattern at every candidate expression,
+// patterns are conservatively grouped by their semantic root CST kind:
 //
-// * Plain expression captures such as `$(x:exp)`, special whole-expression
-//   placeholders such as `__TARGET__` and `__SOURCE__`, and `$_` ignore
-//   placeholders can match many root constructors, so they go into the wildcard
-//   bucket.
-// * Identifier and constant root captures are precise enough to bucket as
-//   `Expr_Ident` and `Expr_Constant`.
-// * Literal structural patterns are bucketed by their semantic root node kind,
-//   for example `Expr_Apply`, `Expr_Infix`, or `Expr_Field`.
+// - Wildcard bucket: plain expression captures (`$(x:exp)`), special targets
+//   (`__TARGET__`, `__SOURCE__`), and ignore placeholders (`$_`).
+// - Keyed buckets: identifier (`Expr_Ident`), constant (`Expr_Constant`), and
+//   specific literal node kinds (`Expr_Apply`, `Expr_Infix`, `Expr_Field`, ...).
 //
-// Each bucket stores the original pattern index. When a candidate expression is
-// checked, wildcard patterns and the matching keyed bucket are merged by that
-// index before matching. This preserves rule semantics: the first matching
-// pattern in the YAML `patterns` array still wins and is reported as the same
-// `pattern_index`.
-//
-// Each recursive group has its own positive and negative buckets. Complete
-// shape/guard/then success determines priority; a failed child group permits
-// the next indexed positive entry to be tried.
+// Each entry retains its original YAML `pattern_index`. At lookup time, the
+// wildcard bucket and matching keyed bucket are merged by `pattern_index` so
+// first-match priority and reported indices stay identical to linear scanning.
+// Recursive groups each own separate positive and negative buckets; a failed
+// `then` child lets matching continue to the next positive entry.
 
 ///|
 priv struct IndexedCompiledRulePattern {

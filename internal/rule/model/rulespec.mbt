@@ -54,12 +54,13 @@ fn normalize_rule_pattern_shape(shape : String) -> String {
 }
 
 ///|
-/// How an `inside-toplevel` shape matches its top-level item.
+/// How an `inside-toplevel` shape matches its target top-level item.
 ///
-/// `Default` is resolved while compiling each alternative: function
-/// definitions use partial matching and all other top-level items use exact
-/// matching. `Exact` preserves full CST matching. `Partial` is supported only
-/// for function definitions.
+/// - `Default`: resolved per alternative during compilation (`Partial` for
+///   function definitions, `Exact` for all other top-level items).
+/// - `Exact`: compares every semantic CST field of the top-level item.
+/// - `Partial`: ignores omitted default function-header fields (supported only
+///   for function definitions).
 pub(all) enum InsideToplevelMatchMode {
   Default
   Exact
@@ -67,16 +68,16 @@ pub(all) enum InsideToplevelMatchMode {
 }
 
 ///|
-/// A single YAML pattern clause before it is parsed into a MoonBit CST.
+/// One raw YAML pattern clause prior to CST parsing and validation.
 ///
-/// `shape` must be a valid MoonBit expression, except in an
-/// `inside-toplevel` entry where it must be one top-level item. Inline
-/// `$(name:exp)`, `$(name:id)`,
-/// `$(name:const)`, `$(name:arg)`, `$(name:pat)`, and `$(name:type)`
-/// placeholders plus `$$$name` / `$$$(name:kind)` ordered-list ellipses are
-/// discovered during compilation. `guard`, when present, maps `$`-prefixed id
-/// or const capture names to regex strings. `match_mode` is configurable only
-/// on `inside-toplevel`; all other clauses store `Default`.
+/// - `shape`: one MoonBit expression (or one top-level item for
+///   `inside-toplevel`). Inline metavars (`$(name:kind)`, `$name`) and
+///   ordered-list ellipses (`$$$name`, `$$$(name:kind)`) are resolved during
+///   compilation.
+/// - `guards`: optional map from `$`-prefixed `id`/`const` capture names to
+///   regex strings.
+/// - `match_mode`: configurable only on `inside-toplevel` entries; other
+///   clauses always use `Default`.
 pub(all) struct RulePatternSpec {
   shape : String
   guards : Map[String, String]
@@ -84,48 +85,51 @@ pub(all) struct RulePatternSpec {
 }
 
 ///|
-/// How `patterns-not` is interpreted for structural rules.
+/// Semantics for `patterns-not` within a structural pattern group.
 ///
-/// `PruneOnNegative` means negative patterns prune only candidate branches after
-/// all positive patterns miss. `RejectUncoveredNegative` is derived for inside
-/// groups: positive subtrees
-/// cover negative matches, while uncovered negative matches reject the whole
-/// enclosing `then` group or `inside-toplevel` match.
+/// - `PruneOnNegative`: root-level negative matches prune only their candidate
+///   branch after all positive patterns fail.
+/// - `RejectUncoveredNegative`: inside `then` or `inside-toplevel`, positive
+///   matches cover their matched subtrees while any uncovered negative match
+///   rejects the enclosing group or context.
 pub(all) enum StructuralPatternsNotMode {
   PruneOnNegative
   RejectUncoveredNegative
 }
 
 ///|
-/// A positive structural clause, optionally constrained by a nested group.
+/// A positive structural clause, optionally constrained by a nested `then`
+/// group.
 pub(all) struct StructuralPatternSpec {
   pattern : RulePatternSpec
   then_body : StructuralPatternGroupSpec?
 }
 
 ///|
+/// An ordered set of positive and negative structural clauses evaluated at one
+/// nesting level.
 pub(all) struct StructuralPatternGroupSpec {
   patterns : Array[StructuralPatternSpec]
   patterns_not : Array[RulePatternSpec]
 }
 
 ///|
-/// Raw structural rule and its optional top-level context.
+/// Raw structural rule with optional `inside-toplevel` contexts.
 pub(all) struct StructuralRuleSpec {
   inside_toplevel : Array[RulePatternSpec]
   group : StructuralPatternGroupSpec
 }
 
 ///|
-/// Raw taint-rule definition loaded from YAML.
+/// Raw taint rule decoded from YAML.
 ///
-/// Sources introduce taint from matching call results. Sinks report tainted
-/// values at their `__SOURCE__` target. Sanitizers contribute no return taint
-/// and kill stored taint when `__SOURCE__` resolves to a storage path.
-/// All taint clauses must be call expressions. Source shapes must not contain
-/// `__SOURCE__`. Sink and sanitizer shapes must contain exactly one
-/// `__SOURCE__` placeholder, placed as the whole receiver or whole argument
-/// value.
+/// All clauses must parse as direct calls or method calls:
+/// - `sources`: mark matching call return values as tainted (must not contain
+///   `__SOURCE__`).
+/// - `sinks`: report tainted values at their single `__SOURCE__` receiver or
+///   argument.
+/// - `sanitizers`: produce clean return values and clear stored taint when
+///   their single `__SOURCE__` resolves to a storage path.
 pub(all) struct TaintRuleSpec {
   sources : Array[RulePatternSpec]
   sinks : Array[RulePatternSpec]

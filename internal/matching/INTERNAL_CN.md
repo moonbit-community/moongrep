@@ -1,183 +1,146 @@
 # matching 内部说明
 
-`internal/matching` 负责比较 CST 模式和管理捕获。以下说明供匹配器及其调用方的
-维护者修改这些行为时参考。
+`internal/matching` 负责将编译后的 CST 模式与 MoonBit 源码 CST 进行比较并管理
+元变量捕获。本文记录匹配器及其调用方维护者依赖的核心约定。
 
-## 匹配状态
+## 入口与匹配状态
 
-`match_expr_pattern` 会先把原始节点转换为 expression candidate，再委托给
-`match_expr_pattern_candidate`。candidate 入口会从一个新的
-`HashMap[String, BoundValue]` 开始。
-`match_expr_pattern_candidate_with_bindings` 会在匹配前复制调用方传入的 map。
-失败的匹配可能在这个本地副本里留下部分捕获。调用方的 map 保持不变。
+- `match_expr_pattern` 将原始节点包装为表达式候选并委托给
+  `match_expr_pattern_candidate`（使用全新的 `HashMap[String, BoundValue]`）。
+- `match_expr_pattern_candidate_with_bindings` 在匹配前复制调用方传入的绑定表；
+  失败尝试只会污染本地副本，调用方的原始表保持不变。
+- 两个入口对 `Direct(CstNode)` 和 `Sequence(ArrayView[CstNode])` 候选使用一致的
+  状态规则。成功返回的 `ExprMatch` 包含 `bindings` 及精确的 `loc`（sequence 的
+  `loc` 合并首尾语句，不含容器花括号）。
 
-`match_expr_pattern_candidate` 和
-`match_expr_pattern_candidate_with_bindings` 对 `Direct(CstNode)` 与
-`Sequence(ArrayView[CstNode])` 候选使用相同的状态规则。`ExprMatch` 只保存捕获
-`bindings` 和候选的精确 `loc`；sequence location 合并首尾语句，因此不包含容器花括号。
+### 回溯、索引与值驻留
 
-匹配器从左到右绑定普通节点。包含省略号的有序子节点列表使用局部回溯：每个候选
-长度都在绑定表副本上尝试，只有首个完整成功的分支会被提交。
-
-索引匹配与单节点匹配共用原子实现。`MatchContext` 同时保存捕获和可选的
-`TargetRef`。`TargetRef` 只保存选中的 region，需要词法作用域时通过 `SourceIndex`
-查询；绑定 `__TARGET__` 时直接记录原始源码引用。continuation 保留所属
-语句列表和起止位置，包含空尾部。省略号回溯一起提交或回滚捕获及目标，`then`
-失败不会重试另一种省略号划分。普通单节点匹配不需要建立搜索索引。
-
-普通规则和 Query 直接遍历 CST，不建立节点 ID、作用域或遍历缓存；sequence 和
-continuation 候选借用 `ArrayView`。递归规则及 `inside-toplevel` 规则使用
-`SourceIndex`，统一维护候选、函数体角色和不可变词法作用域。目标定位不再重新
-遍历子树比较源码范围。完整递归扫描保留旧 visitor 的返回及继续路径，包括重复
-发布相同位置的行为，这些路径共用缓存求值结果。直接遍历和索引的普通遍历保持
-相同的候选边界、顺序及剪枝行为。
-
-`ValueInterner` 严格沿用原子匹配器忽略位置的相等规则，保留 `Single` 和
-`Multiple` 的区别，哈希碰撞会继续比较完整键。公开捕获仍返回原始 CST。
+- 普通节点从左到右绑定。含省略号的有序子节点列表使用局部回溯：每个候选长度在绑定
+  表副本上尝试，仅提交首个完整成功的分支。
+- 索引匹配通过 `MatchContext`（捕获 + 可选 `TargetRef`）共用同一套原子匹配器。
+  `TargetRef` 只记录选中区域（或 continuation 语句列表及起止偏移，含空尾部），
+  词法作用域按需从 `SourceIndex` 查询。
+- 省略号回溯会一起提交或回滚捕获、标识符来源和 `TargetRef`。外层 `then` 失败
+  不会要求原子匹配器重试另一种省略号划分。
+- 独立匹配不建立 `SourceIndex`，因此 `query` 和污点调用匹配没有索引构建开销。
+- `ValueInterner` 严格遵循 `bound_value_equal`（包括规范化身份节点及 `Single`
+  与 `Multiple` 区分），哈希碰撞时比较完整键。规则环境借助驻留 ID 共享状态，
+  公开查询仍返回原始 CST 节点。
 
 ## 占位符分派
 
-匹配会先调用 `match_expr_placeholder`、`match_type_placeholder`、
-`match_pattern_placeholder` 和 `match_argument_placeholder` 这类占位符 matcher。如果其中一个返回
-`Some(true)` 或 `Some(false)`，就会跳过结构化 CST 比较。只有 `None`
-会继续落到普通的节点类型匹配。
+在回退到通用结构比较前，匹配器会先调用专用占位符匹配函数
+（`match_expr_placeholder`、`match_type_placeholder`、
+`match_pattern_placeholder`、`match_argument_placeholder`）。返回 `Some(true)`
+或 `Some(false)` 即短路；仅返回 `None` 时继续普通节点匹配。
 
-表达式位置里的占位符优先级如下：
+### 表达式位置的占位符优先级
 
-1. 完整且未限定的精确源码拼写 `$_` 是忽略占位符
-2. `CompiledExprPattern.metavars` 中注册的特殊表达式占位符（如
-   `__TARGET__` 和 `__SOURCE__`）会绑定整个表达式
-3. 声明过的 expression metavar 绑定整个表达式值
-4. 声明过的 identifier metavar 绑定规范化后的标识符字符串
-5. 声明过的 constant metavar 只绑定 `Expr_Constant`
-6. 未声明的名字是字面 CST 名称
+1. 完整且无限定的精确拼写 `$_` — 忽略占位符。
+2. `CompiledExprPattern.metavars` 中注册的特殊占位符（`__TARGET__`、
+   `__SOURCE__`）— 绑定整个表达式。
+3. 已声明的 `exp` 元变量 — 绑定整个表达式节点。
+4. 已声明的 `id` 元变量 — 绑定语义名称节点（按规范化标识符比较）。
+5. 已声明的 `const` 元变量 — 仅绑定 `Expr_Constant`。
+6. 其余名称 — 字面 CST 名称。
 
-所有源码拼写都通过已编译的 `MetavarRegistry` 解析。matcher 不会再从原始拼写
-推断 metavar kind。限定形式对命名 metavar 仍有意义，但 `@pkg.$_`、`Type::$_`
-和限定的匿名 ellipsis 拼写都不是 wildcard。
+所有拼写均通过已编译的 `MetavarRegistry` 解析，匹配器不会从原始文本推导类别。
+`@pkg.$_`、`Type::$_` 及带限定的匿名省略号都不是通配符。
 
-对于类型节点，一个包含已声明 type metavar payload 的简单 `Type_Name` 会绑定整个候选
-type 节点。
-重复的 type 捕获使用与其他 CST 节点捕获相同的忽略位置结构相等性。
+### 非表达式位置
 
-对 var、binder 和 label，只有忽略占位符和声明过的 identifier metavar 有特殊含义；其他名称都是字面量。对 pattern variable，`$(name:pat)` 会绑定整个候选 `Pattern` CST，声明过的 constant metavar 只匹配
-`Pattern_Constant`，声明过的 identifier metavar 捕获规范化后的 pattern 名称。
-`__TARGET__` 和 `__SOURCE__` 只在整个表达式位置有特殊含义。例如，未声明的
-`__x` 是字面量：只有完整且未限定的精确拼写 `$_` 本身才是忽略占位符。
+| 位置 | 特殊占位符 | 其他名称 |
+| --- | --- | --- |
+| 类型（`Type_Name`） | 已声明 `type` 元变量绑定完整候选 `Type` 节点 | 字面量 |
+| 变量、binder、label | `$_` 与已声明 `id` 元变量 | 字面量 |
+| Pattern 变量 | `$(name:pat)`（完整 `Pattern`）、已声明 `const`（`Pattern_Constant`）、已声明 `id`（规范化模式名）、`$_` | 字面量 |
 
-parser 会在重新词法分析 string / bytes 插值源码时透传 metavar 模式。因此
-`InterpSegment_Source` 已包含正确解析的 `expr` 子树，matcher 通过普通的 CST 递归
-匹配处理它。所有片段共享同一个 bindings，因此跨插值片段的重复捕获仍遵循正常的
-相等性语义。
+`__TARGET__` 和 `__SOURCE__` 仅在完整表达式位置有特殊含义；未声明的 `__x` 始终是
+字面量。
 
-## 绑定种类
+### 字符串与字节插值
 
-公开 `model` 包将 `BoundValue` 定义为 `Single(CstNode)` 或
-`Multiple(Array[CstNode])`。
+parser 在重新词法分析插值片段时会透传 metavar 模式，因此 `InterpSegment_Source`
+已带有解析好的 `expr` 子树。匹配器沿用同一绑定表递归匹配各片段，跨片段重复捕获的
+相等语义保持不变。
 
-expression、constant、argument、pattern、type 和 identifier metavar 通常使用
-`Single`。identifier 捕获保留候选中真实的语义名称 CST 节点；比较或执行 guard 时
-再做名称规范化。ellipsis metavar 使用 `Multiple`，并保留完整的有序 sibling 节点。
-continuation header 后的末尾有名 expression metavar 或特殊 target 也会保留展开的
-CST suffix：单语句 suffix 仍使用 `Single`，空或多语句 suffix 使用 `Multiple`。
-continuation owner header 后精确的末尾 `$_` 也匹配完整 suffix，但它仍然不绑定，
-不会产生 `BoundValue`。其他位置的 `$_` 只匹配一个表达式。
+## 绑定表示与相等性
 
-expression metavar 会捕获该位置上的候选表达式节点。重复使用时比较节点结构和 leaf
-值，并忽略源码位置。
+公开 `model.BoundValue` 定义为 `Single(CstNode)` 或 `Multiple(Array[CstNode])`。
 
-identifier metavar 会跨 expression、binder、label、constructor、accessor、
-type-name 和 qualified-name 节点规范化源码名称。即使两次出现使用不同 CST 名称 kind，
-重复绑定也按规范化后的拼写比较。
+- **普通元变量**（`exp`、`id`、`const`、`arg`、`pat`、`type`）：使用 `Single`。
+  标识符捕获保留候选真实的语义名称节点，比较或执行 guard 时再规范化。
+- **省略号元变量**：使用 `Multiple`，保留完整的有序 sibling 节点。
+- **Continuation 尾部**：在 continuation owner（`let`、`let mut`、局部函数、
+  `letrec`、`guard`、`defer`、`errdefer`）之后，末尾具名 `exp` 元变量或特殊
+  target 会保留展开的 CST suffix——单语句为 `Single`，空或多语句为 `Multiple`。
+  末尾精确 `$_` 吸收完整 suffix 且不产生绑定；其他位置的 `$_` 仅匹配单个表达式。
+- **构造器**：单个 `id` 元变量绑定完整构造器身份（表达式保留 `Expr_Constr`，
+  pattern 保留完整跨度语义名称节点），统一规范化 `@pkg.Ctor`、`Type::Ctor`、
+  `@pkg.Type::Ctor` 与 `@pkg.Type::@other.Ctor`。显式写出
+  `$(Type:id)::$(Ctor:id)` 时两部分独立绑定。
 
-在 constructor 位置，一个 identifier metavar 会绑定完整 constructor identity。
-expression constructor 保留真实的 `Expr_Constr` 节点；constructor pattern 保留真实、
-覆盖完整 identity span 的语义名称节点。两者都会规范化 `@pkg.Ctor`、
-`Type::Ctor`、`@pkg.Type::Ctor` 和 `@pkg.Type::@other.Ctor` 等形式。
-显式写成 `$(Type:id)::$(Ctor:id)` 时，两部分仍分别绑定。
+重复捕获相等性（`bound_value_equal`）：
 
-constant 占位符只接受常量表达式或常量 pattern 节点。pattern metavar 绑定完整
-pattern 节点。type metavar 绑定完整类型节点。重复的 constant、pattern 和 type
-捕获使用与所有其他绑定相同的语义 CST 相等性。
+- `Single` 仅与 `Single` 比较，`Multiple` 仅与 `Multiple` 比较，混合变体不相等。
+- `node_equal_ignoring_loc` 优先比较规范化身份节点。由 `pat` 捕获的完整构造器
+  pattern 不是身份节点，仍需匹配节点种类并递归比较语义子节点（含构造器参数）。
+  叶节点 payload 参与比较，源码位置从不进入比较视图。
 
-## 相等性忽略位置
+## 语义 CST 视图与遍历
 
-matcher 在比较重复的 expression、argument、pattern 和 type 捕获时会忽略源码位置。重复绑定比较由
-`bound_value_equal` 处理：`Single` 只和 `Single` 比较，`Multiple` 只和
-`Multiple` 比较，混合 variant 不相等。
+匹配基于 `@cst.semantic_children` 而非原始 `CstNode.children`：
 
-`node_equal_ignoring_loc` 会先比较规范化 identity 节点。由 `pat` 捕获的完整
-constructor pattern 不是 identity 节点，仍要求 kind 相同并递归比较包含 constructor
-参数在内的语义子节点视图。Leaf payload 仍有意义；位置从不进入这个视图。
+- 移除 `doc` 字段并过滤纯标点 token（`TK_EOF`、`TK_COMMENT`、分隔符等），使
+  docstring 在任意层级与模式下均不具语义。
+- 从 parser wrapper 中展开语义名称、常量、操作符、attribute、插值片段（使用
+  解析后的 `expr` 替代原始文本 payload）和 flag。
+- 忽略已包含在规范化名称中的冗余构造器限定元数据。
+- 展开 `Pattern_Group` 和 `Type_Group`。
+- 保留普通表达式块结构；但带标签 `body` 容器的块若只含单个 whole-body 表达式
+  占位符，可将候选块整体绑定给它（支持循环和函数上下文规则）。
 
-## 语义 CST 视图
+候选遍历（`internal/cst`）：
 
-matcher 不直接比较原始 `CstNode.children`。`@cst.semantic_children` 会移除
-`doc` 字段，并过滤 `TK_EOF`、`TK_COMMENT`、delimiter、separator 和其他纯标点对应的
-`Syntax_Token` 节点。因此，任何嵌套层级、任何匹配模式都把 docstring 视为
-无语义注释。该视图还会从 parser wrapper 中展开语义名称、常量、操作符、
-attribute、插值片段和 flag。插值源码的原始 payload 会被忽略，改用解析后的表达式。
-冗余的 constructor qualification 元数据会被忽略，因为规范化名称已经保留该
-identity。
+- 函数、方法、测试、lambda、局部函数和 `letrec` 函数体生成不含花括号的 `Sequence`
+  候选；显式嵌套块保持 `Direct(Expr_Block)` 且 `loc` 包含花括号。
+- 普通规则和 `query` 直接遍历 CST（不构建节点 ID、作用域或缓存），sequence 和
+  continuation 借用 `ArrayView`。递归规则与 `inside-toplevel` 规则共用
+  `SourceIndex`，一次记录候选、函数体角色与不可变词法作用域，不再按源码范围重扫
+  定位目标。
+- 索引匹配在 `BoundValue` 之外返回标识符来源；继承的 `id`（含带类别的 `id` 省略
+  号）仅在来源与使用均为词法变量时校验绑定，同 `shape` 内的新捕获维持原有相等规则。
+- sequence 仅接受完整多语句 `Expression` 或普通 `let`/`guard` 的省略 body 快捷
+  形式（`let mut`、局部函数、`letrec`、`defer`、`errdefer` 不享受该快捷形式）。
+  `proof_let` 不是 continuation owner，仍可独立匹配。
 
-之前树表示会消除的 `Pattern_Group` 和 `Type_Group` wrapper 会被展开。普通表达式块
-仍保留结构；但作为带标签 `body` 容器的 block 如果只包含一个 whole-body 表达式
-占位符，可以把候选 block 整体绑定给它。这保留了 loop 和 function-context 规则的
-多语句 body 捕获行为。
+## 精确性规则
 
-expression matching 之前先执行 `internal/cst/source_traversal.mbt` 中的候选遍历。函数、方法、测试、
-lambda、局部函数和 letrec body block 会生成不带花括号的 `Sequence` 候选，而不是
-直接 block 候选。显式嵌套 block 仍是 `Direct(Expr_Block)`，其匹配 location 包含
-花括号。
+- 大多数语义 CST 节点要求相同 `NodeKind`、相同语义子节点数量以及一致的 child
+  label 与顺序。
+- 参数种类和标签必须匹配（已声明标签占位符可捕获变化标签）。
+- 常量保留 parser 种类与源码拼写。
+- 操作符、名称、参数结构、attribute、flag、open/closed pattern 与 parser hole
+  （按 hole kind）均参与匹配；注释、格式、位置、分隔符和尾随标点被忽略。
+- 语义 CST 形状不同的等价代码不会匹配，除非由占位符吸收差异。
 
-indexed match 在 `BoundValue` 之外返回标识符捕获的来源信息。首次成功捕获
-记录源码角色和绑定；typed-id ellipsis 从每个完整列表项提取这些信息。继承
-捕获的每次出现仅在两侧都是词法变量时检查绑定。同一 shape 内的新捕获继续
-使用名称或结构相等规则。来源随捕获分支一起复制、提交和回滚，因此绑定
-不一致时可以继续尝试原子省略号的其他划分。
+## 维护清单
 
-sequence 只接受完整的多语句 `Expression` shape，或普通 `let` / `guard` 的
-omitted-continuation shortcut。普通 `let`、`let mut`、局部函数、`letrec`、`guard`、
-`defer` 或 `errdefer` header 后的末尾有名 expression metavar、特殊 target 或精确
-`$_` 会吸收完整的剩余 suffix；只有 `$_` 会丢弃该 suffix 而不绑定。
-`let mut`、局部函数、`letrec`、`defer` 和 `errdefer` 不使用
-omitted-continuation shortcut。这些 header 后存在语句时，遍历会生成 sequence
-suffix，而不会暴露 header-only direct 候选。`proof_let` 不是 continuation owner，
-仍可独立匹配。
-
-## 精确性
-
-大多数语义 CST 节点都要求 kind 相同、语义子节点列表长度相同。child label 和顺序
-都有意义。
-
-匹配遵循以下规则：
-
-- argument kind 必须匹配；label 也必须匹配，已声明的 label 占位符可以捕获变化的 label
-- 常量保留 parser kind 和源码拼写
-- 操作符、名称拼写、参数结构、attribute、flag 和 pattern 的 open/closed 结构有意义
-- 注释（包括 docstring）、格式、位置、delimiter 和尾随标点没有意义
-- parser hole 仍是字面 CST 节点，会按 hole kind 比较
-
-语义 CST 形状不同的等价代码不会匹配。占位符可以吸收形状差异。
-
-## 集成说明
-
-修改占位符行为时，要更新所有知道占位符名字的三个位置：
+修改占位符名称或行为时，须同步更新三处：
 
 - `internal/matching/matching.mbt`
 - `internal/rule/prefilter/prefilter.mbt`
-- `internal/rule/compile/compile.mbt` 中关于保留名字和受支持
-  `__TARGET__` / `__SOURCE__` 位置的校验
+- `internal/rule/compile/compile.mbt`（保留名及 `__TARGET__` / `__SOURCE__` 校验）
 
 新增 CST 节点支持时：
 
-1. 先确认 `match_node` 的通用 `structural_match` 回退是否已经能够处理该节点；只有
-   节点需要特殊匹配语义时，才新增或调整专用分派
-2. 必要时为子结构添加辅助 matcher
-3. 如果该节点可以被 metavar 绑定，更新重复捕获相等性
-4. 更新 prefilter 的字面量收集，保证规则可搜索
-5. 在 `internal/matching/matching_test.mbt` 添加聚焦测试
-6. 如果 compiled rule 行为发生变化，添加 `internal/rule/apply` 或 taint 集成测试
+1. 先确认 `match_node` 中的通用 `structural_match` 是否已覆盖，仅在需要专用语义时
+   新增分派。
+2. 按需补充子结构辅助匹配函数。
+3. 若该节点可被元变量绑定，更新重复捕获相等性。
+4. 更新 prefilter 的字面量收集以保持可搜索性。
+5. 在 `internal/matching/matching_test.mbt` 添加聚焦测试；若影响已编译规则行为，
+   补充 `internal/rule/apply` 或 taint 集成测试。
 
-修改匹配器后，运行 `moon test internal/matching/matching_test.mbt`。
-如果改动影响 YAML 规则行为，还需测试相关调用方包。
+改动匹配器后运行 `moon test internal/matching/matching_test.mbt`；涉及 YAML 规则
+行为时一并测试调用方包。

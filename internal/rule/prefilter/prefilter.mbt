@@ -20,6 +20,11 @@ pub fn prefilter_matches_source(
 }
 
 ///|
+/// Evaluates `prefilter` in disjunctive normal form (outer OR, inner AND) using
+/// a caller-supplied literal predicate.
+///
+/// Returns `true` conservatively when `prefilter.alternatives` is empty or
+/// contains an empty alternative.
 pub fn prefilter_matches_with_literal_matcher(
   prefilter : RulePrefilter,
   literal_matches : (String) -> Bool,
@@ -94,6 +99,8 @@ fn unique_literals(values : Array[String]) -> Array[String] {
 }
 
 ///|
+/// Builds a conservative source-text prefilter from a compiled structural or
+/// taint rule definition.
 pub fn compile_rule_prefilter(
   definition : CompiledRuleDefinition,
 ) -> RulePrefilter {

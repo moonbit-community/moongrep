@@ -17,6 +17,11 @@ priv suberror RuleApplyError {
 }
 
 ///|
+/// Runs all structural rules in `plan` against `node` and returns deduplicated
+/// findings in traversal order.
+///
+/// Uses direct CST traversal when `plan` has only plain structural rules, or a
+/// shared `ScanSession` when any rule uses `then` or `inside-toplevel`.
 pub fn apply_structural_scan_plan_to_node(
   file : String,
   node : @untyped_cst.CstNode,
@@ -96,6 +101,8 @@ fn apply_scan_session(
 }
 
 ///|
+/// Diagnostic reporting that taint analysis could not complete for a source
+/// range and one or more rules.
 pub(all) struct TaintDiagnostic {
   file : String
   loc : @basic.Location
@@ -104,17 +111,24 @@ pub(all) struct TaintDiagnostic {
 }
 
 ///|
+/// Combined findings and incomplete-analysis diagnostics produced by a taint
+/// scan over one top-level node.
 pub(all) struct TaintScanResult {
   findings : Array[RuleFinding]
   diagnostics : Array[TaintDiagnostic]
 }
 
 ///|
+/// Returns the rule IDs of all taint entries in `self`.
 pub fn ScanPlan::taint_rule_ids(self : ScanPlan) -> Array[String] {
   self.taint_entries.map(entry => entry.rule.rule_id)
 }
 
 ///|
+/// Prepares `node` once as a taint CFG and evaluates all taint rules in `plan`.
+///
+/// Returns immediately with empty results when `plan` contains no taint rules.
+/// Diagnostics sharing `(file, loc, reason)` are coalesced across rules.
 pub fn apply_taint_scan_plan_to_node(
   file : String,
   node : @untyped_cst.CstNode,

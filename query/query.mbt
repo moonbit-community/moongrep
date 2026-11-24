@@ -11,12 +11,17 @@ priv suberror QueryError {
 pub using @model {type BoundValue}
 
 ///|
+/// A compiled structural expression query with its source-text prefilter.
 struct ExprQuery {
   pattern : @matching.CompiledExprPattern
   prefilter : RulePrefilter
 }
 
 ///|
+/// Compiles a MoonBit expression pattern into a reusable structural query.
+///
+/// Raises an error if `pattern` is not a valid MoonBit expression or contains
+/// invalid metavariables or reserved placeholders.
 pub fn ExprQuery::ExprQuery(pattern : String) -> ExprQuery raise {
   let compiled = @rule_compile.compile_expr_pattern(pattern)
   {
@@ -26,6 +31,13 @@ pub fn ExprQuery::ExprQuery(pattern : String) -> ExprQuery raise {
 }
 
 ///|
+/// Parses `source` and returns the metavariable captures for each top-level
+/// structural match.
+///
+/// Uses the compiled prefilter to skip irrelevant sources and top-level items
+/// before CST traversal. Each match prunes its matched subtree before
+/// continuing with sibling expressions. Raises a parse error if `source`
+/// produces diagnostics or recovery nodes.
 pub fn ExprQuery::captures(
   self : ExprQuery,
   source_name~ : String,
@@ -59,6 +71,11 @@ pub fn ExprQuery::captures(
 }
 
 ///|
+/// Matches this query directly against an already-parsed CST node without
+/// running the source-text prefilter.
+///
+/// Each match prunes its matched subtree before continuing with sibling
+/// expressions.
 pub fn ExprQuery::captures_from_cst(
   self : ExprQuery,
   cst~ : @untyped_cst.CstNode,

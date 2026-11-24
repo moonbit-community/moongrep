@@ -1,4 +1,6 @@
 ///|
+/// Executes a `dump --impl` or `dump --expr` command and returns its rendered
+/// stdout text (or an empty string when `--exit-code` is enabled).
 pub fn render_dump_command(command : CliCommand) -> String raise {
   match command {
     DumpImpl(source~, strict_check~, exit_code~, output_json~) =>

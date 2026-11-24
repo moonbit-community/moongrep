@@ -1,6 +1,9 @@
 ///|
-/// Analyze a graph prepared once and shared by all rules. Transfers must be
-/// deterministic and have no external side effects.
+/// Solves taint propagation for a pre-validated `PreparedFunction` under one
+/// `TaintSpec`.
+///
+/// Call transfers supplied by `spec` must be deterministic and free of external
+/// side effects, since they may run repeatedly during SCC fixpoint iteration.
 pub fn analyze(
   prepared : @cfg.PreparedFunction,
   spec : TaintSpec,

@@ -1,5 +1,5 @@
 ///|
-/// One possible call completion, including its own storage effects.
+/// Return value and storage writes produced by one call completion path.
 #derive(Eq, Debug)
 pub(all) struct CallOutcome {
   value : TaintValue
@@ -7,6 +7,7 @@ pub(all) struct CallOutcome {
 }
 
 ///|
+/// A post-call mutation applied to a resolved storage path.
 #derive(Eq, Debug)
 pub(all) enum StorageWrite {
   Set(StoragePath, TaintValue)
@@ -14,7 +15,9 @@ pub(all) enum StorageWrite {
 }
 
 ///|
-/// None means that completion is impossible. Unknown calls never raise.
+/// Normal and exceptional outcomes produced by modeling one call site.
+///
+/// `None` marks an impossible completion path; unknown calls never raise.
 #derive(Eq, Debug)
 pub(all) struct CallTransfer {
   normal : CallOutcome?
@@ -23,6 +26,8 @@ pub(all) struct CallTransfer {
 }
 
 ///|
+/// Constructs a normal-only `CallTransfer` with optional sanitized paths and
+/// sink findings.
 pub fn CallTransfer::normal(
   value : TaintValue,
   killed_paths~ : Array[StoragePath] = [],
@@ -36,11 +41,12 @@ pub fn CallTransfer::normal(
 }
 
 ///|
-/// Fallback behavior for calls that do not match any source or call model.
+/// Fallback behavior for calls that match no custom transfer, source, or call
+/// model.
 ///
-/// `NoEffect` treats unknown calls as returning untainted values.
-/// `PropagateArgumentsToReturn` returns the union of receiver and argument
-/// taint.
+/// - `NoEffect`: returns a clean value.
+/// - `PropagateArgumentsToReturn`: joins receiver and argument taint into the
+///   return value.
 #derive(Eq, Debug)
 pub(all) enum UnknownCallPolicy {
   NoEffect
@@ -48,13 +54,12 @@ pub(all) enum UnknownCallPolicy {
 }
 
 ///|
-/// A rule-level source of taint.
+/// A rule-level taint source.
 ///
-/// `EntryPath` marks a parameter or modeled subpath as tainted when the root is
-/// a named function parameter. Path segments are not validated against type or
-/// field declarations.
-/// `CallReturn` marks matching call results as fresh sources. Its path is
-/// relative to the call return value; `[]` taints the return value itself.
+/// - `EntryPath`: taints a named function parameter (or relative subpath) at
+///   function entry; segments are not checked against type declarations.
+/// - `CallReturn`: introduces fresh taint on matching call return values at a
+///   relative path (`[]` taints the return value itself).
 #derive(Eq, Debug)
 pub(all) enum SourceModel {
   EntryPath(ParameterPath, String, String?)
@@ -62,27 +67,27 @@ pub(all) enum SourceModel {
 }
 
 ///|
-/// Selects calls for source and transfer models.
+/// Predicate selecting calls for declarative sources and call models.
 ///
-/// `CalleeName` matches any normalized `callee_name`, including direct calls,
-/// method calls, pipes, and reverse-pipes when a callee name is available.
-/// `MethodName` matches method calls and pipe calls whose normalized
-/// `callee_name` matches; it does not match reverse-pipe calls.
-/// `AnyCall` matches every call.
+/// - `CalleeName`: matches normalized `callee_name` across direct, method,
+///   pipe, and reverse-pipe calls.
+/// - `CalleeBinding`: matches a resolved local or parameter target, preserving
+///   lexical shadowing.
+/// - `MethodName`: matches method and pipe calls by normalized `callee_name`
+///   (excludes reverse-pipe calls).
+/// - `AnyCall`: matches every call.
 #derive(Eq, Debug)
 pub(all) enum CallMatcher {
   CalleeName(String)
-  /// Select a resolved local or parameter call target, including shadowing.
   CalleeBinding(BindingId)
   MethodName(String)
   AnyCall
 }
 
 ///|
-/// A declarative model for calls outside the current function body.
+/// Declarative transfer model for calls outside the analyzed function body.
 ///
-/// All matching call models are applied in array order; matching is not
-/// first-match.
+/// Every matching model runs in array order (not first-match).
 #derive(Eq, Debug)
 pub(all) struct CallModel {
   matcher : CallMatcher
@@ -90,19 +95,21 @@ pub(all) struct CallModel {
 }
 
 ///|
-/// Transfer effects applied when a call model matches.
+/// Individual taint effect applied when a `CallModel` matches.
 ///
-/// Effects can introduce fresh return taint, propagate argument or receiver
-/// taint to the return value, kill storage paths, or report sink findings.
-/// `ReturnFreshSource` paths are relative to the call return value; `[]` taints
-/// the return value itself. `PropagateArgSubpathToReturn` projects the selected
-/// argument subpath and returns it with that prefix stripped. `KillArg` and
-/// `KillReceiver` remove taint only from post-call storage when the selected
-/// value has a storage path; they do not rewrite already evaluated
-/// argument/receiver taint used by other effects on the same call.
-/// Sink identifiers are passed through unchanged. Generic models should use
-/// `SinkId::Named`; `SinkId::PatternIndex` is reserved for ordered rule
-/// patterns.
+/// - `ReturnFreshSource`: taints the return value at a relative path (`[]` for
+///   the return value itself).
+/// - `PropagateArgToReturn` / `PropagateReceiverToReturn`: flows argument or
+///   receiver taint into the return value.
+/// - `PropagateArgSubpathToReturn`: projects an argument subpath and returns
+///   it with that prefix stripped.
+/// - `KillArg` / `KillReceiver`: sanitizes post-call storage when the target
+///   has a `StoragePath` (does not alter pre-evaluated snapshots seen by other
+///   effects on the same call).
+/// - `ReportSinkArg` / `ReportSinkReceiver`: emits a sink finding with the
+///   given `SinkId` (`Named` for generic models; `PatternIndex` for YAML rules).
+/// - `RaiseArg`: adds an exceptional completion carrying this argument's taint.
+/// - `NoReturn`: marks normal completion impossible.
 #derive(Eq, Debug)
 pub(all) enum CallEffect {
   ReturnFreshSource(String, String?, Array[PathSegment])
@@ -113,22 +120,21 @@ pub(all) enum CallEffect {
   KillReceiver
   ReportSinkArg(SinkId, Int32)
   ReportSinkReceiver(SinkId)
-  /// Add an exceptional completion with taint propagated from this argument.
   RaiseArg(Int32)
-  /// Make the normal completion impossible.
   NoReturn
 }
 
 ///|
-/// Complete taint-analysis configuration for one rule.
+/// Complete taint configuration for one rule.
 ///
-/// `bind_call` runs once on static metadata and returns a pure transfer.
-/// The transfer has first chance to model each call. When it returns
-/// `Some`, declared sources, call models, and `unknown_call_policy` are skipped
-/// for that call. Otherwise all matching `CallReturn` sources and `CallModel`s
-/// are applied in array order and their effects are merged. `unknown_call_policy`
-/// only applies after custom transfer, sources, and call models do not match.
-/// Static metadata has clean taint; actual values are transfer snapshots.
+/// Resolution order at each call site:
+/// 1. `bind_call` runs once on static metadata (with clean taint) and returns a
+///    pure transfer closure invoked on evaluated `CallInfo` snapshots.
+/// 2. If the transfer returns `Some`, declarative sources, `call_models`, and
+///    `unknown_call_policy` are skipped.
+/// 3. Otherwise, all matching `CallReturn` sources and `call_models` run in
+///    array order and merge their effects.
+/// 4. If nothing matched, `unknown_call_policy` applies.
 pub(all) struct TaintSpec {
   rule_id : String
   sources : Array[SourceModel]
