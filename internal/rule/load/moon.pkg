@@ -2,7 +2,7 @@ import {
   "moonbit-community/moongrep/internal/fs_walk",
   "moonbit-community/moongrep/internal/rule/model",
   "moonbitlang/core/async/fs",
-  "moonbitlang/x/path",
+  "moonbitlang/core/path",
 }
 
 import {
