@@ -20,14 +20,14 @@ async fn scan_path_once(
   visited : @fs_walk.VisitedDirectories,
 ) -> Unit {
   let kind = @fs.kind(path) catch {
-    @os_error.OSError(_) as err =>
+    @os_error.OsError(_) as err =>
       raise new_scan_input_os_error(path, "access scan path", err)
     err => raise new_scan_input_error(path, "access scan path", "\{err}")
   }
   match kind {
     Directory => {
       let should_enter = visited.should_enter(path) catch {
-        @os_error.OSError(_) as err =>
+        @os_error.OsError(_) as err =>
           raise new_scan_input_os_error(path, "resolve scan directory", err)
         err =>
           raise new_scan_input_error(path, "resolve scan directory", "\{err}")
@@ -38,7 +38,7 @@ async fn scan_path_once(
       }
       emit_scan_trace(verbose, receive, DirectoryEntered(path))
       let entries = @fs.readdir(path, sort=true) catch {
-        @os_error.OSError(_) as err =>
+        @os_error.OsError(_) as err =>
           raise new_scan_input_os_error(path, "read scan directory", err)
         err => raise new_scan_input_error(path, "read scan directory", "\{err}")
       }
@@ -75,8 +75,9 @@ async fn emit_scan_trace(
 
 ///|
 async fn read_text_file(path : String) -> String {
-  @fs.read_file(path).text() catch {
-    @os_error.OSError(_) as err =>
+  @fs.read_text(path) catch {
+    (@os_error.OsError(_) as err)
+    | @io.ReaderError::TransportError(@os_error.OsError(_) as err, ..) =>
       raise new_scan_input_os_error(path, "read source file", err)
     err => raise new_scan_input_error(path, "read source file", "\{err}")
   }

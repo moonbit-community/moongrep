@@ -2,9 +2,9 @@
 async fn write_raw_cli_stdout(output : String) -> Unit {
   if output != "" {
     if output.strip_suffix("\n") is Some(_) {
-      @stdio.stdout.write(output)
+      @stdio.stdout.text.write(output)
     } else {
-      @stdio.stdout.write(output + "\n")
+      @stdio.stdout.text.write(output + "\n")
     }
   }
 }
@@ -13,26 +13,27 @@ async fn write_raw_cli_stdout(output : String) -> Unit {
 async fn write_raw_cli_stderr(output : String) -> Unit {
   if output != "" {
     if output.strip_suffix("\n") is Some(_) {
-      @stdio.stderr.write(output)
+      @stdio.stderr.text.write(output)
     } else {
-      @stdio.stderr.write(output + "\n")
+      @stdio.stderr.text.write(output + "\n")
     }
   }
 }
 
 ///|
-#warnings("-alert_internal")
-fn cli_errno_reason(errno : Int32) -> String {
-  @os_error.errno_to_string(errno)
+fn cli_os_error_reason(error : @os_error.OsError) -> String {
+  let @os_error.OsError(_, context~, ..) = error
+  let message = error.to_string()
+  message.strip_prefix("\{context}: ").unwrap_or(message[:]).to_owned()
 }
 
 ///|
 async fn write_cli_stdout(output : String) -> Unit {
   write_raw_cli_stdout(output) catch {
-    @os_error.OSError(errno, ..) =>
+    @io.WriterError::TransportError(@os_error.OsError(_) as err, ..) =>
       raise @cli.CliError::output_error(
         "standard output",
-        cli_errno_reason(errno),
+        cli_os_error_reason(err),
       )
     err => raise err
   }
@@ -43,7 +44,7 @@ async fn exit_with_cli_error(error : @cli.CliError, output_json : Bool) -> Unit 
   let exit_code = error.exit_code()
   let rendered = if output_json { error.render_json() } else { "\{error}" }
   write_raw_cli_stderr(rendered) catch {
-    @os_error.OSError(_) => @env.exit(7)
+    @io.WriterError::TransportError(_) => @env.exit(7)
     err => raise err
   }
   @env.exit(exit_code)

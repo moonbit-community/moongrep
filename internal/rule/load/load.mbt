@@ -99,7 +99,7 @@ async fn walk_rule_dir(
 
 ///|
 async fn read_text_file(path : String) -> String {
-  @fs.read_file(path).text()
+  @fs.read_text(path)
 }
 
 ///|

@@ -61,7 +61,7 @@ async fn scan_events(
     CliError::Output(..) as err => raise err
     CliError::ScanInput(..) as err => raise err
     CliError::Internal(..) as err => raise err
-    @os_error.OSError(_) as err =>
+    @os_error.OsError(_) as err =>
       raise new_scan_input_os_error(scan_root, "access scan input", err)
     err => raise new_internal_error("scan failed: \{err}")
   }

@@ -500,7 +500,13 @@ fn windows_rule_id_from_path(
   rules_root : String,
   id : String,
 ) -> String raise {
-  let relative = @path.Path::relative(path, base=rules_root).to_string()
+  let relative = @path.Path::relative(path, base=rules_root).to_string() catch {
+    @path.ResolveError::CurrentDirectoryUnavailable =>
+      raise invalid_rule(
+        path~,
+        info="cannot determine current working directory",
+      )
+  }
   if @path.Path::is_absolute(relative) ||
     relative == ".." ||
     relative.has_prefix("..\\") {
