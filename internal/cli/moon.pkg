@@ -9,9 +9,10 @@ import {
   "moonbit-community/moongrep/internal/rule/load" @rule_load,
   "moonbit-community/moongrep/internal/rule/model" @rule_model,
   "moonbit-community/yaml",
-  "moonbitlang/async/fs",
-  "moonbitlang/async/os_error",
-  "moonbitlang/async/stdio",
+  "moonbitlang/core/async/fs",
+  "moonbitlang/core/async/io",
+  "moonbitlang/core/async/os_error",
+  "moonbitlang/core/async/stdio",
   "moonbitlang/core/argparse",
   "moonbitlang/lexer/basic",
   "moonbitlang/parser/untyped_cst",
@@ -20,7 +21,7 @@ import {
 }
 
 import {
-  "moonbitlang/async",
+  "moonbitlang/core/async",
   "moonbitlang/core/json",
 } for "wbtest"
 

@@ -52,9 +52,9 @@ async test "load rule directory normalizes traversal paths and keeps slash ids" 
 ///|
 async test "load rule directory skips a symlink cycle" {
   let rules_root = @fs.tmpdir(prefix="moongrep-rule-cycle")
-  defer @fs.rmdir(rules_root, recursive=true)
+  defer @fs.remove(rules_root, recursive=true)
   let rule_path = @path.Path::join(rules_root, "example.yaml").to_string()
-  @fs.write_file(
+  @fs.write_text(
     rule_path,
     (
       #|id: example

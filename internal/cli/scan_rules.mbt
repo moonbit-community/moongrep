@@ -81,7 +81,8 @@ async fn load_rule_directory(
       raise new_rule_load_error(err)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
       raise new_rule_load_error(err)
-    @os_error.OSError(_) as err =>
+    (@os_error.OsError(_) as err)
+    | @io.ReaderError::TransportError(@os_error.OsError(_) as err, ..) =>
       raise new_rule_source_os_error(rules_root, "read rule directory", err)
     err =>
       raise new_internal_error(
@@ -99,7 +100,8 @@ async fn load_rule_file(rule_file : String) -> @rule_model.RawRuleSpec {
       raise new_rule_load_error(err)
     @rule_model.RuleLoadError::InvalidRule(..) as err =>
       raise new_rule_load_error(err)
-    @os_error.OSError(_) as err =>
+    (@os_error.OsError(_) as err)
+    | @io.ReaderError::TransportError(@os_error.OsError(_) as err, ..) =>
       raise new_rule_source_os_error(rule_file, "read rule file", err)
     err =>
       raise new_internal_error("could not load rule file \{rule_file}: \{err}")

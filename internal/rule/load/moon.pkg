@@ -1,12 +1,12 @@
 import {
   "moonbit-community/moongrep/internal/fs_walk",
   "moonbit-community/moongrep/internal/rule/model",
-  "moonbitlang/async/fs",
+  "moonbitlang/core/async/fs",
   "moonbitlang/x/path",
 }
 
 import {
-  "moonbitlang/async",
+  "moonbitlang/core/async",
 } for "test"
 
 supported_targets = "+wasm+native"

@@ -9,7 +9,6 @@ import {
   "moonbit-community/yaml@0.0.10",
   "moonbit-community/chalk@0.0.1",
   "moonbitlang/lexer@0.4.4",
-  "moonbitlang/async@0.22.9",
   "moonbitlang/x@0.5.9",
 }
 

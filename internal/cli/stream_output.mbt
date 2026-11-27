@@ -34,8 +34,8 @@ pub async fn run_lint_command(options : CliOptions) -> Unit {
 
 ///|
 async fn write_scan_stdout(output : String) -> Unit {
-  @stdio.stdout.write(output) catch {
-    @os_error.OSError(_) as err =>
+  @stdio.stdout.text.write(output) catch {
+    @io.WriterError::TransportError(@os_error.OsError(_) as err, ..) =>
       raise new_output_os_error("standard output", err)
     err => raise err
   }
@@ -43,8 +43,8 @@ async fn write_scan_stdout(output : String) -> Unit {
 
 ///|
 async fn write_scan_stderr(output : String) -> Unit {
-  @stdio.stderr.write(output) catch {
-    @os_error.OSError(_) as err =>
+  @stdio.stderr.text.write(output) catch {
+    @io.WriterError::TransportError(@os_error.OsError(_) as err, ..) =>
       raise new_output_os_error("standard error", err)
     err => raise err
   }

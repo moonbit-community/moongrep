@@ -54,7 +54,7 @@ async test "matched source line prefix is not dimmed" {
   let arr = [5, 6, 7]
   for i, value in arr {
     if value == 0 {
-      @stdio.stdout.write("\{i}\n")
+      @stdio.stdout.text.write("\{i}\n")
     }
   }
 }

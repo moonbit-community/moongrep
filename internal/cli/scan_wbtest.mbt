@@ -515,9 +515,9 @@ async test "scan excludes configured file and directory entries" {
 ///|
 async test "scan skips a symlink cycle" {
   let scan_root = @fs.tmpdir(prefix="moongrep-scan-cycle")
-  defer @fs.rmdir(scan_root, recursive=true)
+  defer @fs.remove(scan_root, recursive=true)
   let source_path = join_scan_path(scan_root, "hit.mbt")
-  @fs.write_file(
+  @fs.write_text(
     source_path,
     (
       #|///|

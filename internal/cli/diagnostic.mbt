@@ -179,10 +179,10 @@ fn yaml_location_reason(mark : @yaml.Marker, info : String) -> String {
 }
 
 ///|
-#warnings("-alert_internal")
-fn os_error_reason(error : @os_error.OSError) -> String {
-  let OSError(errno, ..) = error
-  @os_error.errno_to_string(errno)
+fn os_error_reason(error : @os_error.OsError) -> String {
+  let @os_error.OsError(_, context~, ..) = error
+  let message = error.to_string()
+  message.strip_prefix("\{context}: ").unwrap_or(message[:]).to_owned()
 }
 
 ///|
@@ -414,7 +414,7 @@ fn new_compiled_rule_error(
 fn new_rule_source_os_error(
   path : String,
   operation : String,
-  error : @os_error.OSError,
+  error : @os_error.OsError,
 ) -> CliError {
   RuleSource(
     diagnostic=new_cli_diagnostic(
@@ -446,7 +446,7 @@ fn new_scan_input_error(
 fn new_scan_input_os_error(
   path : String,
   operation : String,
-  error : @os_error.OSError,
+  error : @os_error.OsError,
 ) -> CliError {
   new_scan_input_error(path, operation, os_error_reason(error))
 }
@@ -475,7 +475,7 @@ pub fn CliError::output_error(
 ///|
 fn new_output_os_error(
   destination : String,
-  error : @os_error.OSError,
+  error : @os_error.OsError,
 ) -> CliError {
   new_output_error(destination, os_error_reason(error))
 }
