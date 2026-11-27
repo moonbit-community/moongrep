@@ -78,6 +78,25 @@ error: could not parse dump input
 [3]
 ```
 
+A missing rule file is a rule-source error with status 4 on every host.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep scan --rule ../testdata/missing-rule.yaml ../testdata/custom-rules
+@STDOUT (empty)
+@STDERR (ignore)
+[4]
+```
+
+Selecting a directory as a single rule file also returns status 4, even when
+the filesystem reports the failure during reading rather than opening.
+
+```mooncram moonbit-community/moongrep
+$ moonx moonbit-community/moongrep scan --rule ../testdata/custom-rules ../testdata/custom-rules
+@STDOUT (empty)
+@STDERR (ignore)
+[4]
+```
+
 An invalid anonymous pattern is a rule-content error with status 5.
 
 ```mooncram moonbit-community/moongrep

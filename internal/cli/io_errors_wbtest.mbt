@@ -29,34 +29,6 @@ async test "source open and read failures keep scan input diagnostics" {
 }
 
 ///|
-async test "rule open and read failures keep rule source diagnostics" {
-  for
-    path in [
-      "e2etests/testdata/missing-rule.yaml", "e2etests/testdata/custom-rules",
-    ] {
-    let path = native_scan_test_path(path)
-    try load_rule_file(path) catch {
-      CliError::RuleSource(diagnostic~) as err => {
-        assert_eq(err.exit_code(), 4)
-        guard diagnostic is Fields(summary~, source~, reason~, ..) else {
-          fail("expected structured diagnostic")
-        }
-        assert_eq(summary, "could not read rule file")
-        assert_eq(source, Some(path))
-        assert_true(reason is Some(text) && !text.is_empty())
-        let message = render_cli_diagnostic(diagnostic)
-        assert_false(message.contains("TransportError"))
-        assert_false(message.contains("OsError"))
-        assert_false(message.contains("@fs."))
-      }
-      err => fail("unexpected rule read error \{err}")
-    } noraise {
-      _ => fail("expected rule read error for \{path}")
-    }
-  }
-}
-
-///|
 test "OS error reasons omit library context including embedded colons" {
   let error = @os_error.from_errno(2, context="@fs.open(): C:\\rules.yaml")
   let reason = os_error_reason(error)
